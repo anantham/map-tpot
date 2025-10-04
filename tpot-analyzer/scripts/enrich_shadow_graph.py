@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List
 
 import logging
+import logging.handlers
 
 LOGGER = logging.getLogger(__name__)
 
@@ -154,10 +155,31 @@ def main() -> None:
     else:
         log_level = getattr(logging, args.log_level.upper(), logging.INFO)
 
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s" if not args.quiet else "%(levelname)s: %(message)s",
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "enrichment.log"
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+
+    log_format = (
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+        if not args.quiet
+        else "%(levelname)s: %(message)s"
     )
+    formatter = logging.Formatter(log_format)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
+    # Rotating file handler
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=5 * 1024 * 1024, backupCount=5  # 5MB per file
+    )
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
     cache_settings = get_cache_settings()
     bearer = args.bearer_token or os.getenv("X_BEARER_TOKEN")
 
