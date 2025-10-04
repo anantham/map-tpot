@@ -38,3 +38,6 @@ out/
 *.local
 Thumbs.db
 
+# Project-specific
+community-archive/
+context/
