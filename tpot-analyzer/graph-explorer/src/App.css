@@ -21,29 +21,57 @@ body {
 .control-panel {
   position: relative;
   width: 360px;
+  flex-shrink: 0;
   background: rgba(15, 23, 42, 0.96);
   border-right: 1px solid rgba(148, 163, 184, 0.2);
   color: #f8fafc;
-  transition: width 0.25s ease, transform 0.25s ease;
-  overflow: hidden;
+  transition: width 0.25s ease;
+  overflow: visible;
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
 }
 
 .control-panel.collapsed {
-  width: 32px;
+  width: 0;
 }
 
-.collapse-btn {
+.panel-handle {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 50%;
+  right: -22px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: none;
-  background: rgba(30, 41, 59, 0.8);
-  color: #f8fafc;
-  border-radius: 999px;
-  width: 28px;
-  height: 28px;
+  border-radius: 16px 16px 0 0;
+  padding: 14px 12px;
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.95) 0%, rgba(45, 212, 191, 0.9) 100%);
+  color: #0f172a;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   cursor: pointer;
-  z-index: 2;
+  writing-mode: vertical-rl;
+  text-transform: uppercase;
+  box-shadow: 0 20px 45px rgba(14, 165, 233, 0.45);
+}
+
+.panel-handle:hover {
+  box-shadow: 0 24px 55px rgba(14, 165, 233, 0.55);
+}
+
+.panel-handle.collapsed {
+  right: -48px;
+  border-radius: 0 16px 16px 0;
+}
+
+.panel-handle .handle-label {
+  font-size: 0.75rem;
+}
+
+.panel-handle .handle-icon {
+  font-size: 1rem;
 }
 
 .panel-content {
@@ -158,15 +186,19 @@ select {
 }
 
 .legend-color.seed {
-  background: #facc15;
+  background: #fde68a;
 }
 
 .legend-color.selected {
-  background: #f471b5;
+  background: #f472b6;
 }
 
 .legend-color.neighbor {
-  background: #22d3ee;
+  background: #5eead4;
+}
+
+.legend-color.shadow {
+  background: #94a3b8;
 }
 
 .top-list,

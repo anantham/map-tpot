@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "refresh-data": "node scripts/refresh-data.mjs"
+    "refresh-data": "node scripts/refresh-data.mjs",
+    "enrich-shadow": "cd .. && python -m scripts.enrich_shadow_graph --cookies ./secrets/twitter_cookies.pkl --include-following"
   },
   "dependencies": {
     "react": "^19.1.1",

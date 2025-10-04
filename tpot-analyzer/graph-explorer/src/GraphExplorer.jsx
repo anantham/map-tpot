@@ -31,6 +31,20 @@ const DEFAULT_PRESETS = {
   ]
 };
 
+const COLORS = {
+  baseNode: "#a5b4fc",
+  seedNode: "#fde68a",
+  selectedNode: "#f472b6",
+  neighborNode: "#5eead4",
+  shadowNode: "#94a3b8",
+  mutualEdge: "rgba(224, 242, 254, 0.92)",
+  oneWayEdge: "rgba(125, 211, 252, 0.7)",
+  selectedEdge: "#fb923c",
+  neighborEdge: "#facc15"
+};
+
+const EMPTY_METRICS = Object.freeze({});
+
 const normalizeScores = (scores = {}) => {
   const entries = Object.entries(scores).map(([key, value]) => [key, value ?? 0]);
   if (!entries.length) return {};
@@ -65,8 +79,13 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const [seedTextarea, setSeedTextarea] = useState("");
   const [customSeeds, setCustomSeeds] = useState([]);
   const [presetName, setPresetName] = useState("Adi's Seeds");
+  const [includeShadows, setIncludeShadows] = useState(true);
 
   const graphRef = useRef(null);
+
+  useEffect(() => {
+    console.debug("[GraphExplorer] control panel open:", panelOpen);
+  }, [panelOpen]);
 
   const resolvedSeeds = useMemo(() => {
     const seedSet = toLowerSet(data?.seeds);
@@ -78,7 +97,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const customSeedSet = useMemo(() => toLowerSet(customSeeds), [customSeeds]);
   const effectiveSeedSet = useMemo(() => new Set([...resolvedSeeds, ...customSeedSet]), [resolvedSeeds, customSeedSet]);
 
-  const metrics = data?.metrics || {};
+  const metrics = data?.metrics ?? EMPTY_METRICS;
 
   const compositeScores = useMemo(() => {
     if (!metrics) return {};
@@ -102,39 +121,219 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     }, {});
   }, [metrics, weights]);
 
-  const graphData = useMemo(() => {
-    if (!data) return { nodes: [], links: [] };
+  const { graphData, graphStats } = useMemo(() => {
+    if (!data) {
+      return {
+        graphData: { nodes: [], links: [] },
+        graphStats: {
+          totalNodes: 0,
+          totalDirectedEdges: 0,
+          totalUndirectedEdges: 0,
+          mutualEdgeCount: 0,
+          visibleEdges: 0,
+          visibleMutualEdges: 0,
+          visibleShadowNodes: 0,
+          visibleShadowEdges: 0
+        }
+      };
+    }
+
     const nodesMeta = data.graph?.nodes || {};
     const edges = data.graph?.edges || [];
-    const nodeIds = Object.keys(compositeScores);
-    return {
-      nodes: nodeIds.map((id) => {
-        const meta = nodesMeta[id] || {};
-        const username = meta.username?.toLowerCase();
-        const idLower = id.toLowerCase();
-        const isSeed =
-          effectiveSeedSet.has(idLower) ||
-          (username && effectiveSeedSet.has(username));
-        return {
-          id,
-          idLower,
-          val: (compositeScores[id] ?? 0) * 24 + 6,
-          community: metrics.communities?.[id],
-          pagerank: metrics.pagerank?.[id],
-          betweenness: metrics.betweenness?.[id],
-          engagement: metrics.engagement?.[id],
-          isSeed,
-          neighbors: [],
-          ...meta
-        };
-      }),
-      links: edges.map((edge) => ({
-        source: edge.source,
-        target: edge.target,
-        mutual: edge.mutual
-      }))
+    const canonicalId = (value) => {
+      if (value && typeof value === "object") {
+        if (value.id !== undefined && value.id !== null) {
+          return String(value.id);
+        }
+        return "";
+      }
+      if (value === undefined || value === null) return "";
+      return String(value);
     };
-  }, [data, compositeScores, effectiveSeedSet, metrics]);
+
+    const isSeedId = (rawId) => {
+      const canonical = canonicalId(rawId);
+      if (!canonical) return false;
+      const canonicalLower = canonical.toLowerCase();
+      if (effectiveSeedSet.has(canonicalLower)) return true;
+      const meta = nodesMeta[canonical];
+      if (meta?.username) {
+        const handleLower = String(meta.username).toLowerCase();
+        if (effectiveSeedSet.has(handleLower)) return true;
+      }
+      return false;
+    };
+
+    const mutualAdjacency = new Map();
+    const mutualCounts = new Map();
+    const seedTouchCounts = new Map();
+    let mutualEdgeCount = 0;
+
+    edges.forEach((edge) => {
+      const source = canonicalId(edge.source);
+      const target = canonicalId(edge.target);
+      if (!source || !target) return;
+      if (edge.mutual) {
+        mutualEdgeCount += 1;
+        if (!mutualAdjacency.has(source)) mutualAdjacency.set(source, new Set());
+        if (!mutualAdjacency.has(target)) mutualAdjacency.set(target, new Set());
+        mutualAdjacency.get(source).add(target);
+        mutualAdjacency.get(target).add(source);
+
+        mutualCounts.set(source, (mutualCounts.get(source) || 0) + 1);
+        mutualCounts.set(target, (mutualCounts.get(target) || 0) + 1);
+
+        if (isSeedId(source)) {
+          seedTouchCounts.set(target, (seedTouchCounts.get(target) || 0) + 1);
+        }
+        if (isSeedId(target)) {
+          seedTouchCounts.set(source, (seedTouchCounts.get(source) || 0) + 1);
+        }
+      }
+    });
+
+    const nodeIdSet = new Set([
+      ...Object.keys(nodesMeta),
+      ...Object.keys(compositeScores)
+    ]);
+    edges.forEach((edge) => {
+      const source = canonicalId(edge.source);
+      const target = canonicalId(edge.target);
+      if (source) nodeIdSet.add(source);
+      if (target) nodeIdSet.add(target);
+    });
+    const nodeIds = Array.from(nodeIdSet);
+
+    const distances = new Map();
+    const queue = [];
+    nodeIds.forEach((id) => {
+      if (isSeedId(id)) {
+        distances.set(id, 0);
+        queue.push(id);
+      }
+    });
+
+    while (queue.length) {
+      const current = queue.shift();
+      const neighbors = mutualAdjacency.get(current);
+      if (!neighbors) continue;
+      neighbors.forEach((neighbor) => {
+        if (!nodeIdSet.has(neighbor)) return;
+        if (distances.has(neighbor)) return;
+        const distance = distances.get(current) + 1;
+        distances.set(neighbor, distance);
+        queue.push(neighbor);
+      });
+    }
+
+    let maxMutualCount = 0;
+    mutualCounts.forEach((value) => {
+      if (value > maxMutualCount) maxMutualCount = value;
+    });
+
+    let maxSeedTouch = 0;
+    seedTouchCounts.forEach((value) => {
+      if (value > maxSeedTouch) maxSeedTouch = value;
+    });
+
+    const nodes = nodeIds.map((rawId) => {
+      const id = String(rawId);
+      const meta = nodesMeta[id] || {};
+      const usernameLower = meta.username ? String(meta.username).toLowerCase() : null;
+      const idLower = id.toLowerCase();
+      const isSeed =
+        effectiveSeedSet.has(idLower) ||
+        (usernameLower ? effectiveSeedSet.has(usernameLower) : false);
+      const isShadow = Boolean(meta.shadow || meta.provenance === "shadow" || id.startsWith("shadow:"));
+      if (!includeShadows && isShadow) {
+        return null;
+      }
+      const mutualCount = mutualCounts.get(id) || 0;
+      const seedTouchCount = seedTouchCounts.get(id) || 0;
+      const hopDistance = distances.has(id) ? distances.get(id) : Number.POSITIVE_INFINITY;
+      const distanceScore = Number.isFinite(hopDistance) ? 1 / (hopDistance + 1) : 0;
+      const mutualScore = maxMutualCount > 0 ? mutualCount / maxMutualCount : 0;
+      const seedTouchScore = maxSeedTouch > 0 ? seedTouchCount / maxSeedTouch : 0;
+      const inGroupScore = Math.min(
+        1,
+        distanceScore * 0.6 + mutualScore * 0.25 + seedTouchScore * 0.15 + (isSeed ? 0.1 : 0)
+      );
+      const baseComposite = compositeScores[id] ?? 0;
+      const val = 10 + inGroupScore * 26 + (isSeed ? 6 : 0) + (isShadow ? 2 : 0);
+
+      return {
+        id,
+        idLower,
+        val,
+        hopDistance,
+        mutualCount,
+        seedTouchCount,
+        inGroupScore,
+        provenance: meta.provenance || (isShadow ? "shadow" : "archive"),
+        shadow: isShadow,
+        community: metrics.communities?.[id],
+        pagerank: metrics.pagerank?.[id],
+        betweenness: metrics.betweenness?.[id],
+        engagement: metrics.engagement?.[id],
+        compositeScore: baseComposite,
+        isSeed,
+        neighbors: [],
+        ...meta
+      };
+    }).filter(Boolean);
+
+    const allowedNodeSet = new Set(nodes.map((node) => node.id));
+
+    const filteredLinks = edges
+      .filter((edge) => (mutualOnly ? edge.mutual : true))
+      .filter((edge) => allowedNodeSet.has(edge.source) && allowedNodeSet.has(edge.target))
+      .map((edge) => {
+        const source = canonicalId(edge.source);
+        const target = canonicalId(edge.target);
+        return {
+          source,
+          target,
+          mutual: !!edge.mutual
+        };
+      });
+
+    const visibleMutualEdges = filteredLinks.reduce(
+      (count, link) => (link.mutual ? count + 1 : count),
+      0
+    );
+
+    return {
+      graphData: {
+        nodes,
+        links: filteredLinks
+      },
+      graphStats: {
+        totalNodes: data.graph?.directed_nodes ?? nodeIds.length,
+        totalDirectedEdges: data.graph?.directed_edges ?? edges.length,
+        totalUndirectedEdges: data.graph?.undirected_edges ?? 0,
+        mutualEdgeCount,
+        visibleEdges: filteredLinks.length,
+        visibleMutualEdges,
+        visibleShadowNodes: nodes.filter((node) => node.shadow).length,
+        visibleShadowEdges: filteredLinks.filter((edge) => edge.shadow).length
+      }
+    };
+  }, [data, compositeScores, effectiveSeedSet, includeShadows, metrics, mutualOnly]);
+
+  useEffect(() => {
+    if (!graphData.nodes.length) return;
+    console.debug(
+      "[GraphExplorer] graph loaded",
+      {
+        nodes: graphStats.totalNodes,
+        visibleEdges: graphStats.visibleEdges,
+        mutualEdges: graphStats.visibleMutualEdges,
+        shadowNodes: graphStats.visibleShadowNodes,
+        shadowEdges: graphStats.visibleShadowEdges,
+        mutualOnly
+      }
+    );
+  }, [graphData.nodes.length, graphStats.totalNodes, graphStats.visibleEdges, graphStats.visibleMutualEdges, graphStats.visibleShadowEdges, graphStats.visibleShadowNodes, mutualOnly]);
 
   const nodeLookup = useMemo(() => {
     const map = new Map();
@@ -184,6 +383,32 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
 
   const totalWeight = weights.pr + weights.bt + weights.eng;
   const selectedNeighbors = selectedNodeId ? neighborMap.get(selectedNodeId) || new Set() : new Set();
+
+  const getLinkStyle = (link) => {
+    const sourceId = typeof link.source === "object" ? link.source.id : link.source;
+    const targetId = typeof link.target === "object" ? link.target.id : link.target;
+    const isSelectedEdge =
+      selectedNodeId && (sourceId === selectedNodeId || targetId === selectedNodeId);
+    if (isSelectedEdge) {
+      return { color: COLORS.selectedEdge, width: 2.6, dash: [] };
+    }
+
+    const connectsNeighbors =
+      selectedNodeId && selectedNeighbors.has(sourceId) && selectedNeighbors.has(targetId);
+    if (connectsNeighbors) {
+      return { color: COLORS.neighborEdge, width: 2.2, dash: [] };
+    }
+
+    if (link.shadow) {
+      return { color: "rgba(203, 213, 225, 0.7)", width: 1.2, dash: [3, 5] };
+    }
+
+    if (link.mutual) {
+      return { color: COLORS.mutualEdge, width: 1.7, dash: [] };
+    }
+
+    return { color: COLORS.oneWayEdge, width: 1.3, dash: [6, 4] };
+  };
 
   useEffect(() => {
     if (!graphRef.current) return;
@@ -275,8 +500,14 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   return (
     <div className="layout">
       <div className={`control-panel ${panelOpen ? "open" : "collapsed"}`}>
-        <button className="collapse-btn" onClick={() => setPanelOpen((open) => !open)}>
-          {panelOpen ? "⬅" : "➡"}
+        <button
+          className={`panel-handle ${panelOpen ? "open" : "collapsed"}`}
+          onClick={() => setPanelOpen((open) => !open)}
+          aria-pressed={panelOpen}
+          aria-label={panelOpen ? "Collapse controls" : "Expand controls"}
+        >
+          <span className="handle-label">Controls</span>
+          <span className="handle-icon">{panelOpen ? "◀" : "▶"}</span>
         </button>
         {panelOpen && (
           <div className="panel-content">
@@ -287,11 +518,46 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             </div>
 
             <section>
+              <h2>Graph summary</h2>
+              <div className="summary-grid">
+                <div>
+                  <span className="summary-label">Nodes</span>
+                  <span className="summary-value">{graphStats.totalNodes}</span>
+                </div>
+                <div>
+                  <span className="summary-label">Visible edges</span>
+                  <span className="summary-value">{graphStats.visibleEdges}</span>
+                </div>
+                <div>
+                  <span className="summary-label">Directed / Undirected</span>
+                  <span className="summary-value">
+                    {graphStats.totalDirectedEdges} / {graphStats.totalUndirectedEdges}
+                  </span>
+                </div>
+                <div>
+                  <span className="summary-label">Mutual edges (view / total)</span>
+                  <span className="summary-value">
+                    {graphStats.visibleMutualEdges} / {graphStats.mutualEdgeCount}
+                  </span>
+                </div>
+                <div>
+                  <span className="summary-label">Shadow nodes visible</span>
+                  <span className="summary-value">{graphStats.visibleShadowNodes}</span>
+                </div>
+                <div>
+                  <span className="summary-label">Shadow edges visible</span>
+                  <span className="summary-value">{graphStats.visibleShadowEdges}</span>
+                </div>
+              </div>
+            </section>
+
+            <section>
               <h2>Legend</h2>
               <ul className="legend">
                 <li><span className="legend-color seed" /> Seed node</li>
                 <li><span className="legend-color selected" /> Selected node</li>
                 <li><span className="legend-color neighbor" /> Neighbor</li>
+                <li><span className="legend-color shadow" /> Shadow node</li>
               </ul>
             </section>
 
@@ -308,10 +574,25 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             </section>
 
             <section>
-              <h2>Status weights</h2>
-              <div className="slider">
-                <label>PageRank {weights.pr.toFixed(2)}</label>
+              <h2>Shadow enrichment</h2>
+              <label className="toggle">
                 <input
+                  type="checkbox"
+                  checked={includeShadows}
+                  onChange={(e) => setIncludeShadows(e.target.checked)}
+                />
+                Display shadow nodes (hybrid/API)
+              </label>
+              <small>
+                Toggle to focus on archive-only graph. Shadow nodes load from enrichment cache and are outlined in slate.
+              </small>
+            </section>
+
+           <section>
+             <h2>Status weights</h2>
+             <div className="slider">
+               <label>PageRank {weights.pr.toFixed(2)}</label>
+               <input
                   type="range"
                   min="0"
                   max="1"
@@ -434,6 +715,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
                       <>
                         <h3>{node.display_name || node.username || node.id}</h3>
                         <p>ID: {node.id}</p>
+                        <p>Provenance: {node.provenance || (node.shadow ? "shadow" : "archive")}</p>
                         <p>Composite: {(composite * 100).toFixed(1)}</p>
                         <p>Pagerank: {(node.pagerank ?? 0).toFixed(4)}</p>
                         <p>Betweenness: {(node.betweenness ?? 0).toFixed(4)}</p>
@@ -442,6 +724,9 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
                         <p>Following: {node.num_following ?? "?"}</p>
                         <p>Location: {node.location || "—"}</p>
                         <p>Bio: {node.bio || "—"}</p>
+                        {node.shadow && node.shadow_scrape_stats && (
+                          <p>Shadow stats: {JSON.stringify(node.shadow_scrape_stats)}</p>
+                        )}
                       </>
                     );
                   })()}
@@ -459,46 +744,50 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           nodeRelSize={6}
           enableNodeDrag={false}
           nodeColor={(node) => {
-            if (node.id === selectedNodeId) return "#f471b5";
-            if (selectedNeighbors.has(node.id)) return "#22d3ee";
-            if (node.isSeed) return "#facc15";
-            return "#60a5fa";
+            if (node.id === selectedNodeId) return COLORS.selectedNode;
+            if (selectedNeighbors.has(node.id)) return COLORS.neighborNode;
+            if (node.isSeed) return COLORS.seedNode;
+            if (node.shadow) return COLORS.shadowNode;
+            return COLORS.baseNode;
           }}
-          linkColor={(link) => {
-            const sourceId = typeof link.source === "object" ? link.source.id : link.source;
-            const targetId = typeof link.target === "object" ? link.target.id : link.target;
-            if (selectedNodeId && sourceId && targetId) {
-              if (sourceId === selectedNodeId || targetId === selectedNodeId) {
-                return "#f97316";
-              }
-              if (selectedNeighbors.has(sourceId) && selectedNeighbors.has(targetId)) {
-                return "#f59e0b";
-              }
-              return "#334155";
-            }
-            return link.mutual ? "#94a3b8" : "#475569";
+          linkColor={(link) => getLinkStyle(link).color}
+          linkWidth={(link) => getLinkStyle(link).width}
+          linkDirectionalParticles={(link) => (link.mutual ? 0 : 2)}
+          linkDirectionalParticleWidth={1.6}
+          linkDirectionalParticleColor={(link) => getLinkStyle(link).color}
+          linkCanvasObjectMode={() => "replace"}
+          linkCanvasObject={(link, ctx) => {
+            if (!link.source || !link.target) return;
+            const { color, width, dash } = getLinkStyle(link);
+            const from = link.source;
+            const to = link.target;
+            ctx.save();
+            ctx.beginPath();
+            ctx.lineWidth = width;
+            ctx.strokeStyle = color;
+            ctx.setLineDash(dash);
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.moveTo(from.x, from.y);
+            ctx.lineTo(to.x, to.y);
+            ctx.stroke();
+            ctx.restore();
           }}
-          linkWidth={(link) => {
-            const sourceId = typeof link.source === "object" ? link.source.id : link.source;
-            const targetId = typeof link.target === "object" ? link.target.id : link.target;
-            if (selectedNodeId && (sourceId === selectedNodeId || targetId === selectedNodeId)) {
-              return 2.5;
-            }
-            return link.mutual ? 1.6 : 0.6;
-          }}
-          linkDirectionalParticles={mutualOnly ? 0 : 2}
-          linkDirectionalParticleWidth={2}
           nodeLabel={(node) => {
             const composite = compositeScores[node.id] ?? 0;
             const name = node.display_name || node.username || node.id;
-            return `${name}\nComposite: ${(composite * 100).toFixed(1)}\nPageRank: ${(node.pagerank ?? 0).toFixed(3)}\nBetweenness: ${(node.betweenness ?? 0).toFixed(3)}\nEngagement: ${(node.engagement ?? 0).toFixed(3)}`;
+            const distanceLabel = Number.isFinite(node.hopDistance)
+              ? node.hopDistance
+              : "∞";
+            const provenanceLabel = node.provenance || (node.shadow ? "shadow" : "archive");
+            return `${name}\nProvenance: ${provenanceLabel}\nComposite: ${(composite * 100).toFixed(1)}\nMutual edges: ${node.mutualCount}\nSeed touches: ${node.seedTouchCount}\nHop distance: ${distanceLabel}\nPageRank: ${(node.pagerank ?? 0).toFixed(3)}\nBetweenness: ${(node.betweenness ?? 0).toFixed(3)}\nEngagement: ${(node.engagement ?? 0).toFixed(3)}`;
           }}
           nodeCanvasObjectMode={() => "after"}
           nodeCanvasObject={(node, ctx, globalScale) => {
             const label = node.display_name || node.username || node.id;
             const fontSize = 12 / globalScale;
             ctx.font = `${fontSize}px sans-serif`;
-            ctx.fillStyle = "#e2e8f0";
+            ctx.fillStyle = "rgba(248, 250, 252, 0.92)";
             ctx.fillText(label, node.x + 8, node.y + fontSize / 2);
           }}
           onNodeClick={(node) => {
