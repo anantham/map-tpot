@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 analysis_output.json
+public/seed_presets.json
 
 # Editor directories and files
 .vscode/*

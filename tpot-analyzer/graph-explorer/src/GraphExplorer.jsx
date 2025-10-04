@@ -10,10 +10,24 @@ import useSWR from "swr";
 const fetcher = (url) => fetch(url).then((res) => res.json());
 const DEFAULT_PRESETS = {
   "Adi's Seeds": [
-    "DefenderOfBasic",
+    "prerationalist",
+    "gptbrooke",
+    "the_wilderless",
     "nosilverv",
-    "mat_but",
-    "aditya"
+    "qorprate",
+    "vividvoid_",
+    "pli_cachete",
+    "goblinodds",
+    "eigenrobot",
+    "pragueyerrr",
+    "exgenesis",
+    "becomingcritter",
+    "astridwilde1",
+    "malcolm_ocean",
+    "m_ashcroft",
+    "visakanv",
+    "drmaciver",
+    "tasshinfogleman"
   ]
 };
 
