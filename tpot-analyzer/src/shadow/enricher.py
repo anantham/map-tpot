@@ -596,14 +596,10 @@ class HybridShadowEnricher:
         print("\n=== First scraped profile preview ===")
         print(f"Seed handle      : @{seed_username}")
         if overview:
-            if overview.display_name:
-                print(f"Seed display     : {overview.display_name}")
-            if overview.bio:
-                print(f"Seed bio         : {self._truncate_text(overview.bio)}")
-            if overview.location:
-                print(f"Seed location    : {overview.location}")
-            if overview.website:
-                print(f"Seed website     : {overview.website}")
+            print(f"Seed display     : {overview.display_name or '?'}")
+            print(f"Seed bio         : {self._truncate_text(overview.bio) or '?'}")
+            print(f"Seed location    : {overview.location or '?'}")
+            print(f"Seed website     : {overview.website or '?'}")
             totals = []
             if overview.following_total is not None:
                 totals.append(f"following≈{overview.following_total:,}")
