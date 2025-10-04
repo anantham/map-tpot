@@ -1,42 +1,223 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+:root {
+  color-scheme: dark;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background-color: #0f172a;
+  color: #e2e8f0;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #172554 0%, #0f172a 45%, #020617 100%);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.control-panel {
+  position: relative;
+  width: 360px;
+  background: rgba(15, 23, 42, 0.96);
+  border-right: 1px solid rgba(148, 163, 184, 0.2);
+  color: #f8fafc;
+  transition: width 0.25s ease, transform 0.25s ease;
+  overflow: hidden;
 }
 
-.card {
-  padding: 2em;
+.control-panel.collapsed {
+  width: 32px;
 }
 
-.read-the-docs {
-  color: #888;
+.collapse-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  background: rgba(30, 41, 59, 0.8);
+  color: #f8fafc;
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.panel-content {
+  padding: 20px 20px 40px;
+  overflow-y: auto;
+  height: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+
+.panel-content h1,
+.panel-content h2,
+.panel-content h3 {
+  margin: 0 0 12px;
+  font-weight: 600;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.panel-actions button,
+.panel-content button {
+  background: linear-gradient(135deg, #2563eb 0%, #0891b2 100%);
+  border: none;
+  color: #f8fafc;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.panel-actions button:hover,
+.panel-content button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.35);
+}
+
+section {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+section:last-of-type {
+  border-bottom: none;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.slider label {
+  font-size: 0.9rem;
+  color: #cbd5f5;
+}
+
+.slider input[type="range"] {
+  accent-color: #22d3ee;
+}
+
+textarea {
+  width: 100%;
+  min-height: 110px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  color: #e2e8f0;
+  padding: 10px;
+}
+
+select,
+input[type="checkbox"],
+input[type="range"] {
+  margin-top: 6px;
+}
+
+select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.7);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.legend {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.legend-color {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.legend-color.seed {
+  background: #facc15;
+}
+
+.legend-color.selected {
+  background: #f471b5;
+}
+
+.legend-color.neighbor {
+  background: #22d3ee;
+}
+
+.top-list,
+.seed-list {
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.top-list li {
+  background: rgba(15, 118, 110, 0.18);
+  border-radius: 10px;
+  padding: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.top-list li:hover {
+  background: rgba(13, 148, 136, 0.32);
+}
+
+.top-metrics {
+  font-size: 0.75rem;
+  color: #bae6fd;
+}
+
+.seed-list li {
+  color: #bae6fd;
+  font-size: 0.85rem;
+}
+
+.selected-card {
+  background: rgba(15, 118, 110, 0.24);
+  border-radius: 12px;
+  padding: 12px;
+  color: #f0fdfa;
+  font-size: 0.9rem;
+}
+
+.graph-container {
+  flex: 1;
+  position: relative;
+  background: transparent;
+}
+
+.status-message {
+  display: grid;
+  place-items: center;
+  height: 100vh;
+  font-size: 1.1rem;
+  color: #bfdbfe;
 }
