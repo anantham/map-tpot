@@ -25,6 +25,8 @@ PHILOSOPHY: We are computational peers collaborating with human developers. Oper
 
 11. **Verification Scripts Are Mandatory** - Every phase must ship a human-friendly verification script under `scripts/verify_*.py` that: (a) prints explicit ✓/✗ status for each check, (b) surfaces concrete metrics (counts, sizes, samples), (c) proposes next steps, and (d) is formatted so humans can paste the output directly into chat for status updates.
 
+12. **Capture Future Work** - Whenever new feature ideas, testing gaps, or developer-experience improvements surface, append them to `docs/ROADMAP.md` under the appropriate section (`Testing Coverage`, `Features & Analysis`, etc.). This keeps ideas visible without cluttering README or losing context. Worklog entries can reference the roadmap but should remain focused on current phase summaries.
+
 ---
 
 Below is the Bug Squashing protocol that might be invoked when we are dealing with difficult bugs that need careful precise repair. This protocol is designed to prevent you from goodharting and trying to quickly get the app working. The idea is to do it beautifully, completely like a work of art.
