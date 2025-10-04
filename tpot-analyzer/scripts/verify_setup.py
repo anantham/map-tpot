@@ -68,8 +68,11 @@ def main() -> int:
         return 1
 
     row_count = len(profiles)
-    ok = row_count == 275
-    message = f"Found {row_count} profiles in Community Archive"
+    expected_min_profiles = 275
+    ok = row_count >= expected_min_profiles
+    message = (
+        f"Found {row_count} profiles in Community Archive (expected ≥ {expected_min_profiles})"
+    )
     print(_fmt_status(ok, message))
     if not ok:
         success = False
