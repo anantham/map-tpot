@@ -390,6 +390,8 @@ class HybridShadowEnricher:
             display_name=overview.display_name,
             bio=overview.bio,
             location=overview.location,
+            website=overview.website,
+            profile_image_url=overview.profile_image_url,
             followers_count=overview.followers_total,
             following_count=overview.following_total,
             source_channel="selenium_profile_scrape",

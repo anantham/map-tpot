@@ -54,7 +54,6 @@ class UserListCapture:
     profile_overview: Optional["ProfileOverview"] = None
 
 
-@dataclass
 class ProfileOverview:
     username: str
     display_name: Optional[str]
@@ -64,6 +63,7 @@ class ProfileOverview:
     followers_total: Optional[int]
     following_total: Optional[int]
     joined_date: Optional[str] = None
+    profile_image_url: Optional[str] = None
 
 
 class SeleniumWorker:
@@ -291,8 +291,7 @@ class SeleniumWorker:
                 return token[1:]
         return None
 
-    @staticmethod
-    def _extract_display_name(cell) -> str | None:
+    def _extract_display_name(self, cell) -> str | None:
         # Try structured approach first
         try:
             username_div = cell.find_element(By.CSS_SELECTOR, "div[data-testid='UserName']")
@@ -332,8 +331,7 @@ class SeleniumWorker:
             return None
         return cleaned
 
-    @staticmethod
-    def _extract_bio(cell) -> Optional[str]:
+    def _extract_bio(self, cell) -> Optional[str]:
         # Try structured approach first
         try:
             bio_nodes = cell.find_elements(By.CSS_SELECTOR, "div[data-testid='UserDescription']")
@@ -411,7 +409,7 @@ class SeleniumWorker:
             location = None
         try:
             website_node = self._driver.find_element(By.CSS_SELECTOR, "a[data-testid='UserUrl']")
-            website = website_node.get_attribute("href") or website_node.text or None
+            website = website_node.text or website_node.get_attribute("href")
         except NoSuchElementException:
             LOGGER.debug("Could not find website for @%s", username)
             website = None
@@ -421,6 +419,13 @@ class SeleniumWorker:
         except NoSuchElementException:
             LOGGER.debug("Could not find join date for @%s", username)
             joined_date = None
+        try:
+            avatar_container = self._driver.find_element(By.CSS_SELECTOR, "div[data-testid^='UserAvatar-Container']")
+            image_node = avatar_container.find_element(By.TAG_NAME, "img")
+            profile_image_url = image_node.get_attribute("src")
+        except NoSuchElementException:
+            LOGGER.debug("Could not find profile image for @%s", username)
+            profile_image_url = None
 
         followers_total = self._extract_claimed_total(username, "followers")
         following_total = self._extract_claimed_total(username, "following")
@@ -434,47 +439,8 @@ class SeleniumWorker:
             followers_total=followers_total,
             following_total=following_total,
             joined_date=joined_date,
+            profile_image_url=profile_image_url,
         )
-
-    def _extract_claimed_total(self, username: str, list_type: str) -> Optional[int]:
-        assert self._driver is not None
-
-        # The user's HTML shows that the link for followers can be 'verified_followers'
-        # We will check for the standard list_type first, then fall back to other variants.
-        href_variants = [
-            f"/{username}/{list_type.lower()}",
-            f"/{username}/verified_followers" if list_type == "followers" else f"/{username}/{list_type.lower()}",
-            f"/{username}/{list_type.replace('_', '')}",
-        ]
-        
-        for href in href_variants:
-            try:
-                # New, more specific selector based on user-provided HTML
-                count_span = self._driver.find_element(By.CSS_SELECTOR, f"a[href='{href}'] span span")
-                value = self._parse_compact_count(count_span.text)
-                if value is not None:
-                    LOGGER.debug("Found count for href %s: %d", href, value)
-                    return value
-            except NoSuchElementException:
-                LOGGER.debug("Could not find count for href %s with new specific selector.", href)
-
-        # Fallback to the old, less specific method if the new one fails
-        LOGGER.debug("Falling back to old method for _extract_claimed_total for user %s", username)
-        for href in href_variants:
-            try:
-                anchors = self._driver.find_elements(By.CSS_SELECTOR, f"a[href='{href}']")
-                for anchor in anchors:
-                    # The first span is the number, the second is the label ("Following", "Followers")
-                    spans = anchor.find_elements(By.TAG_NAME, "span")
-                    if spans:
-                        value = self._parse_compact_count(spans[0].text)
-                        if value is not None:
-                            return value
-            except NoSuchElementException:
-                continue
-        
-        LOGGER.warning("Could not extract claimed total for @%s, list_type: %s", username, list_type)
-        return None
 
     @staticmethod
     def _parse_compact_count(raw: Optional[str]) -> Optional[int]:
