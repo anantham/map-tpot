@@ -4,10 +4,9 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 from dotenv import load_dotenv
-from supabase import Client, create_client
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ENV_PATH = PROJECT_ROOT / ".env"
@@ -26,6 +25,24 @@ DEFAULT_CACHE_MAX_AGE_DAYS = 7
 
 
 @dataclass(frozen=True)
+class SupabaseConfig:
+    """Connection settings required to query the Supabase REST endpoint."""
+
+    url: str
+    key: str
+
+    @property
+    def rest_headers(self) -> Dict[str, str]:
+        return {
+            "apikey": self.key,
+            "Authorization": f"Bearer {self.key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Prefer": "count=exact",
+        }
+
+
+@dataclass(frozen=True)
 class CacheSettings:
     """Runtime configuration for the SQLite caching layer."""
 
@@ -40,8 +57,8 @@ def _get_env(name: str, default: Optional[str] = None) -> Optional[str]:
     return value
 
 
-def get_supabase_client() -> Client:
-    """Return a configured Supabase client or raise a RuntimeError."""
+def get_supabase_config() -> SupabaseConfig:
+    """Return Supabase REST configuration or raise a descriptive error."""
 
     url = _get_env(SUPABASE_URL_KEY, DEFAULT_SUPABASE_URL)
     key = _get_env(SUPABASE_KEY_KEY)
@@ -51,12 +68,7 @@ def get_supabase_client() -> Client:
         raise RuntimeError(
             "SUPABASE_KEY is not configured. Set it in .env or export the variable before running."
         )
-
-    try:
-        client = create_client(url, key)
-    except Exception as exc:  # pragma: no cover - defensive: library specific errors vary
-        raise RuntimeError(f"Failed to initialize Supabase client: {exc}") from exc
-    return client
+    return SupabaseConfig(url=url, key=key)
 
 
 def get_cache_settings() -> CacheSettings:
