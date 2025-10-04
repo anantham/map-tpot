@@ -68,8 +68,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=None,
-        help="Optional path to dump JSON summary (stdout otherwise).",
+        default=Path("enrichment_summary.json"),
+        help="Path to dump JSON summary (default: enrichment_summary.json).",
     )
     parser.add_argument(
         "--headless",
