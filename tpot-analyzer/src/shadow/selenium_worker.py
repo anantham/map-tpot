@@ -402,8 +402,13 @@ class SeleniumWorker:
             bio_node = self._driver.find_element(By.CSS_SELECTOR, "div[data-testid='UserDescription']")
             bio = bio_node.text.strip() or None
         except NoSuchElementException:
-            LOGGER.debug("Could not find bio for @%s", username)
-            bio = None
+            LOGGER.debug("Could not find bio for @%s using data-testid. Falling back to XPath.", username)
+            try:
+                bio_node = self._driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[2]/main/div/div/div/div/div/div[3]/div/div/div[1]/div[1]/div[3]/div")
+                bio = bio_node.text.strip() or None
+            except NoSuchElementException:
+                LOGGER.debug("Could not find bio for @%s using XPath fallback.", username)
+                bio = None
         try:
             location_node = self._driver.find_element(By.CSS_SELECTOR, "span[data-testid='UserLocation']")
             location = location_node.text.strip() or None
