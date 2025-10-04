@@ -43,3 +43,4 @@ community-archive/
 context/
 .venv/
 **/data/cache.db
+tpot-analyzer/analysis_output.json
