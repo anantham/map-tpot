@@ -45,13 +45,15 @@ def main() -> int:
     # 1. Supabase connectivity
     try:
         with httpx.Client(base_url=supabase_cfg.url, headers=supabase_cfg.rest_headers, timeout=15.0) as client:
-            ping = client.get("/rest/v1/profile", params={"select": "account_id", "limit": 1})
-        ok = ping.status_code == 200
-        if ok:
-            print(_fmt_status(True, "Supabase connection successful"))
-        else:
+            ping = client.get(
+                "/rest/v1/profile",
+                params={"select": "account_id", "limit": 1},
+                headers={"Range": "0-0"},
+            )
+        if ping.status_code not in (200, 206):
             print(_fmt_status(False, f"Supabase returned {ping.status_code}: {ping.text}"))
             return 1
+        print(_fmt_status(True, "Supabase connection successful"))
     except Exception as exc:  # pragma: no cover - network edge cases
         print(_fmt_status(False, f"Supabase connection failed: {exc}"))
         return 1

@@ -24,8 +24,12 @@ REQUIRES_SUPABASE = pytest.mark.skipif(
 def test_supabase_connection() -> None:
     cfg = get_supabase_config()
     with httpx.Client(base_url=cfg.url, headers=cfg.rest_headers, timeout=15.0) as client:
-        response = client.get("/rest/v1/profile", params={"select": "account_id", "limit": 1})
-    assert response.status_code == 200, f"Supabase responded with {response.status_code}"
+        response = client.get(
+            "/rest/v1/profile",
+            params={"select": "account_id", "limit": 1},
+            headers={"Range": "0-0"},
+        )
+    assert response.status_code in (200, 206), f"Supabase responded with {response.status_code}"
     assert response.json(), "Supabase response did not include data"
 
 
