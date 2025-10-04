@@ -41,3 +41,5 @@ Thumbs.db
 # Project-specific
 community-archive/
 context/
+.venv/
+**/data/cache.db
