@@ -1,0 +1,5 @@
+supabase==2.3.0
+pandas==2.1.0
+sqlalchemy==2.0.23
+python-dotenv==1.0.0
+pytest==7.4.3
