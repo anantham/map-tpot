@@ -739,6 +739,11 @@ class HybridShadowEnricher:
     ) -> None:
         captured_count = len(entries)
         claimed_total = capture.claimed_total if capture else None
+
+        # Per user request: Assume "followers you follow" is always fully captured.
+        if claimed_total is None and label == "Followers you follow":
+            claimed_total = captured_count
+
         coverage = self._compute_coverage(captured_count, claimed_total)
         coverage_str = (
             f" ({coverage * 100:.3f}% of claimed)" if coverage is not None else ""
