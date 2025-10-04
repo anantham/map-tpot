@@ -46,3 +46,4 @@ context/
 tpot-analyzer/secrets/
 secrets/
 tpot-analyzer/analysis_output.json
+tpot-analyzer/data/test_write
