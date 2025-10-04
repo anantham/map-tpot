@@ -147,9 +147,26 @@ class SeleniumWorker:
             return UserListCapture(list_type, [], None, "", None)
         assert self._driver is not None
 
-        url = f"https://twitter.com/{username}/{list_type}"
-        LOGGER.debug("Navigating to %s", url)
-        self._driver.get(url)
+        # Ensure we have the profile overview by visiting the main profile page first if needed.
+        profile_overview = self._profile_overviews.get(username)
+        if not profile_overview:
+            main_profile_url = f"https://twitter.com/{username}"
+            LOGGER.debug("Navigating to %s for profile overview", main_profile_url)
+            self._driver.get(main_profile_url)
+            self._apply_delay("load-main-profile-page")
+            try:
+                WebDriverWait(self._driver, 15).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'div[data-testid="primaryColumn"]'))
+                )
+                profile_overview = self._extract_profile_overview(username)
+                if profile_overview:
+                    self._profile_overviews[username] = profile_overview
+            except TimeoutException:
+                LOGGER.error("Timed out waiting for main profile page for @%s", username)
+
+        list_page_url = f"https://twitter.com/{username}/{list_type}"
+        LOGGER.debug("Navigating to %s", list_page_url)
+        self._driver.get(list_page_url)
         self._apply_delay(f"load-{list_type}-page")
         try:
             WebDriverWait(self._driver, 15).until(
@@ -157,16 +174,8 @@ class SeleniumWorker:
             )
         except TimeoutException:
             LOGGER.error("Timed out waiting for %s list for @%s", list_type, username)
-            return UserListCapture(list_type, [], None, url, None)
+            return UserListCapture(list_type, [], None, list_page_url, None)
         self._apply_delay(f"{list_type}-viewport-ready")
-
-        profile_overview = self._profile_overviews.get(username)
-        if not profile_overview:
-            profile_overview = self._extract_profile_overview(username)
-            if profile_overview:
-                self._profile_overviews[username] = profile_overview
-
-        claimed_total = self._extract_claimed_total(username, list_type)
 
         discovered: Dict[str, CapturedUser] = {}
         last_height = self._driver.execute_script("return document.body.scrollHeight")
@@ -237,12 +246,21 @@ class SeleniumWorker:
         LOGGER.debug(
             "Collected %s %s entries for @%s", len(captured_entries), list_type, username
         )
+        
+        final_overview = self._profile_overviews.get(username)
+        claimed_total = None
+        if final_overview:
+            if list_type == "followers":
+                claimed_total = final_overview.followers_total
+            elif list_type == "following":
+                claimed_total = final_overview.following_total
+
         return UserListCapture(
             list_type=list_type,
             entries=captured_entries,
             claimed_total=claimed_total,
-            page_url=url,
-            profile_overview=profile_overview,
+            page_url=list_page_url,
+            profile_overview=final_overview,
         )
 
     def _apply_delay(self, label: str, *, short: bool = False) -> None:
