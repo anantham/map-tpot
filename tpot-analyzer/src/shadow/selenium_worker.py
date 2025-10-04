@@ -396,26 +396,31 @@ class SeleniumWorker:
             name_node = self._driver.find_element(By.CSS_SELECTOR, "div[data-testid='UserName'] span")
             display_name = name_node.text.strip() or None
         except NoSuchElementException:
+            LOGGER.debug("Could not find display name for @%s", username)
             display_name = None
         try:
             bio_node = self._driver.find_element(By.CSS_SELECTOR, "div[data-testid='UserDescription']")
             bio = bio_node.text.strip() or None
         except NoSuchElementException:
+            LOGGER.debug("Could not find bio for @%s", username)
             bio = None
         try:
             location_node = self._driver.find_element(By.CSS_SELECTOR, "span[data-testid='UserLocation']")
             location = location_node.text.strip() or None
         except NoSuchElementException:
+            LOGGER.debug("Could not find location for @%s", username)
             location = None
         try:
             website_node = self._driver.find_element(By.CSS_SELECTOR, "a[data-testid='UserUrl']")
             website = website_node.get_attribute("href") or website_node.text or None
         except NoSuchElementException:
+            LOGGER.debug("Could not find website for @%s", username)
             website = None
         try:
             join_date_node = self._driver.find_element(By.CSS_SELECTOR, "span[data-testid='UserJoinDate']")
             joined_date = join_date_node.text.strip() or None
         except NoSuchElementException:
+            LOGGER.debug("Could not find join date for @%s", username)
             joined_date = None
 
         followers_total = self._extract_claimed_total(username, "followers")
@@ -434,25 +439,42 @@ class SeleniumWorker:
 
     def _extract_claimed_total(self, username: str, list_type: str) -> Optional[int]:
         assert self._driver is not None
+
+        # The user's HTML shows that the link for followers can be 'verified_followers'
+        # We will check for the standard list_type first, then fall back to other variants.
         href_variants = [
-            f"/{username}/{list_type}",
             f"/{username}/{list_type.lower()}",
+            f"/{username}/verified_followers" if list_type == "followers" else f"/{username}/{list_type.lower()}",
             f"/{username}/{list_type.replace('_', '')}",
         ]
+        
         for href in href_variants:
-            anchors = self._driver.find_elements(By.CSS_SELECTOR, f"a[href='{href}']")
-            if not anchors:
-                continue
-            for anchor in anchors:
-                text = anchor.text.strip()
-                value = self._parse_compact_count(text)
+            try:
+                # New, more specific selector based on user-provided HTML
+                count_span = self._driver.find_element(By.CSS_SELECTOR, f"a[href='{href}'] span span")
+                value = self._parse_compact_count(count_span.text)
                 if value is not None:
+                    LOGGER.debug("Found count for href %s: %d", href, value)
                     return value
-                spans = anchor.find_elements(By.TAG_NAME, "span")
-                for span in spans:
-                    value = self._parse_compact_count(span.text)
-                    if value is not None:
-                        return value
+            except NoSuchElementException:
+                LOGGER.debug("Could not find count for href %s with new specific selector.", href)
+
+        # Fallback to the old, less specific method if the new one fails
+        LOGGER.debug("Falling back to old method for _extract_claimed_total for user %s", username)
+        for href in href_variants:
+            try:
+                anchors = self._driver.find_elements(By.CSS_SELECTOR, f"a[href='{href}']")
+                for anchor in anchors:
+                    # The first span is the number, the second is the label ("Following", "Followers")
+                    spans = anchor.find_elements(By.TAG_NAME, "span")
+                    if spans:
+                        value = self._parse_compact_count(spans[0].text)
+                        if value is not None:
+                            return value
+            except NoSuchElementException:
+                continue
+        
+        LOGGER.warning("Could not extract claimed total for @%s, list_type: %s", username, list_type)
         return None
 
     @staticmethod

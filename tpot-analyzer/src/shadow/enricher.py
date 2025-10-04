@@ -643,7 +643,6 @@ class HybridShadowEnricher:
                 print(
                     f"  {idx:>2}. @{entry.username} — {entry.display_name or '<no name>'}{bio_snippet}{list_tags}"
                 )
-            break
 
         if not detailed_shown:
             LOGGER.warning(
