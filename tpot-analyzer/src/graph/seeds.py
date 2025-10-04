@@ -17,7 +17,9 @@ def extract_usernames_from_html(html: str) -> List[str]:
     """Pull Twitter usernames from list HTML or text."""
 
     pattern = re.compile(r"@([A-Za-z0-9_]{1,15})")
-    return sorted({match.group(1).lower() for match in pattern.finditer(html)})
+    usernames = {match.group(1).lower() for match in pattern.finditer(html)}
+    # Sort alphabetically while preferring handles without underscores.
+    return sorted(usernames, key=lambda u: (u.replace("_", ""), u.count("_"), u))
 
 
 def load_seed_candidates(*, additional: Iterable[str] = ()) -> Set[str]:
