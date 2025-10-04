@@ -6,3 +6,5 @@ networkx==3.2.1
 sqlalchemy==2.0.23
 python-dotenv==1.0.0
 pytest==7.4.3
+requests==2.31.0
+selenium==4.21.0

@@ -32,6 +32,8 @@ class ShadowAccount:
     display_name: Optional[str]
     bio: Optional[str]
     location: Optional[str]
+    website: Optional[str]
+    profile_image_url: Optional[str]
     followers_count: Optional[int]
     following_count: Optional[int]
     source_channel: str
@@ -107,6 +109,8 @@ class ShadowStore:
             Column("display_name", String, nullable=True),
             Column("bio", String, nullable=True),
             Column("location", String, nullable=True),
+            Column("website", String, nullable=True),
+            Column("profile_image_url", String, nullable=True),
             Column("followers_count", Integer, nullable=True),
             Column("following_count", Integer, nullable=True),
             Column("source_channel", String, nullable=False),
@@ -160,7 +164,7 @@ class ShadowStore:
             Column("skipped", Boolean, nullable=False, default=False),
             Column("skip_reason", String, nullable=True),
         )
-        self._metadata.create_all(self._engine)
+        self._metadata.create_all(self._engine, checkfirst=True)
 
     # ------------------------------------------------------------------
     # Account operations
@@ -177,6 +181,8 @@ class ShadowStore:
                     "display_name": account.display_name,
                     "bio": account.bio,
                     "location": account.location,
+                    "website": account.website,
+                    "profile_image_url": account.profile_image_url,
                     "followers_count": account.followers_count,
                     "following_count": account.following_count,
                     "source_channel": account.source_channel,

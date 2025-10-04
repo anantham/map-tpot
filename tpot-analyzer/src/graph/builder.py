@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Iterable, Optional
 
 import networkx as nx
 import pandas as pd
+
+from src.data.shadow_store import ShadowStore
 
 
 @dataclass
@@ -46,6 +49,8 @@ def build_graph_from_frames(
     following: pd.DataFrame,
     mutual_only: bool = True,
     min_followers: int = 0,
+    include_shadow: bool = False,
+    shadow_store: Optional[ShadowStore] = None,
 ) -> GraphBuildResult:
     """Construct graphs from pre-loaded DataFrames."""
 
@@ -73,15 +78,10 @@ def build_graph_from_frames(
     if min_followers > 0:
         directed = _filter_min_followers(directed, threshold=min_followers)
 
-    undirected = nx.Graph()
-    undirected.add_nodes_from(directed.nodes(data=True))
-    undirected.add_edges_from(
-        {
-            tuple(sorted((u, v))): directed.get_edge_data(u, v)
-            for u, v in directed.edges()
-            if directed.has_edge(v, u) or not mutual_only
-        }
-    )
+    if include_shadow and shadow_store:
+        _inject_shadow_data(directed, shadow_store)
+
+    undirected = _build_undirected_view(directed, mutual_only=mutual_only)
 
     return GraphBuildResult(directed=directed, undirected=undirected)
 
@@ -93,6 +93,8 @@ def build_graph(
     force_refresh: bool = False,
     mutual_only: bool = True,
     min_followers: int = 0,
+    include_shadow: bool = False,
+    shadow_store: Optional[ShadowStore] = None,
 ) -> GraphBuildResult:
     """Fetch necessary tables via the fetcher and build graphs."""
 
@@ -108,7 +110,62 @@ def build_graph(
         following=following,
         mutual_only=mutual_only,
         min_followers=min_followers,
+        include_shadow=include_shadow,
+        shadow_store=shadow_store,
     )
+
+
+def _build_undirected_view(directed: nx.DiGraph, *, mutual_only: bool) -> nx.Graph:
+    undirected = nx.Graph()
+    undirected.add_nodes_from(directed.nodes(data=True))
+    for u, v, data in directed.edges(data=True):
+        if mutual_only and not directed.has_edge(v, u):
+            continue
+        weight = data.copy()
+        undirected.add_edge(*sorted((u, v)), **weight)
+    return undirected
+
+
+def _inject_shadow_data(graph: nx.DiGraph, store: ShadowStore) -> None:
+    """Augment directed graph with shadow accounts and edges."""
+
+    now = datetime.utcnow()
+    accounts = store.fetch_accounts()
+    for record in accounts:
+        node_id = str(record["account_id"])
+        if graph.has_node(node_id):
+            graph.nodes[node_id].setdefault("provenance", "archive")
+            continue
+        graph.add_node(
+            node_id,
+            username=record.get("username"),
+            account_display_name=record.get("display_name"),
+            bio=record.get("bio"),
+            location=record.get("location"),
+            num_followers=record.get("followers_count"),
+            num_following=record.get("following_count"),
+            provenance=record.get("source_channel", "shadow"),
+            shadow=True,
+            shadow_scrape_stats=record.get("scrape_stats"),
+            fetched_at=record.get("fetched_at", now),
+        )
+
+    edges = store.fetch_edges()
+    for record in edges:
+        source = str(record["source_id"])
+        target = str(record["target_id"])
+        if not graph.has_node(source):
+            graph.add_node(source, provenance="shadow", shadow=True)
+        if not graph.has_node(target):
+            graph.add_node(target, provenance="shadow", shadow=True)
+        attributes = {
+            "provenance": record.get("source_channel", "shadow"),
+            "direction_label": record.get("direction"),
+            "shadow": True,
+            "metadata": record.get("metadata"),
+            "fetched_at": record.get("fetched_at") or now,
+        }
+        graph.add_edge(source, target, **attributes)
 
 
 def _add_edges(

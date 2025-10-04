@@ -325,6 +325,8 @@ class HybridShadowEnricher:
                     "seeds": set(),
                     "canonical_username": username,
                     "profile_urls": set(),
+                    "website": resolved.get("website"),
+                    "profile_image_url": resolved.get("profile_image_url"),
                 },
             )
             entry["sources"].update(captured.list_types or {"unknown"})
@@ -335,6 +337,16 @@ class HybridShadowEnricher:
                 resolved["bio"] = captured.bio
             if captured.profile_url:
                 entry["profile_urls"].add(captured.profile_url)
+            if captured.website:
+                if not resolved.get("website"):
+                    resolved["website"] = captured.website
+                if not entry.get("website"):
+                    entry["website"] = captured.website
+            if captured.profile_image_url:
+                if not resolved.get("profile_image_url"):
+                    resolved["profile_image_url"] = captured.profile_image_url
+                if not entry.get("profile_image_url"):
+                    entry["profile_image_url"] = captured.profile_image_url
 
         for captured in captures:
             update_account(captured)
@@ -349,6 +361,8 @@ class HybridShadowEnricher:
                     display_name=resolved.get("display_name"),
                     bio=resolved.get("bio"),
                     location=resolved.get("location"),
+                    website=resolved.get("website") or entry.get("website"),
+                    profile_image_url=entry.get("profile_image_url"),
                     followers_count=resolved.get("followers_count"),
                     following_count=resolved.get("following_count"),
                     source_channel=resolved.get("source_channel", "hybrid_selenium"),
@@ -663,12 +677,18 @@ class HybridShadowEnricher:
                         existing.display_name = entry.display_name
                     if not existing.bio and entry.bio:
                         existing.bio = entry.bio
+                    if not existing.website and entry.website:
+                        existing.website = entry.website
+                    if not existing.profile_image_url and entry.profile_image_url:
+                        existing.profile_image_url = entry.profile_image_url
                     continue
                 combined[entry.username] = CapturedUser(
                     username=entry.username,
                     display_name=entry.display_name,
                     bio=entry.bio,
                     profile_url=entry.profile_url,
+                    website=entry.website,
+                    profile_image_url=entry.profile_image_url,
                     list_types=set(entry.list_types),
                 )
         return list(combined.values())

@@ -9,6 +9,8 @@ from typing import List
 
 import logging
 
+LOGGER = logging.getLogger(__name__)
+
 from src.config import get_cache_settings
 from src.data.fetcher import CachedDataFetcher
 from src.data.shadow_store import get_shadow_store

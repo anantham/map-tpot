@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import List
 
@@ -11,6 +12,7 @@ import networkx as nx
 
 from src.config import get_cache_settings
 from src.data.fetcher import CachedDataFetcher
+from src.data.shadow_store import get_shadow_store
 from src.graph import (
     GraphBuildResult,
     compute_betweenness,
@@ -24,6 +26,16 @@ from src.graph import (
 )
 
 DEFAULT_OUTPUT = Path("analysis_output.json")
+
+
+def _serialize_datetime(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,6 +88,11 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="Louvain resolution parameter.",
     )
+    parser.add_argument(
+        "--include-shadow",
+        action="store_true",
+        help="Include shadow accounts/edges from enrichment cache.",
+    )
     return parser.parse_args()
 
 
@@ -120,27 +137,36 @@ def run_metrics(graph: GraphBuildResult, seeds: List[str], args: argparse.Namesp
 
     edges = []
     for u, v in directed.edges():
+        data = directed.get_edge_data(u, v, default={})
         edges.append(
             {
                 "source": u,
                 "target": v,
                 "mutual": directed.has_edge(v, u),
+                "provenance": data.get("provenance", "archive"),
+                "shadow": data.get("shadow", False),
+                "metadata": data.get("metadata"),
+                "direction_label": data.get("direction_label"),
+                "fetched_at": _serialize_datetime(data.get("fetched_at")),
             }
         )
 
-    nodes_payload = {
-        node: {
+    nodes_payload = {}
+    for node, data in directed.nodes(data=True):
+        nodes_payload[node] = {
             "username": data.get("username"),
-            "display_name": data.get("account_display_name"),
+            "display_name": data.get("account_display_name") or data.get("display_name"),
             "num_followers": data.get("num_followers"),
             "num_following": data.get("num_following"),
             "num_likes": data.get("num_likes"),
             "num_tweets": data.get("num_tweets"),
             "bio": data.get("bio"),
             "location": data.get("location"),
+            "provenance": data.get("provenance", "archive"),
+            "shadow": data.get("shadow", False),
+            "shadow_scrape_stats": data.get("shadow_scrape_stats"),
+            "fetched_at": _serialize_datetime(data.get("fetched_at")),
         }
-        for node, data in directed.nodes(data=True)
-    }
 
     return {
         "seeds": seeds,
@@ -173,10 +199,13 @@ def main() -> None:
 
     cache_settings = get_cache_settings()
     with CachedDataFetcher(cache_db=cache_settings.path) as fetcher:
+        shadow_store = get_shadow_store(fetcher.engine) if args.include_shadow else None
         graph = build_graph(
             fetcher=fetcher,
             mutual_only=args.mutual_only,
             min_followers=args.min_followers,
+            include_shadow=args.include_shadow,
+            shadow_store=shadow_store,
         )
 
     summary = run_metrics(graph, seeds, args)

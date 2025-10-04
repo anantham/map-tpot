@@ -40,6 +40,8 @@ class CapturedUser:
     display_name: Optional[str] = None
     bio: Optional[str] = None
     profile_url: Optional[str] = None
+    website: Optional[str] = None
+    profile_image_url: Optional[str] = None
     list_types: Set[str] = field(default_factory=set)
 
 
@@ -195,6 +197,8 @@ class SeleniumWorker:
                     continue
                 display_name = self._extract_display_name(cell) or handle
                 bio = self._extract_bio(cell)
+                website = self._extract_website(cell)
+                profile_image_url = self._extract_profile_image_url(cell)
                 profile_url = f"https://x.com/{handle}"
                 existing = discovered.get(handle)
                 if existing:
@@ -203,12 +207,18 @@ class SeleniumWorker:
                         existing.display_name = display_name
                     if not existing.bio and bio:
                         existing.bio = bio
+                    if not existing.website and website:
+                        existing.website = website
+                    if not existing.profile_image_url and profile_image_url:
+                        existing.profile_image_url = profile_image_url
                     continue
                 captured = CapturedUser(
                     username=handle,
                     display_name=display_name,
                     bio=bio,
                     profile_url=profile_url,
+                    website=website,
+                    profile_image_url=profile_image_url,
                     list_types={list_type},
                 )
                 discovered[handle] = captured
@@ -353,6 +363,31 @@ class SeleniumWorker:
         except NoSuchElementException:
             pass
 
+        return None
+
+    @staticmethod
+    def _extract_website(cell) -> Optional[str]:
+        anchors = cell.find_elements(By.CSS_SELECTOR, "a[data-testid='UserUrl']")
+        if not anchors:
+            anchors = cell.find_elements(By.CSS_SELECTOR, "a[href]")
+        for anchor in anchors:
+            href = (anchor.get_attribute("href") or "").strip()
+            if not href:
+                continue
+            if "twitter.com" in href or href.startswith("/"):
+                continue
+            return href
+        return None
+
+    @staticmethod
+    def _extract_profile_image_url(cell) -> Optional[str]:
+        images = cell.find_elements(By.CSS_SELECTOR, "img[src]")
+        for img in images:
+            src = (img.get_attribute("src") or "").strip()
+            if not src:
+                continue
+            if "twimg.com" in src or "profile_images" in src:
+                return src
         return None
 
     def _extract_profile_overview(self, username: str) -> Optional[ProfileOverview]:
