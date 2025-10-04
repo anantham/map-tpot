@@ -22,7 +22,7 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
     """Fetch Community Archive data using Supabase REST endpoints with local caching."""
 
     _METADATA_TABLE_NAME = "cache_metadata"
-    _DEFAULT_PARAMS = {"select": "*", "limit": "1000"}
+    _DEFAULT_PARAMS = {"select": "*"}
 
     def __init__(
         self,
@@ -81,6 +81,33 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
             force_refresh=force_refresh,
         )
 
+    def fetch_accounts(self, *, use_cache: bool = True, force_refresh: bool = False) -> pd.DataFrame:
+        """Return account-level metadata (followers, tweets, etc.)."""
+
+        return self._fetch_dataset(
+            table_name="account",
+            use_cache=use_cache,
+            force_refresh=force_refresh,
+        )
+
+    def fetch_followers(self, *, use_cache: bool = True, force_refresh: bool = False) -> pd.DataFrame:
+        """Return follower edges (follower -> account)."""
+
+        return self._fetch_dataset(
+            table_name="followers",
+            use_cache=use_cache,
+            force_refresh=force_refresh,
+        )
+
+    def fetch_following(self, *, use_cache: bool = True, force_refresh: bool = False) -> pd.DataFrame:
+        """Return following edges (account -> following_account)."""
+
+        return self._fetch_dataset(
+            table_name="following",
+            use_cache=use_cache,
+            force_refresh=force_refresh,
+        )
+
     def fetch_tweets(self, *, use_cache: bool = True, force_refresh: bool = False) -> pd.DataFrame:
         """Return a dataframe of tweets."""
 
@@ -97,6 +124,23 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
             table_name="likes",
             use_cache=use_cache,
             force_refresh=force_refresh,
+        )
+
+    def fetch_table(
+        self,
+        table_name: str,
+        *,
+        use_cache: bool = True,
+        force_refresh: bool = False,
+        params: Optional[Dict[str, str]] = None,
+    ) -> pd.DataFrame:
+        """Generic entrypoint for fetching any REST table."""
+
+        return self._fetch_dataset(
+            table_name=table_name,
+            use_cache=use_cache,
+            force_refresh=force_refresh,
+            params=params,
         )
 
     def cache_status(self) -> Dict[str, Dict[str, object]]:
@@ -128,6 +172,7 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
         table_name: str,
         use_cache: bool,
         force_refresh: bool,
+        params: Optional[Dict[str, str]] = None,
     ) -> pd.DataFrame:
         logger.debug(
             "Fetching dataset '%s' (use_cache=%s, force_refresh=%s)",
@@ -149,16 +194,21 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
                     logger.info("Using cached data for %s (rows=%d)", table_name, len(cached))
                     return cached
 
-        fresh = self._fetch_from_supabase(table_name=table_name)
+        fresh = self._fetch_from_supabase(table_name=table_name, params=params)
         self._write_cache(table_name, fresh)
         return fresh
 
-    def _fetch_from_supabase(self, *, table_name: str) -> pd.DataFrame:
+    def _fetch_from_supabase(
+        self,
+        *,
+        table_name: str,
+        params: Optional[Dict[str, str]] = None,
+    ) -> pd.DataFrame:
         logger.info("Querying Supabase REST endpoint for table %s", table_name)
         try:
             response = self._http_client.get(
                 f"/rest/v1/{table_name}",
-                params=self._DEFAULT_PARAMS,
+                params=params or self._DEFAULT_PARAMS,
                 headers={"Range": "0-999999"},
             )
             response.raise_for_status()
