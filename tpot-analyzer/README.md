@@ -25,10 +25,6 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-> **Note:** SciPy is now a required dependency (used by NetworkX's PageRank implementation).
-> When installing on macOS/Apple Silicon, ensure pip is recent (`python3 -m pip install --upgrade pip`) so the
-> prebuilt wheel is used; otherwise the install may attempt to build from source.
-
 2. **Configure environment variables:**
 
 Create a `.env` file in the project root or export variables:
