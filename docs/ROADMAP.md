@@ -15,6 +15,8 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Add filter for “active in last N days” using tweet metadata.
 - [ ] Seed preset management UI (save/load multiple seed sets).
 - [ ] Comparative views (side-by-side parameter configs, rank change visualizations).
+- [ ] Shadow enrichment job queue with progress API so the explorer can launch/monitor scraping without manual CLI calls.
+- [ ] Extend trust propagation heuristics (personalized PageRank threshold, depth controls) to govern which shadow nodes get enqueued automatically.
 
 ## UI & Visualization
 - [ ] Wrap `src/ui/graph-explorer.jsx` into a runnable frontend (Next.js or Vite), with data loading from CLI output or live fetcher.
@@ -28,6 +30,7 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] CI pipeline to run tests and lint checks (once repo is private/public as needed).
 - [ ] Document expected dataset growth and how to refresh caches when new accounts upload.
 - [ ] Add local fixtures/bundles for offline experimentation (small subset of Community Archive).
+- [ ] Package Selenium/X API credentials handling (config templates, secrets management) and add smoke tests for enrichment pipeline.
 
 ## Documentation
 - [ ] Architecture diagrams for data pipeline and graph analysis flow.

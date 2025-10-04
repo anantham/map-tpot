@@ -78,6 +78,67 @@ Planned features:
 
 See [ADR 002](./docs/adr/002-graph-analysis-foundation.md) for full specification.
 
+### Shadow Enrichment Pipeline (Phase 1.4 — In Progress)
+
+Shadow enrichment expands the graph beyond Community Archive’s 275 indexed accounts by scraping follow/follower lists with Selenium and backfilling metadata via the X API v2 when available. Data lives in dedicated `shadow_account` / `shadow_edge` tables so provenance stays explicit.
+
+```
+┌──────────────────────┐
+│ scripts/enrich_shadow│  --cookies, --preview-count, --auto-confirm-first
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐   ┌──────────────────────┐
+│  SeleniumWorker      │→→│ followers_you_follow │ (optional, on by default)
+│  - captures lists    │   └──────────────────────┘
+│  - reads profile tab │
+│  - samples bios      │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ Human confirmation   │  preview top N (default 10) with coverage ratios
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│ HybridShadowEnricher │  merges captures, resolves IDs, writes shadow tables
+└──────────────────────┘
+```
+
+During the confirmation gate you’ll see:
+- Seed profile metadata (display name, bio, location, website, claimed counts)
+- Coverage per list (`captured / claimed` with percentage)
+- A preview of the first *N* profiles (set with `--preview-count`, default 10)
+
+Use `--auto-confirm-first` only after verifying the preview looks accurate. Disable the reciprocal list scrape with `--no-followers-you-follow` if you need to minimise requests.
+
+Core components:
+- **`scripts/enrich_shadow_graph.py`** — runs the hybrid pipeline (cookies + optional bearer token required)
+- **`src/shadow/`** — Selenium worker, X API client, and enrichment coordinator
+- **`src/data/shadow_store.py`** — typed access to the shadow cache tables
+- **`scripts/verify_shadow_graph.py`** — reports ✓/✗ status for cached shadow data and analysis output
+
+`scripts/enrich_shadow_graph.py` launches Chrome in visible mode by default and applies human-like delays (4–9 s) between actions. Use `--headless` only if you know X’s UI renders correctly without an interactive browser; pass `--chrome-binary` when you want to point at a custom Chrome install.
+
+Example run:
+
+```bash
+python -m scripts.setup_cookies --output secrets/twitter_cookies.pkl
+python -m scripts.enrich_shadow_graph \
+  --cookies secrets/twitter_cookies.pkl \
+  --include-followers \
+  --preview-count 12 \
+  --chrome-binary "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --delay-min 4 --delay-max 9 \
+  --bearer-token "$X_BEARER_TOKEN"
+
+python -m scripts.analyze_graph --include-shadow --output analysis_output.json
+python -m scripts.verify_shadow_graph
+```
+
+In the explorer UI, toggle “Shadow enrichment” to show or hide shadow nodes. Shadow edges render as dashed slate lines; tooltips and detail cards display provenance plus scrape metadata.
+
 ## Usage
 
 ### Fetching Data
