@@ -45,6 +45,33 @@ async function loadConfig() {
   }
 }
 
+function sanitizeForModel(model, body) {
+  const b = { ...body };
+  // Model-specific quirks
+  if (model === 'x-ai/grok-code-fast-1') {
+    // Known provider error: stop not supported on this model
+    delete b.stop;
+  }
+  return b;
+}
+
+function extractUnsupportedParams(errText) {
+  const removed = [];
+  const lower = (errText || '').toLowerCase();
+  const keys = [
+    'stop', 'logprobs', 'top_logprobs',
+    'presence_penalty', 'frequency_penalty', 'repetition_penalty',
+    'min_p', 'top_a'
+  ];
+  for (const k of keys) {
+    if (lower.includes(`argument not supported`) && lower.includes(k)) removed.push(k);
+  }
+  // Specific phrasing seen: "Argument not supported on this model: stop"
+  const m = /argument not supported[^:]*:\s*([a-zA-Z0-9_\-]+)/i.exec(errText || '');
+  if (m && !removed.includes(m[1])) removed.push(m[1]);
+  return removed;
+}
+
 app.post("/api/probe", async (req, res) => {
   try {
     if (!OPENROUTER_API_KEY) {
@@ -137,24 +164,40 @@ app.post("/api/probe", async (req, res) => {
 
     const results = await Promise.all(
       models.map(async (model) => {
+        const warnings = [];
         try {
-          const body = { ...bodyBase, model };
-          const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          let body = sanitizeForModel(model, { ...bodyBase, model });
+          let resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
             method: "POST",
             headers,
             body: JSON.stringify(body),
           });
-          const text = await resp.text();
+          let text = await resp.text();
           let parsed = null;
-          try { parsed = JSON.parse(text); } catch { /* leave as null */ }
+          try { parsed = JSON.parse(text); } catch { /* ignore */ }
+          if (!resp.ok && resp.status === 400) {
+            // Try to detect unsupported args and retry once without them
+            const rawErr = parsed?.error?.metadata?.raw || parsed?.error?.message || text;
+            const unsupported = extractUnsupportedParams(String(rawErr));
+            if (unsupported.length) {
+              for (const k of unsupported) { if (k in body) { delete body[k]; warnings.push(`stripped ${k}`); } }
+              resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers,
+                body: JSON.stringify(body),
+              });
+              text = await resp.text();
+              try { parsed = JSON.parse(text); } catch { parsed = null; }
+            }
+          }
           if (!resp.ok) {
-            return { model, error: `HTTP ${resp.status}: ${text}`, raw: parsed || text };
+            return { model, error: `HTTP ${resp.status}: ${text}`, raw: parsed || text, warnings };
           }
           const data = parsed || {};
           const continuation = (data?.choices?.[0]?.message?.content || "").trim();
-          return { model, continuation, raw: data };
+          return { model, continuation, raw: data, warnings };
         } catch (e) {
-          return { model, error: String(e?.message || e) };
+          return { model, error: String(e?.message || e), warnings };
         }
       })
     );

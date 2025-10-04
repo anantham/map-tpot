@@ -205,9 +205,11 @@ function renderResults(data) {
       continue;
     }
     const m = continuationMetrics(prefix, gold, r.continuation);
+    const warnHtml = Array.isArray(r.warnings) && r.warnings.length ? `<div class="warn">${r.warnings.map(w => escapeHtml(w)).join(', ')}</div>` : '';
     card.innerHTML = `
       <div class="model">${escapeHtml(r.model)}</div>
       <div class="cont">${escapeHtml(m.out)}</div>
+      ${warnHtml}
       <div class="metrics">
         <div>exact_continuation: <span class="${m.exactContinuation ? 'metric-ok' : 'metric-bad'}">${m.exactContinuation}</span></div>
         <div>full_exact: <span class="${m.fullExact ? 'metric-ok' : 'metric-bad'}">${m.fullExact}</span></div>

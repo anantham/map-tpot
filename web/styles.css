@@ -47,6 +47,7 @@ h2 { margin: 0 0 10px; font-size: 14px; color: #cbd5e1; }
 .card { background: #0a0f14; border: 1px solid #18202b; border-radius: 8px; padding: 12px; }
 .card .model { font-family: var(--mono); color: var(--accent); font-size: 12px; }
 .card .cont { margin-top: 8px; white-space: pre-wrap; line-height: 1.5; }
+.card .warn { color: #f59e0b; font-size: 12px; margin-top: 6px; }
 .metrics { margin-top: 10px; font-size: 12px; color: var(--muted); display: grid; gap: 2px; }
 .metric-ok { color: var(--good); }
 .metric-bad { color: var(--bad); }
