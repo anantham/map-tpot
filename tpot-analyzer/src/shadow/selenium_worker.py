@@ -293,23 +293,21 @@ class SeleniumWorker:
 
     @staticmethod
     def _extract_display_name(cell) -> str | None:
-        # Try structured approach: display name is in UserName div, before the handle
+        # Try structured approach first
         try:
             username_div = cell.find_element(By.CSS_SELECTOR, "div[data-testid='UserName']")
             spans = username_div.find_elements(By.TAG_NAME, "span")
             for span in spans:
                 value = span.text.strip()
-                # Display name doesn't start with @, handle does
                 if value and not value.startswith("@") and len(value) <= 80:
                     return value
         except NoSuchElementException:
-            pass
+            pass  # Fallback to text parsing
 
-        # Fallback: look for first non-@ text in the cell
+        # Fallback: parse the text block
         text_lines = [line.strip() for line in (cell.text or "").splitlines() if line.strip()]
-        for line in text_lines:
-            if not line.startswith("@") and line not in {"Follow", "Following"}:
-                return line
+        if text_lines and not text_lines[0].startswith("@"):
+            return text_lines[0]
         return None
 
     @staticmethod
@@ -336,51 +334,29 @@ class SeleniumWorker:
 
     @staticmethod
     def _extract_bio(cell) -> Optional[str]:
-        # Try 1: UserDescription testid (works on profile pages, not in UserCells)
-        bio_nodes = cell.find_elements(By.CSS_SELECTOR, "div[data-testid='UserDescription']")
-        if bio_nodes:
-            value = bio_nodes[0].text.strip()
-            if value:
-                return value
-
-        # Try 2: Look for bio div by structure - it's the last text div after user info
-        # Bio is in a div with overflow:hidden, contains a span with the bio text
-        # Pattern: <div dir="auto" style="...overflow: hidden..."><span>bio text</span></div>
+        # Try structured approach first
         try:
-            bio_divs = cell.find_elements(By.CSS_SELECTOR, "div[dir='auto']")
-            for div in bio_divs:
-                # Check if it has overflow:hidden style (bio characteristic)
-                style = div.get_attribute("style") or ""
-                if "overflow" in style and "hidden" in style:
-                    text = div.text.strip()
-                    # Bio shouldn't be a button or handle
-                    if text and text not in {"Follow", "Following", "Follows you"} and not text.startswith("@"):
-                        return text
-        except Exception:
-            pass
-
-        # Try 3: Look for spans outside UserName div that contain bio-like text
-        try:
-            all_spans = cell.find_elements(By.TAG_NAME, "span")
-            username_div = cell.find_element(By.CSS_SELECTOR, "div[data-testid='UserName']")
-            username_spans = set(username_div.find_elements(By.TAG_NAME, "span"))
-
-            for span in all_spans:
-                if span in username_spans:
-                    continue
-                text = span.text.strip()
-                # Bio characteristics: non-empty, not UI text, reasonable length
-                if (
-                    text
-                    and len(text) > 5
-                    and text not in {"Follow", "Following", "Follows you", "Click to Follow"}
-                    and not text.startswith("@")
-                    and not text.startswith("Click to")
-                ):
-                    return text
+            bio_nodes = cell.find_elements(By.CSS_SELECTOR, "div[data-testid='UserDescription']")
+            if bio_nodes and bio_nodes[0].text.strip():
+                return bio_nodes[0].text.strip()
         except NoSuchElementException:
-            pass
+            pass  # Fallback to text parsing
 
+        # Fallback: parse the text block
+        text_lines = [line.strip() for line in (cell.text or "").splitlines() if line.strip()]
+        bio_start_index = -1
+        for i, line in enumerate(text_lines):
+            if line.startswith('@'):
+                # Bio starts after the handle and potentially a "Follow" line
+                if i + 1 < len(text_lines) and text_lines[i+1] in {"Follow", "Following"}:
+                    bio_start_index = i + 2
+                else:
+                    bio_start_index = i + 1
+                break
+        
+        if bio_start_index != -1 and bio_start_index < len(text_lines):
+            return " ".join(text_lines[bio_start_index:])
+            
         return None
 
     @staticmethod
