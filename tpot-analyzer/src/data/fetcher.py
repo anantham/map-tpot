@@ -37,13 +37,9 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
         self.cache_path = cache_path
         self.max_age_days = max_age_days if max_age_days is not None else self._cache_settings.max_age_days
 
-        self._supabase: SupabaseConfig = get_supabase_config()
+        self._supabase: Optional[SupabaseConfig] = None
         self._owns_client = http_client is None
-        self._http_client = http_client or httpx.Client(
-            base_url=self._supabase.url,
-            headers=self._supabase.rest_headers,
-            timeout=30.0,
-        )
+        self._http_client: Optional[httpx.Client] = http_client
 
         self.engine: Engine = create_engine(f"sqlite:///{self.cache_path}", future=True)
         self._metadata = MetaData()
@@ -66,7 +62,7 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
         self.close()
 
     def close(self) -> None:
-        if self._owns_client:
+        if self._owns_client and self._http_client is not None:
             self._http_client.close()
 
     # ------------------------------------------------------------------
@@ -205,8 +201,10 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
         params: Optional[Dict[str, str]] = None,
     ) -> pd.DataFrame:
         logger.info("Querying Supabase REST endpoint for table %s", table_name)
+        client = self._ensure_http_client()
+
         try:
-            response = self._http_client.get(
+            response = client.get(
                 f"/rest/v1/{table_name}",
                 params=params or self._DEFAULT_PARAMS,
                 headers={"Range": "0-999999"},
@@ -224,6 +222,18 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
         df = pd.DataFrame(data)
         logger.info("Fetched %d rows from Supabase table %s", len(df), table_name)
         return df
+
+    def _ensure_http_client(self) -> httpx.Client:
+        if self._http_client is not None:
+            return self._http_client
+
+        self._supabase = get_supabase_config()
+        self._http_client = httpx.Client(
+            base_url=self._supabase.url,
+            headers=self._supabase.rest_headers,
+            timeout=30.0,
+        )
+        return self._http_client
 
     def _read_cache(self, table_name: str) -> Optional[pd.DataFrame]:
         try:

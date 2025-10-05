@@ -417,9 +417,21 @@ class ShadowStore:
                 following_claimed_total=row.following_claimed_total,
                 followers_claimed_total=row.followers_claimed_total,
                 followers_you_follow_claimed_total=row.followers_you_follow_claimed_total,
-                following_coverage=row.following_coverage / 10000.0 if row.following_coverage else None,
-                followers_coverage=row.followers_coverage / 10000.0 if row.followers_coverage else None,
-                followers_you_follow_coverage=row.followers_you_follow_coverage / 10000.0 if row.followers_you_follow_coverage else None,
+                following_coverage=(
+                    row.following_coverage / 10000.0
+                    if row.following_coverage is not None
+                    else None
+                ),
+                followers_coverage=(
+                    row.followers_coverage / 10000.0
+                    if row.followers_coverage is not None
+                    else None
+                ),
+                followers_you_follow_coverage=(
+                    row.followers_you_follow_coverage / 10000.0
+                    if row.followers_you_follow_coverage is not None
+                    else None
+                ),
                 accounts_upserted=row.accounts_upserted,
                 edges_upserted=row.edges_upserted,
                 discoveries_upserted=row.discoveries_upserted,
@@ -440,9 +452,21 @@ class ShadowStore:
             "following_claimed_total": metrics.following_claimed_total,
             "followers_claimed_total": metrics.followers_claimed_total,
             "followers_you_follow_claimed_total": metrics.followers_you_follow_claimed_total,
-            "following_coverage": int(metrics.following_coverage * 10000) if metrics.following_coverage else None,
-            "followers_coverage": int(metrics.followers_coverage * 10000) if metrics.followers_coverage else None,
-            "followers_you_follow_coverage": int(metrics.followers_you_follow_coverage * 10000) if metrics.followers_you_follow_coverage else None,
+            "following_coverage": (
+                int(metrics.following_coverage * 10000)
+                if metrics.following_coverage is not None
+                else None
+            ),
+            "followers_coverage": (
+                int(metrics.followers_coverage * 10000)
+                if metrics.followers_coverage is not None
+                else None
+            ),
+            "followers_you_follow_coverage": (
+                int(metrics.followers_you_follow_coverage * 10000)
+                if metrics.followers_you_follow_coverage is not None
+                else None
+            ),
             "accounts_upserted": metrics.accounts_upserted,
             "edges_upserted": metrics.edges_upserted,
             "discoveries_upserted": metrics.discoveries_upserted,

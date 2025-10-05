@@ -77,3 +77,16 @@
 ## 2025-10-05T05:44:43Z — Preserve verbose logs in quiet mode
 - `scripts/enrich_shadow_graph.py`:210-239 — `--quiet` now keeps the root logger at DEBUG with console WARN/file DEBUG so disk captures navigation details while the terminal stays quiet.
 - Impact: after enrichment runs you can audit every Selenium page transition in `logs/enrichment.log` without flooding the console; `selenium`/`urllib3` chatter remains suppressed.
+
+## 2025-10-05T11:19:23Z — Shadow package export fix
+- `src/shadow/__init__.py`:1-18 — re-exported `EnrichmentPolicy` so CLI imports resolve without direct module path coupling.
+- Rationale: `scripts/enrich_shadow_graph.py` relies on package-level import; missing symbol caused `ImportError` during enrichment run.
+
+## 2025-10-05T13:57:50Z — Supabase lazy load & seed guard
+- `src/data/fetcher.py`:27-226 — deferred Supabase credential loading to HTTP usage so cached-only enrichment can run without `.env` secrets; added lazy client constructor.
+- `scripts/enrich_shadow_graph.py`:192-215 — normalized archive usernames defensively to ignore `NaN`/non-string values when mapping seeds.
+- Verification attempt: `python3 - <<'PY' ...` failed (missing pandas in sandbox); manual run pending once dependencies installed.
+
+## 2025-10-05T14:05:23Z — Preserve zero coverage metrics
+- `src/data/shadow_store.py`:408-452 — treated coverage fields as optional explicitly so 0% coverage persists instead of collapsing to `None`.
+- Verification pending: rerun metrics read/write tests once dependencies (`pandas`, `sqlalchemy`) are available.

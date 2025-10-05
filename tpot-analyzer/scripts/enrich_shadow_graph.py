@@ -191,11 +191,19 @@ def _resolve_cookie_path(args: argparse.Namespace) -> Path:
 
 def build_seed_accounts(fetcher: CachedDataFetcher, seed_usernames: List[str]) -> List[SeedAccount]:
     accounts = fetcher.fetch_accounts()
-    id_to_username = {
-        str(row["account_id"]): (row.get("username") or '').lower()
-        for _, row in accounts.iterrows()
+    id_to_username: dict[str, str] = {}
+    for _, row in accounts.iterrows():
+        account_id = str(row["account_id"])
+        raw_username = row.get("username")
+        if isinstance(raw_username, str):
+            normalized = raw_username.strip().lower()
+        else:
+            normalized = ""
+        id_to_username[account_id] = normalized
+
+    username_to_id = {
+        username: account_id for account_id, username in id_to_username.items() if username
     }
-    username_to_id = {username: account_id for account_id, username in id_to_username.items() if username}
 
     seeds: List[SeedAccount] = []
     for seed in seed_usernames:
