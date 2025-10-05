@@ -26,95 +26,82 @@ import pytest
 from src.shadow.enricher import HybridShadowEnricher, SeedAccount
 from src.shadow.selenium_worker import CapturedUser, UserListCapture, ProfileOverview
 
-
-# ==============================================================================
-# Test Fixtures
-# ==============================================================================
-
-@pytest.fixture
-def mock_store():
-    """Create a mock ShadowStore."""
-    store = Mock()
-    store.fetch_accounts = Mock(return_value=[])
-    store.unresolved_accounts = Mock(return_value=[])
-    store.is_seed_profile_complete = Mock(return_value=False)
-    store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
-    store.upsert_accounts = Mock(return_value=0)
-    store.upsert_edges = Mock(return_value=0)
-    store.upsert_discoveries = Mock(return_value=0)
-    store.record_scrape_metrics = Mock(return_value=1)
-    return store
-
-
-@pytest.fixture
-def mock_config():
-    """Create a mock enrichment config."""
-    config = Mock()
-    config.selenium_cookies_path = Mock(exists=Mock(return_value=True))
-    config.selenium_headless = True
-    config.selenium_scroll_delay_min = 1.0
-    config.selenium_scroll_delay_max = 2.0
-    config.user_pause_seconds = 0.1
-    config.action_delay_min = 1.0
-    config.action_delay_max = 2.0
-    config.chrome_binary = None
-    config.wait_for_manual_login = False
-    config.include_followers = True
-    config.include_following = True
-    config.include_followers_you_follow = True
-    config.bearer_token = None
-    config.confirm_first_scrape = False
-    config.preview_sample_size = 5
-    config.profile_only = False
-    config.profile_only_all = False
-    return config
+# Fixtures mock_shadow_store and mock_enrichment_config are auto-loaded from conftest.py
 
 
 # ==============================================================================
-# SKIP LOGIC TESTS - CURRENTLY FAILING
+# SKIP LOGIC TESTS - NOW WORKING ✅
 # ==============================================================================
-# These tests FAIL because there's no _enrich_seed() method.
-# The skip logic is embedded in enrich() method (lines 102-143).
-#
-# Gap revealed: Cannot test skip logic in isolation.
+# These tests now work because _should_skip_seed() helper was extracted!
 # ==============================================================================
 
-@pytest.mark.skip(reason="No _enrich_seed() method - skip logic is inline in enrich() at lines 102-143")
+@pytest.mark.unit
 class TestSkipLogic:
-    """Tests for skip logic when profiles already complete.
+    """Tests for _should_skip_seed() helper method.
 
-    ARCHITECTURAL GAP: Skip logic is not decomposed into testable method.
-    Current implementation is inline at enricher.py:102-143.
-
-    To make testable, would need:
-        def _should_skip_seed(seed) -> tuple[bool, Optional[str]]:
-            if not profile_only and has_edges and has_profile:
-                return (True, "complete profile and edges exist")
-            return (False, None)
+    ✅ REFACTORED: Skip logic extracted from enrich() into testable helper.
+    Tests verify skip decisions based on edge/profile completeness.
     """
 
-    def test_skip_when_complete_profile_and_edges(self, mock_store, mock_config):
-        """DOCUMENTS: Should skip when profile complete AND has edges."""
-        mock_store.is_seed_profile_complete = Mock(return_value=True)
-        mock_store.edge_summary_for_seed = Mock(return_value={"following": 50, "followers": 100, "total": 150})
+    def test_skip_when_complete_profile_and_edges(self, mock_shadow_store, mock_enrichment_config):
+        """Should skip when profile complete AND has edges in normal mode."""
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=True)
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 50, "followers": 100, "total": 150})
 
         with patch('src.shadow.enricher.SeleniumWorker'):
-            enricher = HybridShadowEnricher(mock_store, mock_config)
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            # This would test skip behavior if _enrich_seed() existed
-            # result = enricher._enrich_seed(seed)
-            # assert result['skipped'] is True
+            should_skip, skip_reason, edge_summary = enricher._should_skip_seed(seed)
 
-    def test_no_skip_when_incomplete_profile(self, mock_store, mock_config):
-        """DOCUMENTS: Should scrape when profile incomplete even with edges."""
-        mock_store.is_seed_profile_complete = Mock(return_value=False)
-        mock_store.edge_summary_for_seed = Mock(return_value={"following": 50, "followers": 100, "total": 150})
+            assert should_skip is True
+            assert skip_reason == "complete profile and edges exist"
+            assert edge_summary["following"] == 50
+            assert edge_summary["followers"] == 100
 
-    def test_no_skip_when_no_edges(self, mock_store, mock_config):
-        """DOCUMENTS: Should scrape when no edges exist even with complete profile."""
-        mock_store.is_seed_profile_complete = Mock(return_value=True)
-        mock_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
+    def test_no_skip_when_incomplete_profile(self, mock_shadow_store, mock_enrichment_config):
+        """Should NOT skip when profile incomplete even with edges."""
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 50, "followers": 100, "total": 150})
+
+        with patch('src.shadow.enricher.SeleniumWorker'):
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            should_skip, skip_reason, edge_summary = enricher._should_skip_seed(seed)
+
+            assert should_skip is False
+            assert skip_reason is None
+
+    def test_no_skip_when_no_edges(self, mock_shadow_store, mock_enrichment_config):
+        """Should NOT skip when no edges exist even with complete profile."""
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=True)
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
+
+        with patch('src.shadow.enricher.SeleniumWorker'):
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            should_skip, skip_reason, edge_summary = enricher._should_skip_seed(seed)
+
+            assert should_skip is False
+            assert skip_reason is None
+
+    def test_no_skip_in_profile_only_mode(self, mock_shadow_store, mock_enrichment_config):
+        """Should NOT skip in profile-only mode (handled separately)."""
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=True)
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 50, "followers": 100, "total": 150})
+        mock_enrichment_config.profile_only = True  # Enable profile-only mode
+
+        with patch('src.shadow.enricher.SeleniumWorker'):
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            should_skip, skip_reason, edge_summary = enricher._should_skip_seed(seed)
+
+            # In profile-only mode, this helper never skips
+            assert should_skip is False
+            assert skip_reason is None
 
 
 # ==============================================================================
@@ -140,9 +127,9 @@ class TestProfileOnlyMode:
             return {"updated": True, "profile_overview": overview}
     """
 
-    def test_profile_only_skips_list_scraping(self, mock_store, mock_config):
+    def test_profile_only_skips_list_scraping(self, mock_shadow_store, mock_enrichment_config):
         """DOCUMENTS: Profile-only mode should only fetch profile, not lists."""
-        mock_config.profile_only = True
+        mock_enrichment_config.profile_only = True
         # Test would verify fetch_following/fetch_followers not called
 
 
@@ -158,10 +145,11 @@ class TestEnrichPublicAPI:
     These tests work because they test the actual API that exists.
     """
 
-    def test_enrich_with_complete_seed_skips_scraping(self, mock_store, mock_config):
+    @pytest.mark.unit
+    def test_enrich_with_complete_seed_skips_scraping(self, mock_shadow_store, mock_enrichment_config):
         """Test that complete seeds are skipped via public API."""
-        mock_store.is_seed_profile_complete = Mock(return_value=True)
-        mock_store.edge_summary_for_seed = Mock(return_value={
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=True)
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={
             "following": 50,
             "followers": 100,
             "total": 150
@@ -172,7 +160,7 @@ class TestEnrichPublicAPI:
             mock_worker_class.return_value = mock_worker
             mock_worker.quit = Mock()
 
-            enricher = HybridShadowEnricher(mock_store, mock_config)
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config)
             seed = SeedAccount(account_id="123", username="testuser")
 
             result = enricher.enrich([seed])
@@ -183,10 +171,11 @@ class TestEnrichPublicAPI:
             assert not mock_worker.fetch_following.called
             assert not mock_worker.fetch_followers.called
 
-    def test_enrich_with_incomplete_seed_scrapes(self, mock_store, mock_config):
+    @pytest.mark.unit
+    def test_enrich_with_incomplete_seed_scrapes(self, mock_shadow_store, mock_enrichment_config):
         """Test that incomplete seeds trigger scraping via public API."""
-        mock_store.is_seed_profile_complete = Mock(return_value=False)
-        mock_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
 
         overview = ProfileOverview(
             username="testuser",
@@ -213,7 +202,7 @@ class TestEnrichPublicAPI:
             ))
             mock_worker.quit = Mock()
 
-            enricher = HybridShadowEnricher(mock_store, mock_config)
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config)
             seed = SeedAccount(account_id="123", username="testuser")
 
             result = enricher.enrich([seed])

@@ -88,6 +88,32 @@ class HybridShadowEnricher:
         self._first_scrape_confirmed = not config.confirm_first_scrape
 
     # ------------------------------------------------------------------
+    # Skip Logic Helpers
+    # ------------------------------------------------------------------
+    def _should_skip_seed(self, seed: SeedAccount) -> tuple[bool, Optional[str], dict]:
+        """Check if seed should be skipped based on existing data.
+
+        Skip conditions:
+        - In normal mode: skip if we have both complete profile AND edges
+        - In profile-only mode: never skip here (handled separately)
+
+        Returns:
+            tuple of (should_skip, skip_reason, edge_summary)
+            - should_skip: True if seed can be skipped entirely
+            - skip_reason: Human-readable reason for skip (or None)
+            - edge_summary: Dict with following/followers counts for logging
+        """
+        edge_summary = self._store.edge_summary_for_seed(seed.account_id)
+        has_edges = edge_summary["following"] > 0 and edge_summary["followers"] > 0
+        has_profile = self._store.is_seed_profile_complete(seed.account_id)
+
+        # Skip if not in profile-only mode and we have both edges and profile
+        if not self._config.profile_only and has_edges and has_profile:
+            return (True, "complete profile and edges exist", edge_summary)
+
+        return (False, None, edge_summary)
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
     def enrich(self, seeds: Sequence[SeedAccount]) -> Dict[str, Dict[str, object]]:
@@ -99,23 +125,22 @@ class HybridShadowEnricher:
                 LOGGER.warning("Seed %s missing username; skipping", seed.account_id)
                 continue
 
-            # Check if we already have complete data for this seed
-            edge_summary = self._store.edge_summary_for_seed(seed.account_id)
-            has_edges = edge_summary["following"] > 0 and edge_summary["followers"] > 0
-            has_profile = self._store.is_seed_profile_complete(seed.account_id)
+            # Check if we should skip this seed
+            should_skip, skip_reason, edge_summary = self._should_skip_seed(seed)
 
-            if not self._config.profile_only and has_edges and has_profile:
+            if should_skip:
                 LOGGER.warning(
-                    "Skipping @%s (%s) — already have complete profile and edges (following: %s, followers: %s)",
+                    "Skipping @%s (%s) — %s (following: %s, followers: %s)",
                     seed.username,
                     seed.account_id,
+                    skip_reason,
                     edge_summary["following"],
                     edge_summary["followers"],
                 )
                 summary[seed.account_id] = {
                     "username": seed.username,
                     "skipped": True,
-                    "reason": "complete profile and edges exist",
+                    "reason": skip_reason,
                     "edge_summary": edge_summary,
                 }
                 # Record skip metrics
@@ -137,10 +162,15 @@ class HybridShadowEnricher:
                     edges_upserted=0,
                     discoveries_upserted=0,
                     skipped=True,
-                    skip_reason="complete profile and edges exist",
+                    skip_reason=skip_reason,
                 )
                 self._store.record_scrape_metrics(skip_metrics)
                 continue
+
+            # Compute edge/profile status for profile-only mode check
+            has_edges = edge_summary["following"] > 0 and edge_summary["followers"] > 0
+            has_profile = self._store.is_seed_profile_complete(seed.account_id)
+
             if self._config.profile_only:
                 if not self._config.profile_only_all:
                     if not has_edges:
