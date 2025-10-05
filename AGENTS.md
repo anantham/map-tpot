@@ -102,9 +102,99 @@ Human picks one for writing to files, testing is done manually and then if it is
 
 ---
 
-## FILE_SIZE_MANAGEMENT 
+## TEST_DESIGN_PRINCIPLES
 
-Decomposition protocol for files > 300 LOC  
+**Core Tenet:** Test behavior through public APIs, not implementation details.
+
+### What to Test
+
+✅ **DO Test:**
+- Public API surface (methods, functions exposed to users)
+- Observable outcomes (database records, file contents, metrics)
+- Side effects (emails sent, logs written, HTTP calls made)
+- Error conditions and edge cases through public interfaces
+
+❌ **DON'T Test:**
+- Private methods/helpers (refactoring breaks tests)
+- Implementation details (internal state, helper call order)
+- Mock.called without verifying actual effects
+- Internal data structures unless part of public contract
+
+### Anti-Patterns We've Learned From
+
+1. **Implementation Coupling (Brittle Tests)**
+   ```python
+   # ❌ BAD: Tests private helper
+   def test_should_skip_seed():
+       enricher._should_skip_seed(seed)  # breaks if we rename helper
+
+   # ✅ GOOD: Tests public behavior
+   def test_enrich_skips_complete_seeds():
+       result = enricher.enrich([seed])
+       assert result[seed.id]["skipped"] is True
+       assert store.edge_count() == 0  # verify side effect
+   ```
+
+2. **Mock Verification Without Side Effect Checks**
+   ```python
+   # ❌ BAD: Only checks mock was called
+   assert mock_worker.fetch_followers.called
+
+   # ✅ GOOD: Verifies actual data persisted
+   assert mock_worker.fetch_followers.called
+   edges = store.get_edges(seed.account_id)
+   assert len(edges) == 100  # verify side effect
+   ```
+
+3. **Fixture Bugs (Type Mismatches)**
+   ```python
+   # ❌ BAD: Wrong parameter name
+   CapturedUser(handle="test")  # raises TypeError
+
+   # ✅ GOOD: Match actual signature
+   CapturedUser(username="test")
+   ```
+
+4. **Fragile Assumptions**
+   ```python
+   # ❌ BAD: Assumes implementation detail
+   mock_store.get_last_scrape_metrics.return_value = None
+   # breaks when we change how metrics work
+
+   # ✅ GOOD: Set up realistic scenario
+   mock_store.get_last_scrape_metrics.return_value = ScrapeRunMetrics(
+       run_at=datetime.utcnow() - timedelta(days=200),
+       following_claimed_total=100,
+       # ... complete record
+   )
+   ```
+
+### When Implementation Testing Is Acceptable
+
+- Complex algorithms with intricate calculations (test intermediate steps)
+- Performance-critical code paths (test optimization logic)
+- Security-sensitive code (test sanitization, auth checks)
+- BUT: Always supplement with behavioral integration tests
+
+### Test Design Checklist
+
+Before writing/reviewing tests, ask:
+1. Does this test survive refactoring? (rename helper, reorder code)
+2. Does it verify observable outcomes? (DB, files, metrics, logs)
+3. Can it run without mocking internal helpers? (test public API)
+4. Does it use realistic fixtures? (complete objects, not minimal stubs)
+5. Will it catch real bugs? (not just "code was called")
+
+### Resources
+- [Test Behavior, Not Implementation](https://www.thecoder.cafe/p/test-behavior-not-implementation)
+- [Stack Overflow: Testing Public vs Private](https://stackoverflow.com/questions/856115)
+- [Medium: Expected Behaviors vs Implementation](https://medium.com/@victor.ronin/should-you-test-only-expected-software-behaviors-vs-implementation-details-6a925c510f7b)
+
+---
+
+## FILE_SIZE_MANAGEMENT
+
+Decomposition protocol for files > 300 LOC
 Plan: identify file that is monolithic and bloated and inform human that it needs refactoring to split into smaller modular pieces
 
 
