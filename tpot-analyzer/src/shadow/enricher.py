@@ -88,7 +88,7 @@ class HybridShadowEnricher:
         self._first_scrape_confirmed = not config.confirm_first_scrape
 
     # ------------------------------------------------------------------
-    # Skip Logic Helpers
+    # Enrichment Workflow Helpers
     # ------------------------------------------------------------------
     def _should_skip_seed(self, seed: SeedAccount) -> tuple[bool, Optional[str], dict]:
         """Check if seed should be skipped based on existing data.
@@ -112,6 +112,100 @@ class HybridShadowEnricher:
             return (True, "complete profile and edges exist", edge_summary)
 
         return (False, None, edge_summary)
+
+    def _refresh_profile(
+        self,
+        seed: SeedAccount,
+        has_edges: bool,
+        has_profile: bool
+    ) -> Optional[dict]:
+        """Refresh profile metadata only (no list scraping).
+
+        Used in --profile-only mode to update bio, location, counts without scraping lists.
+
+        Args:
+            seed: The seed account to refresh
+            has_edges: Whether seed already has edge data in store
+            has_profile: Whether seed already has complete profile in store
+
+        Returns:
+            Summary dict with refresh results, or None to skip profile refresh
+        """
+        # Skip if not in profile-only-all mode and no edges exist
+        if not self._config.profile_only_all:
+            if not has_edges:
+                LOGGER.warning(
+                    "Skipping profile-only @%s (%s) — no existing edge data",
+                    seed.username,
+                    seed.account_id,
+                )
+                return {
+                    "username": seed.username,
+                    "profile_only": True,
+                    "skipped": True,
+                    "reason": "no_edge_data",
+                }
+            if has_profile:
+                LOGGER.warning(
+                    "Skipping profile-only @%s (%s) — profile already complete",
+                    seed.username,
+                    seed.account_id,
+                )
+                return {
+                    "username": seed.username,
+                    "profile_only": True,
+                    "skipped": True,
+                    "reason": "profile_complete",
+                }
+
+        # Fetch profile overview from Selenium
+        overview = self._selenium.fetch_profile_overview(seed.username)
+        if not overview:
+            LOGGER.error(
+                "Profile-only update failed for @%s (%s); could not load profile page",
+                seed.username,
+                seed.account_id,
+            )
+            return {
+                "username": seed.username,
+                "profile_only": True,
+                "updated": False,
+                "error": "profile_overview_missing",
+            }
+
+        # Update store with profile data
+        account_record = self._make_seed_account_record(seed, overview)
+        inserted_accounts = self._store.upsert_accounts([account_record])
+
+        LOGGER.warning(
+            "✓ profile-only @%s updated account (upserts=%s)",
+            seed.username,
+            inserted_accounts,
+        )
+
+        # Apply delay before next seed
+        pause = random.uniform(
+            max(0.5, self._config.action_delay_min),
+            max(self._config.action_delay_min, self._config.action_delay_max),
+        )
+        time.sleep(pause)
+
+        return {
+            "username": seed.username,
+            "profile_only": True,
+            "updated": inserted_accounts > 0,
+            "profile_overview": {
+                "username": overview.username,
+                "display_name": overview.display_name,
+                "bio": overview.bio,
+                "location": overview.location,
+                "website": overview.website,
+                "followers_total": overview.followers_total,
+                "following_total": overview.following_total,
+                "joined_date": overview.joined_date,
+                "profile_image_url": overview.profile_image_url,
+            },
+        }
 
     # ------------------------------------------------------------------
     # Public API
@@ -171,78 +265,12 @@ class HybridShadowEnricher:
             has_edges = edge_summary["following"] > 0 and edge_summary["followers"] > 0
             has_profile = self._store.is_seed_profile_complete(seed.account_id)
 
+            # Handle profile-only mode
             if self._config.profile_only:
-                if not self._config.profile_only_all:
-                    if not has_edges:
-                        LOGGER.warning(
-                            "Skipping profile-only @%s (%s) — no existing edge data",
-                            seed.username,
-                            seed.account_id,
-                        )
-                        summary[seed.account_id] = {
-                            "username": seed.username,
-                            "profile_only": True,
-                            "skipped": True,
-                            "reason": "no_edge_data",
-                        }
-                        continue
-                    if has_profile:
-                        LOGGER.warning(
-                            "Skipping profile-only @%s (%s) — profile already complete",
-                            seed.username,
-                            seed.account_id,
-                        )
-                        summary[seed.account_id] = {
-                            "username": seed.username,
-                            "profile_only": True,
-                            "skipped": True,
-                            "reason": "profile_complete",
-                        }
-                        continue
-                overview = self._selenium.fetch_profile_overview(seed.username)
-                if not overview:
-                    LOGGER.error(
-                        "Profile-only update failed for @%s (%s); could not load profile page",
-                        seed.username,
-                        seed.account_id,
-                    )
-                    summary[seed.account_id] = {
-                        "username": seed.username,
-                        "profile_only": True,
-                        "updated": False,
-                        "error": "profile_overview_missing",
-                    }
+                profile_result = self._refresh_profile(seed, has_edges, has_profile)
+                if profile_result:
+                    summary[seed.account_id] = profile_result
                     continue
-
-                account_record = self._make_seed_account_record(seed, overview)
-                inserted_accounts = self._store.upsert_accounts([account_record])
-                summary[seed.account_id] = {
-                    "username": seed.username,
-                    "profile_only": True,
-                    "updated": inserted_accounts > 0,
-                    "profile_overview": {
-                        "username": overview.username,
-                        "display_name": overview.display_name,
-                        "bio": overview.bio,
-                        "location": overview.location,
-                        "website": overview.website,
-                        "followers_total": overview.followers_total,
-                        "following_total": overview.following_total,
-                        "joined_date": overview.joined_date,
-                        "profile_image_url": overview.profile_image_url,
-                    },
-                }
-                LOGGER.warning(
-                    "✓ profile-only @%s updated account (upserts=%s)",
-                    seed.username,
-                    inserted_accounts,
-                )
-                pause = random.uniform(
-                    max(0.5, self._config.action_delay_min),
-                    max(self._config.action_delay_min, self._config.action_delay_max),
-                )
-                time.sleep(pause)
-                continue
 
             start = time.perf_counter()
             LOGGER.info("Enriching @%s...", seed.username)

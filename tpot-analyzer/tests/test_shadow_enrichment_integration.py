@@ -105,32 +105,103 @@ class TestSkipLogic:
 
 
 # ==============================================================================
-# PROFILE-ONLY MODE TESTS - CURRENTLY FAILING
+# PROFILE-ONLY MODE TESTS - NOW WORKING ✅
 # ==============================================================================
-# These tests FAIL because profile-only logic is inline in enrich() (lines 144-215).
-#
-# Gap revealed: Cannot test profile-only mode in isolation.
+# These tests now work because _refresh_profile() helper was extracted!
 # ==============================================================================
 
-@pytest.mark.skip(reason="Profile-only logic is inline in enrich() at lines 144-215")
+@pytest.mark.unit
 class TestProfileOnlyMode:
-    """Tests for --profile-only flag behavior.
+    """Tests for _refresh_profile() helper method.
 
-    ARCHITECTURAL GAP: Profile-only logic is not decomposed.
-    Current implementation is inline at enricher.py:144-215.
-
-    To make testable, would need:
-        def _update_profile_only(seed) -> dict:
-            overview = self._selenium.fetch_profile_overview(seed.username)
-            account = self._make_seed_account_record(seed, overview)
-            self._store.upsert_accounts([account])
-            return {"updated": True, "profile_overview": overview}
+    ✅ REFACTORED: Profile-only logic extracted from enrich() into testable helper.
+    Tests verify profile updates without list scraping.
     """
 
-    def test_profile_only_skips_list_scraping(self, mock_shadow_store, mock_enrichment_config):
-        """DOCUMENTS: Profile-only mode should only fetch profile, not lists."""
+    def test_refresh_profile_updates_when_has_edges(self, mock_shadow_store, mock_enrichment_config):
+        """Should update profile when has edges (normal profile-only mode)."""
+        from src.shadow.selenium_worker import ProfileOverview
+
         mock_enrichment_config.profile_only = True
-        # Test would verify fetch_following/fetch_followers not called
+        mock_enrichment_config.profile_only_all = False
+        mock_shadow_store.upsert_accounts = Mock(return_value=1)
+
+        overview = ProfileOverview(
+            username="testuser",
+            display_name="Test User",
+            bio="Bio",
+            location="Location",
+            website="https://example.com",
+            followers_total=100,
+            following_total=50,
+            profile_image_url="https://example.com/avatar.jpg",
+            joined_date="2020-01-01",
+        )
+
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.fetch_profile_overview = Mock(return_value=overview)
+
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            result = enricher._refresh_profile(seed, has_edges=True, has_profile=False)
+
+            assert result is not None
+            assert result["profile_only"] is True
+            assert result["updated"] is True
+            assert result["profile_overview"]["username"] == "testuser"
+            mock_worker.fetch_profile_overview.assert_called_once_with("testuser")
+
+    def test_refresh_profile_skips_when_no_edges(self, mock_shadow_store, mock_enrichment_config):
+        """Should skip when no edges exist (default profile-only mode)."""
+        mock_enrichment_config.profile_only = True
+        mock_enrichment_config.profile_only_all = False
+
+        with patch('src.shadow.enricher.SeleniumWorker'):
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            result = enricher._refresh_profile(seed, has_edges=False, has_profile=False)
+
+            assert result is not None
+            assert result["skipped"] is True
+            assert result["reason"] == "no_edge_data"
+
+    def test_refresh_profile_all_mode_ignores_edges(self, mock_shadow_store, mock_enrichment_config):
+        """Should update profile even without edges in --profile-only-all mode."""
+        from src.shadow.selenium_worker import ProfileOverview
+
+        mock_enrichment_config.profile_only = True
+        mock_enrichment_config.profile_only_all = True  # Force refresh all
+        mock_shadow_store.upsert_accounts = Mock(return_value=1)
+
+        overview = ProfileOverview(
+            username="testuser",
+            display_name="Test User",
+            bio="Bio",
+            location="Location",
+            website="https://example.com",
+            followers_total=100,
+            following_total=50,
+            profile_image_url="https://example.com/avatar.jpg",
+            joined_date="2020-01-01",
+        )
+
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.fetch_profile_overview = Mock(return_value=overview)
+
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            result = enricher._refresh_profile(seed, has_edges=False, has_profile=False)
+
+            assert result is not None
+            assert result["updated"] is True
+            mock_worker.fetch_profile_overview.assert_called_once()
 
 
 # ==============================================================================
