@@ -43,8 +43,8 @@ class EnrichmentPolicy:
     list_refresh_days: int = 180
     profile_refresh_days: int = 30
     pct_delta_threshold: float = 0.5
-    require_user_confirmation: bool = True
-    auto_confirm_rescrapes: bool = False
+    require_user_confirmation: bool = False  # Non-blocking default (use --require-confirmation to enable)
+    auto_confirm_rescrapes: bool = True  # Auto-proceed by default
 
     @classmethod
     def from_file(cls, path: Path) -> "EnrichmentPolicy":
@@ -477,6 +477,46 @@ class HybridShadowEnricher:
             # Use policy-driven refresh helpers
             following_capture = self._refresh_following(seed, overview)
             followers_capture, followers_you_follow_capture = self._refresh_followers(seed, overview)
+
+            # Check if policy skipped all lists (preserve baseline, don't corrupt metrics)
+            policy_skipped_all = (following_capture is None and followers_capture is None)
+
+            if policy_skipped_all:
+                # Record that we checked but policy skipped everything
+                skip_metrics = ScrapeRunMetrics(
+                    seed_account_id=seed.account_id,
+                    seed_username=seed.username or "",
+                    run_at=datetime.utcnow(),
+                    duration_seconds=0.0,
+                    following_captured=0,
+                    followers_captured=0,
+                    followers_you_follow_captured=0,
+                    following_claimed_total=None,
+                    followers_claimed_total=None,
+                    followers_you_follow_claimed_total=None,
+                    following_coverage=None,
+                    followers_coverage=None,
+                    followers_you_follow_coverage=None,
+                    accounts_upserted=0,
+                    edges_upserted=0,
+                    discoveries_upserted=0,
+                    skipped=True,
+                    skip_reason="policy_fresh_data",
+                )
+                self._store.record_scrape_metrics(skip_metrics)
+
+                LOGGER.info(
+                    "✓ Skipped @%s (policy: data is fresh, baseline preserved)",
+                    seed.username,
+                )
+
+                summary[seed.account_id] = {
+                    "username": seed.username,
+                    "skipped": True,
+                    "reason": "policy_fresh_data",
+                    "edge_summary": self._store.edge_summary_for_seed(seed.account_id),
+                }
+                continue
 
             following_entries: List[CapturedUser] = (
                 list(following_capture.entries)

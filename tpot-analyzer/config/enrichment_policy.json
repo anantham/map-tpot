@@ -3,6 +3,6 @@
   "list_refresh_days": 180,
   "profile_refresh_days": 30,
   "pct_delta_threshold": 0.5,
-  "require_user_confirmation": true,
-  "auto_confirm_rescrapes": false
+  "require_user_confirmation": false,
+  "auto_confirm_rescrapes": true
 }

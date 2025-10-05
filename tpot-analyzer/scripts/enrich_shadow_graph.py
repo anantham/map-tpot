@@ -17,7 +17,7 @@ from src.config import get_cache_settings
 from src.data.fetcher import CachedDataFetcher
 from src.data.shadow_store import get_shadow_store
 from src.graph.seeds import load_seed_candidates
-from src.shadow import HybridShadowEnricher, SeedAccount, ShadowEnrichmentConfig
+from src.shadow import HybridShadowEnricher, SeedAccount, ShadowEnrichmentConfig, EnrichmentPolicy
 
 
 def parse_args() -> argparse.Namespace:
@@ -120,6 +120,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=10,
         help="Number of sample profiles to show during the confirmation preview (default 10).",
+    )
+    parser.add_argument(
+        "--require-confirmation",
+        action="store_true",
+        help="Require user confirmation before each list refresh (default: auto-confirm based on policy).",
     )
     parser.add_argument(
         "--log-level",
@@ -299,7 +304,13 @@ def main() -> None:
             profile_only_all=args.profile_only_all,
         )
 
-        enricher = HybridShadowEnricher(store, config)
+        # Build enrichment policy from CLI flags
+        policy = EnrichmentPolicy.default()
+        if args.require_confirmation:
+            policy.require_user_confirmation = True
+            policy.auto_confirm_rescrapes = False
+
+        enricher = HybridShadowEnricher(store, config, policy)
         try:
             summary = enricher.enrich(seeds)
         except KeyboardInterrupt:
