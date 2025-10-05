@@ -89,7 +89,29 @@ def mock_shadow_store():
     store.upsert_edges = Mock(return_value=0)
     store.upsert_discoveries = Mock(return_value=0)
     store.record_scrape_metrics = Mock(return_value=1)
+    store.get_last_scrape_metrics = Mock(return_value=None)  # No previous scrape by default
     return store
+
+
+@pytest.fixture
+def mock_enrichment_policy():
+    """Create a mock enrichment policy with test-friendly defaults.
+
+    Returns a policy that auto-confirms refreshes to avoid blocking on user input.
+    Tests can override specific attributes as needed.
+
+    Example:
+        def test_policy_check(mock_enrichment_policy):
+            mock_enrichment_policy.require_user_confirmation = True
+            # Test code
+    """
+    policy = Mock()
+    policy.list_refresh_days = 180
+    policy.profile_refresh_days = 30
+    policy.pct_delta_threshold = 0.5
+    policy.require_user_confirmation = False  # Don't block on user input in tests
+    policy.auto_confirm_rescrapes = True  # Always proceed in tests
+    return policy
 
 
 @pytest.fixture
