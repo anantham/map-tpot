@@ -389,6 +389,44 @@ class ShadowStore:
     # ------------------------------------------------------------------
     # Metrics operations
     # ------------------------------------------------------------------
+    def get_last_scrape_metrics(self, seed_account_id: str) -> Optional[ScrapeRunMetrics]:
+        """Get the most recent scrape metrics for a seed account.
+
+        Returns None if no scrape has been recorded for this seed.
+        """
+        with self._engine.begin() as conn:
+            stmt = (
+                select(self._metrics_table)
+                .where(self._metrics_table.c.seed_account_id == seed_account_id)
+                .where(self._metrics_table.c.skipped == False)
+                .order_by(self._metrics_table.c.run_at.desc())
+                .limit(1)
+            )
+            row = conn.execute(stmt).fetchone()
+            if not row:
+                return None
+
+            return ScrapeRunMetrics(
+                seed_account_id=row.seed_account_id,
+                seed_username=row.seed_username,
+                run_at=row.run_at,
+                duration_seconds=row.duration_seconds,
+                following_captured=row.following_captured,
+                followers_captured=row.followers_captured,
+                followers_you_follow_captured=row.followers_you_follow_captured,
+                following_claimed_total=row.following_claimed_total,
+                followers_claimed_total=row.followers_claimed_total,
+                followers_you_follow_claimed_total=row.followers_you_follow_claimed_total,
+                following_coverage=row.following_coverage / 10000.0 if row.following_coverage else None,
+                followers_coverage=row.followers_coverage / 10000.0 if row.followers_coverage else None,
+                followers_you_follow_coverage=row.followers_you_follow_coverage / 10000.0 if row.followers_you_follow_coverage else None,
+                accounts_upserted=row.accounts_upserted,
+                edges_upserted=row.edges_upserted,
+                discoveries_upserted=row.discoveries_upserted,
+                skipped=row.skipped,
+                skip_reason=row.skip_reason,
+            )
+
     def record_scrape_metrics(self, metrics: ScrapeRunMetrics) -> int:
         """Record metrics for a single scrape run."""
         row = {
