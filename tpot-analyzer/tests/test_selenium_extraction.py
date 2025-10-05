@@ -59,6 +59,7 @@ def mock_element(
 # _parse_compact_count Tests
 # ==============================================================================
 
+@pytest.mark.unit
 class TestParseCompactCount:
     """Test compact number parsing (1.2K, 5M, etc.)."""
 
@@ -97,6 +98,7 @@ class TestParseCompactCount:
 # JSON-LD Profile Schema Parsing
 # ==============================================================================
 
+@pytest.mark.unit
 class TestProfileSchemaParsing:
     """Ensure JSON-LD fallback recovers counts and metadata."""
 
@@ -156,6 +158,7 @@ class TestProfileSchemaParsing:
 # _handle_from_href Tests
 # ==============================================================================
 
+@pytest.mark.unit
 class TestHandleFromHref:
     """Test extracting Twitter handles from various href formats."""
 
@@ -199,6 +202,7 @@ class TestHandleFromHref:
 # _extract_handle Tests
 # ==============================================================================
 
+@pytest.mark.unit
 class TestExtractHandle:
     """Test handle extraction from UserCell elements."""
 
@@ -230,6 +234,7 @@ class TestExtractHandle:
 # _extract_display_name Tests (Bug: 9c806a4)
 # ==============================================================================
 
+@pytest.mark.unit
 class TestExtractDisplayName:
     """Test display name extraction with structured and fallback logic.
 
@@ -297,6 +302,7 @@ class TestExtractDisplayName:
 # _extract_bio Tests (Bug: 9c806a4)
 # ==============================================================================
 
+@pytest.mark.unit
 class TestExtractBio:
     """Test bio extraction with structured and fallback logic.
 
@@ -368,6 +374,7 @@ class TestExtractBio:
 # _extract_website Tests (Bug: a8eec0d)
 # ==============================================================================
 
+@pytest.mark.unit
 class TestExtractWebsite:
     """Test website extraction from UserCell.
 
@@ -437,6 +444,7 @@ class TestExtractWebsite:
 # _extract_profile_image_url Tests (Bug: a8eec0d)
 # ==============================================================================
 
+@pytest.mark.unit
 class TestExtractProfileImageUrl:
     """Test profile image URL extraction from UserCell.
 
@@ -495,6 +503,7 @@ class TestExtractProfileImageUrl:
 # Integration Test: Full UserCell Extraction
 # ==============================================================================
 
+@pytest.mark.unit
 class TestUserCellExtraction:
     """Integration tests for extracting all data from a UserCell."""
 

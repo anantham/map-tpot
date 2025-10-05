@@ -44,6 +44,7 @@ def mock_config():
 # _compute_coverage Tests (Bug: d284ebb)
 # ==============================================================================
 
+@pytest.mark.unit
 class TestComputeCoverage:
     """Test coverage calculation logic.
 
@@ -86,6 +87,7 @@ class TestComputeCoverage:
 # _combine_captures Tests
 # ==============================================================================
 
+@pytest.mark.unit
 class TestCombineCaptures:
     """Test combining multiple UserListCapture results."""
 
@@ -181,6 +183,7 @@ class TestCombineCaptures:
 # _truncate_text Tests
 # ==============================================================================
 
+@pytest.mark.unit
 class TestTruncateText:
     """Test text truncation utility."""
 
@@ -220,6 +223,7 @@ class TestTruncateText:
 # _make_discovery_records Tests
 # ==============================================================================
 
+@pytest.mark.unit
 class TestMakeDiscoveryRecords:
     """Test discovery record creation.
 
@@ -294,6 +298,7 @@ class TestMakeDiscoveryRecords:
 # _profile_overview_from_captures Tests
 # ==============================================================================
 
+@pytest.mark.unit
 class TestProfileOverviewFromCaptures:
     """Test extracting profile overview from captures."""
 

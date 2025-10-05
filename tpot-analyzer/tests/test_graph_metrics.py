@@ -27,6 +27,7 @@ def make_graph():
     return g, undirected
 
 
+@pytest.mark.unit
 def test_pagerank_with_seeds():
     directed, _ = make_graph()
     pr = compute_personalized_pagerank(directed, seeds=["a"], alpha=0.85)
@@ -34,18 +35,21 @@ def test_pagerank_with_seeds():
     assert pr["a"] > pr["c"]
 
 
+@pytest.mark.unit
 def test_louvain():
     _, undirected = make_graph()
     communities = compute_louvain_communities(undirected)
     assert set(communities.keys()) == set(undirected.nodes)
 
 
+@pytest.mark.unit
 def test_betweenness():
     _, undirected = make_graph()
     bt = compute_betweenness(undirected)
     assert bt["b"] >= bt["a"]
 
 
+@pytest.mark.unit
 def test_engagement_and_composite():
     directed, undirected = make_graph()
     pr = compute_personalized_pagerank(directed, seeds=["a"])
@@ -55,6 +59,7 @@ def test_engagement_and_composite():
     assert set(composite.keys()) == set(directed.nodes)
 
 
+@pytest.mark.unit
 def test_normalize_scores_constant():
     scores = {"a": 1, "b": 1}
     normalized = normalize_scores(scores)

@@ -7,19 +7,17 @@ from pathlib import Path
 import httpx
 import pytest
 
-# Ensure project src/ is importable when running `pytest` from repo root.
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in os.sys.path:
-    os.sys.path.insert(0, str(PROJECT_ROOT))
+from src.config import get_supabase_config
+from src.data.fetcher import CachedDataFetcher
 
-from src.config import get_supabase_config  # noqa: E402
-from src.data.fetcher import CachedDataFetcher  # noqa: E402
-
+# Conditional skip marker for tests requiring Supabase
 REQUIRES_SUPABASE = pytest.mark.skipif(
-    not os.getenv("SUPABASE_KEY"), reason="SUPABASE_KEY environment variable not configured"
+    not os.getenv("SUPABASE_KEY"),
+    reason="SUPABASE_KEY environment variable not configured",
 )
 
 
+@pytest.mark.integration
 @REQUIRES_SUPABASE
 def test_supabase_connection() -> None:
     cfg = get_supabase_config()
@@ -33,6 +31,7 @@ def test_supabase_connection() -> None:
     assert response.json(), "Supabase response did not include data"
 
 
+@pytest.mark.integration
 @REQUIRES_SUPABASE
 def test_profile_count(tmp_path: Path) -> None:
     expected_min_profiles = 275
@@ -43,6 +42,7 @@ def test_profile_count(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.integration
 @REQUIRES_SUPABASE
 def test_cache_persistence(tmp_path: Path) -> None:
     cache_db = tmp_path / "cache.db"

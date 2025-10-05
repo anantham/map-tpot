@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import networkx as nx
 import pandas as pd
+import pytest
 
 from src.graph.builder import build_graph_from_frames
 
@@ -62,6 +63,7 @@ def make_frames():
     return accounts, profiles, followers, following
 
 
+@pytest.mark.unit
 def test_build_graph_mutual_only():
     accounts, profiles, followers, following = make_frames()
     result = build_graph_from_frames(
@@ -80,6 +82,7 @@ def test_build_graph_mutual_only():
     assert "bio" in result.directed.nodes["a"]
 
 
+@pytest.mark.unit
 def test_build_graph_all_edges():
     accounts, profiles, followers, following = make_frames()
     result = build_graph_from_frames(
@@ -94,6 +97,7 @@ def test_build_graph_all_edges():
     assert result.undirected.has_edge("a", "b")
 
 
+@pytest.mark.unit
 def test_filter_min_followers():
     accounts, profiles, followers, following = make_frames()
     result = build_graph_from_frames(
