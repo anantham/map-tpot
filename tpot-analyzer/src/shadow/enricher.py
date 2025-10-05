@@ -1,11 +1,12 @@
 """Hybrid enrichment orchestrator mixing Selenium scraping and X API lookups."""
 from __future__ import annotations
 
+import json
 import logging
 import random
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
 
@@ -37,6 +38,30 @@ class SeedAccount:
 
 
 @dataclass
+class EnrichmentPolicy:
+    """Policy for cache-aware enrichment refresh decisions."""
+    list_refresh_days: int = 180
+    profile_refresh_days: int = 30
+    pct_delta_threshold: float = 0.5
+    require_user_confirmation: bool = True
+    auto_confirm_rescrapes: bool = False
+
+    @classmethod
+    def from_file(cls, path: Path) -> "EnrichmentPolicy":
+        """Load policy from JSON file."""
+        with open(path) as f:
+            data = json.load(f)
+        # Filter out comments and unknown fields
+        valid_fields = {k: v for k, v in data.items() if not k.startswith("_")}
+        return cls(**valid_fields)
+
+    @classmethod
+    def default(cls) -> "EnrichmentPolicy":
+        """Return default policy."""
+        return cls()
+
+
+@dataclass
 class ShadowEnrichmentConfig:
     selenium_cookies_path: Path
     selenium_headless: bool = False
@@ -62,9 +87,15 @@ class ShadowEnrichmentConfig:
 class HybridShadowEnricher:
     """Coordinates Selenium scraping with optional X API enrichment."""
 
-    def __init__(self, store: ShadowStore, config: ShadowEnrichmentConfig) -> None:
+    def __init__(
+        self,
+        store: ShadowStore,
+        config: ShadowEnrichmentConfig,
+        policy: Optional[EnrichmentPolicy] = None
+    ) -> None:
         self._store = store
         self._config = config
+        self._policy = policy or EnrichmentPolicy.default()
         selenium_config = SeleniumConfig(
             cookies_path=config.selenium_cookies_path,
             headless=config.selenium_headless,
