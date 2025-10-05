@@ -205,6 +205,167 @@ class TestProfileOnlyMode:
 
 
 # ==============================================================================
+# POLICY-DRIVEN REFRESH TESTS - NOW WORKING ✅
+# ==============================================================================
+# These tests verify the new policy-driven list refresh logic.
+# ==============================================================================
+
+@pytest.mark.unit
+class TestPolicyRefreshLogic:
+    """Tests for policy-driven list refresh helpers.
+
+    ✅ NEW: Tests verify age-based and delta-based refresh triggers.
+    Tests verify user confirmation prompts and auto-confirm modes.
+    """
+
+    def test_should_refresh_when_no_previous_scrape(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should always refresh when no previous scrape exists."""
+        mock_shadow_store.get_last_scrape_metrics = Mock(return_value=None)
+
+        with patch('src.shadow.enricher.SeleniumWorker'):
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            should_refresh, skip_reason = enricher._should_refresh_list(seed, "following", 100)
+
+            assert should_refresh is True
+            assert skip_reason is None
+
+    def test_should_refresh_when_age_exceeds_threshold(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should refresh when age > list_refresh_days threshold."""
+        from datetime import datetime, timedelta
+        from src.data.shadow_store import ScrapeRunMetrics
+
+        # Mock last scrape from 200 days ago (threshold is 180)
+        old_scrape = ScrapeRunMetrics(
+            seed_account_id="123",
+            seed_username="testuser",
+            run_at=datetime.utcnow() - timedelta(days=200),
+            duration_seconds=10.0,
+            following_captured=50,
+            followers_captured=100,
+            followers_you_follow_captured=0,
+            following_claimed_total=50,
+            followers_claimed_total=100,
+            followers_you_follow_claimed_total=0,
+            following_coverage=1.0,
+            followers_coverage=1.0,
+            followers_you_follow_coverage=0.0,
+            accounts_upserted=150,
+            edges_upserted=150,
+            discoveries_upserted=150,
+        )
+        mock_shadow_store.get_last_scrape_metrics = Mock(return_value=old_scrape)
+
+        with patch('src.shadow.enricher.SeleniumWorker'):
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            should_refresh, skip_reason = enricher._should_refresh_list(seed, "following", 50)
+
+            assert should_refresh is True
+            assert skip_reason is None
+
+    def test_should_refresh_when_delta_exceeds_threshold(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should refresh when pct_delta > pct_delta_threshold (50%)."""
+        from datetime import datetime, timedelta
+        from src.data.shadow_store import ScrapeRunMetrics
+
+        # Mock recent scrape (1 day ago) with old count of 100
+        recent_scrape = ScrapeRunMetrics(
+            seed_account_id="123",
+            seed_username="testuser",
+            run_at=datetime.utcnow() - timedelta(days=1),
+            duration_seconds=10.0,
+            following_captured=100,
+            followers_captured=100,
+            followers_you_follow_captured=0,
+            following_claimed_total=100,
+            followers_claimed_total=100,
+            followers_you_follow_claimed_total=0,
+            following_coverage=1.0,
+            followers_coverage=1.0,
+            followers_you_follow_coverage=0.0,
+            accounts_upserted=200,
+            edges_upserted=200,
+            discoveries_upserted=200,
+        )
+        mock_shadow_store.get_last_scrape_metrics = Mock(return_value=recent_scrape)
+
+        with patch('src.shadow.enricher.SeleniumWorker'):
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            # New count is 200 (100% increase, threshold is 50%)
+            should_refresh, skip_reason = enricher._should_refresh_list(seed, "following", 200)
+
+            assert should_refresh is True
+            assert skip_reason is None
+
+    def test_should_skip_when_fresh_data(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should skip when age < threshold AND delta < threshold."""
+        from datetime import datetime, timedelta
+        from src.data.shadow_store import ScrapeRunMetrics
+
+        # Mock recent scrape (1 day ago) with small change
+        recent_scrape = ScrapeRunMetrics(
+            seed_account_id="123",
+            seed_username="testuser",
+            run_at=datetime.utcnow() - timedelta(days=1),
+            duration_seconds=10.0,
+            following_captured=100,
+            followers_captured=100,
+            followers_you_follow_captured=0,
+            following_claimed_total=100,
+            followers_claimed_total=100,
+            followers_you_follow_claimed_total=0,
+            following_coverage=1.0,
+            followers_coverage=1.0,
+            followers_you_follow_coverage=0.0,
+            accounts_upserted=200,
+            edges_upserted=200,
+            discoveries_upserted=200,
+        )
+        mock_shadow_store.get_last_scrape_metrics = Mock(return_value=recent_scrape)
+
+        with patch('src.shadow.enricher.SeleniumWorker'):
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            # New count is 110 (10% increase, under 50% threshold)
+            should_refresh, skip_reason = enricher._should_refresh_list(seed, "following", 110)
+
+            assert should_refresh is False
+            assert skip_reason == "following_fresh"
+
+    def test_confirm_refresh_auto_confirms(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should auto-confirm when auto_confirm_rescrapes=True."""
+        mock_enrichment_policy.auto_confirm_rescrapes = True
+        mock_enrichment_policy.require_user_confirmation = True
+
+        with patch('src.shadow.enricher.SeleniumWorker'):
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            confirmed = enricher._confirm_refresh(seed, "following")
+
+            assert confirmed is True
+
+    def test_confirm_refresh_skips_prompt_when_not_required(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should skip prompt when require_user_confirmation=False."""
+        mock_enrichment_policy.auto_confirm_rescrapes = False
+        mock_enrichment_policy.require_user_confirmation = False
+
+        with patch('src.shadow.enricher.SeleniumWorker'):
+            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
+            seed = SeedAccount(account_id="123", username="testuser")
+
+            confirmed = enricher._confirm_refresh(seed, "following")
+
+            assert confirmed is True
+
+
+# ==============================================================================
 # PUBLIC API INTEGRATION TESTS - THESE SHOULD WORK
 # ==============================================================================
 # These test the actual public enrich() method with mocked dependencies.
