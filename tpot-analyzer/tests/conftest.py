@@ -276,7 +276,7 @@ def sample_captured_user():
     """
     from src.shadow.selenium_worker import CapturedUser
     return CapturedUser(
-        handle="testuser",
+        username="testuser",
         display_name="Test User",
         bio="Sample bio",
         website="https://example.com",
