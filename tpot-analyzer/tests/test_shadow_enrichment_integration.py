@@ -30,100 +30,139 @@ from src.shadow.selenium_worker import CapturedUser, UserListCapture, ProfileOve
 
 
 # ==============================================================================
-# SKIP LOGIC TESTS - NOW WORKING ✅
+# SKIP LOGIC TESTS - BEHAVIORAL (REFACTORED) ✅
 # ==============================================================================
-# These tests now work because _should_skip_seed() helper was extracted!
+# Tests verify skip behavior through public enrich() API.
+# Focus: Observable outcomes (summary, no scraping), not implementation details.
 # ==============================================================================
 
 @pytest.mark.unit
 class TestSkipLogic:
-    """Tests for _should_skip_seed() helper method.
+    """Behavioral tests for seed skip logic.
 
-    ✅ REFACTORED: Skip logic extracted from enrich() into testable helper.
-    Tests verify skip decisions based on edge/profile completeness.
+    ✅ REFACTORED: Test through public enrich() API, verify observable outcomes.
+    These tests survive refactoring (rename helpers, reorder code).
     """
 
-    def test_skip_when_complete_profile_and_edges(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should skip when profile complete AND has edges in normal mode."""
+    def test_enrich_skips_when_complete_profile_and_edges(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """enrich() should skip seeds with complete profile and existing edges."""
+        # Setup: Seed has complete profile and edges
         mock_shadow_store.is_seed_profile_complete = Mock(return_value=True)
         mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 50, "followers": 100, "total": 150})
 
-        with patch('src.shadow.enricher.SeleniumWorker'):
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.quit = Mock()
+
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            should_skip, skip_reason, edge_summary = enricher._should_skip_seed(seed)
+            result = enricher.enrich([seed])
 
-            assert should_skip is True
-            assert skip_reason == "complete profile and edges exist"
-            assert edge_summary["following"] == 50
-            assert edge_summary["followers"] == 100
+            # Verify: Skipped in summary
+            assert result["123"]["skipped"] is True
+            assert "complete" in result["123"]["reason"]
+            assert result["123"]["edge_summary"]["following"] == 50
 
-    def test_no_skip_when_incomplete_profile(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should NOT skip when profile incomplete even with edges."""
+            # Verify: No scraping happened
+            assert not mock_worker.fetch_following.called
+            assert not mock_worker.fetch_followers.called
+
+    def test_enrich_scrapes_when_incomplete_profile(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """enrich() should scrape when profile is incomplete, even with edges."""
+        # Setup: Has edges but incomplete profile
         mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)
         mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 50, "followers": 100, "total": 150})
 
-        with patch('src.shadow.enricher.SeleniumWorker'):
+        overview = ProfileOverview(
+            username="testuser",
+            display_name="Test User",
+            bio="Bio",
+            location="Location",
+            website="https://example.com",
+            followers_total=100,
+            following_total=50,
+        )
+
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.fetch_profile_overview = Mock(return_value=overview)
+            mock_worker.fetch_following = Mock(return_value=UserListCapture("following", [], 50, "url", overview))
+            mock_worker.fetch_followers = Mock(return_value=UserListCapture("followers", [], 100, "url", overview))
+            mock_worker.fetch_followers_you_follow = Mock(return_value=UserListCapture("followers_you_follow", [], 0, "url", overview))
+            mock_worker.quit = Mock()
+
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            should_skip, skip_reason, edge_summary = enricher._should_skip_seed(seed)
+            result = enricher.enrich([seed])
 
-            assert should_skip is False
-            assert skip_reason is None
+            # Verify: Not skipped
+            assert "skipped" not in result["123"] or result["123"]["skipped"] is False
 
-    def test_no_skip_when_no_edges(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should NOT skip when no edges exist even with complete profile."""
+            # Verify: Scraping happened
+            assert mock_worker.fetch_following.called
+            assert mock_worker.fetch_followers.called
+
+    def test_enrich_scrapes_when_no_edges(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """enrich() should scrape when no edges exist, even with complete profile."""
+        # Setup: Complete profile but no edges
         mock_shadow_store.is_seed_profile_complete = Mock(return_value=True)
         mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
 
-        with patch('src.shadow.enricher.SeleniumWorker'):
+        overview = ProfileOverview(
+            username="testuser",
+            display_name="Test User",
+            bio="Bio",
+            location="Location",
+            website="https://example.com",
+            followers_total=100,
+            following_total=50,
+        )
+
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.fetch_profile_overview = Mock(return_value=overview)
+            mock_worker.fetch_following = Mock(return_value=UserListCapture("following", [], 50, "url", overview))
+            mock_worker.fetch_followers = Mock(return_value=UserListCapture("followers", [], 100, "url", overview))
+            mock_worker.fetch_followers_you_follow = Mock(return_value=UserListCapture("followers_you_follow", [], 0, "url", overview))
+            mock_worker.quit = Mock()
+
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            should_skip, skip_reason, edge_summary = enricher._should_skip_seed(seed)
+            result = enricher.enrich([seed])
 
-            assert should_skip is False
-            assert skip_reason is None
-
-    def test_no_skip_in_profile_only_mode(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should NOT skip in profile-only mode (handled separately)."""
-        mock_shadow_store.is_seed_profile_complete = Mock(return_value=True)
-        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 50, "followers": 100, "total": 150})
-        mock_enrichment_config.profile_only = True  # Enable profile-only mode
-
-        with patch('src.shadow.enricher.SeleniumWorker'):
-            enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
-            seed = SeedAccount(account_id="123", username="testuser")
-
-            should_skip, skip_reason, edge_summary = enricher._should_skip_seed(seed)
-
-            # In profile-only mode, this helper never skips
-            assert should_skip is False
-            assert skip_reason is None
+            # Verify: Scraping happened (not skipped)
+            assert mock_worker.fetch_following.called
+            assert mock_worker.fetch_followers.called
 
 
 # ==============================================================================
-# PROFILE-ONLY MODE TESTS - NOW WORKING ✅
+# PROFILE-ONLY MODE TESTS - BEHAVIORAL (REFACTORED) ✅
 # ==============================================================================
-# These tests now work because _refresh_profile() helper was extracted!
+# Tests verify profile-only behavior through public enrich() API.
+# Focus: Profile updates without list scraping, observable in summary.
 # ==============================================================================
 
 @pytest.mark.unit
 class TestProfileOnlyMode:
-    """Tests for _refresh_profile() helper method.
+    """Behavioral tests for profile-only enrichment mode.
 
-    ✅ REFACTORED: Profile-only logic extracted from enrich() into testable helper.
-    Tests verify profile updates without list scraping.
+    ✅ REFACTORED: Test through public enrich() API with profile_only=True.
+    Verifies profile updates happen without list scraping, checks upsert calls.
     """
 
-    def test_refresh_profile_updates_when_has_edges(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should update profile when has edges (normal profile-only mode)."""
-        from src.shadow.selenium_worker import ProfileOverview
-
+    def test_enrich_updates_profile_when_has_edges(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """enrich() in profile-only mode updates profiles for seeds with edges."""
+        # Setup: Profile-only mode, seed has edges
         mock_enrichment_config.profile_only = True
         mock_enrichment_config.profile_only_all = False
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 50, "followers": 100, "total": 150})
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)
         mock_shadow_store.upsert_accounts = Mock(return_value=1)
 
         overview = ProfileOverview(
@@ -142,39 +181,59 @@ class TestProfileOnlyMode:
             mock_worker = Mock()
             mock_worker_class.return_value = mock_worker
             mock_worker.fetch_profile_overview = Mock(return_value=overview)
+            mock_worker.quit = Mock()
 
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            result = enricher._refresh_profile(seed, has_edges=True, has_profile=False)
+            result = enricher.enrich([seed])
 
-            assert result is not None
-            assert result["profile_only"] is True
-            assert result["updated"] is True
-            assert result["profile_overview"]["username"] == "testuser"
+            # Verify: Profile updated in summary
+            assert result["123"]["profile_only"] is True
+            assert result["123"]["updated"] is True
+            assert result["123"]["profile_overview"]["username"] == "testuser"
+
+            # Verify: Profile fetched, accounts upserted
             mock_worker.fetch_profile_overview.assert_called_once_with("testuser")
+            mock_shadow_store.upsert_accounts.assert_called_once()
 
-    def test_refresh_profile_skips_when_no_edges(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should skip when no edges exist (default profile-only mode)."""
+            # Verify: No list scraping
+            assert not mock_worker.fetch_following.called
+            assert not mock_worker.fetch_followers.called
+
+    def test_enrich_skips_profile_when_no_edges(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """enrich() in profile-only mode skips seeds without edges (default behavior)."""
+        # Setup: Profile-only mode, seed has NO edges
         mock_enrichment_config.profile_only = True
         mock_enrichment_config.profile_only_all = False
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)
 
-        with patch('src.shadow.enricher.SeleniumWorker'):
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.quit = Mock()
+
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            result = enricher._refresh_profile(seed, has_edges=False, has_profile=False)
+            result = enricher.enrich([seed])
 
-            assert result is not None
-            assert result["skipped"] is True
-            assert result["reason"] == "no_edge_data"
+            # Verify: Skipped in summary
+            assert result["123"]["skipped"] is True
+            assert result["123"]["reason"] == "no_edge_data"
 
-    def test_refresh_profile_all_mode_ignores_edges(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should update profile even without edges in --profile-only-all mode."""
-        from src.shadow.selenium_worker import ProfileOverview
+            # Verify: No profile fetch, no list scraping
+            assert not mock_worker.fetch_profile_overview.called
+            assert not mock_worker.fetch_following.called
 
+    def test_enrich_updates_all_in_profile_only_all_mode(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """enrich() with --profile-only-all updates even seeds without edges."""
+        # Setup: profile-only-all mode (force refresh)
         mock_enrichment_config.profile_only = True
-        mock_enrichment_config.profile_only_all = True  # Force refresh all
+        mock_enrichment_config.profile_only_all = True
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)
         mock_shadow_store.upsert_accounts = Mock(return_value=1)
 
         overview = ProfileOverview(
@@ -193,176 +252,269 @@ class TestProfileOnlyMode:
             mock_worker = Mock()
             mock_worker_class.return_value = mock_worker
             mock_worker.fetch_profile_overview = Mock(return_value=overview)
+            mock_worker.quit = Mock()
 
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            result = enricher._refresh_profile(seed, has_edges=False, has_profile=False)
+            result = enricher.enrich([seed])
 
-            assert result is not None
-            assert result["updated"] is True
+            # Verify: Profile updated (NOT skipped despite no edges)
+            assert result["123"]["updated"] is True
             mock_worker.fetch_profile_overview.assert_called_once()
+            mock_shadow_store.upsert_accounts.assert_called_once()
 
 
 # ==============================================================================
 # POLICY-DRIVEN REFRESH TESTS - NOW WORKING ✅
 # ==============================================================================
-# These tests verify the new policy-driven list refresh logic.
+# These tests verify policy-driven list refresh behavior through public API.
 # ==============================================================================
 
 @pytest.mark.unit
 class TestPolicyRefreshLogic:
-    """Tests for policy-driven list refresh helpers.
+    """Tests for policy-driven list refresh behavior.
 
-    ✅ NEW: Tests verify age-based and delta-based refresh triggers.
-    Tests verify user confirmation prompts and auto-confirm modes.
+    ✅ REFACTORED: Tests verify age-based and delta-based refresh triggers
+    through the public enrich() API, not private helpers.
     """
 
-    def test_should_refresh_when_no_previous_scrape(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should always refresh when no previous scrape exists."""
-        mock_shadow_store.get_last_scrape_metrics = Mock(return_value=None)
+    def test_enrich_refreshes_when_no_previous_scrape(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should scrape lists when no previous scrape exists."""
+        from src.shadow.selenium_worker import ProfileOverview, UserListCapture
 
-        with patch('src.shadow.enricher.SeleniumWorker'):
+        # Setup: no previous scrape, incomplete profile
+        mock_shadow_store.get_last_scrape_metrics = Mock(return_value=None)
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
+
+        overview = ProfileOverview(
+            username="testuser", display_name="Test", bio="", location="",
+            website="", followers_total=100, following_total=50
+        )
+
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.fetch_profile_overview = Mock(return_value=overview)
+            mock_worker.fetch_following = Mock(return_value=UserListCapture("following", [], 50, "url", overview))
+            mock_worker.fetch_followers = Mock(return_value=UserListCapture("followers", [], 100, "url", overview))
+            mock_worker.fetch_followers_you_follow = Mock(return_value=UserListCapture("followers_you_follow", [], 0, "url", overview))
+            mock_worker.quit = Mock()
+
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            should_refresh, skip_reason = enricher._should_refresh_list(seed, "following", 100)
+            result = enricher.enrich([seed])
 
-            assert should_refresh is True
-            assert skip_reason is None
+            # Verify: Lists scraped (no skip due to missing baseline)
+            assert mock_worker.fetch_following.called
+            assert mock_worker.fetch_followers.called
+            assert result["123"]["edges_upserted"] >= 0
 
-    def test_should_refresh_when_age_exceeds_threshold(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should refresh when age > list_refresh_days threshold."""
+    def test_enrich_refreshes_when_age_exceeds_threshold(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should re-scrape lists when age > list_refresh_days (180 days)."""
         from datetime import datetime, timedelta
         from src.data.shadow_store import ScrapeRunMetrics
+        from src.shadow.selenium_worker import ProfileOverview, UserListCapture
 
-        # Mock last scrape from 200 days ago (threshold is 180)
+        # Setup: old scrape from 200 days ago, but INCOMPLETE profile (so policy is consulted)
         old_scrape = ScrapeRunMetrics(
-            seed_account_id="123",
-            seed_username="testuser",
+            seed_account_id="123", seed_username="testuser",
             run_at=datetime.utcnow() - timedelta(days=200),
             duration_seconds=10.0,
-            following_captured=50,
-            followers_captured=100,
-            followers_you_follow_captured=0,
-            following_claimed_total=50,
-            followers_claimed_total=100,
-            followers_you_follow_claimed_total=0,
-            following_coverage=1.0,
-            followers_coverage=1.0,
-            followers_you_follow_coverage=0.0,
-            accounts_upserted=150,
-            edges_upserted=150,
-            discoveries_upserted=150,
+            following_captured=50, followers_captured=100, followers_you_follow_captured=0,
+            following_claimed_total=50, followers_claimed_total=100, followers_you_follow_claimed_total=0,
+            following_coverage=1.0, followers_coverage=1.0, followers_you_follow_coverage=0.0,
+            accounts_upserted=150, edges_upserted=150, discoveries_upserted=150,
         )
         mock_shadow_store.get_last_scrape_metrics = Mock(return_value=old_scrape)
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)  # Incomplete so policy runs
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
 
-        with patch('src.shadow.enricher.SeleniumWorker'):
+        overview = ProfileOverview(
+            username="testuser", display_name="Test", bio="", location="",
+            website="", followers_total=100, following_total=50
+        )
+
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.fetch_profile_overview = Mock(return_value=overview)
+            mock_worker.fetch_following = Mock(return_value=UserListCapture("following", [], 50, "url", overview))
+            mock_worker.fetch_followers = Mock(return_value=UserListCapture("followers", [], 100, "url", overview))
+            mock_worker.fetch_followers_you_follow = Mock(return_value=UserListCapture("followers_you_follow", [], 0, "url", overview))
+            mock_worker.quit = Mock()
+
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            should_refresh, skip_reason = enricher._should_refresh_list(seed, "following", 50)
+            result = enricher.enrich([seed])
 
-            assert should_refresh is True
-            assert skip_reason is None
+            # Verify: Lists scraped (age trigger for incomplete seed)
+            assert mock_worker.fetch_following.called
+            assert mock_worker.fetch_followers.called
+            assert result["123"]["edges_upserted"] >= 0
 
-    def test_should_refresh_when_delta_exceeds_threshold(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should refresh when pct_delta > pct_delta_threshold (50%)."""
+    def test_enrich_refreshes_when_delta_exceeds_threshold(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should re-scrape when pct_delta > 50% threshold."""
         from datetime import datetime, timedelta
         from src.data.shadow_store import ScrapeRunMetrics
+        from src.shadow.selenium_worker import ProfileOverview, UserListCapture
 
-        # Mock recent scrape (1 day ago) with old count of 100
+        # Setup: recent scrape (1 day ago) with 100 following, but INCOMPLETE profile (so policy runs)
         recent_scrape = ScrapeRunMetrics(
-            seed_account_id="123",
-            seed_username="testuser",
+            seed_account_id="123", seed_username="testuser",
             run_at=datetime.utcnow() - timedelta(days=1),
             duration_seconds=10.0,
-            following_captured=100,
-            followers_captured=100,
-            followers_you_follow_captured=0,
-            following_claimed_total=100,
-            followers_claimed_total=100,
-            followers_you_follow_claimed_total=0,
-            following_coverage=1.0,
-            followers_coverage=1.0,
-            followers_you_follow_coverage=0.0,
-            accounts_upserted=200,
-            edges_upserted=200,
-            discoveries_upserted=200,
+            following_captured=100, followers_captured=100, followers_you_follow_captured=0,
+            following_claimed_total=100, followers_claimed_total=100, followers_you_follow_claimed_total=0,
+            following_coverage=1.0, followers_coverage=1.0, followers_you_follow_coverage=0.0,
+            accounts_upserted=200, edges_upserted=200, discoveries_upserted=200,
         )
         mock_shadow_store.get_last_scrape_metrics = Mock(return_value=recent_scrape)
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)  # Incomplete so policy runs
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
 
-        with patch('src.shadow.enricher.SeleniumWorker'):
+        # Overview shows 200 following (100% increase from baseline 100)
+        overview = ProfileOverview(
+            username="testuser", display_name="Test", bio="", location="",
+            website="", followers_total=100, following_total=200
+        )
+
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.fetch_profile_overview = Mock(return_value=overview)
+            mock_worker.fetch_following = Mock(return_value=UserListCapture("following", [], 200, "url", overview))
+            mock_worker.fetch_followers = Mock(return_value=UserListCapture("followers", [], 100, "url", overview))
+            mock_worker.fetch_followers_you_follow = Mock(return_value=UserListCapture("followers_you_follow", [], 0, "url", overview))
+            mock_worker.quit = Mock()
+
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            # New count is 200 (100% increase, threshold is 50%)
-            should_refresh, skip_reason = enricher._should_refresh_list(seed, "following", 200)
+            result = enricher.enrich([seed])
 
-            assert should_refresh is True
-            assert skip_reason is None
+            # Verify: Lists scraped (delta trigger for incomplete seed)
+            assert mock_worker.fetch_following.called
+            assert result["123"]["edges_upserted"] >= 0
 
-    def test_should_skip_when_fresh_data(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should skip when age < threshold AND delta < threshold."""
+    def test_enrich_skips_when_fresh_data(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should skip lists when age < threshold AND delta < threshold (for incomplete seeds)."""
         from datetime import datetime, timedelta
         from src.data.shadow_store import ScrapeRunMetrics
+        from src.shadow.selenium_worker import ProfileOverview
 
-        # Mock recent scrape (1 day ago) with small change
+        # Setup: recent scrape (1 day ago) with 100 following, INCOMPLETE profile (so policy runs)
         recent_scrape = ScrapeRunMetrics(
-            seed_account_id="123",
-            seed_username="testuser",
+            seed_account_id="123", seed_username="testuser",
             run_at=datetime.utcnow() - timedelta(days=1),
             duration_seconds=10.0,
-            following_captured=100,
-            followers_captured=100,
-            followers_you_follow_captured=0,
-            following_claimed_total=100,
-            followers_claimed_total=100,
-            followers_you_follow_claimed_total=0,
-            following_coverage=1.0,
-            followers_coverage=1.0,
-            followers_you_follow_coverage=0.0,
-            accounts_upserted=200,
-            edges_upserted=200,
-            discoveries_upserted=200,
+            following_captured=100, followers_captured=100, followers_you_follow_captured=0,
+            following_claimed_total=100, followers_claimed_total=100, followers_you_follow_claimed_total=0,
+            following_coverage=1.0, followers_coverage=1.0, followers_you_follow_coverage=0.0,
+            accounts_upserted=200, edges_upserted=200, discoveries_upserted=200,
         )
         mock_shadow_store.get_last_scrape_metrics = Mock(return_value=recent_scrape)
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)  # Incomplete so policy runs
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
 
-        with patch('src.shadow.enricher.SeleniumWorker'):
+        # Overview shows 110 following (10% increase, below 50% threshold)
+        overview = ProfileOverview(
+            username="testuser", display_name="Test", bio="", location="",
+            website="", followers_total=100, following_total=110
+        )
+
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.fetch_profile_overview = Mock(return_value=overview)
+            mock_worker.quit = Mock()
+
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            # New count is 110 (10% increase, under 50% threshold)
-            should_refresh, skip_reason = enricher._should_refresh_list(seed, "following", 110)
+            result = enricher.enrich([seed])
 
-            assert should_refresh is False
-            assert skip_reason == "following_fresh"
+            # Verify: Lists NOT scraped (policy skipped, data fresh)
+            assert not mock_worker.fetch_following.called
+            assert not mock_worker.fetch_followers.called
+            # Skip metrics recorded
+            mock_shadow_store.record_scrape_metrics.assert_called()
+            recorded_metrics = mock_shadow_store.record_scrape_metrics.call_args[0][0]
+            assert recorded_metrics.skipped is True
+            assert recorded_metrics.skip_reason == "policy_fresh_data"
 
-    def test_confirm_refresh_auto_confirms(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should auto-confirm when auto_confirm_rescrapes=True."""
+    def test_enrich_proceeds_when_auto_confirm_enabled(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should auto-proceed when auto_confirm_rescrapes=True (no prompt)."""
+        from src.shadow.selenium_worker import ProfileOverview, UserListCapture
+
+        # Setup: policy requires confirmation but auto-confirms
         mock_enrichment_policy.auto_confirm_rescrapes = True
         mock_enrichment_policy.require_user_confirmation = True
 
-        with patch('src.shadow.enricher.SeleniumWorker'):
+        mock_shadow_store.get_last_scrape_metrics = Mock(return_value=None)
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
+
+        overview = ProfileOverview(
+            username="testuser", display_name="Test", bio="", location="",
+            website="", followers_total=100, following_total=50
+        )
+
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.fetch_profile_overview = Mock(return_value=overview)
+            mock_worker.fetch_following = Mock(return_value=UserListCapture("following", [], 50, "url", overview))
+            mock_worker.fetch_followers = Mock(return_value=UserListCapture("followers", [], 100, "url", overview))
+            mock_worker.fetch_followers_you_follow = Mock(return_value=UserListCapture("followers_you_follow", [], 0, "url", overview))
+            mock_worker.quit = Mock()
+
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            confirmed = enricher._confirm_refresh(seed, "following")
+            result = enricher.enrich([seed])
 
-            assert confirmed is True
+            # Verify: Enrichment proceeded (no blocking prompt)
+            assert mock_worker.fetch_following.called
+            assert result["123"]["edges_upserted"] >= 0
 
-    def test_confirm_refresh_skips_prompt_when_not_required(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
-        """Should skip prompt when require_user_confirmation=False."""
+    def test_enrich_proceeds_when_confirmation_not_required(self, mock_shadow_store, mock_enrichment_config, mock_enrichment_policy):
+        """Should proceed when require_user_confirmation=False (default)."""
+        from src.shadow.selenium_worker import ProfileOverview, UserListCapture
+
+        # Setup: policy does not require confirmation
         mock_enrichment_policy.auto_confirm_rescrapes = False
         mock_enrichment_policy.require_user_confirmation = False
 
-        with patch('src.shadow.enricher.SeleniumWorker'):
+        mock_shadow_store.get_last_scrape_metrics = Mock(return_value=None)
+        mock_shadow_store.is_seed_profile_complete = Mock(return_value=False)
+        mock_shadow_store.edge_summary_for_seed = Mock(return_value={"following": 0, "followers": 0, "total": 0})
+
+        overview = ProfileOverview(
+            username="testuser", display_name="Test", bio="", location="",
+            website="", followers_total=100, following_total=50
+        )
+
+        with patch('src.shadow.enricher.SeleniumWorker') as mock_worker_class:
+            mock_worker = Mock()
+            mock_worker_class.return_value = mock_worker
+            mock_worker.fetch_profile_overview = Mock(return_value=overview)
+            mock_worker.fetch_following = Mock(return_value=UserListCapture("following", [], 50, "url", overview))
+            mock_worker.fetch_followers = Mock(return_value=UserListCapture("followers", [], 100, "url", overview))
+            mock_worker.fetch_followers_you_follow = Mock(return_value=UserListCapture("followers_you_follow", [], 0, "url", overview))
+            mock_worker.quit = Mock()
+
             enricher = HybridShadowEnricher(mock_shadow_store, mock_enrichment_config, mock_enrichment_policy)
             seed = SeedAccount(account_id="123", username="testuser")
 
-            confirmed = enricher._confirm_refresh(seed, "following")
+            result = enricher.enrich([seed])
 
-            assert confirmed is True
+            # Verify: Enrichment proceeded (no prompt)
+            assert mock_worker.fetch_following.called
+            assert result["123"]["edges_upserted"] >= 0
 
 
 # ==============================================================================
