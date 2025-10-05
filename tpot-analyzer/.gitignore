@@ -1,2 +1,7 @@
 # Generated analysis files
 enrichment_summary.json
+
+# Test coverage
+.coverage
+.coverage.*
+htmlcov/
