@@ -5,7 +5,10 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 ## Testing Coverage
 - [x] Add `tests/conftest.py` with shared fixtures (temp SQLite store, path setup) to eliminate `sys.path` hacks. ✅ **2025-10-05**
 - [x] Adopt pytest markers (`unit`, `integration`, `selenium`) and configure default runs to exclude slow suites unless requested. ✅ **2025-10-05**
-- [x] Wire in `pytest-cov` and capture baseline coverage (53% overall, documented in `docs/test-coverage-baseline.md`). ✅ **2025-10-05**
+- [ ] Wire in `pytest-cov` and capture baseline coverage (53% overall, documented in `docs/test-coverage-baseline.md`).
+  - pytest-cov installed in requirements.txt ✓
+  - Can run coverage with `pytest --cov=src --cov-report=term-missing` ✓
+  - Need to create `docs/test-coverage-baseline.md` with detailed breakdown
 - [ ] Add fixture-based tests for `CachedDataFetcher` to cover caching, expiry, and HTTP error handling without hitting Supabase.
 - [ ] Expand metric tests with deterministic graphs (e.g., known PageRank outputs, community assignments) to guard against regressions.
 - [ ] Create integration tests for `scripts/analyze_graph.py` (run CLI on small fixture dataset, verify JSON structure and parameter handling).
@@ -24,11 +27,14 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Comparative views (side-by-side parameter configs, rank change visualizations).
 - [ ] Shadow enrichment job queue with progress API so the explorer can launch/monitor scraping without manual CLI calls.
 - [ ] Extend trust propagation heuristics (personalized PageRank threshold, depth controls) to govern which shadow nodes get enqueued automatically.
-- [ ] **IN PROGRESS**: Refactor `HybridShadowEnricher.enrich` into composable helpers (`_should_skip_seed`, `_refresh_profile`, `_refresh_following`, `_refresh_followers`, `_record_metrics`) for testability and cache-aware skipping
-- [ ] **IN PROGRESS**: Implement enrichment refresh policy with percentage-based delta thresholds (default 50%) and user confirmation prompts before rescrapes
-  - Policy-driven refresh logic: `age_days > 180 OR pct_delta > 50%` triggers prompt
-  - User must confirm y/n before any rescrape (with `--auto-confirm-rescrapes` flag for unattended runs)
-  - Config file: `config/enrichment_policy.json` with CLI override via `--policy-file`
+- [x] Refactor `HybridShadowEnricher.enrich` into composable helpers (`_should_skip_seed`, `_refresh_profile`, `_refresh_following`, `_refresh_followers`) for testability and cache-aware skipping ✅ **2025-10-05**
+- [x] Implement enrichment refresh policy with percentage-based delta thresholds (default 50%) and auto-confirm for unattended runs ✅ **2025-10-05**
+  - Policy-driven refresh logic: `age_days > 180 OR pct_delta > 50%` triggers refresh
+  - Non-blocking default (auto-confirm), opt-in to prompts via `--require-confirmation` flag
+  - Config file: `config/enrichment_policy.json`
+  - Added `get_last_scrape_metrics()` to ShadowStore for historical data queries
+  - Skipped runs marked `skipped=True` to preserve baseline metrics (no corruption)
+  - 87 unit tests passing, 6 new tests for policy logic
 - [ ] **FUTURE**: Temporal graph analysis - persist enrichment diffs (edge add/remove events with timestamps) to support:
   - Follower/following churn analysis over time
   - Reconstruction of graph state at any historical point
