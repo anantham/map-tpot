@@ -8,6 +8,9 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Create integration tests for `scripts/analyze_graph.py` (run CLI on small fixture dataset, verify JSON structure and parameter handling).
 - [ ] Add seed-resolution tests ensuring usernames map to account IDs in graph nodes (integration of builder + seed parser).
 - [ ] Consider optional test matrix (with/without SciPy) to ensure fallback pathways remain healthy.
+- [ ] Refactor `HybridShadowEnricher.enrich` into composable helpers (`_should_skip_seed`, `_update_profile_only`, `_scrape_seed_lists`, `_record_metrics`) so we can write focused unit tests for each decision point.
+- [ ] Introduce regression tests for JSON-LD fallback using saved profile fixtures (ensure counts remain accurate when headers fail).
+- [ ] Add policy-driven tests covering cache-skipping logic (profile-only refresh, list skipping, delta-triggered rescrapes) once the new enrichment policy lands.
 
 ## Features & Analysis
 - [ ] Implement heat-diffusion and temporal metrics once core graph UI is stable.
@@ -17,6 +20,8 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Comparative views (side-by-side parameter configs, rank change visualizations).
 - [ ] Shadow enrichment job queue with progress API so the explorer can launch/monitor scraping without manual CLI calls.
 - [ ] Extend trust propagation heuristics (personalized PageRank threshold, depth controls) to govern which shadow nodes get enqueued automatically.
+- [ ] Implement enrichment refresh policy (JSON-configurable freshness thresholds, delta triggers) so we avoid redundant Selenium navigation.
+- [ ] Persist enrichment diffs (edge add/remove events) to support temporal analyses of follower/following churn.
 
 ## UI & Visualization
 - [ ] Wrap `src/ui/graph-explorer.jsx` into a runnable frontend (Next.js or Vite), with data loading from CLI output or live fetcher.
@@ -31,6 +36,10 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Document expected dataset growth and how to refresh caches when new accounts upload.
 - [ ] Add local fixtures/bundles for offline experimentation (small subset of Community Archive).
 - [ ] Package Selenium/X API credentials handling (config templates, secrets management) and add smoke tests for enrichment pipeline.
+- [ ] Add `tests/conftest.py` with shared fixtures (temp SQLite store, path setup) to eliminate `sys.path` hacks.
+- [ ] Adopt pytest markers (`unit`, `integration`, `selenium`) and configure default runs to exclude slow suites unless requested.
+- [ ] Wire in `pytest-cov` and capture coverage in verification scripts so regressions surface early.
+- [ ] Document enrichment policy knobs (default freshness, delta thresholds) and expose CLI flag to override policy file.
 
 ## Documentation
 - [ ] Architecture diagrams for data pipeline and graph analysis flow.

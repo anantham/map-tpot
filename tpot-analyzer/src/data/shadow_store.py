@@ -237,19 +237,32 @@ class ShadowStore:
         with self._engine.connect() as conn:
             stmt = select(
                 self._account_table.c.location,
+                self._account_table.c.website,
+                self._account_table.c.profile_image_url,
+                self._account_table.c.followers_count,
+                self._account_table.c.following_count,
                 self._account_table.c.scrape_stats,
             ).where(self._account_table.c.account_id == account_id)
             result = conn.execute(stmt).fetchone()
-            if not result:
-                return False
-            location, scrape_stats = result
-            # Check if we have location AND (website or joined_date in scrape_stats)
-            if location and scrape_stats:
-                stats = scrape_stats if isinstance(scrape_stats, dict) else json.loads(scrape_stats)
-                has_website = stats.get("website") is not None
-                has_joined = stats.get("joined_date") is not None
-                return has_website or has_joined
+        if not result:
             return False
+        location, website, avatar_url, followers_count, following_count, scrape_stats = result
+
+        has_location = bool(location)
+        has_website = bool(website)
+        has_avatar = bool(avatar_url)
+        has_counts = bool((followers_count or 0) > 0 and (following_count or 0) > 0)
+
+        has_joined = False
+        if scrape_stats:
+            try:
+                stats = scrape_stats if isinstance(scrape_stats, dict) else json.loads(scrape_stats)
+                has_website = has_website or bool(stats.get("website"))
+                has_joined = bool(stats.get("joined_date"))
+            except (TypeError, json.JSONDecodeError):
+                pass
+
+        return has_location and (has_website or has_joined) and has_avatar and has_counts
 
     # ------------------------------------------------------------------
     # Edge operations

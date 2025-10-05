@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import pickle
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -47,8 +49,44 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _sanitize_label(label: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", label).strip("-_.")
+    return cleaned or "session"
+
+
+def resolve_output_path(path: Path) -> Path:
+    path = path.expanduser()
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+
+    if path == DEFAULT_OUTPUT:
+        print("No explicit output file provided.")
+        label = input("Enter a short label for this session (e.g., handle or date): ").strip()
+        slug = _sanitize_label(label) if label else "session"
+        final = path.parent / f"twitter_cookies_{slug}_{timestamp}.pkl"
+        counter = 1
+        while final.exists():
+            counter += 1
+            final = final.parent / f"twitter_cookies_{slug}_{timestamp}_{counter}.pkl"
+        print(f"Cookies will be saved to {final}")
+        return final.resolve()
+
+    # Custom path provided
+    path = path.resolve()
+    if not path.suffix:
+        path = path.with_suffix(".pkl")
+    if path.exists():
+        renamed = path.with_name(f"{path.stem}_{timestamp}{path.suffix}")
+        counter = 1
+        while renamed.exists():
+            counter += 1
+            renamed = path.with_name(f"{path.stem}_{timestamp}_{counter}{path.suffix}")
+        print(f"Output file {path} exists; using {renamed} instead.")
+        path = renamed
+    return path
+
+
 def capture_cookies(output_path: Path, *, headless: bool, window_size: str) -> Optional[Path]:
-    output_path = output_path.expanduser().resolve()
+    output_path = resolve_output_path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     driver = build_driver(headless=headless, window_size=window_size)

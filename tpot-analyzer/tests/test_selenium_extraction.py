@@ -94,6 +94,65 @@ class TestParseCompactCount:
 
 
 # ==============================================================================
+# JSON-LD Profile Schema Parsing
+# ==============================================================================
+
+class TestProfileSchemaParsing:
+    """Ensure JSON-LD fallback recovers counts and metadata."""
+
+    SAMPLE_PAYLOAD = {
+        "@context": "http://schema.org",
+        "@type": "ProfilePage",
+        "dateCreated": "2009-11-11T19:54:16.000Z",
+        "mainEntity": {
+            "@type": "Person",
+            "name": "critter",
+            "additionalName": "BecomingCritter",
+            "description": "treehouse bio",
+            "homeLocation": {"@type": "Place", "name": "pretty good thanks"},
+            "identifier": "89266660",
+            "image": {
+                "@type": "ImageObject",
+                "contentUrl": "https://pbs.twimg.com/profile_images/example_normal.png",
+            },
+            "interactionStatistic": [
+                {
+                    "@type": "InteractionCounter",
+                    "name": "Follows",
+                    "userInteractionCount": 22107,
+                },
+                {
+                    "@type": "InteractionCounter",
+                    "name": "Friends",
+                    "userInteractionCount": 1103,
+                },
+            ],
+            "url": "https://x.com/BecomingCritter",
+        },
+        "relatedLink": ["https://becomingcreature.substack.com/"],
+    }
+
+    def test_parse_profile_schema_payload_matches_username(self):
+        parsed = SeleniumWorker._parse_profile_schema_payload(
+            self.SAMPLE_PAYLOAD,
+            target_username="becomingcritter",
+        )
+        assert parsed is not None
+        assert parsed["followers_total"] == 22107
+        assert parsed["following_total"] == 1103
+        assert parsed["location"] == "pretty good thanks"
+        assert parsed["website"] == "https://becomingcreature.substack.com/"
+        assert parsed["profile_image_url"].endswith("example_normal.png")
+
+    def test_parse_profile_schema_payload_rejects_mismatch(self):
+        parsed = SeleniumWorker._parse_profile_schema_payload(
+            self.SAMPLE_PAYLOAD,
+            target_username="someoneelse",
+        )
+        assert parsed is None
+
+
+# ==============================================================================
 # _handle_from_href Tests
 # ==============================================================================
 

@@ -52,6 +52,8 @@ def test_shadow_store_accepts_legacy_accounts_and_edges() -> None:
                 display_name=user.get("name"),
                 bio=None,
                 location=None,
+                website=None,
+                profile_image_url=None,
                 followers_count=None,
                 following_count=None,
                 source_channel="legacy_migration",
@@ -108,10 +110,13 @@ def test_shadow_store_upsert_is_idempotent() -> None:
                 display_name=user.get("name"),
                 bio=None,
                 location=None,
+                website=None,
+                profile_image_url=None,
                 followers_count=None,
                 following_count=None,
                 source_channel="legacy_migration",
                 fetched_at=timestamp,
+                checked_at=timestamp,
             )
             for user in legacy_users
         ]

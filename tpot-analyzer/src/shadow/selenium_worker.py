@@ -1,10 +1,13 @@
 """Headless Selenium helper for extracting follower/following handles."""
 from __future__ import annotations
 
+import json
 import logging
 import pickle
 import random
 import re
+import select
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,12 +27,12 @@ LOGGER = logging.getLogger(__name__)
 class SeleniumConfig:
     cookies_path: Path
     headless: bool = False
-    scroll_delay_min: float = 4.0
-    scroll_delay_max: float = 9.0
+    scroll_delay_min: float = 5.0
+    scroll_delay_max: float = 40.0
     max_no_change_scrolls: int = 6
     window_size: str = "1080,1280"
-    action_delay_min: float = 4.0
-    action_delay_max: float = 9.0
+    action_delay_min: float = 5.0
+    action_delay_max: float = 40.0
     chrome_binary: Optional[Path] = None
     require_confirmation: bool = True
 
@@ -53,7 +56,7 @@ class UserListCapture:
     page_url: str
     profile_overview: Optional["ProfileOverview"] = None
 
-
+@dataclass
 class ProfileOverview:
     username: str
     display_name: Optional[str]
@@ -73,6 +76,9 @@ class SeleniumWorker:
         self._config = config
         self._driver: webdriver.Chrome | None = None
         self._profile_overviews: Dict[str, ProfileOverview] = {}
+        self._snapshot_dir = Path("logs")
+        self._snapshot_dir.mkdir(exist_ok=True)
+
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
@@ -119,10 +125,30 @@ class SeleniumWorker:
         self._driver.refresh()
         self._apply_delay("post-refresh")
         if self._config.require_confirmation:
-            input(
-                "Cookies loaded. Please log in or verify the session in the browser window, then press Enter to continue..."
-            )
+            prompt = "Cookies loaded. Please log in or verify the session in the browser window, then press Enter to continue..."
+            print(prompt)
+            user_input = self._wait_for_input(timeout=10.0)
+            if user_input is None:
+                LOGGER.info("No user input detected after 10 seconds; continuing automatically.")
         return True
+
+    @staticmethod
+    def _wait_for_input(timeout: float) -> Optional[str]:
+        """Wait for user input up to timeout seconds; return None on timeout."""
+        if timeout <= 0:
+            try:
+                return input()
+            except EOFError:
+                return None
+
+        # Use selectors for portability without blocking main thread.
+        inputs, _, _ = select.select([sys.stdin], [], [], timeout)
+        if inputs:
+            try:
+                return sys.stdin.readline().rstrip("\n")
+            except EOFError:
+                return None
+        return None
 
     def quit(self) -> None:
         if self._driver:
@@ -142,16 +168,22 @@ class SeleniumWorker:
     def fetch_followers_you_follow(self, username: str) -> UserListCapture:
         return self._collect_user_list(username=username, list_type="followers_you_follow")
 
-    def _collect_user_list(self, *, username: str, list_type: str) -> UserListCapture:
+    def fetch_profile_overview(self, username: str) -> Optional[ProfileOverview]:
         if not self._ensure_driver():
-            return UserListCapture(list_type, [], None, "", None)
+            return None
         assert self._driver is not None
 
-        # Ensure we have the profile overview by visiting the main profile page first if needed.
-        profile_overview = self._profile_overviews.get(username)
-        if not profile_overview:
-            main_profile_url = f"https://twitter.com/{username}"
-            LOGGER.debug("Navigating to %s for profile overview", main_profile_url)
+        main_profile_url = f"https://twitter.com/{username}"
+        attempts = 3
+        base_sleep = max(1.0, self._config.action_delay_min)
+
+        for attempt in range(attempts):
+            LOGGER.debug(
+                "Navigating to %s for profile overview (attempt %s/%s)",
+                main_profile_url,
+                attempt + 1,
+                attempts,
+            )
             self._driver.get(main_profile_url)
             self._apply_delay("load-main-profile-page")
             try:
@@ -161,8 +193,42 @@ class SeleniumWorker:
                 profile_overview = self._extract_profile_overview(username)
                 if profile_overview:
                     self._profile_overviews[username] = profile_overview
+                return profile_overview
             except TimeoutException:
-                LOGGER.error("Timed out waiting for main profile page for @%s", username)
+                LOGGER.warning(
+                    "Timed out waiting for main profile page for @%s (attempt %s/%s)",
+                    username,
+                    attempt + 1,
+                    attempts,
+                )
+                if attempt < attempts - 1:
+                    backoff = base_sleep * (2 ** attempt)
+                    jitter = random.uniform(0.5, 1.5)
+                    sleep_time = backoff * jitter
+                    LOGGER.warning(
+                        "Retrying profile fetch for @%s in %.1fs",
+                        username,
+                        sleep_time,
+                    )
+                    time.sleep(sleep_time)
+                else:
+                    LOGGER.error(
+                        "Timed out waiting for main profile page for @%s after %s attempts",
+                        username,
+                        attempts,
+                    )
+                    self._save_page_snapshot(username, "profile-timeout")
+        return None
+
+    def _collect_user_list(self, *, username: str, list_type: str) -> UserListCapture:
+        if not self._ensure_driver():
+            return UserListCapture(list_type, [], None, "", None)
+        assert self._driver is not None
+
+        # Ensure we have the profile overview by visiting the main profile page first if needed.
+        profile_overview = self._profile_overviews.get(username)
+        if not profile_overview:
+            profile_overview = self.fetch_profile_overview(username)
 
         list_page_url = f"https://twitter.com/{username}/{list_type}"
         LOGGER.debug("Navigating to %s", list_page_url)
@@ -174,6 +240,7 @@ class SeleniumWorker:
             )
         except TimeoutException:
             LOGGER.error("Timed out waiting for %s list for @%s", list_type, username)
+            self._save_page_snapshot(f"{username}_list", f"{list_type}-timeout")
             return UserListCapture(list_type, [], None, list_page_url, None)
         self._apply_delay(f"{list_type}-viewport-ready")
 
@@ -320,8 +387,10 @@ class SeleniumWorker:
             cleaned = cleaned.lstrip("/")
         elif "twitter.com" in cleaned:
             cleaned = cleaned.split("twitter.com/")[-1]
-        else:
-            return None
+        elif "x.com" in cleaned:
+            cleaned = cleaned.split("x.com/")[-1]
+        # else: bare username or other format - try to parse as-is
+
         cleaned = cleaned.split("?")[0].split("#")[0].rstrip("/")
         if not cleaned or "/" in cleaned:
             return None
@@ -430,6 +499,45 @@ class SeleniumWorker:
         followers_total = self._extract_claimed_total(username, "followers")
         following_total = self._extract_claimed_total(username, "following")
 
+        schema_fallback = None
+        if (
+            followers_total is None
+            or following_total is None
+            or not location
+            or not website
+            or not profile_image_url
+            or not bio
+        ):
+            schema_fallback = self._extract_profile_schema(username)
+
+        if schema_fallback:
+            if followers_total is None and schema_fallback.get("followers_total") is not None:
+                followers_total = schema_fallback["followers_total"]
+                LOGGER.info(
+                    "Recovered followers total for @%s from JSON-LD schema: %s",
+                    username,
+                    followers_total,
+                )
+            if following_total is None and schema_fallback.get("following_total") is not None:
+                following_total = schema_fallback["following_total"]
+                LOGGER.info(
+                    "Recovered following total for @%s from JSON-LD schema: %s",
+                    username,
+                    following_total,
+                )
+            if not location and schema_fallback.get("location"):
+                location = schema_fallback["location"]
+            if not website and schema_fallback.get("website"):
+                website = schema_fallback["website"]
+            if not bio and schema_fallback.get("bio"):
+                bio = schema_fallback["bio"]
+            if not display_name and schema_fallback.get("display_name"):
+                display_name = schema_fallback["display_name"]
+            if not profile_image_url and schema_fallback.get("profile_image_url"):
+                profile_image_url = schema_fallback["profile_image_url"]
+            if joined_date is None and schema_fallback.get("joined_date"):
+                joined_date = schema_fallback["joined_date"]
+
         return ProfileOverview(
             username=username,
             display_name=display_name,
@@ -441,6 +549,160 @@ class SeleniumWorker:
             joined_date=joined_date,
             profile_image_url=profile_image_url,
         )
+
+    def _extract_claimed_total(self, username: str, list_type: str) -> Optional[int]:
+        assert self._driver is not None
+
+        href_variants = [
+            f"/{username}/{list_type}",
+            f"/{username}/{list_type.lower()}",
+            f"/{username}/{list_type.replace('_', '')}",
+        ]
+
+        for href in href_variants:
+            anchors = self._driver.find_elements(By.CSS_SELECTOR, f"a[href='{href}']")
+            if not anchors:
+                continue
+            for anchor in anchors:
+                text = (anchor.text or "").strip()
+                value = self._parse_compact_count(text)
+                if value is not None:
+                    LOGGER.debug("Found count for href %s: %d", href, value)
+                    return value
+                spans = anchor.find_elements(By.TAG_NAME, "span")
+                for span in spans:
+                    value = self._parse_compact_count(span.text)
+                    if value is not None:
+                        LOGGER.debug("Found count from span for href %s: %d", href, value)
+                        return value
+
+        # Fallback: walk the profile header counters and match by label text.
+        try:
+            header = self._driver.find_element(By.CSS_SELECTOR, "div[data-testid='UserProfileHeader_Items']")
+            counters = header.find_elements(By.CSS_SELECTOR, "a[href]")
+            target_label = "followers" if list_type.startswith("followers") else "following"
+            for counter in counters:
+                label_text = (counter.text or counter.get_attribute("aria-label") or "").lower()
+                if target_label not in label_text:
+                    continue
+                spans = counter.find_elements(By.TAG_NAME, "span")
+                span_texts = [span.text for span in spans if span.text.strip()]
+                candidates = span_texts or [counter.text]
+                for candidate in candidates:
+                    value = self._parse_compact_count(candidate)
+                    if value is not None:
+                        LOGGER.debug(
+                            "Fallback header counter matched '%s': %s => %d",
+                            target_label,
+                            candidate,
+                            value,
+                        )
+                        return value
+        except NoSuchElementException:
+            LOGGER.debug("Profile header counters not found for @%s", username)
+
+        return None
+
+    def _extract_profile_schema(self, username: str) -> Optional[dict]:
+        """Parse JSON-LD profile schema to recover metadata when header parsing fails."""
+        assert self._driver is not None
+        target = username.lower()
+        try:
+            scripts = self._driver.find_elements(
+                By.CSS_SELECTOR, "script[data-testid='UserProfileSchema-test']"
+            )
+        except Exception as exc:  # pragma: no cover - defensive against driver quirks
+            LOGGER.debug("Schema lookup failed for @%s: %s", username, exc)
+            return None
+
+        for script in scripts:
+            raw = (
+                (script.get_attribute("innerHTML") or "").strip()
+                or (script.get_attribute("textContent") or "").strip()
+            )
+            if not raw:
+                continue
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                LOGGER.debug("Invalid JSON-LD payload for @%s", username)
+                continue
+            parsed = self._parse_profile_schema_payload(payload, target)
+            if parsed:
+                return parsed
+        return None
+
+    @staticmethod
+    def _parse_profile_schema_payload(payload: dict, target_username: str) -> Optional[dict]:
+        main = payload.get("mainEntity") or {}
+        if not main:
+            return None
+
+        def _normalize(handle: str | None) -> Optional[str]:
+            if not handle:
+                return None
+            cleaned = str(handle).strip().lower()
+            if not cleaned:
+                return None
+            if cleaned.startswith("http://") or cleaned.startswith("https://"):
+                cleaned = cleaned.split("/")[-1]
+            cleaned = cleaned.split("?")[0].split("#")[0]
+            return cleaned.lstrip("@")
+
+        candidate_names = {
+            value
+            for value in (
+                _normalize(main.get("additionalName")),
+                _normalize(main.get("name")),
+                _normalize(main.get("url")),
+            )
+            if value
+        }
+        normalized_target = target_username.lower()
+        if normalized_target not in candidate_names:
+            identifier = _normalize(main.get("identifier"))
+            if identifier != normalized_target:
+                return None
+
+        interaction_stats = main.get("interactionStatistic") or []
+        followers_total = None
+        following_total = None
+        for stat in interaction_stats:
+            name = str(stat.get("name", "")).lower()
+            count = stat.get("userInteractionCount")
+            if count is None:
+                continue
+            try:
+                count_int = int(count)
+            except (TypeError, ValueError):
+                continue
+            if "follow" in name and "friend" not in name:
+                followers_total = count_int
+            elif "friend" in name or "following" in name:
+                following_total = count_int
+
+        home = main.get("homeLocation") or {}
+        image = main.get("image") or {}
+
+        website = None
+        related_links = payload.get("relatedLink") or main.get("relatedLink") or []
+        if isinstance(related_links, (list, tuple)):
+            website = next((link for link in related_links if link), None)
+        elif isinstance(related_links, str) and related_links.strip():
+            website = related_links
+
+        joined_date = payload.get("dateCreated") or main.get("dateCreated")
+
+        return {
+            "display_name": main.get("name"),
+            "bio": main.get("description"),
+            "location": home.get("name") if isinstance(home, dict) else None,
+            "website": website,
+            "followers_total": followers_total,
+            "following_total": following_total,
+            "profile_image_url": image.get("contentUrl") if isinstance(image, dict) else None,
+            "joined_date": joined_date,
+        }
 
     @staticmethod
     def _parse_compact_count(raw: Optional[str]) -> Optional[int]:
@@ -469,3 +731,15 @@ class SeleniumWorker:
             except ValueError:
                 return None
         return None
+
+    def _save_page_snapshot(self, username: str, label: str) -> None:
+        assert self._driver is not None
+        timestamp = int(time.time())
+        safe_user = re.sub(r"[^A-Za-z0-9_-]+", "-", username) or "user"
+        filename = self._snapshot_dir / f"snapshot_{safe_user}_{label}_{timestamp}.html"
+        try:
+            source = self._driver.page_source
+            filename.write_text(source)
+            LOGGER.warning("Saved page snapshot to %s", filename)
+        except Exception as exc:
+            LOGGER.error("Failed to save snapshot for @%s: %s", username, exc)

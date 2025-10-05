@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import random
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -39,12 +40,12 @@ class SeedAccount:
 class ShadowEnrichmentConfig:
     selenium_cookies_path: Path
     selenium_headless: bool = False
-    selenium_scroll_delay_min: float = 4.0
-    selenium_scroll_delay_max: float = 9.0
+    selenium_scroll_delay_min: float = 5.0
+    selenium_scroll_delay_max: float = 40.0
     selenium_max_no_change_scrolls: int = 6
-    user_pause_seconds: float = 4.0
-    action_delay_min: float = 4.0
-    action_delay_max: float = 9.0
+    user_pause_seconds: float = 5.0
+    action_delay_min: float = 5.0
+    action_delay_max: float = 40.0
     chrome_binary: Optional[Path] = None
     include_following: bool = True
     include_followers: bool = True
@@ -54,6 +55,8 @@ class ShadowEnrichmentConfig:
     wait_for_manual_login: bool = True
     confirm_first_scrape: bool = True
     preview_sample_size: int = 10
+    profile_only: bool = False
+    profile_only_all: bool = False
 
 
 class HybridShadowEnricher:
@@ -101,8 +104,8 @@ class HybridShadowEnricher:
             has_edges = edge_summary["following"] > 0 and edge_summary["followers"] > 0
             has_profile = self._store.is_seed_profile_complete(seed.account_id)
 
-            if has_edges and has_profile:
-                LOGGER.info(
+            if not self._config.profile_only and has_edges and has_profile:
+                LOGGER.warning(
                     "Skipping @%s (%s) — already have complete profile and edges (following: %s, followers: %s)",
                     seed.username,
                     seed.account_id,
@@ -138,6 +141,79 @@ class HybridShadowEnricher:
                 )
                 self._store.record_scrape_metrics(skip_metrics)
                 continue
+            if self._config.profile_only:
+                if not self._config.profile_only_all:
+                    if not has_edges:
+                        LOGGER.warning(
+                            "Skipping profile-only @%s (%s) — no existing edge data",
+                            seed.username,
+                            seed.account_id,
+                        )
+                        summary[seed.account_id] = {
+                            "username": seed.username,
+                            "profile_only": True,
+                            "skipped": True,
+                            "reason": "no_edge_data",
+                        }
+                        continue
+                    if has_profile:
+                        LOGGER.warning(
+                            "Skipping profile-only @%s (%s) — profile already complete",
+                            seed.username,
+                            seed.account_id,
+                        )
+                        summary[seed.account_id] = {
+                            "username": seed.username,
+                            "profile_only": True,
+                            "skipped": True,
+                            "reason": "profile_complete",
+                        }
+                        continue
+                overview = self._selenium.fetch_profile_overview(seed.username)
+                if not overview:
+                    LOGGER.error(
+                        "Profile-only update failed for @%s (%s); could not load profile page",
+                        seed.username,
+                        seed.account_id,
+                    )
+                    summary[seed.account_id] = {
+                        "username": seed.username,
+                        "profile_only": True,
+                        "updated": False,
+                        "error": "profile_overview_missing",
+                    }
+                    continue
+
+                account_record = self._make_seed_account_record(seed, overview)
+                inserted_accounts = self._store.upsert_accounts([account_record])
+                summary[seed.account_id] = {
+                    "username": seed.username,
+                    "profile_only": True,
+                    "updated": inserted_accounts > 0,
+                    "profile_overview": {
+                        "username": overview.username,
+                        "display_name": overview.display_name,
+                        "bio": overview.bio,
+                        "location": overview.location,
+                        "website": overview.website,
+                        "followers_total": overview.followers_total,
+                        "following_total": overview.following_total,
+                        "joined_date": overview.joined_date,
+                        "profile_image_url": overview.profile_image_url,
+                    },
+                }
+                LOGGER.warning(
+                    "✓ profile-only @%s updated account (upserts=%s)",
+                    seed.username,
+                    inserted_accounts,
+                )
+                pause = random.uniform(
+                    max(0.5, self._config.action_delay_min),
+                    max(self._config.action_delay_min, self._config.action_delay_max),
+                )
+                time.sleep(pause)
+                continue
+
             start = time.perf_counter()
             LOGGER.info("Enriching @%s...", seed.username)
             following_capture: Optional[UserListCapture] = (
@@ -283,12 +359,18 @@ class HybridShadowEnricher:
             )
             self._store.record_scrape_metrics(run_metrics)
 
-            LOGGER.info(
-                "✓ @%s: %s accounts, %s edges, %s discoveries",
+            LOGGER.warning(
+                "✓ @%s: accounts=%s edges=%s discoveries=%s following=%s/%s followers=%s/%s followers_you_follow=%s/%s",
                 seed.username,
                 inserted_accounts,
                 inserted_edges,
                 inserted_discoveries,
+                len(following_entries),
+                summary[seed.account_id]["following_claimed_total"],
+                len(followers_entries),
+                summary[seed.account_id]["followers_claimed_total"],
+                len(followers_you_follow_entries),
+                summary[seed.account_id]["followers_you_follow_claimed_total"],
             )
 
             if self._config.user_pause_seconds > 0:
@@ -384,6 +466,21 @@ class HybridShadowEnricher:
     ) -> ShadowAccount:
         """Create a shadow account record for the seed itself using profile overview data."""
         now = datetime.utcnow()
+
+        followers_total = overview.followers_total
+        following_total = overview.following_total
+
+        if followers_total is None:
+            LOGGER.warning(
+                "Profile header missing followers total for @%s; storing NULL",
+                seed.username,
+            )
+        if following_total is None:
+            LOGGER.warning(
+                "Profile header missing following total for @%s; storing NULL",
+                seed.username,
+            )
+
         return ShadowAccount(
             account_id=seed.account_id,
             username=overview.username,
@@ -392,8 +489,8 @@ class HybridShadowEnricher:
             location=overview.location,
             website=overview.website,
             profile_image_url=overview.profile_image_url,
-            followers_count=overview.followers_total,
-            following_count=overview.following_total,
+            followers_count=followers_total,
+            following_count=following_total,
             source_channel="selenium_profile_scrape",
             fetched_at=now,
             checked_at=now,
@@ -731,6 +828,7 @@ class HybridShadowEnricher:
             "followers_total": overview.followers_total,
             "following_total": overview.following_total,
             "joined_date": overview.joined_date,
+            "profile_image_url": overview.profile_image_url,
         }
 
     def _print_capture_summary(

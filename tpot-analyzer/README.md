@@ -254,3 +254,11 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ## License
 
 No license file is provided. Add one before distributing or open-sourcing the project.
+
+#### Cookie Sessions
+
+Run `python -m scripts.setup_cookies` to capture each account's cookies. The script now stores sessions as `secrets/twitter_cookies_<label>_<timestamp>.pkl`. When you launch enrichment without `--cookies`, you’ll be prompted to pick from the available files (the first file is used automatically in `--quiet` mode).
+
+#### Profile-only Backfill
+
+Use `python -m scripts.enrich_shadow_graph --profile-only --delay-min 5 --delay-max 40` to backfill profile metadata for seeds that already have follower/following edges. Pass `--profile-only-all` if you really want to refresh every seed regardless of status.
