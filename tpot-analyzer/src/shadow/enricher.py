@@ -238,6 +238,164 @@ class HybridShadowEnricher:
             },
         }
 
+    def _should_refresh_list(
+        self,
+        seed: SeedAccount,
+        list_type: str,  # "following" or "followers"
+        current_total: Optional[int],
+    ) -> tuple[bool, Optional[str]]:
+        """Check if a list should be refreshed based on policy.
+
+        Returns:
+            tuple of (should_refresh: bool, skip_reason: Optional[str])
+        """
+        # Get last scrape metrics
+        last_metrics = self._store.get_last_scrape_metrics(seed.account_id)
+
+        if not last_metrics:
+            # No previous scrape - always refresh
+            return (True, None)
+
+        # Calculate age in days
+        age_days = (datetime.utcnow() - last_metrics.run_at).days
+
+        # Get old count for delta calculation
+        if list_type == "following":
+            old_total = last_metrics.following_claimed_total
+        else:  # "followers"
+            old_total = last_metrics.followers_claimed_total
+
+        # Check age trigger
+        if age_days > self._policy.list_refresh_days:
+            LOGGER.info(
+                "@%s %s list is %d days old (threshold: %d days) - refresh needed",
+                seed.username,
+                list_type,
+                age_days,
+                self._policy.list_refresh_days,
+            )
+            return (True, None)
+
+        # Check percentage delta trigger
+        if old_total is not None and current_total is not None:
+            pct_delta = abs(current_total - old_total) / max(old_total, 1)
+            if pct_delta > self._policy.pct_delta_threshold:
+                LOGGER.info(
+                    "@%s %s count changed from %d to %d (%.1f%% delta, threshold: %.1f%%) - refresh needed",
+                    seed.username,
+                    list_type,
+                    old_total,
+                    current_total,
+                    pct_delta * 100,
+                    self._policy.pct_delta_threshold * 100,
+                )
+                return (True, None)
+
+        # No refresh needed
+        LOGGER.info(
+            "@%s %s list is fresh (age: %d days, old: %s, current: %s) - skipping",
+            seed.username,
+            list_type,
+            age_days,
+            old_total,
+            current_total,
+        )
+        return (False, f"{list_type}_fresh")
+
+    def _confirm_refresh(self, seed: SeedAccount, list_type: str) -> bool:
+        """Prompt user to confirm list refresh if policy requires it.
+
+        Returns:
+            True if refresh should proceed, False otherwise
+        """
+        if self._policy.auto_confirm_rescrapes:
+            LOGGER.info("Auto-confirming refresh for @%s %s (--auto-confirm-rescrapes enabled)", seed.username, list_type)
+            return True
+
+        if not self._policy.require_user_confirmation:
+            return True
+
+        # Prompt user
+        print(f"\n⚠️  Policy check: @{seed.username} {list_type} list needs refresh")
+        print(f"   (age > {self._policy.list_refresh_days} days OR delta > {self._policy.pct_delta_threshold * 100:.0f}%)")
+        response = input(f"   Proceed with scraping {list_type}? [y/n]: ").strip().lower()
+
+        if response == "y":
+            LOGGER.info("User confirmed refresh for @%s %s", seed.username, list_type)
+            return True
+        else:
+            LOGGER.warning("User declined refresh for @%s %s", seed.username, list_type)
+            return False
+
+    def _refresh_following(
+        self,
+        seed: SeedAccount,
+        overview: ProfileOverview,
+    ) -> Optional[UserListCapture]:
+        """Refresh following list with policy-driven caching.
+
+        Returns:
+            UserListCapture if scraped, None if skipped
+        """
+        if not self._config.include_following:
+            return None
+
+        # Check if refresh is needed based on policy
+        should_refresh, skip_reason = self._should_refresh_list(
+            seed, "following", overview.following_total
+        )
+
+        if not should_refresh:
+            LOGGER.info("Skipping @%s following list: %s", seed.username, skip_reason)
+            return None
+
+        # Prompt user if needed
+        if not self._confirm_refresh(seed, "following"):
+            LOGGER.warning("Skipping @%s following list: user declined", seed.username)
+            return None
+
+        # Scrape the list
+        return self._selenium.fetch_following(seed.username)
+
+    def _refresh_followers(
+        self,
+        seed: SeedAccount,
+        overview: ProfileOverview,
+    ) -> tuple[Optional[UserListCapture], Optional[UserListCapture]]:
+        """Refresh followers lists with policy-driven caching.
+
+        Returns:
+            tuple of (followers_capture, followers_you_follow_capture)
+        """
+        if not self._config.include_followers:
+            return (None, None)
+
+        # Check if refresh is needed based on policy
+        should_refresh, skip_reason = self._should_refresh_list(
+            seed, "followers", overview.followers_total
+        )
+
+        if not should_refresh:
+            LOGGER.info("Skipping @%s followers list: %s", seed.username, skip_reason)
+            return (None, None)
+
+        # Prompt user if needed
+        if not self._confirm_refresh(seed, "followers"):
+            LOGGER.warning("Skipping @%s followers list: user declined", seed.username)
+            return (None, None)
+
+        # Scrape followers
+        followers_capture = self._selenium.fetch_followers(seed.username)
+
+        # Scrape followers_you_follow if enabled
+        followers_you_follow_capture = None
+        if self._config.include_followers_you_follow:
+            followers_you_follow_capture = self._selenium.fetch_followers_you_follow(
+                seed.username
+            )
+
+        return (followers_capture, followers_you_follow_capture)
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -305,21 +463,20 @@ class HybridShadowEnricher:
 
             start = time.perf_counter()
             LOGGER.info("Enriching @%s...", seed.username)
-            following_capture: Optional[UserListCapture] = (
-                self._selenium.fetch_following(seed.username)
-                if self._config.include_following
-                else None
-            )
-            followers_capture: Optional[UserListCapture] = (
-                self._selenium.fetch_followers(seed.username)
-                if self._config.include_followers
-                else None
-            )
-            followers_you_follow_capture: Optional[UserListCapture] = None
-            if self._config.include_followers and self._config.include_followers_you_follow:
-                followers_you_follow_capture = self._selenium.fetch_followers_you_follow(
-                    seed.username
-                )
+
+            # Fetch profile overview first to check counts for policy
+            overview = self._selenium.fetch_profile_overview(seed.username)
+            if not overview:
+                LOGGER.error("Failed to fetch profile overview for @%s - skipping", seed.username)
+                summary[seed.account_id] = {
+                    "username": seed.username,
+                    "error": "profile_overview_missing",
+                }
+                continue
+
+            # Use policy-driven refresh helpers
+            following_capture = self._refresh_following(seed, overview)
+            followers_capture, followers_you_follow_capture = self._refresh_followers(seed, overview)
 
             following_entries: List[CapturedUser] = (
                 list(following_capture.entries)
@@ -357,12 +514,9 @@ class HybridShadowEnricher:
             accounts = self._make_account_records(seed=seed, captures=all_entries)
 
             # Store seed's own profile metadata from ProfileOverview
-            seed_profile_overview = self._profile_overview_from_captures(
-                following_capture, followers_capture, followers_you_follow_capture
-            )
-            if seed_profile_overview:
-                seed_account = self._make_seed_account_record(seed, seed_profile_overview)
-                accounts.append(seed_account)
+            # (we already fetched it earlier for policy checks)
+            seed_account = self._make_seed_account_record(seed, overview)
+            accounts.append(seed_account)
 
             edges = self._make_edge_records(
                 seed=seed,
