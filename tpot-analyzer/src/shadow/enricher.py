@@ -323,17 +323,10 @@ class HybridShadowEnricher:
 
         Returns:
             tuple of (should_refresh: bool, reason: Optional[str])
-
-        Notes:
-            When should_refresh is True, ``reason`` indicates which policy trigger fired
-            (e.g. ``first_run``, ``age_threshold``, ``delta_threshold``). When False,
-            ``reason`` explains why the list is considered fresh.
         """
-        # Get last scrape metrics
         last_metrics = self._store.get_last_scrape_metrics(seed.account_id)
 
         if not last_metrics:
-            # No previous scrape - always refresh
             LOGGER.info(
                 "@%s %s list has no historical metrics; performing initial scrape",
                 seed.username,
@@ -341,51 +334,46 @@ class HybridShadowEnricher:
             )
             return (True, "first_run")
 
-        # Calculate age in days
-        age_days = (datetime.utcnow() - last_metrics.run_at).days
-
-        # Get old count for delta calculation
+        # Get captured count from last run
         if list_type == "following":
-            old_total = last_metrics.following_claimed_total
+            last_captured = last_metrics.following_captured
         else:  # "followers"
-            old_total = last_metrics.followers_claimed_total
+            last_captured = last_metrics.followers_captured
 
-        # Check age trigger
+        # Rule: If we have very few captured accounts, it's worth trying again.
+        MIN_RAW_TO_RETRY = 20
+        if last_captured is None or last_captured <= MIN_RAW_TO_RETRY:
+            LOGGER.info(
+                "@%s %s list has low captured count (%s <= %d); refresh needed.",
+                seed.username,
+                list_type,
+                last_captured,
+                MIN_RAW_TO_RETRY,
+            )
+            return (True, "low_captured_count")
+
+        # Rule: If we have a decent number of accounts, only refresh if the data is very old.
+        age_days = (datetime.utcnow() - last_metrics.run_at).days
         if age_days > self._policy.list_refresh_days:
             LOGGER.info(
-                "@%s %s list is %d days old (threshold: %d days) - refresh needed",
+                "@%s %s list is %d days old (threshold: %d days) - refresh needed despite sufficient captured count (%d).",
                 seed.username,
                 list_type,
                 age_days,
                 self._policy.list_refresh_days,
+                last_captured,
             )
             return (True, "age_threshold")
 
-        # Check percentage delta trigger
-        if old_total is not None and current_total is not None:
-            pct_delta = abs(current_total - old_total) / max(old_total, 1)
-            if pct_delta > self._policy.pct_delta_threshold:
-                LOGGER.info(
-                    "@%s %s count changed from %d to %d (%.1f%% delta, threshold: %.1f%%) - refresh needed",
-                    seed.username,
-                    list_type,
-                    old_total,
-                    current_total,
-                    pct_delta * 100,
-                    self._policy.pct_delta_threshold * 100,
-                )
-                return (True, "delta_threshold")
-
-        # No refresh needed
+        # Otherwise, the data is considered fresh enough.
         LOGGER.info(
-            "@%s %s list is fresh (age: %d days, old: %s, current: %s) - skipping",
+            "@%s %s list is considered fresh (age: %d days, captured: %d) - skipping",
             seed.username,
             list_type,
             age_days,
-            old_total,
-            current_total,
+            last_captured,
         )
-        return (False, f"{list_type}_fresh")
+        return (False, f"{list_type}_fresh_sufficient_capture")
 
     def _confirm_refresh(
         self,
@@ -471,7 +459,18 @@ class HybridShadowEnricher:
             return None
 
         # Scrape the list
-        return self._selenium.fetch_following(seed.username)
+        LOGGER.info("Scraping @%s following list (reason: %s)...", seed.username, reason)
+        capture = self._selenium.fetch_following(seed.username)
+        if capture:
+            LOGGER.info(
+                "✓ Scraped @%s following: captured %d/%s accounts",
+                seed.username,
+                len(capture.entries),
+                capture.claimed_total if capture.claimed_total else "?",
+            )
+        else:
+            LOGGER.warning("✗ Failed to scrape @%s following list", seed.username)
+        return capture
 
     def _refresh_followers(
         self,
@@ -505,14 +504,34 @@ class HybridShadowEnricher:
             return (None, None)
 
         # Scrape followers
+        LOGGER.info("Scraping @%s followers list (reason: %s)...", seed.username, reason)
         followers_capture = self._selenium.fetch_followers(seed.username)
+        if followers_capture:
+            LOGGER.info(
+                "✓ Scraped @%s followers: captured %d/%s accounts",
+                seed.username,
+                len(followers_capture.entries),
+                followers_capture.claimed_total if followers_capture.claimed_total else "?",
+            )
+        else:
+            LOGGER.warning("✗ Failed to scrape @%s followers list", seed.username)
 
         # Scrape followers_you_follow if enabled
         followers_you_follow_capture = None
         if self._config.include_followers_you_follow:
+            LOGGER.info("Scraping @%s followers-you-follow list...", seed.username)
             followers_you_follow_capture = self._selenium.fetch_followers_you_follow(
                 seed.username
             )
+            if followers_you_follow_capture:
+                LOGGER.info(
+                    "✓ Scraped @%s followers-you-follow: captured %d/%s accounts",
+                    seed.username,
+                    len(followers_you_follow_capture.entries),
+                    followers_you_follow_capture.claimed_total if followers_you_follow_capture.claimed_total else "?",
+                )
+            else:
+                LOGGER.warning("✗ Failed to scrape @%s followers-you-follow list", seed.username)
         else:
             LOGGER.info(
                 "Skipping followers-you-follow list for @%s: include_followers_you_follow disabled",
@@ -537,7 +556,7 @@ class HybridShadowEnricher:
             if self._policy.skip_if_ever_scraped:
                 last_scrape = self._store.get_last_scrape_metrics(seed.account_id)
                 if last_scrape and not last_scrape.skipped:
-                    # Check if we have complete metadata
+                    # Check if we have complete metadata AND sufficient edge coverage
                     account = self._store.get_shadow_account(seed.account_id)
                     has_complete_metadata = (
                         account is not None and
@@ -545,23 +564,56 @@ class HybridShadowEnricher:
                         account.following_count is not None
                     )
 
-                    if has_complete_metadata:
+                    # Calculate edge coverage from last scrape
+                    following_coverage = (
+                        (last_scrape.following_captured / account.following_count * 100)
+                        if (account and account.following_count and account.following_count > 0 and last_scrape.following_captured is not None)
+                        else 0
+                    )
+                    followers_coverage = (
+                        (last_scrape.followers_captured / account.followers_count * 100)
+                        if (account and account.followers_count and account.followers_count > 0 and last_scrape.followers_captured is not None)
+                        else 0
+                    )
+
+                    # Only skip if we have complete metadata AND sufficient edge coverage (by percent or raw count)
+                    MIN_COVERAGE_PCT = 10.0
+                    MIN_RAW_COUNT = 20
+                    has_sufficient_following = (following_coverage >= MIN_COVERAGE_PCT or (last_scrape.following_captured or 0) > MIN_RAW_COUNT)
+                    has_sufficient_followers = (followers_coverage >= MIN_COVERAGE_PCT or (last_scrape.followers_captured or 0) > MIN_RAW_COUNT)
+                    has_sufficient_coverage = has_sufficient_following and has_sufficient_followers
+
+                    if has_complete_metadata and has_sufficient_coverage:
                         LOGGER.info(
-                            "Skipping @%s (%s) — already scraped before (--skip-if-ever-scraped)",
+                            "Skipping @%s (%s) — already scraped (metadata complete, coverage: following %.1f%%, followers %.1f%%)",
                             seed.username,
                             seed.account_id,
+                            following_coverage,
+                            followers_coverage,
                         )
                         summary[seed.account_id] = {
                             "username": seed.username,
                             "skipped": True,
-                            "reason": "already_scraped_before",
+                            "reason": "already_scraped_sufficient_coverage",
                         }
                         continue
                     else:
+                        skip_reason_parts = []
+                        if not has_complete_metadata:
+                            skip_reason_parts.append(f"incomplete metadata (followers: {account.followers_count if account else None}, following: {account.following_count if account else None})")
+                        if not has_sufficient_coverage:
+                            reasons = []
+                            if not has_sufficient_following:
+                                reasons.append(f"following: {following_coverage:.1f}% < {MIN_COVERAGE_PCT}% and {(last_scrape.following_captured or 0)} <= {MIN_RAW_COUNT}")
+                            if not has_sufficient_followers:
+                                reasons.append(f"followers: {followers_coverage:.1f}% < {MIN_COVERAGE_PCT}% and {(last_scrape.followers_captured or 0)} <= {MIN_RAW_COUNT}")
+                            skip_reason_parts.append(f"low coverage ({'; '.join(reasons)})")
+
                         LOGGER.info(
-                            "Re-scraping @%s (%s) despite prior scrape — incomplete metadata (missing follower/following counts)",
+                            "Re-scraping @%s (%s) despite prior scrape — %s",
                             seed.username,
                             seed.account_id,
+                            " AND ".join(skip_reason_parts),
                         )
 
             # Check if we should skip this seed
@@ -662,7 +714,15 @@ class HybridShadowEnricher:
 
             if policy_skipped_all:
                 # Even if lists are fresh, refresh seed profile metadata for canonical counts
-                self._store.upsert_accounts([self._make_seed_account_record(seed, overview)])
+                account_record = self._make_seed_account_record(seed, overview)
+                LOGGER.info(
+                    "Writing metadata-only update to DB for @%s (followers: %s, following: %s)...",
+                    seed.username,
+                    overview.followers_count,
+                    overview.following_count,
+                )
+                upserted = self._store.upsert_accounts([account_record])
+                LOGGER.info("✓ DB write complete for @%s: %d account record updated", seed.username, upserted)
                 # Record that we checked but policy skipped everything
                 skip_metrics = ScrapeRunMetrics(
                     seed_account_id=seed.account_id,
@@ -687,8 +747,10 @@ class HybridShadowEnricher:
                 self._store.record_scrape_metrics(skip_metrics)
 
                 LOGGER.info(
-                    "✓ Skipped @%s (policy: data is fresh, baseline preserved)",
+                    "✓ Skipped @%s (policy: data is fresh) — updated metadata: %s followers, %s following",
                     seed.username,
+                    overview.followers_count,
+                    overview.following_count,
                 )
 
                 summary[seed.account_id] = {
@@ -739,11 +801,10 @@ class HybridShadowEnricher:
             seed_account = self._make_seed_account_record(seed, overview)
             accounts.append(seed_account)
 
-            edges = self._make_edge_records(
-                seed=seed,
-                following=following_entries,
-                followers=followers_entries,
-            )
+            # Create and upsert edges by type to get per-list metrics
+            following_edges = self._make_edge_records(seed=seed, following=following_entries, followers=[])
+            followers_edges = self._make_edge_records(seed=seed, following=[], followers=followers_entries)
+            
             discoveries = self._make_discovery_records(
                 seed=seed,
                 following=following_entries,
@@ -752,9 +813,38 @@ class HybridShadowEnricher:
             )
 
             try:
+                LOGGER.info(
+                    "Writing to DB for @%s: %d accounts, %d following edges, %d followers edges, %d discoveries...",
+                    seed.username,
+                    len(accounts),
+                    len(following_edges),
+                    len(followers_edges),
+                    len(discoveries),
+                )
                 inserted_accounts = self._store.upsert_accounts(accounts)
-                inserted_edges = self._store.upsert_edges(edges)
+                
+                # Upsert separately to get per-list metrics
+                inserted_following_edges = self._store.upsert_edges(following_edges)
+                inserted_followers_edges = self._store.upsert_edges(followers_edges)
+                inserted_edges = inserted_following_edges + inserted_followers_edges
+
                 inserted_discoveries = self._store.upsert_discoveries(discoveries)
+                
+                LOGGER.info(
+                    "✓ DB write complete for @%s: %d accounts, %d edges (%d following, %d followers), %d discoveries upserted",
+                    seed.username,
+                    inserted_accounts,
+                    inserted_edges,
+                    inserted_following_edges,
+                    inserted_followers_edges,
+                    inserted_discoveries,
+                )
+
+                # Calculate new/duplicate counts for summary
+                new_following_count = inserted_following_edges
+                duplicate_following_count = len(following_entries) - new_following_count
+                new_followers_count = inserted_followers_edges
+                duplicate_followers_count = len(followers_entries) - new_followers_count
 
                 seed_summary = {
                     "username": seed.username,
@@ -762,7 +852,11 @@ class HybridShadowEnricher:
                     "edges_upserted": inserted_edges,
                     "discoveries_upserted": inserted_discoveries,
                     "following_captured": len(following_entries),
+                    "following_new": new_following_count,
+                    "following_duplicates": duplicate_following_count,
                     "followers_captured": len(followers_entries),
+                    "followers_new": new_followers_count,
+                    "followers_duplicates": duplicate_followers_count,
                     "followers_you_follow_captured": len(followers_you_follow_entries),
                     "following_claimed_total": (
                         following_capture.claimed_total if following_capture else None
@@ -829,18 +923,18 @@ class HybridShadowEnricher:
                 )
                 self._store.record_scrape_metrics(run_metrics)
 
+                # Log summary with new/duplicate counts
                 LOGGER.warning(
-                    "✓ @%s: accounts=%s edges=%s discoveries=%s following=%s/%s followers=%s/%s followers_you_follow=%s/%s",
+                    "✓ @%s COMPLETE. Following: %d captured (%d new, %d duplicates). Followers: %d captured (%d new, %d duplicates). DB writes: %d accounts, %d total edges.",
                     seed.username,
+                    len(following_entries),
+                    new_following_count,
+                    duplicate_following_count,
+                    len(followers_entries),
+                    new_followers_count,
+                    duplicate_followers_count,
                     inserted_accounts,
                     inserted_edges,
-                    inserted_discoveries,
-                    len(following_entries),
-                    seed_summary["following_claimed_total"],
-                    len(followers_entries),
-                    seed_summary["followers_claimed_total"],
-                    len(followers_you_follow_entries),
-                    seed_summary["followers_you_follow_claimed_total"],
                 )
             except OperationalError as exc:
                 LOGGER.error(
@@ -910,7 +1004,7 @@ class HybridShadowEnricher:
             username = captured.username
             if not username:
                 return
-            resolved = self._resolve_username(username)
+            resolved = self._resolve_username(captured)
             account_id = resolved.get("account_id")
             if not account_id:
                 return
@@ -1031,7 +1125,7 @@ class HybridShadowEnricher:
         now = datetime.utcnow()
 
         for captured in following:
-            resolved = self._resolve_username(captured.username)
+            resolved = self._resolve_username(captured)
             account_id = resolved.get("account_id")
             if not account_id:
                 continue
@@ -1054,7 +1148,7 @@ class HybridShadowEnricher:
             )
 
         for captured in followers:
-            resolved = self._resolve_username(captured.username)
+            resolved = self._resolve_username(captured)
             account_id = resolved.get("account_id")
             if not account_id:
                 continue
@@ -1092,7 +1186,7 @@ class HybridShadowEnricher:
 
         # Track discoveries from following list
         for captured in following:
-            resolved = self._resolve_username(captured.username)
+            resolved = self._resolve_username(captured)
             account_id = resolved.get("account_id")
             if not account_id:
                 continue
@@ -1111,9 +1205,7 @@ class HybridShadowEnricher:
         pure_followers = followers_usernames - followers_you_follow_usernames
 
         for captured in followers:
-            if captured.username not in pure_followers:
-                continue
-            resolved = self._resolve_username(captured.username)
+            resolved = self._resolve_username(captured)
             account_id = resolved.get("account_id")
             if not account_id:
                 continue
@@ -1128,7 +1220,7 @@ class HybridShadowEnricher:
 
         # Track discoveries from followers_you_follow list
         for captured in followers_you_follow:
-            resolved = self._resolve_username(captured.username)
+            resolved = self._resolve_username(captured)
             account_id = resolved.get("account_id")
             if not account_id:
                 continue
@@ -1146,7 +1238,8 @@ class HybridShadowEnricher:
     # ------------------------------------------------------------------
     # Resolution helpers
     # ------------------------------------------------------------------
-    def _resolve_username(self, username: Optional[str]) -> Dict[str, object]:
+    def _resolve_username(self, captured: CapturedUser) -> Dict[str, object]:
+        username = captured.username
         if not username:
             return {}
         username = username.strip().lstrip("@")
@@ -1154,36 +1247,51 @@ class HybridShadowEnricher:
         if cache_key in self._resolution_cache:
             return self._resolution_cache[cache_key]
 
+        # Use API as fallback only if basic info (bio) is missing from Selenium
+        has_basic_info = captured.bio is not None and captured.bio.strip() != ""
         fallback_id = f"shadow:{cache_key}"
-        record: Dict[str, object] = {
-            "account_id": fallback_id,
-            "username": username,
-            "display_name": username,
-            "source_channel": "hybrid_selenium",
-            "resolution": "selenium",
-        }
-        if not self._api:
-            self._resolution_cache[cache_key] = record
-            return record
 
-        info = self._api.get_user_info_by_username(username)
-        if not info:
-            self._resolution_cache[cache_key] = record
-            return record
-
-        metrics = info.get("public_metrics") or {}
-        record.update(
-            {
-                "account_id": str(info.get("id", fallback_id)),
-                "display_name": info.get("name") or username,
-                "bio": info.get("description"),
-                "location": info.get("location"),
-                "followers_count": metrics.get("followers_count"),
-                "following_count": metrics.get("following_count"),
-                "source_channel": "x_api",
-                "resolution": "x_api",
+        if has_basic_info or not self._api:
+            record: Dict[str, object] = {
+                "account_id": fallback_id,
+                "username": username,
+                "display_name": captured.display_name or username,
+                "bio": captured.bio,
+                "source_channel": "hybrid_selenium",
+                "resolution": "selenium",
             }
-        )
+            self._resolution_cache[cache_key] = record
+            return record
+
+        # Fallback to API
+        LOGGER.debug("Selenium data for @%s is missing bio; falling back to X API.", username)
+        info = self._api.get_user_info_by_username(username)
+
+        if not info:
+            # API failed, use Selenium data anyway
+            record: Dict[str, object] = {
+                "account_id": fallback_id,
+                "username": username,
+                "display_name": captured.display_name or username,
+                "bio": captured.bio,
+                "source_channel": "hybrid_selenium",
+                "resolution": "selenium_api_failed",
+            }
+            self._resolution_cache[cache_key] = record
+            return record
+
+        # API succeeded, use the rich data
+        metrics = info.get("public_metrics") or {}
+        record = {
+            "account_id": str(info.get("id", fallback_id)),
+            "display_name": info.get("name") or username,
+            "bio": info.get("description"),
+            "location": info.get("location"),
+            "followers_count": metrics.get("followers_count"),
+            "following_count": metrics.get("following_count"),
+            "source_channel": "x_api",
+            "resolution": "x_api",
+        }
         self._resolution_cache[cache_key] = record
         return record
 

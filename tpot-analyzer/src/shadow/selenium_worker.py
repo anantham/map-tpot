@@ -187,13 +187,28 @@ class SeleniumWorker:
             self._driver.get(main_profile_url)
             self._apply_delay("load-main-profile-page")
             try:
-                WebDriverWait(self._driver, 15).until(
+                WebDriverWait(self._driver, 30).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, 'div[data-testid="primaryColumn"]'))
                 )
                 profile_overview = self._extract_profile_overview(username)
                 if profile_overview and profile_overview.followers_total is not None and profile_overview.following_total is not None:
                     self._profile_overviews[username] = profile_overview
                     return profile_overview
+
+                # Add detailed logging for incomplete data
+                missing_fields = []
+                if not profile_overview:
+                    missing_fields.append("entire profile object")
+                else:
+                    if profile_overview.followers_total is None:
+                        missing_fields.append("followers_total")
+                    if profile_overview.following_total is None:
+                        missing_fields.append("following_total")
+                LOGGER.warning(
+                    "Profile data for @%s considered incomplete. Missing or failed to parse: %s.",
+                    username,
+                    ", ".join(missing_fields),
+                )
                 
                 # Raise a timeout to trigger the retry logic if data is missing
                 raise TimeoutException("Incomplete profile data")
@@ -240,7 +255,7 @@ class SeleniumWorker:
             self._driver.get(list_page_url)
             self._apply_delay(f"load-{list_type}-page")
             try:
-                WebDriverWait(self._driver, 15).until(
+                WebDriverWait(self._driver, 30).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, 'section[role="region"]'))
                 )
                 # If successful, break the loop and proceed

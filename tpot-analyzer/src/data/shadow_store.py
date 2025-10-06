@@ -580,6 +580,37 @@ class ShadowStore:
                 error_details=row.error_details,
             )
 
+    def get_shadow_account(self, account_id: str) -> Optional[ShadowAccount]:
+        """Get a shadow account by account_id.
+
+        Returns None if the account doesn't exist.
+        """
+        with self._engine.begin() as conn:
+            stmt = (
+                select(self._account_table)
+                .where(self._account_table.c.account_id == account_id)
+                .limit(1)
+            )
+            row = conn.execute(stmt).fetchone()
+            if not row:
+                return None
+
+            return ShadowAccount(
+                account_id=row.account_id,
+                username=row.username,
+                display_name=row.display_name,
+                bio=row.bio,
+                location=row.location,
+                website=row.website,
+                profile_image_url=row.profile_image_url,
+                followers_count=row.followers_count,
+                following_count=row.following_count,
+                source_channel=row.source_channel,
+                fetched_at=row.fetched_at,
+                checked_at=row.checked_at,
+                scrape_stats=row.scrape_stats if isinstance(row.scrape_stats, dict) else (json.loads(row.scrape_stats) if row.scrape_stats else None),
+            )
+
     def record_scrape_metrics(self, metrics: ScrapeRunMetrics) -> int:
         """Record metrics for a single scrape run."""
         row = {
