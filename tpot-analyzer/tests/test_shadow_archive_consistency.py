@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from sqlalchemy import create_engine
@@ -36,6 +37,68 @@ def _fetch_overlap_rows() -> list[sqlite3.Row]:
     rows = cur.fetchall()
     conn.close()
     return rows
+
+
+def _table_exists(name: str) -> bool:
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (name,),
+    )
+    exists = cur.fetchone() is not None
+    conn.close()
+    return exists
+
+
+def _fetch_profile_overlap_rows() -> list[sqlite3.Row]:
+    if not _table_exists("profile"):
+        return []
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT
+            s.account_id,
+            lower(s.username) AS username,
+            s.display_name AS shadow_display_name,
+            s.bio AS shadow_bio,
+            s.website AS shadow_website,
+            s.location AS shadow_location,
+            s.profile_image_url AS shadow_avatar,
+            p.bio AS archive_bio,
+            p.website AS archive_website,
+            p.location AS archive_location,
+            p.avatar_media_url AS archive_avatar
+        FROM shadow_account AS s
+        INNER JOIN profile AS p ON lower(s.username) = lower(p.username)
+        WHERE s.account_id IN (SELECT account_id FROM account)
+        """
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def _normalize_text(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped if stripped else None
+
+
+def _normalize_url(value: Optional[str]) -> Optional[str]:
+    text = _normalize_text(value)
+    if not text:
+        return None
+    normalized = text.lower()
+    for prefix in ("https://", "http://"):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix):]
+            break
+    normalized = normalized.rstrip("/")
+    return normalized
 
 def _sync_overlaps() -> None:
     engine = create_engine(f"sqlite:///{DB_PATH}", future=True)
@@ -125,3 +188,59 @@ def test_shadow_follow_counts_within_archive_tolerance() -> None:
 
     errors = follower_failures + following_failures
     assert not errors, "; ".join(errors)
+
+
+@pytest.mark.skipif(not DB_PATH.exists(), reason="data/cache.db not available")
+def test_shadow_profile_fields_match_archive() -> None:
+    if not _table_exists("profile"):
+        pytest.skip(
+            "Supabase profile table not cached locally; run fetcher to populate profile data"
+        )
+
+    rows = _fetch_profile_overlap_rows()
+    if not rows:
+        pytest.skip("No overlapping accounts with profile metadata available")
+
+    def collect_mismatch(field_shadow: str, field_archive: str) -> list[str]:
+        failures: list[str] = []
+        for row in rows:
+            s_val = _normalize_text(row[field_shadow])
+            a_val = _normalize_text(row[field_archive])
+            if s_val is None or a_val is None:
+                continue
+            if s_val != a_val:
+                failures.append(
+                    f"@{row['username']} {field_shadow}≠{field_archive}"
+                    f" (shadow={row[field_shadow]!r}, archive={row[field_archive]!r})"
+                )
+        return failures
+
+    text_failures = (
+        collect_mismatch("shadow_bio", "archive_bio")
+        + collect_mismatch("shadow_location", "archive_location")
+    )
+    assert not text_failures, "; ".join(text_failures)
+
+    website_failures: list[str] = []
+    for row in rows:
+        s_url = _normalize_url(row["shadow_website"])
+        a_url = _normalize_url(row["archive_website"])
+        if s_url is None or a_url is None:
+            continue
+        if s_url != a_url:
+            website_failures.append(
+                f"@{row['username']} website mismatch (shadow={row['shadow_website']}, archive={row['archive_website']})"
+            )
+    assert not website_failures, "; ".join(website_failures)
+
+    avatar_failures: list[str] = []
+    for row in rows:
+        shadow_avatar = _normalize_url(row["shadow_avatar"])
+        archive_avatar = _normalize_url(row["archive_avatar"])
+        if shadow_avatar is None or archive_avatar is None:
+            continue
+        if shadow_avatar != archive_avatar:
+            avatar_failures.append(
+                f"@{row['username']} avatar mismatch (shadow={row['shadow_avatar']}, archive={row['archive_avatar']})"
+            )
+    assert not avatar_failures, "; ".join(avatar_failures)
