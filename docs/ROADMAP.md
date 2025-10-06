@@ -14,8 +14,8 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Create integration tests for `scripts/analyze_graph.py` (run CLI on small fixture dataset, verify JSON structure and parameter handling).
 - [ ] Add seed-resolution tests ensuring usernames map to account IDs in graph nodes (integration of builder + seed parser).
 - [ ] Consider optional test matrix (with/without SciPy) to ensure fallback pathways remain healthy.
-- [ ] **HIGH PRIORITY**: Add tests for `x_api_client.py` (currently 28% coverage, 0 tests) - rate limiting, persistent state, HTTP error handling
-- [ ] **HIGH PRIORITY**: Add direct unit tests for `shadow_store.py` (currently 39% coverage) - COALESCE upsert behavior, edge summary aggregation
+- [x] **HIGH PRIORITY**: Add tests for `x_api_client.py` ✅ **2025-10-05** - 23 tests added, 28% → 97% coverage (rate limiting, persistent state, HTTP errors)
+- [x] **HIGH PRIORITY**: Add direct unit tests for `shadow_store.py` ✅ **2025-10-05** - 27 tests added, 39% → 88% coverage (COALESCE upsert, edge summaries, metrics queries)
 - [ ] Introduce regression tests for JSON-LD fallback using saved profile fixtures (ensure counts remain accurate when headers fail).
 - [x] Add policy-driven tests covering cache-skipping logic (profile-only refresh, list skipping, delta-triggered rescrapes). ✅ **2025-10-05**
   - 14 integration tests for policy refresh logic (age/delta triggers, skip logic, confirmation behavior)
@@ -25,7 +25,11 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 ## Metrics & Observability
 - [x] Add error tracking to ScrapeRunMetrics (error_type, error_details) ✅ **2025-10-06**
 - [x] Create metrics summary CLI (`python -m scripts.summarize_metrics`) to aggregate success rates, error breakdowns, and performance ✅ **2025-10-06**
-- [ ] Add structured JSON event logging for real-time monitoring
+- [x] Wire enricher to populate error_type/error_details (profile_overview_missing, persistence_failure) ✅ **2025-10-06**
+  - METRICS_PROPOSAL.md Option A fully implemented
+  - Error metrics tracked for: profile fetch failures (main + profile-only mode), SQLite persistence errors
+  - Can now run `python -m scripts.summarize_metrics` to see error breakdowns from real enrichment runs
+- [ ] Add structured JSON event logging for real-time monitoring (METRICS_PROPOSAL.md Tier 1)
 - [ ] Create web dashboard for live enrichment progress (success rate, error breakdown, ETA)
 - [ ] Add alerting for error rate thresholds (e.g., >20% failures)
 
