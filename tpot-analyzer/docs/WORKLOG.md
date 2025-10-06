@@ -90,3 +90,26 @@
 ## 2025-10-05T14:05:23Z — Preserve zero coverage metrics
 - `src/data/shadow_store.py`:408-452 — treated coverage fields as optional explicitly so 0% coverage persists instead of collapsing to `None`.
 - Verification pending: rerun metrics read/write tests once dependencies (`pandas`, `sqlalchemy`) are available.
+
+## 2025-10-05T15:53:11Z — SQLite retry + enrichment resilience
+- `src/data/shadow_store.py`:36-470 — introduced bounded retry helper for write operations, added logging, and wrapped account/edge/discovery/metrics upserts with exponential backoff to survive transient "disk I/O" / locked errors.
+- `src/shadow/enricher.py`:550-700 — catch unrecoverable persistence failures per seed, emit structured summary entries, and keep subsequent seeds running.
+- `tests/test_shadow_store_retry.py`:1-56 — regression coverage ensuring retry helper tolerates a transient disk I/O error and bubbles non-retryable failures.
+- Verification attempt: `pytest tests/test_shadow_store_retry.py -q` (tool missing in sandbox); run pending once `pytest` is installed in the venv.
+
+## 2025-10-05T18:20:00Z — Test refactoring: behavioral testing principles
+- `tests/test_shadow_enrichment_integration.py`:124-517 — refactored 3 test classes (TestSkipLogic, TestProfileOnlyMode, TestPolicyRefreshLogic) from testing private helpers to testing public `enrich()` API with observable outcome verification.
+- `AGENTS.md`:105-192 — added TEST_DESIGN_PRINCIPLES section documenting anti-patterns (implementation coupling, mock verification without side effects, fixture bugs, fragile assumptions) with examples and checklist.
+- `docs/test-coverage-baseline.md`:1-115 — created baseline coverage report (54% total) documenting high-priority gaps and module-level breakdown.
+- Rationale: Codex identified brittleness where tests coupled to private helpers broke during refactoring; new approach tests through public APIs, verifies database side effects, uses realistic fixtures.
+- Verification: `pytest tests/test_shadow_enrichment_integration.py -v -m unit` → 14/14 passed.
+- Impact: Tests now survive implementation refactoring (helper renaming, code reorganization) while providing stronger guarantees (actual data persisted, not just "code called").
+
+## 2025-10-05T19:45:00Z — Fix policy bypass for complete seeds (architectural)
+- `src/shadow/enricher.py`:126-179 — refactored `_should_skip_seed()` to fetch profile overview and consult policy (age/delta triggers) BEFORE deciding to skip complete seeds; policy now controls re-scraping of stale/changed data.
+- `tests/test_shadow_enrichment_integration.py`:47-92, 315-444, 551-597 — updated skip/policy tests to use complete seeds with realistic metrics, verifying policy triggers refresh for old (200d > 180d threshold) and changed data (100% delta > 50% threshold).
+- Rationale: Policy was neutered—complete seeds skipped immediately without checking freshness; seeds scraped 200 days ago or with 100% follower delta never re-scraped despite policy saying they should.
+- Architecture: Now `_should_skip_seed()` → `fetch_profile_overview()` → `_should_refresh_list()` (age/delta check) → skip only if policy confirms fresh.
+- Tradeoff: Fetches profile overview for every complete seed (~2-5s overhead) but enables correct cache invalidation behavior.
+- Verification: `pytest tests/test_shadow_enrichment_integration.py -v -m unit` → 14/14 passed.
+- Impact: Policy refresh now works as designed—complete seeds with stale (age) or significantly changed (delta) data trigger re-scraping; skip reason includes "policy confirms fresh" for transparency.

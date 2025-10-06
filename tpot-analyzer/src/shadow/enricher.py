@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence
 
+from sqlalchemy.exc import OperationalError
+
 from ..data.shadow_store import (
     ScrapeRunMetrics,
     ShadowAccount,
@@ -122,10 +124,10 @@ class HybridShadowEnricher:
     # Enrichment Workflow Helpers
     # ------------------------------------------------------------------
     def _should_skip_seed(self, seed: SeedAccount) -> tuple[bool, Optional[str], dict]:
-        """Check if seed should be skipped based on existing data.
+        """Check if seed should be skipped based on existing data and policy.
 
         Skip conditions:
-        - In normal mode: skip if we have both complete profile AND edges
+        - In normal mode: skip if we have complete profile AND edges AND policy says data is fresh
         - In profile-only mode: never skip here (handled separately)
 
         Returns:
@@ -138,9 +140,41 @@ class HybridShadowEnricher:
         has_edges = edge_summary["following"] > 0 and edge_summary["followers"] > 0
         has_profile = self._store.is_seed_profile_complete(seed.account_id)
 
-        # Skip if not in profile-only mode and we have both edges and profile
+        # Check if we have complete data
         if not self._config.profile_only and has_edges and has_profile:
-            return (True, "complete profile and edges exist", edge_summary)
+            # Fetch current profile to check policy (age/delta triggers)
+            overview = self._selenium.fetch_profile_overview(seed.username)
+            if not overview:
+                LOGGER.warning(
+                    "Could not fetch profile overview for @%s to check policy; skipping as complete",
+                    seed.username,
+                )
+                return (True, "complete profile and edges exist (could not verify freshness)", edge_summary)
+
+            # Check if policy requires refresh despite complete data
+            following_needs_refresh, following_skip_reason = self._should_refresh_list(
+                seed, "following", overview.following_total
+            )
+            followers_needs_refresh, followers_skip_reason = self._should_refresh_list(
+                seed, "followers", overview.followers_total
+            )
+
+            if following_needs_refresh or followers_needs_refresh:
+                # Policy says data is stale or changed significantly, don't skip
+                reasons = []
+                if following_needs_refresh:
+                    reasons.append("following needs refresh")
+                if followers_needs_refresh:
+                    reasons.append("followers needs refresh")
+                LOGGER.info(
+                    "@%s has complete data but policy requires refresh (%s)",
+                    seed.username,
+                    ", ".join(reasons),
+                )
+                return (False, None, edge_summary)
+
+            # Complete data AND policy says it's fresh - safe to skip
+            return (True, "complete profile and edges exist (policy confirms fresh)", edge_summary)
 
         return (False, None, edge_summary)
 
@@ -570,91 +604,113 @@ class HybridShadowEnricher:
                 followers_you_follow=followers_you_follow_entries,
             )
 
-            inserted_accounts = self._store.upsert_accounts(accounts)
-            inserted_edges = self._store.upsert_edges(edges)
-            inserted_discoveries = self._store.upsert_discoveries(discoveries)
+            try:
+                inserted_accounts = self._store.upsert_accounts(accounts)
+                inserted_edges = self._store.upsert_edges(edges)
+                inserted_discoveries = self._store.upsert_discoveries(discoveries)
 
-            summary[seed.account_id] = {
-                "username": seed.username,
-                "accounts_upserted": inserted_accounts,
-                "edges_upserted": inserted_edges,
-                "discoveries_upserted": inserted_discoveries,
-                "following_captured": len(following_entries),
-                "followers_captured": len(followers_entries),
-                "followers_you_follow_captured": len(followers_you_follow_entries),
-                "following_claimed_total": (
-                    following_capture.claimed_total if following_capture else None
-                ),
-                "followers_claimed_total": (
-                    followers_capture.claimed_total if followers_capture else None
-                ),
-                "followers_you_follow_claimed_total": (
-                    followers_you_follow_capture.claimed_total
-                    if followers_you_follow_capture
-                    else None
-                ),
-                "coverage": {
-                    "following": self._compute_coverage(
-                        len(following_entries),
-                        following_capture.claimed_total if following_capture else None,
+                seed_summary = {
+                    "username": seed.username,
+                    "accounts_upserted": inserted_accounts,
+                    "edges_upserted": inserted_edges,
+                    "discoveries_upserted": inserted_discoveries,
+                    "following_captured": len(following_entries),
+                    "followers_captured": len(followers_entries),
+                    "followers_you_follow_captured": len(followers_you_follow_entries),
+                    "following_claimed_total": (
+                        following_capture.claimed_total if following_capture else None
                     ),
-                    "followers": self._compute_coverage(
-                        len(followers_entries),
-                        followers_capture.claimed_total if followers_capture else None,
+                    "followers_claimed_total": (
+                        followers_capture.claimed_total if followers_capture else None
                     ),
-                    "followers_you_follow": self._compute_coverage(
-                        len(followers_you_follow_entries),
+                    "followers_you_follow_claimed_total": (
                         followers_you_follow_capture.claimed_total
                         if followers_you_follow_capture
-                        else None,
+                        else None
                     ),
-                },
-                "scrape_duration_seconds": round(scrape_duration, 2),
-                "timestamp": datetime.utcnow().isoformat(),
-                "edge_summary": self._store.edge_summary_for_seed(seed.account_id),
-                "profile_overview": self._profile_overview_as_dict(
-                    following_capture,
-                    followers_capture,
-                    followers_you_follow_capture,
-                ),
-            }
+                    "coverage": {
+                        "following": self._compute_coverage(
+                            len(following_entries),
+                            following_capture.claimed_total if following_capture else None,
+                        ),
+                        "followers": self._compute_coverage(
+                            len(followers_entries),
+                            followers_capture.claimed_total if followers_capture else None,
+                        ),
+                        "followers_you_follow": self._compute_coverage(
+                            len(followers_you_follow_entries),
+                            followers_you_follow_capture.claimed_total
+                            if followers_you_follow_capture
+                            else None,
+                        ),
+                    },
+                    "scrape_duration_seconds": round(scrape_duration, 2),
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "edge_summary": self._store.edge_summary_for_seed(seed.account_id),
+                    "profile_overview": self._profile_overview_as_dict(
+                        following_capture,
+                        followers_capture,
+                        followers_you_follow_capture,
+                    ),
+                }
+                summary[seed.account_id] = seed_summary
 
-            # Record scrape metrics
-            run_metrics = ScrapeRunMetrics(
-                seed_account_id=seed.account_id,
-                seed_username=seed.username or "",
-                run_at=datetime.utcnow(),
-                duration_seconds=scrape_duration,
-                following_captured=len(following_entries),
-                followers_captured=len(followers_entries),
-                followers_you_follow_captured=len(followers_you_follow_entries),
-                following_claimed_total=following_capture.claimed_total if following_capture else None,
-                followers_claimed_total=followers_capture.claimed_total if followers_capture else None,
-                followers_you_follow_claimed_total=followers_you_follow_capture.claimed_total if followers_you_follow_capture else None,
-                following_coverage=summary[seed.account_id]["coverage"]["following"],
-                followers_coverage=summary[seed.account_id]["coverage"]["followers"],
-                followers_you_follow_coverage=summary[seed.account_id]["coverage"]["followers_you_follow"],
-                accounts_upserted=inserted_accounts,
-                edges_upserted=inserted_edges,
-                discoveries_upserted=inserted_discoveries,
-                skipped=False,
-                skip_reason=None,
-            )
-            self._store.record_scrape_metrics(run_metrics)
+                # Record scrape metrics
+                run_metrics = ScrapeRunMetrics(
+                    seed_account_id=seed.account_id,
+                    seed_username=seed.username or "",
+                    run_at=datetime.utcnow(),
+                    duration_seconds=scrape_duration,
+                    following_captured=len(following_entries),
+                    followers_captured=len(followers_entries),
+                    followers_you_follow_captured=len(followers_you_follow_entries),
+                    following_claimed_total=following_capture.claimed_total if following_capture else None,
+                    followers_claimed_total=followers_capture.claimed_total if followers_capture else None,
+                    followers_you_follow_claimed_total=(
+                        followers_you_follow_capture.claimed_total
+                        if followers_you_follow_capture
+                        else None
+                    ),
+                    following_coverage=seed_summary["coverage"]["following"],
+                    followers_coverage=seed_summary["coverage"]["followers"],
+                    followers_you_follow_coverage=seed_summary["coverage"]["followers_you_follow"],
+                    accounts_upserted=inserted_accounts,
+                    edges_upserted=inserted_edges,
+                    discoveries_upserted=inserted_discoveries,
+                    skipped=False,
+                    skip_reason=None,
+                )
+                self._store.record_scrape_metrics(run_metrics)
 
-            LOGGER.warning(
-                "✓ @%s: accounts=%s edges=%s discoveries=%s following=%s/%s followers=%s/%s followers_you_follow=%s/%s",
-                seed.username,
-                inserted_accounts,
-                inserted_edges,
-                inserted_discoveries,
-                len(following_entries),
-                summary[seed.account_id]["following_claimed_total"],
-                len(followers_entries),
-                summary[seed.account_id]["followers_claimed_total"],
-                len(followers_you_follow_entries),
-                summary[seed.account_id]["followers_you_follow_claimed_total"],
-            )
+                LOGGER.warning(
+                    "✓ @%s: accounts=%s edges=%s discoveries=%s following=%s/%s followers=%s/%s followers_you_follow=%s/%s",
+                    seed.username,
+                    inserted_accounts,
+                    inserted_edges,
+                    inserted_discoveries,
+                    len(following_entries),
+                    seed_summary["following_claimed_total"],
+                    len(followers_entries),
+                    seed_summary["followers_claimed_total"],
+                    len(followers_you_follow_entries),
+                    seed_summary["followers_you_follow_claimed_total"],
+                )
+            except OperationalError as exc:
+                LOGGER.error(
+                    "SQLite persistence failed for @%s after retries; capturing summary and continuing.",
+                    seed.username,
+                    exc_info=exc,
+                )
+                summary[seed.account_id] = {
+                    "username": seed.username,
+                    "error": "persistence_failure",
+                    "reason": str(getattr(exc, "orig", exc)),
+                    "accounts_captured": len(all_entries),
+                    "following_captured": len(following_entries),
+                    "followers_captured": len(followers_entries),
+                    "followers_you_follow_captured": len(followers_you_follow_entries),
+                }
+                continue
 
             if self._config.user_pause_seconds > 0:
                 time.sleep(self._config.user_pause_seconds)

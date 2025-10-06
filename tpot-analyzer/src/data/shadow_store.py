@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, TypeVar
 
 from sqlalchemy import (
     JSON,
@@ -20,7 +22,13 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.dialects.sqlite import insert
+
+
+LOGGER = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -97,6 +105,7 @@ class ShadowStore:
     EDGE_TABLE = "shadow_edge"
     DISCOVERY_TABLE = "shadow_discovery"
     METRICS_TABLE = "scrape_run_metrics"
+    _RETRYABLE_SQLITE_ERRORS = ("disk i/o error", "database is locked")
 
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -167,6 +176,55 @@ class ShadowStore:
         self._metadata.create_all(self._engine, checkfirst=True)
 
     # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _execute_with_retry(
+        self,
+        op_name: str,
+        fn: Callable[[Engine], T],
+        *,
+        max_attempts: int = 3,
+        base_delay_seconds: float = 1.0,
+    ) -> T:
+        last_exc: Optional[OperationalError] = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return fn(self._engine)
+            except OperationalError as exc:
+                message = ""
+                if getattr(exc, "orig", None) is not None:
+                    message = str(exc.orig).lower()
+                else:
+                    message = str(exc).lower()
+
+                if not any(token in message for token in self._RETRYABLE_SQLITE_ERRORS):
+                    raise
+
+                last_exc = exc
+                LOGGER.error(
+                    "Retryable SQLite error during %s (attempt %s/%s): %s",
+                    op_name,
+                    attempt,
+                    max_attempts,
+                    message or exc,
+                )
+                self._engine.dispose()
+
+                if attempt == max_attempts:
+                    break
+
+                sleep_for = base_delay_seconds * (2 ** (attempt - 1))
+                time.sleep(sleep_for)
+
+        assert last_exc is not None
+        LOGGER.error(
+            "Exhausted retries for %s after %s attempts; re-raising.",
+            op_name,
+            max_attempts,
+        )
+        raise last_exc
+
+    # ------------------------------------------------------------------
     # Account operations
     # ------------------------------------------------------------------
     def upsert_accounts(self, accounts: Sequence[ShadowAccount]) -> int:
@@ -193,17 +251,25 @@ class ShadowStore:
                 }
             )
 
-        with self._engine.begin() as conn:
-            stmt = insert(self._account_table).values(rows)
-            # Smart upsert: only update fields with new non-null values (preserve existing data)
-            # COALESCE(new_value, existing_value) = use new if not null, else keep existing
-            update_cols = {
-                col: func.coalesce(stmt.excluded[col], self._account_table.c[col])
-                for col in rows[0].keys()
-                if col != "account_id"
-            }
-            conn.execute(stmt.on_conflict_do_update(index_elements=[self._account_table.c.account_id], set_=update_cols))
-        return len(rows)
+        def _op(engine: Engine) -> int:
+            with engine.begin() as conn:
+                stmt = insert(self._account_table).values(rows)
+                # Smart upsert: only update fields with new non-null values (preserve existing data)
+                # COALESCE(new_value, existing_value) = use new if not null, else keep existing
+                update_cols = {
+                    col: func.coalesce(stmt.excluded[col], self._account_table.c[col])
+                    for col in rows[0].keys()
+                    if col != "account_id"
+                }
+                conn.execute(
+                    stmt.on_conflict_do_update(
+                        index_elements=[self._account_table.c.account_id],
+                        set_=update_cols,
+                    )
+                )
+            return len(rows)
+
+        return self._execute_with_retry("upsert_accounts", _op)
 
     def fetch_accounts(self, account_ids: Optional[Iterable[str]] = None) -> List[dict]:
         with self._engine.connect() as conn:
@@ -285,20 +351,27 @@ class ShadowStore:
                 }
             )
 
-        with self._engine.begin() as conn:
-            stmt = insert(self._edge_table).values(rows)
-            update_cols = {col: stmt.excluded[col] for col in rows[0].keys() if col not in {"source_id", "target_id", "direction"}}
-            conn.execute(
-                stmt.on_conflict_do_update(
-                    index_elements=[
-                        self._edge_table.c.source_id,
-                        self._edge_table.c.target_id,
-                        self._edge_table.c.direction,
-                    ],
-                    set_=update_cols,
+        def _op(engine: Engine) -> int:
+            with engine.begin() as conn:
+                stmt = insert(self._edge_table).values(rows)
+                update_cols = {
+                    col: stmt.excluded[col]
+                    for col in rows[0].keys()
+                    if col not in {"source_id", "target_id", "direction"}
+                }
+                conn.execute(
+                    stmt.on_conflict_do_update(
+                        index_elements=[
+                            self._edge_table.c.source_id,
+                            self._edge_table.c.target_id,
+                            self._edge_table.c.direction,
+                        ],
+                        set_=update_cols,
+                    )
                 )
-            )
-        return len(rows)
+            return len(rows)
+
+        return self._execute_with_retry("upsert_edges", _op)
 
     def fetch_edges(self, *, direction: Optional[str] = None) -> List[dict]:
         with self._engine.connect() as conn:
@@ -356,23 +429,26 @@ class ShadowStore:
                 }
             )
 
-        with self._engine.begin() as conn:
-            stmt = insert(self._discovery_table).values(rows)
-            update_cols = {
-                col: stmt.excluded[col]
-                for col in rows[0].keys()
-                if col not in {"shadow_account_id", "seed_account_id"}
-            }
-            conn.execute(
-                stmt.on_conflict_do_update(
-                    index_elements=[
-                        self._discovery_table.c.shadow_account_id,
-                        self._discovery_table.c.seed_account_id,
-                    ],
-                    set_=update_cols,
+        def _op(engine: Engine) -> int:
+            with engine.begin() as conn:
+                stmt = insert(self._discovery_table).values(rows)
+                update_cols = {
+                    col: stmt.excluded[col]
+                    for col in rows[0].keys()
+                    if col not in {"shadow_account_id", "seed_account_id"}
+                }
+                conn.execute(
+                    stmt.on_conflict_do_update(
+                        index_elements=[
+                            self._discovery_table.c.shadow_account_id,
+                            self._discovery_table.c.seed_account_id,
+                        ],
+                        set_=update_cols,
+                    )
                 )
-            )
-        return len(rows)
+            return len(rows)
+
+        return self._execute_with_retry("upsert_discoveries", _op)
 
     def fetch_discoveries(
         self, *, shadow_account_id: Optional[str] = None, seed_account_id: Optional[str] = None
@@ -473,9 +549,12 @@ class ShadowStore:
             "skipped": metrics.skipped,
             "skip_reason": metrics.skip_reason,
         }
-        with self._engine.begin() as conn:
-            result = conn.execute(insert(self._metrics_table).values(row))
-            return result.lastrowid
+        def _op(engine: Engine) -> int:
+            with engine.begin() as conn:
+                result = conn.execute(insert(self._metrics_table).values(row))
+                return result.lastrowid
+
+        return self._execute_with_retry("record_scrape_metrics", _op)
 
 
 def get_shadow_store(engine: Engine) -> ShadowStore:
