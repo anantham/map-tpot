@@ -876,16 +876,16 @@ class HybridShadowEnricher:
         followers_total = overview.followers_total
         following_total = overview.following_total
 
-        if followers_total is None:
+        if not overview.followers_total:
             LOGGER.warning(
-                "Profile header missing followers total for @%s; storing NULL",
-                seed.username,
+                "Profile header missing followers total for @%s; storing NULL", username
             )
-        if following_total is None:
+            self._worker._save_page_snapshot(username, "profile-header-missing")
+        if not overview.following_total:
             LOGGER.warning(
-                "Profile header missing following total for @%s; storing NULL",
-                seed.username,
+                "Profile header missing following total for @%s; storing NULL", username
             )
+            self._worker._save_page_snapshot(username, "profile-header-missing")
 
         return ShadowAccount(
             account_id=seed.account_id,

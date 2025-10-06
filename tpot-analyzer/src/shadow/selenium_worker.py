@@ -35,6 +35,7 @@ class SeleniumConfig:
     action_delay_max: float = 40.0
     chrome_binary: Optional[Path] = None
     require_confirmation: bool = True
+    retry_delays: List[float] = field(default_factory=lambda: [5.0, 15.0, 60.0])
 
 
 @dataclass
@@ -174,8 +175,7 @@ class SeleniumWorker:
         assert self._driver is not None
 
         main_profile_url = f"https://twitter.com/{username}"
-        attempts = 3
-        base_sleep = max(1.0, self._config.action_delay_min)
+        attempts = len(self._config.retry_delays) + 1
 
         for attempt in range(attempts):
             LOGGER.debug(
@@ -191,20 +191,22 @@ class SeleniumWorker:
                     EC.presence_of_element_located((By.CSS_SELECTOR, 'div[data-testid="primaryColumn"]'))
                 )
                 profile_overview = self._extract_profile_overview(username)
-                if profile_overview:
+                if profile_overview and profile_overview.followers_total is not None and profile_overview.following_total is not None:
                     self._profile_overviews[username] = profile_overview
-                return profile_overview
+                    return profile_overview
+                
+                # Raise a timeout to trigger the retry logic if data is missing
+                raise TimeoutException("Incomplete profile data")
+
             except TimeoutException:
                 LOGGER.warning(
-                    "Timed out waiting for main profile page for @%s (attempt %s/%s)",
+                    "Timed out or profile data incomplete for @%s (attempt %s/%s)",
                     username,
                     attempt + 1,
                     attempts,
                 )
                 if attempt < attempts - 1:
-                    backoff = base_sleep * (2 ** attempt)
-                    jitter = random.uniform(0.5, 1.5)
-                    sleep_time = backoff * jitter
+                    sleep_time = self._config.retry_delays[attempt]
                     LOGGER.warning(
                         "Retrying profile fetch for @%s in %.1fs",
                         username,
@@ -213,11 +215,11 @@ class SeleniumWorker:
                     time.sleep(sleep_time)
                 else:
                     LOGGER.error(
-                        "Timed out waiting for main profile page for @%s after %s attempts",
+                        "Failed to fetch complete profile for @%s after %s attempts",
                         username,
                         attempts,
                     )
-                    self._save_page_snapshot(username, "profile-timeout")
+                    self._save_page_snapshot(username, "profile-incomplete")
         return None
 
     def _collect_user_list(self, *, username: str, list_type: str) -> UserListCapture:
@@ -231,17 +233,45 @@ class SeleniumWorker:
             profile_overview = self.fetch_profile_overview(username)
 
         list_page_url = f"https://twitter.com/{username}/{list_type}"
-        LOGGER.debug("Navigating to %s", list_page_url)
-        self._driver.get(list_page_url)
-        self._apply_delay(f"load-{list_type}-page")
-        try:
-            WebDriverWait(self._driver, 15).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, 'section[role="region"]'))
-            )
-        except TimeoutException:
-            LOGGER.error("Timed out waiting for %s list for @%s", list_type, username)
-            self._save_page_snapshot(f"{username}_list", f"{list_type}-timeout")
-            return UserListCapture(list_type, [], None, list_page_url, None)
+        attempts = len(self._config.retry_delays) + 1
+
+        for attempt in range(attempts):
+            LOGGER.debug("Navigating to %s (attempt %s/%s)", list_page_url, attempt + 1, attempts)
+            self._driver.get(list_page_url)
+            self._apply_delay(f"load-{list_type}-page")
+            try:
+                WebDriverWait(self._driver, 15).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'section[role="region"]'))
+                )
+                # If successful, break the loop and proceed
+                break
+            except TimeoutException:
+                LOGGER.warning(
+                    "Timed out waiting for %s list for @%s (attempt %s/%s)",
+                    list_type,
+                    username,
+                    attempt + 1,
+                    attempts,
+                )
+                if attempt < attempts - 1:
+                    sleep_time = self._config.retry_delays[attempt]
+                    LOGGER.warning(
+                        "Retrying %s list fetch for @%s in %.1fs",
+                        list_type,
+                        username,
+                        sleep_time,
+                    )
+                    time.sleep(sleep_time)
+                else:
+                    LOGGER.error(
+                        "Timed out waiting for %s list for @%s after %s attempts",
+                        list_type,
+                        username,
+                        attempts,
+                    )
+                    self._save_page_snapshot(f"{username}_list", f"{list_type}-timeout")
+                    return UserListCapture(list_type, [], None, list_page_url, None)
+        
         self._apply_delay(f"{list_type}-viewport-ready")
 
         discovered: Dict[str, CapturedUser] = {}
