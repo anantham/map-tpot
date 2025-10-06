@@ -47,6 +47,7 @@ class EnrichmentPolicy:
     pct_delta_threshold: float = 0.5
     require_user_confirmation: bool = False  # Non-blocking default (use --require-confirmation to enable)
     auto_confirm_rescrapes: bool = True  # Auto-proceed by default
+    skip_if_ever_scraped: bool = False  # Skip accounts that have been scraped before (even if stale)
 
     @classmethod
     def from_file(cls, path: Path) -> "EnrichmentPolicy":
@@ -531,6 +532,37 @@ class HybridShadowEnricher:
             if not seed.username:
                 LOGGER.warning("Seed %s missing username; skipping", seed.account_id)
                 continue
+
+            # Check if --skip-if-ever-scraped flag is enabled
+            if self._policy.skip_if_ever_scraped:
+                last_scrape = self._store.get_last_scrape_metrics(seed.account_id)
+                if last_scrape and not last_scrape.skipped:
+                    # Check if we have complete metadata
+                    account = self._store.get_shadow_account(seed.account_id)
+                    has_complete_metadata = (
+                        account is not None and
+                        account.followers_count is not None and
+                        account.following_count is not None
+                    )
+
+                    if has_complete_metadata:
+                        LOGGER.info(
+                            "Skipping @%s (%s) — already scraped before (--skip-if-ever-scraped)",
+                            seed.username,
+                            seed.account_id,
+                        )
+                        summary[seed.account_id] = {
+                            "username": seed.username,
+                            "skipped": True,
+                            "reason": "already_scraped_before",
+                        }
+                        continue
+                    else:
+                        LOGGER.info(
+                            "Re-scraping @%s (%s) despite prior scrape — incomplete metadata (missing follower/following counts)",
+                            seed.username,
+                            seed.account_id,
+                        )
 
             # Check if we should skip this seed
             should_skip, skip_reason, edge_summary, cached_overview = self._should_skip_seed(seed)

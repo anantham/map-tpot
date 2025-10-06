@@ -127,6 +127,11 @@ def parse_args() -> argparse.Namespace:
         help="Require user confirmation before each list refresh (default: auto-confirm based on policy).",
     )
     parser.add_argument(
+        "--skip-if-ever-scraped",
+        action="store_true",
+        help="Skip seeds that have been successfully scraped before (even if stale). Re-scrapes seeds with incomplete metadata.",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"],
@@ -317,6 +322,8 @@ def main() -> None:
         if args.require_confirmation:
             policy.require_user_confirmation = True
             policy.auto_confirm_rescrapes = False
+        if args.skip_if_ever_scraped:
+            policy.skip_if_ever_scraped = True
 
         enricher = HybridShadowEnricher(store, config, policy)
         try:
