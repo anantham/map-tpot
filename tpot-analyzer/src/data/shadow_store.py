@@ -253,12 +253,14 @@ class ShadowStore:
 
         def _op(engine: Engine) -> int:
             with engine.begin() as conn:
-                stmt = insert(self._account_table).values(rows)
-                # Smart upsert: only update fields with new non-null values (preserve existing data)
-                # COALESCE(new_value, existing_value) = use new if not null, else keep existing
+                prepared_rows = [self._prepare_account_row(conn, row) for row in rows]
+                if not prepared_rows:
+                    return 0
+
+                stmt = insert(self._account_table).values(prepared_rows)
                 update_cols = {
                     col: func.coalesce(stmt.excluded[col], self._account_table.c[col])
-                    for col in rows[0].keys()
+                    for col in prepared_rows[0].keys()
                     if col != "account_id"
                 }
                 conn.execute(
@@ -267,7 +269,7 @@ class ShadowStore:
                         set_=update_cols,
                     )
                 )
-            return len(rows)
+            return len(prepared_rows)
 
         return self._execute_with_retry("upsert_accounts", _op)
 
@@ -555,6 +557,189 @@ class ShadowStore:
                 return result.lastrowid
 
         return self._execute_with_retry("record_scrape_metrics", _op)
+
+    # ------------------------------------------------------------------
+    # Account maintenance helpers
+    # ------------------------------------------------------------------
+
+    def _prepare_account_row(self, conn, row: dict) -> dict:
+        username = (row.get("username") or "").lower()
+        account_id = row.get("account_id")
+
+        if username and account_id and not account_id.startswith("shadow:"):
+            self._merge_duplicate_accounts(conn, username, account_id, row)
+
+        if username:
+            archive_table = self._archive_account_table
+            archive_row = conn.execute(
+                select(
+                    archive_table.c.account_id,
+                    archive_table.c.num_followers,
+                    archive_table.c.num_following,
+                    archive_table.c.account_display_name,
+                )
+                .where(func.lower(archive_table.c.username) == username)
+            ).fetchone()
+            if archive_row:
+                archive = archive_row._mapping
+                canonical_id = archive["account_id"] or account_id
+                if canonical_id:
+                    row["account_id"] = canonical_id
+                if archive["account_display_name"] and not row.get("display_name"):
+                    row["display_name"] = archive["account_display_name"]
+                row["followers_count"] = self._max_value(
+                    row.get("followers_count"), archive["num_followers"]
+                )
+                row["following_count"] = self._max_value(
+                    row.get("following_count"), archive["num_following"]
+                )
+
+        return row
+
+    def _merge_duplicate_accounts(
+        self,
+        conn,
+        username: str,
+        canonical_id: str,
+        row: dict,
+    ) -> None:
+        duplicates = conn.execute(
+            select(
+                self._account_table.c.account_id,
+                self._account_table.c.display_name,
+                self._account_table.c.bio,
+                self._account_table.c.location,
+                self._account_table.c.website,
+                self._account_table.c.profile_image_url,
+                self._account_table.c.followers_count,
+                self._account_table.c.following_count,
+            )
+            .where(self._account_table.c.username == username)
+            .where(self._account_table.c.account_id != canonical_id)
+        ).fetchall()
+
+        for dup_row in duplicates:
+            dup = dup_row._mapping
+            old_id = dup["account_id"]
+            if old_id == canonical_id:
+                continue
+
+            for field in ("display_name", "bio", "location", "website", "profile_image_url"):
+                if not row.get(field) and dup[field]:
+                    row[field] = dup[field]
+
+            row["followers_count"] = self._max_value(row.get("followers_count"), dup["followers_count"])
+            row["following_count"] = self._max_value(row.get("following_count"), dup["following_count"])
+
+            self._reassign_account_id(conn, old_id, canonical_id)
+
+    def _reassign_account_id(self, conn, old_id: str, new_id: str) -> None:
+        conn.execute(
+            self._edge_table.update()
+            .where(self._edge_table.c.source_id == old_id)
+            .values(source_id=new_id)
+        )
+        conn.execute(
+            self._edge_table.update()
+            .where(self._edge_table.c.target_id == old_id)
+            .values(target_id=new_id)
+        )
+        conn.execute(
+            self._discovery_table.update()
+            .where(self._discovery_table.c.shadow_account_id == old_id)
+            .values(shadow_account_id=new_id)
+        )
+        conn.execute(
+            self._account_table.delete().where(self._account_table.c.account_id == old_id)
+        )
+
+    @staticmethod
+    def _max_value(current: Optional[int], baseline: Optional[int]) -> Optional[int]:
+        if current is None and baseline is None:
+            return None
+        if current is None:
+            return baseline
+        if baseline is None:
+            return current
+        return max(current, baseline)
+
+    @property
+    def _archive_account_table(self) -> Table:
+        if not hasattr(self, "_archive_table"):
+            metadata = MetaData()
+            self._archive_table = Table(
+                "account",
+                metadata,
+                Column("account_id", String, primary_key=True),
+                Column("username", String),
+                Column("account_display_name", String),
+                Column("num_followers", Integer),
+                Column("num_following", Integer),
+            )
+        return self._archive_table
+
+    def sync_archive_overlaps(self) -> int:
+        def _op(engine: Engine) -> int:
+            with engine.begin() as conn:
+                archive_table = self._archive_account_table
+                rows = conn.execute(
+                    select(
+                        self._account_table.c.username,
+                        self._account_table.c.account_id,
+                        archive_table.c.account_id.label("archive_id"),
+                        archive_table.c.num_followers,
+                        archive_table.c.num_following,
+                        archive_table.c.account_display_name,
+                    )
+                    .select_from(
+                        self._account_table.join(
+                            archive_table,
+                            func.lower(self._account_table.c.username)
+                            == func.lower(archive_table.c.username),
+                        )
+                    )
+                ).fetchall()
+
+                updated = 0
+                for record_row in rows:
+                    record = record_row._mapping
+                    canonical_id = record["archive_id"] or record["account_id"]
+                    prepared = {
+                        "account_id": canonical_id,
+                        "username": record["username"],
+                        "display_name": record["account_display_name"],
+                        "bio": None,
+                        "location": None,
+                        "website": None,
+                        "profile_image_url": None,
+                        "followers_count": record["num_followers"],
+                        "following_count": record["num_following"],
+                        "source_channel": "archive_sync",
+                        "fetched_at": datetime.utcnow(),
+                        "checked_at": datetime.utcnow(),
+                        "scrape_stats": None,
+                        "is_shadow": True,
+                    }
+
+                    prepared = self._prepare_account_row(conn, prepared)
+
+                    stmt = insert(self._account_table).values(prepared)
+                    update_cols = {
+                        col: func.coalesce(stmt.excluded[col], self._account_table.c[col])
+                        for col in prepared.keys()
+                        if col != "account_id"
+                    }
+                    conn.execute(
+                        stmt.on_conflict_do_update(
+                            index_elements=[self._account_table.c.account_id],
+                            set_=update_cols,
+                        )
+                    )
+                    updated += 1
+
+                return updated
+
+        return self._execute_with_retry("sync_archive_overlaps", _op)
 
 
 def get_shadow_store(engine: Engine) -> ShadowStore:

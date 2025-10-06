@@ -106,6 +106,15 @@
 - `src/shadow/enricher.py`:120-620 — `_should_skip_seed` now returns the Selenium `ProfileOverview`, letting the main enrichment loop reuse the same fetch instead of reloading the page, halving redundant Selenium calls for seeds evaluated as “complete”.
 - Impact: fewer profile page loads per seed, lower chance of hitting Twitter throttle while keeping policy transparency in logs.
 
+## 2025-10-06T00:57:39Z — Archive vs shadow smoke test
+- `tests/test_shadow_archive_consistency.py`:1-78 — added checks that shadow usernames match archive records and follower/following counts stay within 5% (or ±200) for overlap accounts.
+- Impact: provides an automated sanity check using the 275 confirmed accounts as ground truth for Selenium scrape quality.
+
+## 2025-10-06T02:39:31Z — Shadow/account dedupe & archive alignment
+- `src/data/shadow_store.py`:170-570 — upserts now collapse `shadow:*` duplicates into canonical IDs, reuse archive follower/following counts as a floor, and expose `sync_archive_overlaps()` for retroactive repairs.
+- `src/shadow/enricher.py`:146-610 — even policy-skip paths refresh seed profile metadata so counts stay current.
+- Tests updated to invoke archive sync before asserting parity.
+
 ## 2025-10-05T18:20:00Z — Test refactoring: behavioral testing principles
 - `tests/test_shadow_enrichment_integration.py`:124-517 — refactored 3 test classes (TestSkipLogic, TestProfileOnlyMode, TestPolicyRefreshLogic) from testing private helpers to testing public `enrich()` API with observable outcome verification.
 - `AGENTS.md`:105-192 — added TEST_DESIGN_PRINCIPLES section documenting anti-patterns (implementation coupling, mock verification without side effects, fixture bugs, fragile assumptions) with examples and checklist.

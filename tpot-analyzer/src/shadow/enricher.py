@@ -166,6 +166,9 @@ class HybridShadowEnricher:
                 seed, "followers", overview.followers_total
             )
 
+            # Always refresh seed profile metadata so counts stay current
+            self._store.upsert_accounts([self._make_seed_account_record(seed, overview)])
+
             if following_needs_refresh or followers_needs_refresh:
                 # Policy says data is stale or changed significantly, don't skip
                 reasons = []
@@ -578,6 +581,8 @@ class HybridShadowEnricher:
             policy_skipped_all = (following_capture is None and followers_capture is None)
 
             if policy_skipped_all:
+                # Even if lists are fresh, refresh seed profile metadata for canonical counts
+                self._store.upsert_accounts([self._make_seed_account_record(seed, overview)])
                 # Record that we checked but policy skipped everything
                 skip_metrics = ScrapeRunMetrics(
                     seed_account_id=seed.account_id,
