@@ -118,6 +118,9 @@
 ## 2025-10-06T02:57:13Z — Profile metadata validation
 - `tests/test_shadow_archive_consistency.py`:1-200 — added optional checks that Selenium bio/location/website/avatar fields stay in sync with Supabase `profile` data when cached locally (test skips with guidance if the `profile` table is absent).
 
+## 2025-10-06T03:04:04Z — Supabase cache sync CLI
+- `scripts/sync_supabase_cache.py`:1-78 — added `python -m scripts.sync_supabase_cache` to pull the latest Supabase tables (accounts/profiles/followers/etc.) into `data/cache.db` with optional `--force` refresh and summary output.
+
 ## 2025-10-05T18:20:00Z — Test refactoring: behavioral testing principles
 - `tests/test_shadow_enrichment_integration.py`:124-517 — refactored 3 test classes (TestSkipLogic, TestProfileOnlyMode, TestPolicyRefreshLogic) from testing private helpers to testing public `enrich()` API with observable outcome verification.
 - `AGENTS.md`:105-192 — added TEST_DESIGN_PRINCIPLES section documenting anti-patterns (implementation coupling, mock verification without side effects, fixture bugs, fragile assumptions) with examples and checklist.

@@ -13,7 +13,7 @@ See [docs/WORKLOG.md](./docs/WORKLOG.md) for detailed progress and [docs/adr/](.
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.9+
 - Supabase anon key for the Community Archive (public read-only access)
 - ~50MB disk space for SQLite cache
 
@@ -188,6 +188,7 @@ with CachedDataFetcher() as fetcher:
 
 - **View cache status:** `python3 scripts/verify_setup.py`
 - **Force refresh:** Pass `force_refresh=True` to any fetch method
+- **Bulk sync:** `python -m scripts.sync_supabase_cache` (add `--force` to bypass cache age checks)
 - **Clear cache:** Delete `data/cache.db` and re-run fetcher
 - **Adjust freshness:** Set `CACHE_MAX_AGE_DAYS` in `.env`
 
