@@ -239,6 +239,7 @@ class HybridShadowEnricher:
                 }
 
         # Fetch profile overview from Selenium
+        start = time.perf_counter()
         overview = self._selenium.fetch_profile_overview(seed.username)
         if not overview:
             LOGGER.error(
@@ -246,6 +247,30 @@ class HybridShadowEnricher:
                 seed.username,
                 seed.account_id,
             )
+            # Record error metrics for profile-only failures
+            error_metrics = ScrapeRunMetrics(
+                seed_account_id=seed.account_id,
+                seed_username=seed.username or "",
+                run_at=datetime.utcnow(),
+                duration_seconds=time.perf_counter() - start,
+                following_captured=0,
+                followers_captured=0,
+                followers_you_follow_captured=0,
+                following_claimed_total=None,
+                followers_claimed_total=None,
+                followers_you_follow_claimed_total=None,
+                following_coverage=None,
+                followers_coverage=None,
+                followers_you_follow_coverage=None,
+                accounts_upserted=0,
+                edges_upserted=0,
+                discoveries_upserted=0,
+                skipped=False,
+                skip_reason=None,
+                error_type="profile_overview_missing",
+                error_details=f"Profile-only mode: Failed to fetch profile overview for @{seed.username}",
+            )
+            self._store.record_scrape_metrics(error_metrics)
             return {
                 "username": seed.username,
                 "profile_only": True,
@@ -567,6 +592,29 @@ class HybridShadowEnricher:
             overview = cached_overview or self._selenium.fetch_profile_overview(seed.username)
             if not overview:
                 LOGGER.error("Failed to fetch profile overview for @%s - skipping", seed.username)
+                error_metrics = ScrapeRunMetrics(
+                    seed_account_id=seed.account_id,
+                    seed_username=seed.username or "",
+                    run_at=datetime.utcnow(),
+                    duration_seconds=time.perf_counter() - start,
+                    following_captured=0,
+                    followers_captured=0,
+                    followers_you_follow_captured=0,
+                    following_claimed_total=None,
+                    followers_claimed_total=None,
+                    followers_you_follow_claimed_total=None,
+                    following_coverage=None,
+                    followers_coverage=None,
+                    followers_you_follow_coverage=None,
+                    accounts_upserted=0,
+                    edges_upserted=0,
+                    discoveries_upserted=0,
+                    skipped=True,
+                    skip_reason="profile_overview_missing",
+                    error_type="profile_overview_missing",
+                    error_details=f"Failed to fetch profile overview for @{seed.username}",
+                )
+                self._store.record_scrape_metrics(error_metrics)
                 summary[seed.account_id] = {
                     "username": seed.username,
                     "error": "profile_overview_missing",
@@ -777,6 +825,35 @@ class HybridShadowEnricher:
                     "followers_captured": len(followers_entries),
                     "followers_you_follow_captured": len(followers_you_follow_entries),
                 }
+
+                # Record persistence failure in metrics
+                error_metrics = ScrapeRunMetrics(
+                    seed_account_id=seed.account_id,
+                    seed_username=seed.username or "",
+                    run_at=datetime.utcnow(),
+                    duration_seconds=time.perf_counter() - start,
+                    following_captured=len(following_entries),
+                    followers_captured=len(followers_entries),
+                    followers_you_follow_captured=len(followers_you_follow_entries),
+                    following_claimed_total=following_capture.claimed_total if following_capture else None,
+                    followers_claimed_total=followers_capture.claimed_total if followers_capture else None,
+                    followers_you_follow_claimed_total=(
+                        followers_you_follow_capture.claimed_total
+                        if followers_you_follow_capture
+                        else None
+                    ),
+                    following_coverage=None,
+                    followers_coverage=None,
+                    followers_you_follow_coverage=None,
+                    accounts_upserted=0,
+                    edges_upserted=0,
+                    discoveries_upserted=0,
+                    skipped=False,
+                    skip_reason=None,
+                    error_type="persistence_failure",
+                    error_details=f"SQLite OperationalError: {str(getattr(exc, 'orig', exc))}",
+                )
+                self._store.record_scrape_metrics(error_metrics)
                 continue
 
             if self._config.user_pause_seconds > 0:
@@ -878,14 +955,14 @@ class HybridShadowEnricher:
 
         if not overview.followers_total:
             LOGGER.warning(
-                "Profile header missing followers total for @%s; storing NULL", username
+                "Profile header missing followers total for @%s; storing NULL", seed.username
             )
-            self._worker._save_page_snapshot(username, "profile-header-missing")
+            self._selenium._save_page_snapshot(seed.username, "profile-header-missing")
         if not overview.following_total:
             LOGGER.warning(
-                "Profile header missing following total for @%s; storing NULL", username
+                "Profile header missing following total for @%s; storing NULL", seed.username
             )
-            self._worker._save_page_snapshot(username, "profile-header-missing")
+            self._selenium._save_page_snapshot(seed.username, "profile-header-missing")
 
         return ShadowAccount(
             account_id=seed.account_id,
