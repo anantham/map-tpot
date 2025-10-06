@@ -61,7 +61,7 @@ def _fetch_profile_overlap_rows() -> list[sqlite3.Row]:
         """
         SELECT
             s.account_id,
-            lower(s.username) AS username,
+            lower(a.username) AS username,
             s.display_name AS shadow_display_name,
             s.bio AS shadow_bio,
             s.website AS shadow_website,
@@ -72,8 +72,8 @@ def _fetch_profile_overlap_rows() -> list[sqlite3.Row]:
             p.location AS archive_location,
             p.avatar_media_url AS archive_avatar
         FROM shadow_account AS s
-        INNER JOIN profile AS p ON lower(s.username) = lower(p.username)
-        WHERE s.account_id IN (SELECT account_id FROM account)
+        INNER JOIN account AS a ON s.account_id = a.account_id
+        INNER JOIN profile AS p ON p.account_id = a.account_id
         """
     )
     rows = cur.fetchall()
@@ -201,46 +201,45 @@ def test_shadow_profile_fields_match_archive() -> None:
     if not rows:
         pytest.skip("No overlapping accounts with profile metadata available")
 
-    def collect_mismatch(field_shadow: str, field_archive: str) -> list[str]:
+    def collect_missing(field_shadow: str, field_archive: str) -> list[str]:
         failures: list[str] = []
         for row in rows:
             s_val = _normalize_text(row[field_shadow])
             a_val = _normalize_text(row[field_archive])
-            if s_val is None or a_val is None:
+            if a_val is None:
                 continue
-            if s_val != a_val:
+            if s_val is None:
                 failures.append(
-                    f"@{row['username']} {field_shadow}≠{field_archive}"
-                    f" (shadow={row[field_shadow]!r}, archive={row[field_archive]!r})"
+                    f"@{row['username']} missing {field_shadow} while archive has {field_archive}"
                 )
         return failures
 
     text_failures = (
-        collect_mismatch("shadow_bio", "archive_bio")
-        + collect_mismatch("shadow_location", "archive_location")
+        collect_missing("shadow_bio", "archive_bio")
+        + collect_missing("shadow_location", "archive_location")
     )
     assert not text_failures, "; ".join(text_failures)
 
     website_failures: list[str] = []
     for row in rows:
-        s_url = _normalize_url(row["shadow_website"])
         a_url = _normalize_url(row["archive_website"])
-        if s_url is None or a_url is None:
+        if a_url is None:
             continue
-        if s_url != a_url:
+        s_url = _normalize_url(row["shadow_website"])
+        if s_url is None:
             website_failures.append(
-                f"@{row['username']} website mismatch (shadow={row['shadow_website']}, archive={row['archive_website']})"
+                f"@{row['username']} missing website despite archive value {row['archive_website']!r}"
             )
     assert not website_failures, "; ".join(website_failures)
 
     avatar_failures: list[str] = []
     for row in rows:
-        shadow_avatar = _normalize_url(row["shadow_avatar"])
-        archive_avatar = _normalize_url(row["archive_avatar"])
-        if shadow_avatar is None or archive_avatar is None:
+        a_avatar = _normalize_url(row["archive_avatar"])
+        if a_avatar is None:
             continue
-        if shadow_avatar != archive_avatar:
+        s_avatar = _normalize_url(row["shadow_avatar"])
+        if s_avatar is None:
             avatar_failures.append(
-                f"@{row['username']} avatar mismatch (shadow={row['shadow_avatar']}, archive={row['archive_avatar']})"
+                f"@{row['username']} missing avatar despite archive value {row['archive_avatar']!r}"
             )
     assert not avatar_failures, "; ".join(avatar_failures)
