@@ -1,8 +1,8 @@
 # Test Coverage Baseline
 
 **Measured:** 2025-10-05 (updated 2025-10-06)
-**Total Coverage:** 54% (878/1614 statements)
-**Test Count:** 91 tests (14 shadow enrichment integration + 77 other tests)
+**Total Coverage:** ~60% (estimated with x_api_client improvements)
+**Test Count:** 114 tests (23 x_api_client + 14 shadow enrichment + 77 other)
 
 ## Coverage by Module
 
@@ -16,17 +16,18 @@
 | `src/graph/seeds.py` | 17 | 17 | **100%** | ✅ Complete |
 | `src/shadow/enricher.py` | 422 | 260 | **62%** | Missing: Error handling, X API integration (lines 678-1043) |
 | `src/shadow/selenium_worker.py` | 540 | 228 | **42%** 🔴 | **HIGH**: DOM extraction workflows untested (lines 409-745) |
-| `src/shadow/x_api_client.py` | 117 | 33 | **28%** 🔴 | **CRITICAL**: Zero tests, only incidental coverage |
+| `src/shadow/x_api_client.py` | 117 | 113 | **97%** ✅ | **IMPROVED**: 23 tests added (rate limiting, HTTP errors, state persistence) |
 
 ## High-Priority Gaps
 
-### 1. **x_api_client.py (28% coverage, 0 tests)** 🔴
-**Impact:** Rate limiting, persistent state, HTTP errors untested
-**Risk:** Silent failures in X API calls, rate limit violations
-**Next Steps:**
-- Add unit tests for `fetch_usernames()` with mocked responses
-- Test rate limit persistence (state file read/write)
-- Test HTTP error handling (429, 401, 500)
+### 1. **x_api_client.py (97% coverage, 23 tests)** ✅ COMPLETED (2025-10-06)
+**Status:** Comprehensive test suite added
+**Coverage Improvement:** 28% → 97% (+69 percentage points)
+**Tests Added:**
+- RateLimit class: sliding window, wait time calculation, request recording (7 tests)
+- State persistence: file loading, corruption handling, directory creation (6 tests)
+- HTTP requests: 200 OK, 429 rate limits, error codes, network exceptions (5 tests)
+- Public API: user lookups, list members, error handling (5 tests)
 
 ### 2. **shadow_store.py (38% coverage, 0 direct tests)** 🔴
 **Impact:** Core data layer has no unit tests

@@ -123,7 +123,9 @@ class HybridShadowEnricher:
     # ------------------------------------------------------------------
     # Enrichment Workflow Helpers
     # ------------------------------------------------------------------
-    def _should_skip_seed(self, seed: SeedAccount) -> tuple[bool, Optional[str], dict]:
+    def _should_skip_seed(
+        self, seed: SeedAccount
+    ) -> tuple[bool, Optional[str], dict, Optional[ProfileOverview]]:
         """Check if seed should be skipped based on existing data and policy.
 
         Skip conditions:
@@ -149,7 +151,12 @@ class HybridShadowEnricher:
                     "Could not fetch profile overview for @%s to check policy; skipping as complete",
                     seed.username,
                 )
-                return (True, "complete profile and edges exist (could not verify freshness)", edge_summary)
+                return (
+                    True,
+                    "complete profile and edges exist (could not verify freshness)",
+                    edge_summary,
+                    None,
+                )
 
             # Check if policy requires refresh despite complete data
             following_needs_refresh, following_skip_reason = self._should_refresh_list(
@@ -171,12 +178,17 @@ class HybridShadowEnricher:
                     seed.username,
                     ", ".join(reasons),
                 )
-                return (False, None, edge_summary)
+                return (False, None, edge_summary, overview)
 
             # Complete data AND policy says it's fresh - safe to skip
-            return (True, "complete profile and edges exist (policy confirms fresh)", edge_summary)
+            return (
+                True,
+                "complete profile and edges exist (policy confirms fresh)",
+                edge_summary,
+                overview,
+            )
 
-        return (False, None, edge_summary)
+        return (False, None, edge_summary, None)
 
     def _refresh_profile(
         self,
@@ -493,7 +505,7 @@ class HybridShadowEnricher:
                 continue
 
             # Check if we should skip this seed
-            should_skip, skip_reason, edge_summary = self._should_skip_seed(seed)
+            should_skip, skip_reason, edge_summary, cached_overview = self._should_skip_seed(seed)
 
             if should_skip:
                 LOGGER.warning(
@@ -549,7 +561,7 @@ class HybridShadowEnricher:
             LOGGER.info("Enriching @%s...", seed.username)
 
             # Fetch profile overview first to check counts for policy
-            overview = self._selenium.fetch_profile_overview(seed.username)
+            overview = cached_overview or self._selenium.fetch_profile_overview(seed.username)
             if not overview:
                 LOGGER.error("Failed to fetch profile overview for @%s - skipping", seed.username)
                 summary[seed.account_id] = {

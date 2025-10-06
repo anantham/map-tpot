@@ -102,6 +102,10 @@
 - Impact: enrichment logs now explain *why* refresh decisions happen, making audit trails clearer when runs proceed without manual confirmation.
 - Verification pending: re-run enrichment (`python -m scripts.enrich_shadow_graph`) to observe the new logging output; pytest unavailable in sandbox.
 
+## 2025-10-06T00:36:54Z — Reuse policy overview fetches
+- `src/shadow/enricher.py`:120-620 — `_should_skip_seed` now returns the Selenium `ProfileOverview`, letting the main enrichment loop reuse the same fetch instead of reloading the page, halving redundant Selenium calls for seeds evaluated as “complete”.
+- Impact: fewer profile page loads per seed, lower chance of hitting Twitter throttle while keeping policy transparency in logs.
+
 ## 2025-10-05T18:20:00Z — Test refactoring: behavioral testing principles
 - `tests/test_shadow_enrichment_integration.py`:124-517 — refactored 3 test classes (TestSkipLogic, TestProfileOnlyMode, TestPolicyRefreshLogic) from testing private helpers to testing public `enrich()` API with observable outcome verification.
 - `AGENTS.md`:105-192 — added TEST_DESIGN_PRINCIPLES section documenting anti-patterns (implementation coupling, mock verification without side effects, fixture bugs, fragile assumptions) with examples and checklist.
