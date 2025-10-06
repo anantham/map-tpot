@@ -5,7 +5,7 @@ import React, {
   useState
 } from "react";
 import ForceGraph2D from "react-force-graph-2d";
-import useSWR from "swr";
+import { fetchGraphData } from "./data";
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 const DEFAULT_PRESETS = {
@@ -69,7 +69,29 @@ const toLowerSet = (items = []) => {
 };
 
 export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
-  const { data, error, mutate } = useSWR(dataUrl, fetcher, { suspense: false });
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const getData = async () => {
+      try {
+        const graphData = await fetchGraphData();
+        setData(graphData);
+      } catch (err) {
+        setError(err);
+      }
+    };
+    getData();
+  }, []);
+
+  const mutate = async () => {
+    try {
+      const graphData = await fetchGraphData();
+      setData(graphData);
+    } catch (err) {
+      setError(err);
+    }
+  };
   const [panelOpen, setPanelOpen] = useState(true);
   const [mutualOnly, setMutualOnly] = useState(true);
   const [weights, setWeights] = useState({ pr: 0.4, bt: 0.3, eng: 0.3 });
@@ -80,6 +102,8 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const [customSeeds, setCustomSeeds] = useState([]);
   const [presetName, setPresetName] = useState("Adi's Seeds");
   const [includeShadows, setIncludeShadows] = useState(true);
+
+  const [subgraphSize, setSubgraphSize] = useState(50);
 
   const graphRef = useRef(null);
 
@@ -99,27 +123,39 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
 
   const metrics = data?.metrics ?? EMPTY_METRICS;
 
-  const compositeScores = useMemo(() => {
-    if (!metrics) return {};
+  const tpotnessScores = useMemo(() => {
+    if (!metrics || !data?.graph?.nodes) return {};
+
+    const followedBySeeds = {};
+    const totalSeeds = effectiveSeedSet.size;
+
+    data.graph.edges.forEach(edge => {
+      const sourceId = typeof edge.source === 'object' ? edge.source.id : edge.source;
+      const targetId = typeof edge.target === 'object' ? edge.target.id : edge.target;
+
+      if (effectiveSeedSet.has(sourceId.toLowerCase())) {
+        followedBySeeds[targetId] = (followedBySeeds[targetId] || 0) + 1;
+      }
+    });
+
     const normPR = normalizeScores(metrics.pagerank);
-    const normBT = normalizeScores(metrics.betweenness);
-    const normEG = normalizeScores(metrics.engagement);
+    const normFollowedBySeeds = normalizeScores(followedBySeeds);
+
     const nodes = new Set([
       ...Object.keys(normPR),
-      ...Object.keys(normBT),
-      ...Object.keys(normEG)
+      ...Object.keys(normFollowedBySeeds),
     ]);
-    const total = weights.pr + weights.bt + weights.eng || 1;
+
+    const alpha = weights.pr; // Using the 'pr' weight as alpha for now
+
     return Array.from(nodes).reduce((acc, node) => {
       const score =
-        (weights.pr * (normPR[node] ?? 0) +
-          weights.bt * (normBT[node] ?? 0) +
-          weights.eng * (normEG[node] ?? 0)) /
-        total;
+        alpha * (normPR[node] ?? 0) +
+        (1 - alpha) * (normFollowedBySeeds[node] ?? 0);
       acc[node] = score;
       return acc;
     }, {});
-  }, [metrics, weights]);
+  }, [metrics, data, effectiveSeedSet, weights.pr]);
 
   const { graphData, graphStats } = useMemo(() => {
     if (!data) {
@@ -194,7 +230,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
 
     const nodeIdSet = new Set([
       ...Object.keys(nodesMeta),
-      ...Object.keys(compositeScores)
+      ...Object.keys(tpotnessScores)
     ]);
     edges.forEach((edge) => {
       const source = canonicalId(edge.source);
@@ -236,8 +272,16 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       if (value > maxSeedTouch) maxSeedTouch = value;
     });
 
+    const topNIds = Object.entries(tpotnessScores)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, subgraphSize)
+      .map(([id]) => id);
+
+    const allowedNodeSet = new Set([...topNIds, ...effectiveSeedSet]);
+
     const nodes = nodeIds.map((rawId) => {
       const id = String(rawId);
+      if (!allowedNodeSet.has(id)) return null;
       const meta = nodesMeta[id] || {};
       const usernameLower = meta.username ? String(meta.username).toLowerCase() : null;
       const idLower = id.toLowerCase();
@@ -258,7 +302,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         1,
         distanceScore * 0.6 + mutualScore * 0.25 + seedTouchScore * 0.15 + (isSeed ? 0.1 : 0)
       );
-      const baseComposite = compositeScores[id] ?? 0;
+      const tpotnessScore = tpotnessScores[id] ?? 0;
       const val = 10 + inGroupScore * 26 + (isSeed ? 6 : 0) + (isShadow ? 2 : 0);
 
       return {
@@ -275,14 +319,14 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         pagerank: metrics.pagerank?.[id],
         betweenness: metrics.betweenness?.[id],
         engagement: metrics.engagement?.[id],
-        compositeScore: baseComposite,
+        tpotnessScore: tpotnessScore,
         isSeed,
         neighbors: [],
         ...meta
       };
     }).filter(Boolean);
 
-    const allowedNodeSet = new Set(nodes.map((node) => node.id));
+
 
     const filteredLinks = edges
       .filter((edge) => (mutualOnly ? edge.mutual : true))
@@ -318,7 +362,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         visibleShadowEdges: filteredLinks.filter((edge) => edge.shadow).length
       }
     };
-  }, [data, compositeScores, effectiveSeedSet, includeShadows, metrics, mutualOnly]);
+  }, [data, tpotnessScores, effectiveSeedSet, includeShadows, metrics, mutualOnly]);
 
   useEffect(() => {
     if (!graphData.nodes.length) return;
@@ -361,10 +405,10 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   }, [graphData.links]);
 
   const topEntries = useMemo(() => {
-    return Object.entries(compositeScores)
+    return Object.entries(tpotnessScores)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 12);
-  }, [compositeScores]);
+  }, [tpotnessScores]);
 
   const seedList = useMemo(() => {
     const unique = new Map();
@@ -457,7 +501,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       "pagerank",
       "betweenness",
       "engagement",
-      "composite",
+      "tpotness",
       "community",
       "is_seed"
     ];
@@ -465,7 +509,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       "\n" +
       graphData.nodes
         .map((node) => {
-          const composite = compositeScores[node.id] ?? 0;
+          const tpotness = tpotnessScores[node.id] ?? 0;
           return [
             node.id,
             JSON.stringify(node.display_name || ""),
@@ -473,7 +517,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             node.pagerank ?? 0,
             node.betweenness ?? 0,
             node.engagement ?? 0,
-            composite,
+            tpotness,
             node.community ?? "",
             node.isSeed
           ].join(",");
@@ -591,7 +635,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
            <section>
              <h2>Status weights</h2>
              <div className="slider">
-               <label>PageRank {weights.pr.toFixed(2)}</label>
+               <label>α (Alpha) {weights.pr.toFixed(2)}</label>
                <input
                   type="range"
                   min="0"
@@ -601,33 +645,20 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
                   onChange={handleWeightChange("pr")}
                 />
               </div>
-              <div className="slider">
-                <label>Betweenness {weights.bt.toFixed(2)}</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={weights.bt}
-                  onChange={handleWeightChange("bt")}
-                />
-              </div>
-              <div className="slider">
-                <label>Engagement {weights.eng.toFixed(2)}</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={weights.eng}
-                  onChange={handleWeightChange("eng")}
-                />
-              </div>
-              <small>Weights auto-normalized (sum: {totalWeight.toFixed(2)}).</small>
             </section>
 
             <section>
               <h2>Layout</h2>
+              <div className="slider">
+                <label>Subgraph Size (N) {subgraphSize}</label>
+                <input
+                  type="range"
+                  min="10"
+                  max="500"
+                  value={subgraphSize}
+                  onChange={(e) => setSubgraphSize(Number(e.target.value))}
+                />
+              </div>
               <div className="slider">
                 <label>Link distance {linkDistance}</label>
                 <input
@@ -710,13 +741,13 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
                 <div className="selected-card">
                   {(() => {
                     const node = nodeLookup.get(selectedNodeId) || {};
-                    const composite = compositeScores[node.id] ?? 0;
+                    const tpotness = tpotnessScores[node.id] ?? 0;
                     return (
                       <>
                         <h3>{node.display_name || node.username || node.id}</h3>
                         <p>ID: {node.id}</p>
                         <p>Provenance: {node.provenance || (node.shadow ? "shadow" : "archive")}</p>
-                        <p>Composite: {(composite * 100).toFixed(1)}</p>
+                        <p>TPOT-ness: {(tpotness * 100).toFixed(1)}</p>
                         <p>Pagerank: {(node.pagerank ?? 0).toFixed(4)}</p>
                         <p>Betweenness: {(node.betweenness ?? 0).toFixed(4)}</p>
                         <p>Engagement: {(node.engagement ?? 0).toFixed(4)}</p>
@@ -774,13 +805,13 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             ctx.restore();
           }}
           nodeLabel={(node) => {
-            const composite = compositeScores[node.id] ?? 0;
+            const tpotness = tpotnessScores[node.id] ?? 0;
             const name = node.display_name || node.username || node.id;
             const distanceLabel = Number.isFinite(node.hopDistance)
               ? node.hopDistance
               : "∞";
             const provenanceLabel = node.provenance || (node.shadow ? "shadow" : "archive");
-            return `${name}\nProvenance: ${provenanceLabel}\nComposite: ${(composite * 100).toFixed(1)}\nMutual edges: ${node.mutualCount}\nSeed touches: ${node.seedTouchCount}\nHop distance: ${distanceLabel}\nPageRank: ${(node.pagerank ?? 0).toFixed(3)}\nBetweenness: ${(node.betweenness ?? 0).toFixed(3)}\nEngagement: ${(node.engagement ?? 0).toFixed(3)}`;
+            return `${name}\nProvenance: ${provenanceLabel}\nTPOT-ness: ${(tpotness * 100).toFixed(1)}\nMutual edges: ${node.mutualCount}\nSeed touches: ${node.seedTouchCount}\nHop distance: ${distanceLabel}\nPageRank: ${(node.pagerank ?? 0).toFixed(3)}\nBetweenness: ${(node.betweenness ?? 0).toFixed(3)}\nEngagement: ${(node.engagement ?? 0).toFixed(3)}`;
           }}
           nodeCanvasObjectMode={() => "after"}
           nodeCanvasObject={(node, ctx, globalScale) => {

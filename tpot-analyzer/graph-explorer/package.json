@@ -12,6 +12,9 @@
     "enrich-shadow": "cd .. && python -m scripts.enrich_shadow_graph --cookies ./secrets/twitter_cookies.pkl --include-following"
   },
   "dependencies": {
+    "d3-force": "^3.0.0",
+    "d3-scale": "^4.0.2",
+    "d3-selection": "^3.0.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-force-graph": "^1.48.1",
