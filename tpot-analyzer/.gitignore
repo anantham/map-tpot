@@ -1,3 +1,6 @@
+# Environment variables (contains secrets)
+.env
+
 # Generated analysis files
 enrichment_summary.json
 
@@ -5,3 +8,9 @@ enrichment_summary.json
 .coverage
 .coverage.*
 htmlcov/
+
+# Local data and state
+*.db
+*.sqlite
+*.sqlite3
+data/x_api_rate_state.json
