@@ -132,6 +132,12 @@ def parse_args() -> argparse.Namespace:
         help="Skip seeds that have been successfully scraped before (even if stale). Re-scrapes seeds with incomplete metadata.",
     )
     parser.add_argument(
+        "--center",
+        type=str,
+        default=None,
+        help="Center username (e.g., 'adityaarpitha'). Fetches their /following list and prioritizes those accounts after the seed preset.",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"],
@@ -294,6 +300,48 @@ def main() -> None:
                 len(preset_usernames),
                 len(seed_usernames) - len(preset_usernames),
             )
+
+        # If a center user is specified, fetch their following list and prioritize it.
+        if args.center:
+            LOGGER.info("Center user @%s specified, prioritizing their following list.", args.center)
+            
+            from src.shadow.selenium_worker import SeleniumWorker, SeleniumConfig
+            
+            temp_selenium_config = SeleniumConfig(
+                cookies_path=args.cookies,
+                headless=args.headless,
+                chrome_binary=args.chrome_binary,
+                require_confirmation=False,
+            )
+            selenium_worker = SeleniumWorker(temp_selenium_config)
+            center_following_capture = selenium_worker.fetch_following(args.center)
+            selenium_worker.quit()
+
+            if center_following_capture and center_following_capture.entries:
+                center_following_usernames = {
+                    entry.username.lower() for entry in center_following_capture.entries if entry.username
+                }
+                LOGGER.info("Fetched %d accounts from @%s's following list to prioritize.", len(center_following_usernames), args.center)
+
+                preset_usernames = set(load_seed_candidates())
+                original_seeds = set(seed_usernames)
+                
+                priority_seeds = original_seeds.intersection(preset_usernames)
+                center_priority_seeds = center_following_usernames - priority_seeds
+                remaining_seeds = original_seeds - priority_seeds - center_following_usernames
+
+                seed_usernames = sorted(list(priority_seeds)) + sorted(list(center_priority_seeds)) + sorted(list(remaining_seeds))
+                
+                LOGGER.info(
+                    "New seed order: %d preset seeds, %d from @%s's following, %d remaining. Total: %d unique seeds.",
+                    len(priority_seeds),
+                    len(center_priority_seeds),
+                    len(remaining_seeds),
+                    len(seed_usernames)
+                )
+            else:
+                LOGGER.error("Could not fetch following list for center user @%s. Continuing without prioritization.", args.center)
+
         store = get_shadow_store(fetcher.engine)
         seeds = build_seed_accounts(fetcher, seed_usernames)
 
