@@ -96,6 +96,8 @@ class ScrapeRunMetrics:
     discoveries_upserted: int
     skipped: bool = False
     skip_reason: Optional[str] = None
+    error_type: Optional[str] = None  # "404", "timeout", "rate_limit", "private", "suspended"
+    error_details: Optional[str] = None
 
 
 class ShadowStore:
@@ -172,6 +174,8 @@ class ShadowStore:
             Column("discoveries_upserted", Integer, nullable=False),
             Column("skipped", Boolean, nullable=False, default=False),
             Column("skip_reason", String, nullable=True),
+            Column("error_type", String, nullable=True),
+            Column("error_details", String, nullable=True),
         )
         self._metadata.create_all(self._engine, checkfirst=True)
 
@@ -467,6 +471,63 @@ class ShadowStore:
     # ------------------------------------------------------------------
     # Metrics operations
     # ------------------------------------------------------------------
+    def get_recent_scrape_runs(self, days: int = 7) -> List[ScrapeRunMetrics]:
+        """Get all scrape runs from the last N days.
+
+        Args:
+            days: Number of days to look back
+
+        Returns:
+            List of ScrapeRunMetrics ordered by run_at descending
+        """
+        from datetime import timedelta
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        with self._engine.begin() as conn:
+            stmt = (
+                select(self._metrics_table)
+                .where(self._metrics_table.c.run_at >= cutoff)
+                .order_by(self._metrics_table.c.run_at.desc())
+            )
+            result = conn.execute(stmt)
+            metrics = []
+            for row in result:
+                metrics.append(ScrapeRunMetrics(
+                    seed_account_id=row.seed_account_id,
+                    seed_username=row.seed_username,
+                    run_at=row.run_at,
+                    duration_seconds=row.duration_seconds,
+                    following_captured=row.following_captured,
+                    followers_captured=row.followers_captured,
+                    followers_you_follow_captured=row.followers_you_follow_captured,
+                    following_claimed_total=row.following_claimed_total,
+                    followers_claimed_total=row.followers_claimed_total,
+                    followers_you_follow_claimed_total=row.followers_you_follow_claimed_total,
+                    following_coverage=(
+                        row.following_coverage / 10000.0
+                        if row.following_coverage is not None
+                        else None
+                    ),
+                    followers_coverage=(
+                        row.followers_coverage / 10000.0
+                        if row.followers_coverage is not None
+                        else None
+                    ),
+                    followers_you_follow_coverage=(
+                        row.followers_you_follow_coverage / 10000.0
+                        if row.followers_you_follow_coverage is not None
+                        else None
+                    ),
+                    accounts_upserted=row.accounts_upserted,
+                    edges_upserted=row.edges_upserted,
+                    discoveries_upserted=row.discoveries_upserted,
+                    skipped=row.skipped,
+                    skip_reason=row.skip_reason,
+                    error_type=row.error_type,
+                    error_details=row.error_details,
+                ))
+            return metrics
+
     def get_last_scrape_metrics(self, seed_account_id: str) -> Optional[ScrapeRunMetrics]:
         """Get the most recent scrape metrics for a seed account.
 
@@ -515,6 +576,8 @@ class ShadowStore:
                 discoveries_upserted=row.discoveries_upserted,
                 skipped=row.skipped,
                 skip_reason=row.skip_reason,
+                error_type=row.error_type,
+                error_details=row.error_details,
             )
 
     def record_scrape_metrics(self, metrics: ScrapeRunMetrics) -> int:
@@ -550,6 +613,8 @@ class ShadowStore:
             "discoveries_upserted": metrics.discoveries_upserted,
             "skipped": metrics.skipped,
             "skip_reason": metrics.skip_reason,
+            "error_type": metrics.error_type,
+            "error_details": metrics.error_details,
         }
         def _op(engine: Engine) -> int:
             with engine.begin() as conn:

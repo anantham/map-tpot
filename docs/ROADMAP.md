@@ -22,6 +22,13 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
   - Tests refactored to follow behavioral testing principles (test through public API, verify observable outcomes)
   - Tests use complete seeds with realistic ScrapeRunMetrics fixtures
 
+## Metrics & Observability
+- [x] Add error tracking to ScrapeRunMetrics (error_type, error_details) ✅ **2025-10-06**
+- [x] Create metrics summary CLI (`python -m scripts.summarize_metrics`) to aggregate success rates, error breakdowns, and performance ✅ **2025-10-06**
+- [ ] Add structured JSON event logging for real-time monitoring
+- [ ] Create web dashboard for live enrichment progress (success rate, error breakdown, ETA)
+- [ ] Add alerting for error rate thresholds (e.g., >20% failures)
+
 ## Features & Analysis
 - [ ] Implement heat-diffusion and temporal metrics once core graph UI is stable.
 - [ ] Investigate likes/retweets ingestion for deeper engagement analysis (e.g., "bangers" detection, lurker identification).
