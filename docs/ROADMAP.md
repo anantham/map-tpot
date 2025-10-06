@@ -5,10 +5,10 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 ## Testing Coverage
 - [x] Add `tests/conftest.py` with shared fixtures (temp SQLite store, path setup) to eliminate `sys.path` hacks. ✅ **2025-10-05**
 - [x] Adopt pytest markers (`unit`, `integration`, `selenium`) and configure default runs to exclude slow suites unless requested. ✅ **2025-10-05**
-- [ ] Wire in `pytest-cov` and capture baseline coverage (53% overall, documented in `docs/test-coverage-baseline.md`).
+- [x] Wire in `pytest-cov` and capture baseline coverage (54% overall, documented in `docs/test-coverage-baseline.md`). ✅ **2025-10-05**
   - pytest-cov installed in requirements.txt ✓
   - Can run coverage with `pytest --cov=src --cov-report=term-missing` ✓
-  - Need to create `docs/test-coverage-baseline.md` with detailed breakdown
+  - Created `docs/test-coverage-baseline.md` with detailed module breakdown ✓
 - [ ] Add fixture-based tests for `CachedDataFetcher` to cover caching, expiry, and HTTP error handling without hitting Supabase.
 - [ ] Expand metric tests with deterministic graphs (e.g., known PageRank outputs, community assignments) to guard against regressions.
 - [ ] Create integration tests for `scripts/analyze_graph.py` (run CLI on small fixture dataset, verify JSON structure and parameter handling).
@@ -17,7 +17,10 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] **HIGH PRIORITY**: Add tests for `x_api_client.py` (currently 28% coverage, 0 tests) - rate limiting, persistent state, HTTP error handling
 - [ ] **HIGH PRIORITY**: Add direct unit tests for `shadow_store.py` (currently 39% coverage) - COALESCE upsert behavior, edge summary aggregation
 - [ ] Introduce regression tests for JSON-LD fallback using saved profile fixtures (ensure counts remain accurate when headers fail).
-- [ ] Add policy-driven tests covering cache-skipping logic (profile-only refresh, list skipping, delta-triggered rescrapes) once the new enrichment policy lands.
+- [x] Add policy-driven tests covering cache-skipping logic (profile-only refresh, list skipping, delta-triggered rescrapes). ✅ **2025-10-05**
+  - 14 integration tests for policy refresh logic (age/delta triggers, skip logic, confirmation behavior)
+  - Tests refactored to follow behavioral testing principles (test through public API, verify observable outcomes)
+  - Tests use complete seeds with realistic ScrapeRunMetrics fixtures
 
 ## Features & Analysis
 - [ ] Implement heat-diffusion and temporal metrics once core graph UI is stable.
@@ -29,12 +32,13 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Extend trust propagation heuristics (personalized PageRank threshold, depth controls) to govern which shadow nodes get enqueued automatically.
 - [x] Refactor `HybridShadowEnricher.enrich` into composable helpers (`_should_skip_seed`, `_refresh_profile`, `_refresh_following`, `_refresh_followers`) for testability and cache-aware skipping ✅ **2025-10-05**
 - [x] Implement enrichment refresh policy with percentage-based delta thresholds (default 50%) and auto-confirm for unattended runs ✅ **2025-10-05**
-  - Policy-driven refresh logic: `age_days > 180 OR pct_delta > 50%` triggers refresh
+  - Policy-driven refresh logic: `age_days > 180 OR pct_delta > 50%` triggers refresh for ALL seeds (complete or incomplete)
+  - Fixed architectural issue where policy was bypassed for complete seeds (commit 81e3137)
   - Non-blocking default (auto-confirm), opt-in to prompts via `--require-confirmation` flag
   - Config file: `config/enrichment_policy.json`
   - Added `get_last_scrape_metrics()` to ShadowStore for historical data queries
   - Skipped runs marked `skipped=True` to preserve baseline metrics (no corruption)
-  - 87 unit tests passing, 6 new tests for policy logic
+  - 91 unit tests passing (14 tests for policy logic, skip behavior, and confirmation flows)
 - [ ] **FUTURE**: Temporal graph analysis - persist enrichment diffs (edge add/remove events with timestamps) to support:
   - Follower/following churn analysis over time
   - Reconstruction of graph state at any historical point

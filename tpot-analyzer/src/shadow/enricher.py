@@ -281,14 +281,24 @@ class HybridShadowEnricher:
         """Check if a list should be refreshed based on policy.
 
         Returns:
-            tuple of (should_refresh: bool, skip_reason: Optional[str])
+            tuple of (should_refresh: bool, reason: Optional[str])
+
+        Notes:
+            When should_refresh is True, ``reason`` indicates which policy trigger fired
+            (e.g. ``first_run``, ``age_threshold``, ``delta_threshold``). When False,
+            ``reason`` explains why the list is considered fresh.
         """
         # Get last scrape metrics
         last_metrics = self._store.get_last_scrape_metrics(seed.account_id)
 
         if not last_metrics:
             # No previous scrape - always refresh
-            return (True, None)
+            LOGGER.info(
+                "@%s %s list has no historical metrics; performing initial scrape",
+                seed.username,
+                list_type,
+            )
+            return (True, "first_run")
 
         # Calculate age in days
         age_days = (datetime.utcnow() - last_metrics.run_at).days
@@ -308,7 +318,7 @@ class HybridShadowEnricher:
                 age_days,
                 self._policy.list_refresh_days,
             )
-            return (True, None)
+            return (True, "age_threshold")
 
         # Check percentage delta trigger
         if old_total is not None and current_total is not None:
@@ -323,7 +333,7 @@ class HybridShadowEnricher:
                     pct_delta * 100,
                     self._policy.pct_delta_threshold * 100,
                 )
-                return (True, None)
+                return (True, "delta_threshold")
 
         # No refresh needed
         LOGGER.info(
@@ -336,14 +346,38 @@ class HybridShadowEnricher:
         )
         return (False, f"{list_type}_fresh")
 
-    def _confirm_refresh(self, seed: SeedAccount, list_type: str) -> bool:
+    def _confirm_refresh(
+        self,
+        seed: SeedAccount,
+        list_type: str,
+        reason: Optional[str],
+    ) -> bool:
         """Prompt user to confirm list refresh if policy requires it.
 
         Returns:
             True if refresh should proceed, False otherwise
         """
+        def describe(reason_code: Optional[str]) -> Optional[str]:
+            if reason_code is None:
+                return None
+            if reason_code == "first_run":
+                return "no historical metrics"
+            if reason_code == "age_threshold":
+                return f"age exceeded {self._policy.list_refresh_days} day threshold"
+            if reason_code == "delta_threshold":
+                pct = self._policy.pct_delta_threshold * 100
+                return f"count delta exceeded {pct:.1f}% threshold"
+            return reason_code
+
+        human_reason = describe(reason)
+        reason_note = f" (trigger: {human_reason})" if human_reason else ""
         if self._policy.auto_confirm_rescrapes:
-            LOGGER.info("Auto-confirming refresh for @%s %s (--auto-confirm-rescrapes enabled)", seed.username, list_type)
+            LOGGER.info(
+                "Auto-confirming refresh for @%s %s%s (--auto-confirm-rescrapes enabled)",
+                seed.username,
+                list_type,
+                reason_note,
+            )
             return True
 
         if not self._policy.require_user_confirmation:
@@ -351,7 +385,10 @@ class HybridShadowEnricher:
 
         # Prompt user
         print(f"\n⚠️  Policy check: @{seed.username} {list_type} list needs refresh")
-        print(f"   (age > {self._policy.list_refresh_days} days OR delta > {self._policy.pct_delta_threshold * 100:.0f}%)")
+        trigger_text = human_reason or (
+            f"age > {self._policy.list_refresh_days} days OR delta > {self._policy.pct_delta_threshold * 100:.0f}%"
+        )
+        print(f"   Trigger: {trigger_text}")
         response = input(f"   Proceed with scraping {list_type}? [y/n]: ").strip().lower()
 
         if response == "y":
@@ -372,19 +409,23 @@ class HybridShadowEnricher:
             UserListCapture if scraped, None if skipped
         """
         if not self._config.include_following:
+            LOGGER.info(
+                "Skipping @%s following list: include_following disabled in config",
+                seed.username,
+            )
             return None
 
         # Check if refresh is needed based on policy
-        should_refresh, skip_reason = self._should_refresh_list(
+        should_refresh, reason = self._should_refresh_list(
             seed, "following", overview.following_total
         )
 
         if not should_refresh:
-            LOGGER.info("Skipping @%s following list: %s", seed.username, skip_reason)
+            LOGGER.info("Skipping @%s following list: %s", seed.username, reason)
             return None
 
         # Prompt user if needed
-        if not self._confirm_refresh(seed, "following"):
+        if not self._confirm_refresh(seed, "following", reason):
             LOGGER.warning("Skipping @%s following list: user declined", seed.username)
             return None
 
@@ -402,19 +443,23 @@ class HybridShadowEnricher:
             tuple of (followers_capture, followers_you_follow_capture)
         """
         if not self._config.include_followers:
+            LOGGER.info(
+                "Skipping @%s followers list: include_followers disabled in config",
+                seed.username,
+            )
             return (None, None)
 
         # Check if refresh is needed based on policy
-        should_refresh, skip_reason = self._should_refresh_list(
+        should_refresh, reason = self._should_refresh_list(
             seed, "followers", overview.followers_total
         )
 
         if not should_refresh:
-            LOGGER.info("Skipping @%s followers list: %s", seed.username, skip_reason)
+            LOGGER.info("Skipping @%s followers list: %s", seed.username, reason)
             return (None, None)
 
         # Prompt user if needed
-        if not self._confirm_refresh(seed, "followers"):
+        if not self._confirm_refresh(seed, "followers", reason):
             LOGGER.warning("Skipping @%s followers list: user declined", seed.username)
             return (None, None)
 
@@ -426,6 +471,11 @@ class HybridShadowEnricher:
         if self._config.include_followers_you_follow:
             followers_you_follow_capture = self._selenium.fetch_followers_you_follow(
                 seed.username
+            )
+        else:
+            LOGGER.info(
+                "Skipping followers-you-follow list for @%s: include_followers_you_follow disabled",
+                seed.username,
             )
 
         return (followers_capture, followers_you_follow_capture)

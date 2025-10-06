@@ -5,7 +5,9 @@ Python-based network analysis toolkit for exploring the TPOT (This Part of Twitt
 ## Project Status
 
 **Phase 1.1 (Complete):** Data pipeline with cached Supabase access
-**Phase 1.2 (Planned):** Follow graph construction, status metrics (PageRank, Louvain, betweenness), and interactive visualization
+**Phase 1.2 (Complete):** Follow graph construction, status metrics (PageRank, Louvain, betweenness), CLI analysis tool
+**Phase 1.3 (Complete):** Interactive visualization with React + d3-force graph explorer
+**Phase 1.4 (In Progress):** Shadow enrichment pipeline with policy-driven refresh logic
 
 See [docs/WORKLOG.md](./docs/WORKLOG.md) for detailed progress and [docs/adr/](./docs/adr/) for architectural decisions.
 
@@ -67,16 +69,38 @@ The analyzer uses an API-first architecture backed by local SQLite caching:
 
 All data is cached in SQLite for 7 days (configurable). Cache expires automatically and refreshes from Supabase when stale.
 
-### Graph Analysis (Phase 1.2 — In Planning)
+### Graph Analysis (Phase 1.2 — Complete)
 
-Planned features:
+Features:
 - Directed follow graph construction with mutual-only view support
 - Baseline metrics: Personalized PageRank, Louvain communities, betweenness centrality
-- Interactive force-directed visualization (React + d3-force)
-- Configurable status metric weights and graph filters
-- CSV/JSON exports for reproducibility
+- CLI analysis tool (`scripts/analyze_graph.py`) with JSON output
+- Configurable seed selection via presets (`docs/seed_presets.json`)
+- Support for shadow enrichment integration (`--include-shadow` flag)
 
 See [ADR 002](./docs/adr/002-graph-analysis-foundation.md) for full specification.
+
+### Interactive Visualization (Phase 1.3 — Complete)
+
+The graph explorer (`graph-explorer/`) is a React + Vite application using d3-force for interactive network visualization:
+
+- Force-directed layout with configurable physics parameters
+- Real-time metrics display (PageRank, betweenness, community assignments)
+- Shadow enrichment toggle to show/hide expanded network
+- Node filtering, edge styling, and interactive controls
+- Persistent parameter state and export capabilities
+
+Run the explorer:
+```bash
+cd graph-explorer
+npm install
+npm run dev
+```
+
+Generate analysis data:
+```bash
+python -m scripts.analyze_graph --include-shadow --output graph-explorer/public/analysis_output.json
+```
 
 ### Shadow Enrichment Pipeline (Phase 1.4 — In Progress)
 
@@ -170,14 +194,29 @@ with CachedDataFetcher() as fetcher:
 ## Testing
 
 ```bash
-pytest tests/ -v
+# Run all unit tests (fast)
+pytest tests/ -v -m unit
+
+# Run integration tests (includes Selenium, slower)
+pytest tests/ -v -m integration
+
+# Run with coverage report
+pytest --cov=src --cov-report=term-missing tests/
+
+# Run specific test file
+pytest tests/test_shadow_enrichment_integration.py -v
 ```
 
-Test coverage includes:
-- Supabase connectivity and authentication
-- Cache read/write/expiry logic
-- DataFrame schema validation
-- Error handling for network failures
+Test coverage (54% overall, see `docs/test-coverage-baseline.md`):
+- ✅ Supabase connectivity and authentication
+- ✅ Cache read/write/expiry logic with staleness detection
+- ✅ DataFrame schema validation
+- ✅ Error handling for network failures
+- ✅ Shadow enrichment policy logic (age/delta triggers, skip behavior)
+- ✅ Profile extraction (Selenium selector parsing, JSON-LD fallback)
+- ✅ Integration tests for enrichment workflow (91 tests total)
+
+Test suite follows behavioral testing principles (see `AGENTS.md` TEST_DESIGN_PRINCIPLES).
 
 ## Development Workflow
 
@@ -239,10 +278,12 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 ## Roadmap
 
-- [ ] **Phase 1.2:** Graph builder, metrics computation, CLI analysis tool
-- [ ] **Phase 1.3:** Interactive visualization with React + d3-force
-- [ ] **Phase 2:** Temporal analysis (growth patterns, community evolution)
-- [ ] **Phase 3:** Advanced metrics (heat diffusion, GNN embeddings)
+- [x] **Phase 1.1:** Data pipeline with cached Supabase access ✅
+- [x] **Phase 1.2:** Graph builder, metrics computation, CLI analysis tool ✅
+- [x] **Phase 1.3:** Interactive visualization with React + d3-force ✅
+- [ ] **Phase 1.4:** Shadow enrichment with policy-driven refresh (in progress, 91 tests passing)
+- [ ] **Phase 2:** Temporal analysis (growth patterns, community evolution, edge history tracking)
+- [ ] **Phase 3:** Advanced metrics (heat diffusion, GNN embeddings, engagement analysis)
 
 ## References
 

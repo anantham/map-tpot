@@ -1,8 +1,8 @@
 # Test Coverage Baseline
 
-**Measured:** 2025-10-05
+**Measured:** 2025-10-05 (updated 2025-10-06)
 **Total Coverage:** 54% (878/1614 statements)
-**Test Count:** 90 tests (87 unit + 3 integration)
+**Test Count:** 91 tests (14 shadow enrichment integration + 77 other tests)
 
 ## Coverage by Module
 

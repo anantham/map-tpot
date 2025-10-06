@@ -97,6 +97,11 @@
 - `tests/test_shadow_store_retry.py`:1-56 — regression coverage ensuring retry helper tolerates a transient disk I/O error and bubbles non-retryable failures.
 - Verification attempt: `pytest tests/test_shadow_store_retry.py -q` (tool missing in sandbox); run pending once `pytest` is installed in the venv.
 
+## 2025-10-06T00:30:15Z — Policy transparency & config logging
+- `src/shadow/enricher.py`:210-460 — surfaced explicit policy reasons when refreshing lists (first-run vs age/delta thresholds), passed human-readable triggers into auto-confirm logs/prompts, and log when list scrapes are skipped via CLI config flags.
+- Impact: enrichment logs now explain *why* refresh decisions happen, making audit trails clearer when runs proceed without manual confirmation.
+- Verification pending: re-run enrichment (`python -m scripts.enrich_shadow_graph`) to observe the new logging output; pytest unavailable in sandbox.
+
 ## 2025-10-05T18:20:00Z — Test refactoring: behavioral testing principles
 - `tests/test_shadow_enrichment_integration.py`:124-517 — refactored 3 test classes (TestSkipLogic, TestProfileOnlyMode, TestPolicyRefreshLogic) from testing private helpers to testing public `enrich()` API with observable outcome verification.
 - `AGENTS.md`:105-192 — added TEST_DESIGN_PRINCIPLES section documenting anti-patterns (implementation coupling, mock verification without side effects, fixture bugs, fragile assumptions) with examples and checklist.
