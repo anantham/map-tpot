@@ -580,6 +580,34 @@ class ShadowStore:
                 error_details=row.error_details,
             )
 
+    def get_account_id_by_username(self, username: str) -> Optional[str]:
+        """Find an account ID for a given username."""
+        with self._engine.connect() as conn:
+            stmt = select(self._account_table.c.account_id).where(
+                func.lower(self._account_table.c.username) == username.lower()
+            ).limit(1)
+            result = conn.execute(stmt).fetchone()
+            return result.account_id if result else None
+
+    def get_following_usernames(self, username: str) -> List[str]:
+        """Get the usernames of accounts followed by a given username from the cache."""
+        account_id = self.get_account_id_by_username(username)
+        if not account_id:
+            return []
+
+        with self._engine.connect() as conn:
+            j = self._edge_table.join(
+                self._account_table,
+                self._edge_table.c.target_id == self._account_table.c.account_id
+            )
+            stmt = select(self._account_table.c.username).select_from(j).where(
+                self._edge_table.c.source_id == account_id,
+                self._edge_table.c.direction == 'outbound',
+                self._account_table.c.username.isnot(None)
+            )
+            result = conn.execute(stmt)
+            return [row.username for row in result]
+
     def get_shadow_account(self, account_id: str) -> Optional[ShadowAccount]:
         """Get a shadow account by account_id.
 

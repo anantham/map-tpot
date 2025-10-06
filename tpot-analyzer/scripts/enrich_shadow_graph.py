@@ -301,48 +301,22 @@ def main() -> None:
                 len(seed_usernames) - len(preset_usernames),
             )
 
-        # If a center user is specified, fetch their following list and prioritize it.
-        if args.center:
-            LOGGER.info("Center user @%s specified, prioritizing their following list.", args.center)
-            
-            from src.shadow.selenium_worker import SeleniumWorker, SeleniumConfig
-            
-            temp_selenium_config = SeleniumConfig(
-                cookies_path=args.cookies,
-                headless=args.headless,
-                chrome_binary=args.chrome_binary,
-                require_confirmation=False,
-            )
-            selenium_worker = SeleniumWorker(temp_selenium_config)
-            center_following_capture = selenium_worker.fetch_following(args.center)
-            selenium_worker.quit()
-
-            if center_following_capture and center_following_capture.entries:
-                center_following_usernames = {
-                    entry.username.lower() for entry in center_following_capture.entries if entry.username
-                }
-                LOGGER.info("Fetched %d accounts from @%s's following list to prioritize.", len(center_following_usernames), args.center)
-
-                preset_usernames = set(load_seed_candidates())
-                original_seeds = set(seed_usernames)
-                
-                priority_seeds = original_seeds.intersection(preset_usernames)
-                center_priority_seeds = center_following_usernames - priority_seeds
-                remaining_seeds = original_seeds - priority_seeds - center_following_usernames
-
-                seed_usernames = sorted(list(priority_seeds)) + sorted(list(center_priority_seeds)) + sorted(list(remaining_seeds))
-                
-                LOGGER.info(
-                    "New seed order: %d preset seeds, %d from @%s's following, %d remaining. Total: %d unique seeds.",
-                    len(priority_seeds),
-                    len(center_priority_seeds),
-                    len(remaining_seeds),
-                    len(seed_usernames)
-                )
-            else:
-                LOGGER.error("Could not fetch following list for center user @%s. Continuing without prioritization.", args.center)
-
         store = get_shadow_store(fetcher.engine)
+
+        # If a center user is specified, enrich them FIRST then use their
+        # following list from the DB to prioritize remaining seeds
+        if args.center:
+            center_username_lower = args.center.lower()
+            LOGGER.info("Center user @%s specified - will enrich first, then prioritize their following list.", args.center)
+
+            # Ensure center user is in the seed list (add if missing)
+            if center_username_lower not in seed_usernames:
+                seed_usernames.insert(0, center_username_lower)
+            else:
+                # Move to front if already present
+                seed_usernames.remove(center_username_lower)
+                seed_usernames.insert(0, center_username_lower)
+
         seeds = build_seed_accounts(fetcher, seed_usernames)
 
         config = ShadowEnrichmentConfig(
@@ -375,6 +349,51 @@ def main() -> None:
 
         enricher = HybridShadowEnricher(store, config, policy)
         try:
+            # If --center was specified, enrich just the center user first
+            if args.center and len(seeds) > 0 and seeds[0].username == args.center.lower():
+                center_seed = seeds[0]
+                remaining_seeds = seeds[1:]
+
+                LOGGER.info("Enriching center user @%s first...", args.center)
+                enricher.enrich([center_seed])
+
+                # Now query the DB for their following list to reorder remaining seeds
+                center_following_usernames = set(store.get_following_usernames(args.center))
+
+                if center_following_usernames:
+                    LOGGER.info("Found %d accounts followed by @%s in DB cache.", len(center_following_usernames), args.center)
+
+                    # Reorder remaining seeds: preset seeds, then center's following, then others
+                    preset_usernames = set(load_seed_candidates())
+                    remaining_usernames = {s.username for s in remaining_seeds}
+
+                    priority_seeds = remaining_usernames.intersection(preset_usernames)
+                    center_priority_seeds = center_following_usernames.intersection(remaining_usernames) - priority_seeds
+                    other_seeds = remaining_usernames - priority_seeds - center_priority_seeds
+
+                    reordered_usernames = (
+                        sorted(list(priority_seeds)) +
+                        sorted(list(center_priority_seeds)) +
+                        sorted(list(other_seeds))
+                    )
+
+                    # Rebuild seeds list with new order
+                    seeds = [center_seed] + build_seed_accounts(fetcher, reordered_usernames)
+
+                    LOGGER.info(
+                        "Reordered seeds: %d preset, %d from @%s's following, %d others. Total: %d seeds.",
+                        len(priority_seeds),
+                        len(center_priority_seeds),
+                        args.center,
+                        len(other_seeds),
+                        len(seeds)
+                    )
+                else:
+                    LOGGER.warning("No following data found for @%s in DB. Continuing with original seed order.", args.center)
+                    # Restore full seeds list
+                    seeds = [center_seed] + remaining_seeds
+
+            # Run the main enrichment loop
             summary = enricher.enrich(seeds)
         except KeyboardInterrupt:
             logging.getLogger(__name__).warning("Interrupted by user; shutting down enrichment cleanly")
@@ -382,6 +401,9 @@ def main() -> None:
         except RuntimeError as err:
             logging.getLogger(__name__).error(str(err))
             summary = {"status": "aborted", "reason": str(err)}
+        finally:
+            # Ensure browser is closed
+            enricher.quit()
 
     payload = json.dumps(summary, indent=2)
     if args.output:

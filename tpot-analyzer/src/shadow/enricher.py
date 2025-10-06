@@ -341,7 +341,7 @@ class HybridShadowEnricher:
             last_captured = last_metrics.followers_captured
 
         # Rule: If we have very few captured accounts, it's worth trying again.
-        MIN_RAW_TO_RETRY = 20
+        MIN_RAW_TO_RETRY = 5
         if last_captured is None or last_captured <= MIN_RAW_TO_RETRY:
             LOGGER.info(
                 "@%s %s list has low captured count (%s <= %d); refresh needed.",
@@ -718,8 +718,8 @@ class HybridShadowEnricher:
                 LOGGER.info(
                     "Writing metadata-only update to DB for @%s (followers: %s, following: %s)...",
                     seed.username,
-                    overview.followers_count,
-                    overview.following_count,
+                    overview.followers_total,
+                    overview.following_total,
                 )
                 upserted = self._store.upsert_accounts([account_record])
                 LOGGER.info("✓ DB write complete for @%s: %d account record updated", seed.username, upserted)
@@ -749,8 +749,8 @@ class HybridShadowEnricher:
                 LOGGER.info(
                     "✓ Skipped @%s (policy: data is fresh) — updated metadata: %s followers, %s following",
                     seed.username,
-                    overview.followers_count,
-                    overview.following_count,
+                    overview.followers_total,
+                    overview.following_total,
                 )
 
                 summary[seed.account_id] = {
@@ -985,8 +985,11 @@ class HybridShadowEnricher:
             if self._config.user_pause_seconds > 0:
                 time.sleep(self._config.user_pause_seconds)
 
-        self._selenium.quit()
         return summary
+
+    def quit(self):
+        """Safely quits the underlying Selenium browser instance."""
+        self._selenium.quit()
 
     # ------------------------------------------------------------------
     # Record constructors
