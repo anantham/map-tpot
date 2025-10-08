@@ -14,3 +14,10 @@ htmlcov/
 *.sqlite
 *.sqlite3
 data/x_api_rate_state.json
+
+# ccusage tracking
+ccusage/
+
+# Secrets (cookies, tokens, credentials)
+secrets/
+*.pkl
