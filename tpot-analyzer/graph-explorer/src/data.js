@@ -46,7 +46,7 @@ const mockData = {
 };
 
 export const fetchGraphData = async () => {
-  const response = await fetch('http://localhost:5000/api/graph-data');
+  const response = await fetch('http://localhost:5001/api/graph-data');
   if (!response.ok) {
     throw new Error('Failed to fetch graph data from the local API server.');
   }
