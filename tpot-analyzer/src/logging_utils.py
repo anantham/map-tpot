@@ -47,11 +47,35 @@ class ConsoleFilter(logging.Filter):
         # Allow specific INFO messages
         if record.levelno == logging.INFO:
             if record.name == 'src.shadow.selenium_worker':
-                if "Extracted:" in record.getMessage() or "Already captured" in record.getMessage():
+                msg = record.getMessage()
+                # Allow numbered extraction logs (e.g., "  1. ✓ @handle...")
+                # Allow capture summaries (e.g., "✅ CAPTURED 53 unique accounts...")
+                # Allow section headers (e.g., "🔍 VISITING @user → FOLLOWING")
+                # Allow separator lines (e.g., "════════")
+                if any(pattern in msg for pattern in [
+                    "✓ @",           # Numbered extraction logs
+                    "CAPTURED",      # Summary logs
+                    "VISITING",      # Section headers
+                    "===",           # Separator lines
+                    "Extracted:",    # Legacy format (if any)
+                    "Already captured"  # Legacy format (if any)
+                ]):
                     return True
             
             if record.name == 'src.shadow.enricher':
-                if "Writing to DB" in record.getMessage() or "DB write complete" in record.getMessage() or "Reordered seeds" in record.getMessage():
+                msg = record.getMessage()
+                # Allow DB operations, seed tracking, skip messages, and summaries
+                if any(pattern in msg for pattern in [
+                    "Writing to DB",      # DB operations
+                    "DB write complete",  # DB operations
+                    "🔹 SEED",            # Seed counter
+                    "⏭️",                 # Skip messages
+                    "SKIPPED",            # Skip messages
+                    "COMPLETE",           # Completion summaries
+                    "━",                  # Separator lines
+                    "═",                  # Separator lines
+                    "Starting enrichment" # Run start
+                ]):
                     return True
             
             # Allow messages from the main script runner
