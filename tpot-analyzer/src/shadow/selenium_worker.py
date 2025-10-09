@@ -650,8 +650,9 @@ class SeleniumWorker:
             LOGGER.debug("Checking account existence: found %d emptyState elements", len(empty_state))
 
             if empty_state:
-                header_text = self._driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="empty_state_header_text"]')
-                LOGGER.debug("Found %d empty_state_header_text elements", len(header_text))
+                # Search INSIDE the emptyState element, not the whole page
+                header_text = empty_state[0].find_elements(By.CSS_SELECTOR, 'div[data-testid="empty_state_header_text"]')
+                LOGGER.debug("Found %d empty_state_header_text elements inside emptyState", len(header_text))
 
                 if header_text:
                     text = header_text[0].text.strip()
@@ -661,14 +662,14 @@ class SeleniumWorker:
                         LOGGER.warning("Account doesn't exist (empty state detected): '%s'", text)
                         return False
                 else:
-                    # Fallback: check the span inside emptyState
-                    spans = empty_state[0].find_elements(By.TAG_NAME, "span")
-                    for span in spans:
-                        span_text = span.text.strip()
-                        LOGGER.debug("Checking span text: '%s'", span_text)
-                        if "doesn't exist" in span_text.lower():
-                            LOGGER.warning("Account doesn't exist (found in span): '%s'", span_text)
-                            return False
+                    # Fallback: check ALL text content inside emptyState
+                    LOGGER.debug("No header_text element found, checking all text in emptyState")
+                    empty_state_text = empty_state[0].text.strip()
+                    LOGGER.debug("EmptyState full text: '%s'", empty_state_text)
+
+                    if "doesn't exist" in empty_state_text.lower():
+                        LOGGER.warning("Account doesn't exist (found in emptyState text): '%s'", empty_state_text)
+                        return False
 
             # Check for suspended account message
             suspended_elements = self._driver.find_elements(By.XPATH, "//*[contains(text(), 'Account suspended')]")
