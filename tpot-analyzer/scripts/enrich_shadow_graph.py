@@ -395,20 +395,29 @@ def main() -> None:
 
                     seeds = [center_seed] + archive_based_seeds + shadow_seeds
 
-                    LOGGER.info(
-                        "Reordered seeds: %d preset, %d from @%s's following (%d in archive, %d new shadow seeds), %d others. Total: %d seeds.",
-                        len(priority_seeds),
-                        len(center_following_in_archive) + len(shadow_seeds),
-                        args.center,
-                        len(center_following_in_archive),
-                        len(shadow_seeds),
-                        len(other_seeds),
-                        len(seeds)
-                    )
+                    LOGGER.info("\n" + "=" * 80)
+                    LOGGER.info("SEED LIST PRIORITIZATION SUMMARY")
+                    LOGGER.info("=" * 80)
+                    LOGGER.info("  1. Center user: @%s", args.center)
+                    LOGGER.info("  2. Preset seeds (high priority): %d accounts", len(priority_seeds))
+                    LOGGER.info("  3. @%s's following (in archive): %d accounts", args.center, len(center_following_in_archive))
+                    LOGGER.info("  4. @%s's following (new shadow seeds): %d accounts", args.center, len(shadow_seeds))
+                    LOGGER.info("  5. Other archive accounts: %d accounts", len(other_seeds))
+                    LOGGER.info("-" * 80)
+                    LOGGER.info("TOTAL SEEDS: %d", len(seeds))
+                    LOGGER.info("=" * 80 + "\n")
                 else:
                     LOGGER.warning("No following data found for @%s in DB. Continuing with original seed order.", args.center)
                     # Restore full seeds list
                     seeds = [center_seed] + remaining_seeds
+            else:
+                # No center user specified - use default seed order
+                LOGGER.info("\n" + "=" * 80)
+                LOGGER.info("SEED LIST SUMMARY")
+                LOGGER.info("=" * 80)
+                LOGGER.info("  Total seeds: %d accounts", len(seeds))
+                LOGGER.info("  (Use --center <username> to prioritize a user's following list)")
+                LOGGER.info("=" * 80 + "\n")
 
             # Run the main enrichment loop
             summary = enricher.enrich(seeds)

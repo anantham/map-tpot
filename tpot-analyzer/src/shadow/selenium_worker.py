@@ -196,11 +196,11 @@ class SeleniumWorker:
 
                 # Check if account exists before trying to extract profile
                 # Save snapshot BEFORE checking so we can debug
-                self._save_snapshot(f"{username}_before_existence_check")
+                self._save_page_snapshot(username, "before_existence_check")
 
                 if not self._check_account_exists(username):
                     LOGGER.error("Account @%s doesn't exist or is suspended - marking as deleted", username)
-                    self._save_snapshot(f"{username}_DELETED_ACCOUNT")
+                    self._save_page_snapshot(username, "DELETED_ACCOUNT")
                     # Return a special ProfileOverview marking this as deleted
                     deleted_profile = ProfileOverview(
                         username=username,
@@ -232,7 +232,7 @@ class SeleniumWorker:
                         missing_fields.append("following_total")
 
                 # Save snapshot showing incomplete data
-                self._save_snapshot(f"{username}_INCOMPLETE_DATA_attempt{attempt+1}")
+                self._save_page_snapshot(username, f"INCOMPLETE_DATA_attempt{attempt+1}")
 
                 LOGGER.warning(
                     "Profile data for @%s considered incomplete. Missing or failed to parse: %s.",
@@ -664,7 +664,7 @@ class SeleniumWorker:
 
             if empty_state:
                 # Save snapshot showing the emptyState
-                self._save_snapshot(f"{username}_emptyState_found")
+                self._save_page_snapshot(username, "emptyState_found")
 
                 # Search INSIDE the emptyState element, not the whole page
                 header_text = empty_state[0].find_elements(By.CSS_SELECTOR, 'div[data-testid="empty_state_header_text"]')
@@ -674,7 +674,11 @@ class SeleniumWorker:
                     text = header_text[0].text.strip()
                     LOGGER.warning("  ➜ Empty state header text: '%s'", text)
 
-                    if "doesn't exist" in text.lower() or "account doesn't exist" in text.lower():
+                    # Normalize apostrophes: Twitter uses fancy Unicode apostrophe (U+2019 ')
+                    # instead of regular apostrophe (U+0027 ')
+                    text_normalized = text.lower().replace('\u2019', "'").replace('\u2018', "'")
+
+                    if "doesn't exist" in text_normalized or "account doesn't exist" in text_normalized:
                         LOGGER.warning("  ✅ DELETED ACCOUNT DETECTED: '%s'", text)
                         return False
                 else:
@@ -683,7 +687,10 @@ class SeleniumWorker:
                     empty_state_text = empty_state[0].text.strip()
                     LOGGER.warning("  ➜ EmptyState full text: '%s'", empty_state_text)
 
-                    if "doesn't exist" in empty_state_text.lower():
+                    # Normalize apostrophes for fallback check too
+                    empty_state_normalized = empty_state_text.lower().replace('\u2019', "'").replace('\u2018', "'")
+
+                    if "doesn't exist" in empty_state_normalized:
                         LOGGER.warning("  ✅ DELETED ACCOUNT DETECTED (in full text): '%s'", empty_state_text)
                         return False
                     else:
@@ -693,7 +700,7 @@ class SeleniumWorker:
             suspended_elements = self._driver.find_elements(By.XPATH, "//*[contains(text(), 'Account suspended')]")
             if suspended_elements:
                 LOGGER.warning("  ✅ SUSPENDED ACCOUNT DETECTED")
-                self._save_snapshot(f"{username}_SUSPENDED")
+                self._save_page_snapshot(username, "SUSPENDED")
                 return False
 
         except Exception as e:
