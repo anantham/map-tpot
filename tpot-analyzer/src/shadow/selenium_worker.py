@@ -272,6 +272,18 @@ class SeleniumWorker:
         list_page_url = f"https://twitter.com/{username}/{list_type}"
         attempts = len(self._config.retry_delays) + 1
 
+        # Display formatted list type
+        list_type_display = {
+            "following": "FOLLOWING",
+            "followers": "FOLLOWERS",
+            "verified_followers": "VERIFIED FOLLOWERS",
+            "followers_you_follow": "FOLLOWERS YOU FOLLOW"
+        }.get(list_type, list_type.upper())
+
+        LOGGER.info("\n" + "="*80)
+        LOGGER.info("🔍 VISITING @%s → %s", username, list_type_display)
+        LOGGER.info("="*80)
+
         for attempt in range(attempts):
             LOGGER.debug("Navigating to %s (attempt %s/%s)", list_page_url, attempt + 1, attempts)
             self._driver.get(list_page_url)
@@ -315,6 +327,9 @@ class SeleniumWorker:
         last_height = self._driver.execute_script("return document.body.scrollHeight")
         stagnant_scrolls = 0
         scroll_round = 0
+        extraction_counter = 0
+
+        LOGGER.info("📝 Starting scroll and extraction...")
 
         while stagnant_scrolls < self._config.max_no_change_scrolls:
             scroll_round += 1
@@ -363,20 +378,20 @@ class SeleniumWorker:
                         updated_fields.append(f"image={profile_image_url}")
 
                     if updated_fields:
-                        LOGGER.info("[%s] Already captured @%s - updated: %s", list_type, handle, ", ".join(updated_fields))
+                        LOGGER.debug("  [DUP] @%s (enriched: %s)", handle, ", ".join(updated_fields))
                     else:
-                        LOGGER.debug("[%s] Already captured @%s - no new fields", list_type, handle)
+                        LOGGER.debug("  [DUP] @%s", handle)
                     continue
 
                 # Log the extracted data
-                bio_preview = (bio[:80] + "...") if bio and len(bio) > 80 else bio
+                extraction_counter += 1
+                bio_preview = (bio[:77] + "...") if bio and len(bio) > 80 else bio
                 LOGGER.info(
-                    "Extracted: @%s (%s) - \"%s\" | website: %s | image: %s",
+                    "  %3d. ✓ @%s (%s) - \"%s\"",
+                    extraction_counter,
                     handle,
-                    display_name or "(no name)",
-                    bio_preview or "(no bio)",
-                    website or "(none)",
-                    profile_image_url or "(none)"
+                    display_name or "no name",
+                    bio_preview or "no bio"
                 )
 
                 captured = CapturedUser(
@@ -401,10 +416,11 @@ class SeleniumWorker:
             last_height = new_height
 
         captured_entries = list(discovered.values())
-        LOGGER.debug(
-            "Collected %s %s entries for @%s", len(captured_entries), list_type, username
-        )
-        
+
+        LOGGER.info("="*80)
+        LOGGER.info("✅ CAPTURED %d unique accounts from @%s → %s", len(captured_entries), username, list_type_display)
+        LOGGER.info("="*80 + "\n")
+
         final_overview = self._profile_overviews.get(username)
         claimed_total = None
         if final_overview:
@@ -602,13 +618,28 @@ class SeleniumWorker:
         try:
             # Check for "This account doesn't exist" empty state
             empty_state = self._driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="emptyState"]')
+            LOGGER.debug("Checking account existence: found %d emptyState elements", len(empty_state))
+
             if empty_state:
                 header_text = self._driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="empty_state_header_text"]')
+                LOGGER.debug("Found %d empty_state_header_text elements", len(header_text))
+
                 if header_text:
-                    text = header_text[0].text.strip().lower()
-                    if "doesn't exist" in text or "account doesn't exist" in text:
-                        LOGGER.warning("Account doesn't exist (empty state detected)")
+                    text = header_text[0].text.strip()
+                    LOGGER.debug("Empty state header text: '%s'", text)
+
+                    if "doesn't exist" in text.lower() or "account doesn't exist" in text.lower():
+                        LOGGER.warning("Account doesn't exist (empty state detected): '%s'", text)
                         return False
+                else:
+                    # Fallback: check the span inside emptyState
+                    spans = empty_state[0].find_elements(By.TAG_NAME, "span")
+                    for span in spans:
+                        span_text = span.text.strip()
+                        LOGGER.debug("Checking span text: '%s'", span_text)
+                        if "doesn't exist" in span_text.lower():
+                            LOGGER.warning("Account doesn't exist (found in span): '%s'", span_text)
+                            return False
 
             # Check for suspended account message
             suspended_elements = self._driver.find_elements(By.XPATH, "//*[contains(text(), 'Account suspended')]")
@@ -617,10 +648,11 @@ class SeleniumWorker:
                 return False
 
         except Exception as e:
-            LOGGER.debug("Error checking account existence: %s", e)
+            LOGGER.warning("Error checking account existence: %s (assuming account exists)", e)
             # If check fails, assume account exists and continue normal processing
             pass
 
+        LOGGER.debug("Account existence check: account appears to exist")
         return True
 
     def _extract_profile_overview(self, username: str) -> Optional[ProfileOverview]:
