@@ -195,8 +195,12 @@ class SeleniumWorker:
                 )
 
                 # Check if account exists before trying to extract profile
-                if not self._check_account_exists():
+                # Save snapshot BEFORE checking so we can debug
+                self._save_snapshot(f"{username}_before_existence_check")
+
+                if not self._check_account_exists(username):
                     LOGGER.error("Account @%s doesn't exist or is suspended - marking as deleted", username)
+                    self._save_snapshot(f"{username}_DELETED_ACCOUNT")
                     # Return a special ProfileOverview marking this as deleted
                     deleted_profile = ProfileOverview(
                         username=username,
@@ -226,12 +230,16 @@ class SeleniumWorker:
                         missing_fields.append("followers_total")
                     if profile_overview.following_total is None:
                         missing_fields.append("following_total")
+
+                # Save snapshot showing incomplete data
+                self._save_snapshot(f"{username}_INCOMPLETE_DATA_attempt{attempt+1}")
+
                 LOGGER.warning(
                     "Profile data for @%s considered incomplete. Missing or failed to parse: %s.",
                     username,
                     ", ".join(missing_fields),
                 )
-                
+
                 # Raise a timeout to trigger the retry logic if data is missing
                 raise TimeoutException("Incomplete profile data")
 
@@ -636,53 +644,66 @@ class SeleniumWorker:
             LOGGER.debug("Cell became stale while extracting profile image")
         return None
 
-    def _check_account_exists(self) -> bool:
+    def _check_account_exists(self, username: str) -> bool:
         """Check if the account exists or shows a 'doesn't exist' message.
+
+        Args:
+            username: The username being checked (for logging/snapshots)
 
         Returns:
             True if account exists, False if deleted/suspended/doesn't exist
         """
         assert self._driver is not None
 
+        LOGGER.warning("🔍 CHECKING EXISTENCE for @%s", username)
+
         try:
             # Check for "This account doesn't exist" empty state
             empty_state = self._driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="emptyState"]')
-            LOGGER.debug("Checking account existence: found %d emptyState elements", len(empty_state))
+            LOGGER.warning("  ➜ Found %d emptyState elements", len(empty_state))
 
             if empty_state:
+                # Save snapshot showing the emptyState
+                self._save_snapshot(f"{username}_emptyState_found")
+
                 # Search INSIDE the emptyState element, not the whole page
                 header_text = empty_state[0].find_elements(By.CSS_SELECTOR, 'div[data-testid="empty_state_header_text"]')
-                LOGGER.debug("Found %d empty_state_header_text elements inside emptyState", len(header_text))
+                LOGGER.warning("  ➜ Found %d empty_state_header_text elements inside emptyState", len(header_text))
 
                 if header_text:
                     text = header_text[0].text.strip()
-                    LOGGER.debug("Empty state header text: '%s'", text)
+                    LOGGER.warning("  ➜ Empty state header text: '%s'", text)
 
                     if "doesn't exist" in text.lower() or "account doesn't exist" in text.lower():
-                        LOGGER.warning("Account doesn't exist (empty state detected): '%s'", text)
+                        LOGGER.warning("  ✅ DELETED ACCOUNT DETECTED: '%s'", text)
                         return False
                 else:
                     # Fallback: check ALL text content inside emptyState
-                    LOGGER.debug("No header_text element found, checking all text in emptyState")
+                    LOGGER.warning("  ➜ No header_text element found, checking all text in emptyState")
                     empty_state_text = empty_state[0].text.strip()
-                    LOGGER.debug("EmptyState full text: '%s'", empty_state_text)
+                    LOGGER.warning("  ➜ EmptyState full text: '%s'", empty_state_text)
 
                     if "doesn't exist" in empty_state_text.lower():
-                        LOGGER.warning("Account doesn't exist (found in emptyState text): '%s'", empty_state_text)
+                        LOGGER.warning("  ✅ DELETED ACCOUNT DETECTED (in full text): '%s'", empty_state_text)
                         return False
+                    else:
+                        LOGGER.warning("  ⚠️ EmptyState exists but doesn't contain 'doesn't exist' - might be different error")
 
             # Check for suspended account message
             suspended_elements = self._driver.find_elements(By.XPATH, "//*[contains(text(), 'Account suspended')]")
             if suspended_elements:
-                LOGGER.warning("Account is suspended")
+                LOGGER.warning("  ✅ SUSPENDED ACCOUNT DETECTED")
+                self._save_snapshot(f"{username}_SUSPENDED")
                 return False
 
         except Exception as e:
-            LOGGER.warning("Error checking account existence: %s (assuming account exists)", e)
+            LOGGER.error("  ❌ Error checking account existence: %s (assuming account exists)", e)
             # If check fails, assume account exists and continue normal processing
+            import traceback
+            LOGGER.error("  Traceback: %s", traceback.format_exc())
             pass
 
-        LOGGER.debug("Account existence check: account appears to exist")
+        LOGGER.warning("  ➜ Account appears to exist (no deletion/suspension detected)")
         return True
 
     def _extract_profile_overview(self, username: str) -> Optional[ProfileOverview]:
