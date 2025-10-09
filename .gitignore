@@ -1,5 +1,7 @@
 # Node dependencies and caches
 node_modules/
+package.json
+package-lock.json
 .pnp.cjs
 .pnp.loader.mjs
 .cache/
