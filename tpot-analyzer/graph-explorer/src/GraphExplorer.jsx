@@ -277,7 +277,22 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       .slice(0, subgraphSize)
       .map(([id]) => id);
 
-    const allowedNodeSet = new Set([...topNIds, ...effectiveSeedSet]);
+    // Build allowed set with both account IDs and usernames for matching
+    const allowedNodeSet = new Set(topNIds);
+
+    // Add seed nodes to the allowed set (they should always be visible)
+    nodeIds.forEach((rawId) => {
+      const id = String(rawId);
+      const meta = nodesMeta[id] || {};
+      const usernameLower = meta.username ? String(meta.username).toLowerCase() : null;
+      const idLower = id.toLowerCase();
+
+      // Check if this node is a seed by any of its identifiers
+      if (effectiveSeedSet.has(idLower) ||
+          (usernameLower && effectiveSeedSet.has(usernameLower))) {
+        allowedNodeSet.add(id);  // Add the actual account ID
+      }
+    });
 
     const nodes = nodeIds.map((rawId) => {
       const id = String(rawId);
