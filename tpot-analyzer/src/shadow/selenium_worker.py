@@ -193,6 +193,25 @@ class SeleniumWorker:
                 WebDriverWait(self._driver, 30).until(
                     EC.presence_of_element_located((By.CSS_SELECTOR, 'div[data-testid="primaryColumn"]'))
                 )
+
+                # Check if account exists before trying to extract profile
+                if not self._check_account_exists():
+                    LOGGER.error("Account @%s doesn't exist or is suspended - marking as deleted", username)
+                    # Return a special ProfileOverview marking this as deleted
+                    deleted_profile = ProfileOverview(
+                        username=username,
+                        display_name="[ACCOUNT DELETED]",
+                        bio="[ACCOUNT DELETED OR SUSPENDED]",
+                        location=None,
+                        website=None,
+                        followers_total=0,
+                        following_total=0,
+                        joined_date=None,
+                        profile_image_url=None,
+                    )
+                    self._profile_overviews[username] = deleted_profile
+                    return deleted_profile
+
                 profile_overview = self._extract_profile_overview(username)
                 if profile_overview and profile_overview.followers_total is not None and profile_overview.following_total is not None:
                     self._profile_overviews[username] = profile_overview
@@ -571,6 +590,38 @@ class SeleniumWorker:
         except StaleElementReferenceException:
             LOGGER.debug("Cell became stale while extracting profile image")
         return None
+
+    def _check_account_exists(self) -> bool:
+        """Check if the account exists or shows a 'doesn't exist' message.
+
+        Returns:
+            True if account exists, False if deleted/suspended/doesn't exist
+        """
+        assert self._driver is not None
+
+        try:
+            # Check for "This account doesn't exist" empty state
+            empty_state = self._driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="emptyState"]')
+            if empty_state:
+                header_text = self._driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="empty_state_header_text"]')
+                if header_text:
+                    text = header_text[0].text.strip().lower()
+                    if "doesn't exist" in text or "account doesn't exist" in text:
+                        LOGGER.warning("Account doesn't exist (empty state detected)")
+                        return False
+
+            # Check for suspended account message
+            suspended_elements = self._driver.find_elements(By.XPATH, "//*[contains(text(), 'Account suspended')]")
+            if suspended_elements:
+                LOGGER.warning("Account is suspended")
+                return False
+
+        except Exception as e:
+            LOGGER.debug("Error checking account existence: %s", e)
+            # If check fails, assume account exists and continue normal processing
+            pass
+
+        return True
 
     def _extract_profile_overview(self, username: str) -> Optional[ProfileOverview]:
         assert self._driver is not None
