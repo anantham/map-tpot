@@ -535,6 +535,33 @@ class SeleniumWorker:
             return None
         return cleaned
 
+    @staticmethod
+    def _clean_bio_text(bio: str) -> str:
+        """Remove Twitter UI relationship indicators from bio text."""
+        if not bio:
+            return bio
+
+        # Strip relationship indicators that Twitter adds to bios
+        # These appear at the beginning of the bio text in the DOM
+        cleaned = bio.strip()
+
+        # Remove "Follows you" badge
+        if cleaned.startswith("Follows you"):
+            cleaned = cleaned[len("Follows you"):].strip()
+
+        # Remove "Following" badge
+        if cleaned.startswith("Following"):
+            cleaned = cleaned[len("Following"):].strip()
+
+        # Sometimes both appear: "Follows you Following actual bio text"
+        # So we need to check again after first removal
+        if cleaned.startswith("Follows you"):
+            cleaned = cleaned[len("Follows you"):].strip()
+        if cleaned.startswith("Following"):
+            cleaned = cleaned[len("Following"):].strip()
+
+        return cleaned
+
     def _extract_bio(self, cell) -> Optional[str]:
         from selenium.common.exceptions import StaleElementReferenceException
 
@@ -542,7 +569,8 @@ class SeleniumWorker:
         try:
             bio_nodes = cell.find_elements(By.CSS_SELECTOR, "div[data-testid='UserDescription']")
             if bio_nodes and bio_nodes[0].text.strip():
-                return bio_nodes[0].text.strip()
+                raw_bio = bio_nodes[0].text.strip()
+                return self._clean_bio_text(raw_bio)
         except (NoSuchElementException, StaleElementReferenceException):
             pass  # Fallback to text parsing
 
@@ -560,7 +588,8 @@ class SeleniumWorker:
                     break
 
             if bio_start_index != -1 and bio_start_index < len(text_lines):
-                return " ".join(text_lines[bio_start_index:])
+                raw_bio = " ".join(text_lines[bio_start_index:])
+                return self._clean_bio_text(raw_bio)
         except StaleElementReferenceException:
             LOGGER.debug("Cell became stale while extracting bio")
 
