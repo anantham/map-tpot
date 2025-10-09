@@ -148,20 +148,38 @@ Core components:
 Example run:
 
 ```bash
+# Setup cookies (one-time)
 python -m scripts.setup_cookies --output secrets/twitter_cookies.pkl
-python -m scripts.enrich_shadow_graph \
-  --cookies secrets/twitter_cookies.pkl \
-  --include-followers \
-  --preview-count 12 \
-  --chrome-binary "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --delay-min 4 --delay-max 9 \
-  --bearer-token "$X_BEARER_TOKEN"
 
+# Run enrichment (default: fast, no API fallback)
+python -m scripts.enrich_shadow_graph \
+  --center adityaarpitha \
+  --skip-if-ever-scraped \
+  --auto-confirm-first \
+  --max-scrolls 20
+
+# With API fallback (slower but enriches accounts with missing bios)
+python -m scripts.enrich_shadow_graph \
+  --enable-api-fallback \
+  --bearer-token "$X_BEARER_TOKEN" \
+  --center adityaarpitha
+
+# Analyze and verify
 python -m scripts.analyze_graph --include-shadow --output analysis_output.json
 python -m scripts.verify_shadow_graph
 ```
 
-In the explorer UI, toggle “Shadow enrichment” to show or hide shadow nodes. Shadow edges render as dashed slate lines; tooltips and detail cards display provenance plus scrape metadata.
+**Key flags:**
+- `--center USERNAME` — Prioritize this user's following list
+- `--skip-if-ever-scraped` — Skip accounts with sufficient existing data
+- `--max-scrolls N` — Max stagnant scrolls before stopping (default: 6, use 20+ for 1000+ following)
+- `--enable-api-fallback` — Use X API to enrich accounts with missing bios (slow, rate-limited)
+- `--auto-confirm-first` — Skip preview confirmation
+- `--quiet` — Minimal console output, full DEBUG to disk
+
+**Logging:** All runs write DEBUG logs to `logs/enrichment.log` by default. Console shows INFO level unless `--quiet` is used.
+
+In the explorer UI, toggle "Shadow enrichment" to show or hide shadow nodes. Shadow edges render as dashed slate lines; tooltips and detail cards display provenance plus scrape metadata.
 
 ## Usage
 
@@ -285,6 +303,15 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 - [ ] **Phase 1.4:** Shadow enrichment with policy-driven refresh (in progress, 91 tests passing)
 - [ ] **Phase 2:** Temporal analysis (growth patterns, community evolution, edge history tracking)
 - [ ] **Phase 3:** Advanced metrics (heat diffusion, GNN embeddings, engagement analysis)
+
+## Documentation Guide
+
+- **[README.md](./README.md)** (this file) — Project overview, setup, architecture, and usage
+- **[CENTER_USER_FIX.md](./CENTER_USER_FIX.md)** — Fixes for center user prioritization and Twitter DOM changes (Oct 7-8, 2025)
+- **[BUGFIXES.md](./BUGFIXES.md)** — Graph Explorer MVP bug fixes (Oct 7, 2025)
+- **[TEST_MODE.md](./TEST_MODE.md)** — API server test mode for fast UI development
+- **[docs/WORKLOG.md](./docs/WORKLOG.md)** — Detailed development log
+- **[docs/adr/](./docs/adr/)** — Architectural decision records
 
 ## References
 
