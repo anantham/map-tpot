@@ -623,11 +623,20 @@ class HybridShadowEnricher:
     def enrich(self, seeds: Sequence[SeedAccount]) -> Dict[str, Dict[str, object]]:
         """Enrich the graph starting from provided seed accounts."""
 
+        total_seeds = len(seeds)
+        LOGGER.info("=" * 80)
+        LOGGER.info("Starting enrichment run: %d seeds total", total_seeds)
+        LOGGER.info("=" * 80)
+
         summary: Dict[str, Dict[str, object]] = {}
-        for seed in seeds:
+        for seed_idx, seed in enumerate(seeds, start=1):
             if not seed.username:
                 LOGGER.warning("Seed %s missing username; skipping", seed.account_id)
                 continue
+
+            LOGGER.info("\n" + "━" * 80)
+            LOGGER.info("🔹 SEED #%d/%d: @%s", seed_idx, total_seeds, seed.username)
+            LOGGER.info("━" * 80)
 
             self._log_pre_run_summary(seed)
 
@@ -663,13 +672,17 @@ class HybridShadowEnricher:
                     has_sufficient_coverage = has_sufficient_following and has_sufficient_followers
 
                     if has_complete_metadata and has_sufficient_coverage:
-                        LOGGER.info(
-                            "Skipping @%s (%s) — already scraped (metadata complete, coverage: following %.1f%%, followers %.1f%%)",
-                            seed.username,
-                            seed.account_id,
-                            following_coverage,
-                            followers_coverage,
-                        )
+                        days_since = (datetime.utcnow() - last_scrape.run_at).days
+                        LOGGER.info("⏭️  SKIPPED — complete profile and edge data found in DB")
+                        LOGGER.info("   └─ Last scraped: %d days ago", days_since)
+                        LOGGER.info("   └─ Following coverage: %.1f%% (%s/%s)",
+                                    following_coverage,
+                                    last_scrape.following_captured or 0,
+                                    account.following_count if account else "?")
+                        LOGGER.info("   └─ Followers coverage: %.1f%% (%s/%s)",
+                                    followers_coverage,
+                                    last_scrape.followers_captured or 0,
+                                    account.followers_count if account else "?")
                         summary[seed.account_id] = {
                             "username": seed.username,
                             "skipped": True,
@@ -761,11 +774,11 @@ class HybridShadowEnricher:
                     followers_would_skip = self._would_skip_list_by_history(last_metrics, "followers")
 
                     if following_would_skip and followers_would_skip:
-                        LOGGER.info(
-                            "Skipping @%s — both edge lists are fresh (last scraped %d days ago) and --skip-if-ever-scraped is enabled",
-                            seed.username,
-                            (datetime.utcnow() - last_metrics.run_at).days,
-                        )
+                        days_ago = (datetime.utcnow() - last_metrics.run_at).days
+                        LOGGER.info("⏭️  SKIPPED — both edge lists are fresh (no profile visit needed)")
+                        LOGGER.info("   └─ Last scraped: %d days ago", days_ago)
+                        LOGGER.info("   └─ Following captured: %s", last_metrics.following_captured or 0)
+                        LOGGER.info("   └─ Followers captured: %s", last_metrics.followers_captured or 0)
                         skip_metrics = ScrapeRunMetrics(
                             seed_account_id=seed.account_id,
                             seed_username=seed.username or "",
@@ -797,6 +810,8 @@ class HybridShadowEnricher:
                         continue
 
             # Fetch profile overview first to check counts for policy
+            if not cached_overview:
+                LOGGER.info("📍 Visiting profile page for @%s...", seed.username)
             overview = cached_overview or self._selenium.fetch_profile_overview(seed.username)
             if not overview:
                 LOGGER.error("Failed to fetch profile overview for @%s - skipping", seed.username)
@@ -826,6 +841,57 @@ class HybridShadowEnricher:
                 summary[seed.account_id] = {
                     "username": seed.username,
                     "error": "profile_overview_missing",
+                }
+                continue
+
+            # Check if account is deleted/suspended (special marker from selenium_worker)
+            if overview.bio == "[ACCOUNT DELETED OR SUSPENDED]":
+                LOGGER.warning("⏭️  SKIPPED — account deleted or suspended")
+                LOGGER.info("   └─ Saving account record with deleted marker")
+                # Save the deleted account record to DB
+                deleted_account = ShadowAccount(
+                    account_id=seed.account_id,
+                    username=seed.username,
+                    display_name=overview.display_name,
+                    bio=overview.bio,
+                    location=overview.location,
+                    website=overview.website,
+                    profile_image_url=overview.profile_image_url,
+                    followers_count=0,
+                    following_count=0,
+                    source_channel="selenium",
+                    fetched_at=datetime.utcnow(),
+                    checked_at=None,
+                    scrape_stats={"deleted": True},
+                )
+                self._store.upsert_accounts([deleted_account])
+                deleted_metrics = ScrapeRunMetrics(
+                    seed_account_id=seed.account_id,
+                    seed_username=seed.username or "",
+                    run_at=datetime.utcnow(),
+                    duration_seconds=time.perf_counter() - start,
+                    following_captured=0,
+                    followers_captured=0,
+                    followers_you_follow_captured=0,
+                    following_claimed_total=0,
+                    followers_claimed_total=0,
+                    followers_you_follow_claimed_total=0,
+                    following_coverage=None,
+                    followers_coverage=None,
+                    followers_you_follow_coverage=None,
+                    accounts_upserted=0,
+                    edges_upserted=0,
+                    discoveries_upserted=0,
+                    skipped=True,
+                    skip_reason="account_deleted_or_suspended",
+                    error_type=None,
+                    error_details=None,
+                )
+                self._store.record_scrape_metrics(deleted_metrics)
+                summary[seed.account_id] = {
+                    "username": seed.username,
+                    "skipped": True,
+                    "reason": "account_deleted_or_suspended",
                 }
                 continue
 
