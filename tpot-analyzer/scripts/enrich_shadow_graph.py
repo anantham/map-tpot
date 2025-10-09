@@ -9,11 +9,11 @@ from pathlib import Path
 from typing import List
 
 import logging
-import logging.handlers
 
 LOGGER = logging.getLogger(__name__)
 
 from src.config import get_cache_settings
+from src.logging_utils import setup_enrichment_logging
 from src.data.fetcher import CachedDataFetcher
 from src.data.shadow_store import get_shadow_store
 from src.graph.seeds import load_seed_candidates
@@ -84,6 +84,12 @@ def parse_args() -> argparse.Namespace:
         help="Path to Chrome/Chromium binary to launch (defaults to Selenium Manager discovery).",
     )
     parser.add_argument(
+        "--max-scrolls",
+        type=int,
+        default=6,
+        help="Max consecutive scrolls with no height change before stopping (default 6). Applies to following, followers, verified_followers, and followers_you_follow lists. Increase to 20+ for accounts with 1000+ following/followers.",
+    )
+    parser.add_argument(
         "--delay-min",
         type=float,
         default=5.0,
@@ -94,6 +100,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=40.0,
         help="Maximum delay (seconds) between scripted actions (default 40).",
+    )
+    parser.add_argument(
+        "--retry-attempts",
+        type=int,
+        default=5,
+        help="Number of retry attempts for failed profile fetches (default 5). Set to 1 to disable retries.",
     )
     parser.add_argument(
         "--auto-continue",
@@ -129,7 +141,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-if-ever-scraped",
         action="store_true",
-        help="Skip seeds that have been successfully scraped before (even if stale). Re-scrapes seeds with incomplete metadata.",
+        default=True,
+        help="Skip seeds that have been successfully scraped before (even if stale). Re-scrapes seeds with incomplete metadata. Enabled by default.",
+    )
+    parser.add_argument(
+        "--no-skip-if-ever-scraped",
+        dest="skip_if_ever_scraped",
+        action="store_false",
+        help="Disable the default skip behavior and re-scrape all seeds regardless of previous scrape status.",
     )
     parser.add_argument(
         "--center",
@@ -141,12 +160,17 @@ def parse_args() -> argparse.Namespace:
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"],
-        help="Logging verbosity for enrichment routines.",
+        help="Console logging verbosity (default INFO). File always logs DEBUG.",
     )
     parser.add_argument(
         "--quiet",
         action="store_true",
         help="Suppress all non-essential output (sets log level to WARN, skips preview).",
+    )
+    parser.add_argument(
+        "--enable-api-fallback",
+        action="store_true",
+        help="Enable X API fallback for enriching accounts with missing bios (requires --bearer-token or X_BEARER_TOKEN env). WARNING: May cause rate limiting.",
     )
     return parser.parse_args()
 
@@ -231,49 +255,21 @@ def main() -> None:
     args = parse_args()
     args.cookies = _resolve_cookie_path(args)
 
-    # Determine effective log level (--quiet overrides --log-level)
+    # Setup colored and filtered logging
+    console_log_level = getattr(logging, args.log_level.upper(), logging.INFO)
     if args.quiet:
-        root_level = logging.DEBUG  # capture DEBUG events for disk
-        console_level = logging.WARN
-        file_level = logging.DEBUG
-        # Suppress selenium and urllib3 console noise, keep errors visible
-        logging.getLogger("selenium").setLevel(logging.ERROR)
-        logging.getLogger("urllib3").setLevel(logging.ERROR)
-    else:
-        resolved = getattr(logging, args.log_level.upper(), logging.INFO)
-        root_level = resolved
-        console_level = resolved
-        file_level = resolved
-
-    log_dir = Path("logs")
-    log_dir.mkdir(exist_ok=True)
-    log_file = log_dir / "enrichment.log"
-
-    root_logger = logging.getLogger()
-    root_logger.setLevel(root_level)
-
-    log_format = (
-        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-        if not args.quiet
-        else "%(levelname)s: %(message)s"
-    )
-    formatter = logging.Formatter(log_format)
-
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    console_handler.setLevel(console_level)
-    root_logger.addHandler(console_handler)
-
-    # Rotating file handler
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_file, maxBytes=5 * 1024 * 1024, backupCount=5  # 5MB per file
-    )
-    file_handler.setFormatter(formatter)
-    file_handler.setLevel(file_level)
-    root_logger.addHandler(file_handler)
+        console_log_level = logging.WARN
+    setup_enrichment_logging(console_level=console_log_level, quiet=args.quiet)
     cache_settings = get_cache_settings()
-    bearer = args.bearer_token or os.getenv("X_BEARER_TOKEN")
+
+    # Only enable X API fallback if explicitly requested
+    bearer = None
+    if args.enable_api_fallback:
+        bearer = args.bearer_token or os.getenv("X_BEARER_TOKEN")
+        if bearer:
+            LOGGER.info("X API fallback enabled (--enable-api-fallback). May cause rate limiting.")
+        else:
+            LOGGER.warning("--enable-api-fallback specified but no bearer token found (check --bearer-token or X_BEARER_TOKEN env)")
 
     with CachedDataFetcher(cache_db=cache_settings.path) as fetcher:
         # Determine seed strategy: use ALL archive accounts by default,
@@ -319,11 +315,16 @@ def main() -> None:
 
         seeds = build_seed_accounts(fetcher, seed_usernames)
 
+        # Calculate retry_delays from retry_attempts (attempts = delays + 1)
+        retry_delays = [5.0, 15.0, 60.0][:max(0, args.retry_attempts - 1)]
+
         config = ShadowEnrichmentConfig(
             selenium_cookies_path=args.cookies,
             selenium_headless=args.headless,
             selenium_scroll_delay_min=args.delay_min,
             selenium_scroll_delay_max=args.delay_max,
+            selenium_max_no_change_scrolls=args.max_scrolls,
+            selenium_retry_delays=retry_delays,
             user_pause_seconds=args.pause,
             action_delay_min=args.delay_min,
             action_delay_max=args.delay_max,
@@ -357,34 +358,50 @@ def main() -> None:
                 LOGGER.info("Enriching center user @%s first...", args.center)
                 enricher.enrich([center_seed])
 
-                # Now query the DB for their following list to reorder remaining seeds
+                # Now query the DB for their following list to add as priority seeds
                 center_following_usernames = set(store.get_following_usernames(args.center))
 
                 if center_following_usernames:
                     LOGGER.info("Found %d accounts followed by @%s in DB cache.", len(center_following_usernames), args.center)
 
-                    # Reorder remaining seeds: preset seeds, then center's following, then others
+                    # Build seed priority: preset seeds first, then ALL center's following, then others
                     preset_usernames = set(load_seed_candidates())
                     remaining_usernames = {s.username for s in remaining_seeds}
 
+                    # Priority groups
                     priority_seeds = remaining_usernames.intersection(preset_usernames)
-                    center_priority_seeds = center_following_usernames.intersection(remaining_usernames) - priority_seeds
-                    other_seeds = remaining_usernames - priority_seeds - center_priority_seeds
+                    center_following_not_in_archive = center_following_usernames - remaining_usernames - priority_seeds
+                    center_following_in_archive = center_following_usernames.intersection(remaining_usernames) - priority_seeds
+                    other_seeds = remaining_usernames - priority_seeds - center_following_in_archive
 
+                    # Build reordered list: presets, then center's following (in archive), then center's following (not in archive), then others
                     reordered_usernames = (
                         sorted(list(priority_seeds)) +
-                        sorted(list(center_priority_seeds)) +
+                        sorted(list(center_following_in_archive)) +
+                        sorted(list(center_following_not_in_archive)) +
                         sorted(list(other_seeds))
                     )
 
-                    # Rebuild seeds list with new order
-                    seeds = [center_seed] + build_seed_accounts(fetcher, reordered_usernames)
+                    # Build seeds: use archive data where available, create shadow seeds for the rest
+                    archive_based_seeds = build_seed_accounts(fetcher, reordered_usernames)
+
+                    # Create shadow seeds for usernames not found in archive (these will get enriched from scratch)
+                    archive_usernames = {s.username.lower() for s in archive_based_seeds if s.username}
+                    shadow_seed_usernames = [u for u in reordered_usernames if u.lower() not in archive_usernames]
+                    shadow_seeds = [
+                        SeedAccount(account_id=f"shadow:{username}", username=username, trust=0.8)
+                        for username in shadow_seed_usernames
+                    ]
+
+                    seeds = [center_seed] + archive_based_seeds + shadow_seeds
 
                     LOGGER.info(
-                        "Reordered seeds: %d preset, %d from @%s's following, %d others. Total: %d seeds.",
+                        "Reordered seeds: %d preset, %d from @%s's following (%d in archive, %d new shadow seeds), %d others. Total: %d seeds.",
                         len(priority_seeds),
-                        len(center_priority_seeds),
+                        len(center_following_in_archive) + len(shadow_seeds),
                         args.center,
+                        len(center_following_in_archive),
+                        len(shadow_seeds),
                         len(other_seeds),
                         len(seeds)
                     )

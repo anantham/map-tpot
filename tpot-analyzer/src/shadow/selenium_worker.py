@@ -169,6 +169,9 @@ class SeleniumWorker:
     def fetch_followers_you_follow(self, username: str) -> UserListCapture:
         return self._collect_user_list(username=username, list_type="followers_you_follow")
 
+    def fetch_verified_followers(self, username: str) -> UserListCapture:
+        return self._collect_user_list(username=username, list_type="verified_followers")
+
     def fetch_profile_overview(self, username: str) -> Optional[ProfileOverview]:
         if not self._ensure_driver():
             return None
@@ -321,18 +324,42 @@ class SeleniumWorker:
                 website = self._extract_website(cell)
                 profile_image_url = self._extract_profile_image_url(cell)
                 profile_url = f"https://x.com/{handle}"
+
                 existing = discovered.get(handle)
                 if existing:
                     existing.list_types.add(list_type)
+                    updated_fields = []
                     if not existing.display_name and display_name:
                         existing.display_name = display_name
+                        updated_fields.append(f"display_name={display_name}")
                     if not existing.bio and bio:
                         existing.bio = bio
+                        bio_preview = (bio[:60] + "...") if len(bio) > 60 else bio
+                        updated_fields.append(f"bio=\"{bio_preview}\"")
                     if not existing.website and website:
                         existing.website = website
+                        updated_fields.append(f"website={website}")
                     if not existing.profile_image_url and profile_image_url:
                         existing.profile_image_url = profile_image_url
+                        updated_fields.append(f"image={profile_image_url}")
+
+                    if updated_fields:
+                        LOGGER.info("[%s] Already captured @%s - updated: %s", list_type, handle, ", ".join(updated_fields))
+                    else:
+                        LOGGER.debug("[%s] Already captured @%s - no new fields", list_type, handle)
                     continue
+
+                # Log the extracted data
+                bio_preview = (bio[:80] + "...") if bio and len(bio) > 80 else bio
+                LOGGER.info(
+                    "Extracted: @%s (%s) - \"%s\" | website: %s | image: %s",
+                    handle,
+                    display_name or "(no name)",
+                    bio_preview or "(no bio)",
+                    website or "(none)",
+                    profile_image_url or "(none)"
+                )
+
                 captured = CapturedUser(
                     username=handle,
                     display_name=display_name,
@@ -384,41 +411,69 @@ class SeleniumWorker:
 
     @staticmethod
     def _extract_handle(cell) -> str | None:
-        links = cell.find_elements(By.TAG_NAME, "a")
-        if LOGGER.isEnabledFor(logging.DEBUG):
-            href_samples = [link.get_attribute("href") for link in links[:3]]
-            LOGGER.debug(
-                "Inspecting cell links count=%s href_samples=%s",
-                len(links),
-                href_samples,
-            )
-        for link in links:
-            href = link.get_attribute("href")
-            handle = SeleniumWorker._handle_from_href(href)
-            if handle:
-                return handle
-        text = cell.text or ""
-        for token in text.split():
-            if token.startswith("@"):
-                return token[1:]
+        from selenium.common.exceptions import StaleElementReferenceException
+
+        try:
+            links = cell.find_elements(By.TAG_NAME, "a")
+            if LOGGER.isEnabledFor(logging.DEBUG):
+                # Extract hrefs carefully to avoid stale elements
+                href_samples = []
+                for link in links[:3]:
+                    try:
+                        href_samples.append(link.get_attribute("href"))
+                    except StaleElementReferenceException:
+                        href_samples.append("<stale>")
+                LOGGER.debug(
+                    "Inspecting cell links count=%s href_samples=%s",
+                    len(links),
+                    href_samples,
+                )
+            for link in links:
+                try:
+                    href = link.get_attribute("href")
+                    handle = SeleniumWorker._handle_from_href(href)
+                    if handle:
+                        return handle
+                except StaleElementReferenceException:
+                    # Element became stale, skip it
+                    LOGGER.debug("Stale link element encountered, skipping")
+                    continue
+            # Fallback: try to get text from cell
+            try:
+                text = cell.text or ""
+                for token in text.split():
+                    if token.startswith("@"):
+                        return token[1:]
+            except StaleElementReferenceException:
+                LOGGER.debug("Cell became stale while extracting text")
+        except StaleElementReferenceException:
+            LOGGER.debug("Cell is stale, cannot extract handle")
         return None
 
     def _extract_display_name(self, cell) -> str | None:
+        from selenium.common.exceptions import StaleElementReferenceException
+
         # Try structured approach first
         try:
             username_div = cell.find_element(By.CSS_SELECTOR, "div[data-testid='UserName']")
             spans = username_div.find_elements(By.TAG_NAME, "span")
             for span in spans:
-                value = span.text.strip()
-                if value and not value.startswith("@") and len(value) <= 80:
-                    return value
-        except NoSuchElementException:
+                try:
+                    value = span.text.strip()
+                    if value and not value.startswith("@") and len(value) <= 80:
+                        return value
+                except StaleElementReferenceException:
+                    continue
+        except (NoSuchElementException, StaleElementReferenceException):
             pass  # Fallback to text parsing
 
         # Fallback: parse the text block
-        text_lines = [line.strip() for line in (cell.text or "").splitlines() if line.strip()]
-        if text_lines and not text_lines[0].startswith("@"):
-            return text_lines[0]
+        try:
+            text_lines = [line.strip() for line in (cell.text or "").splitlines() if line.strip()]
+            if text_lines and not text_lines[0].startswith("@"):
+                return text_lines[0]
+        except StaleElementReferenceException:
+            LOGGER.debug("Cell became stale while extracting display name")
         return None
 
     @staticmethod
@@ -446,54 +501,75 @@ class SeleniumWorker:
         return cleaned
 
     def _extract_bio(self, cell) -> Optional[str]:
+        from selenium.common.exceptions import StaleElementReferenceException
+
         # Try structured approach first
         try:
             bio_nodes = cell.find_elements(By.CSS_SELECTOR, "div[data-testid='UserDescription']")
             if bio_nodes and bio_nodes[0].text.strip():
                 return bio_nodes[0].text.strip()
-        except NoSuchElementException:
+        except (NoSuchElementException, StaleElementReferenceException):
             pass  # Fallback to text parsing
 
         # Fallback: parse the text block
-        text_lines = [line.strip() for line in (cell.text or "").splitlines() if line.strip()]
-        bio_start_index = -1
-        for i, line in enumerate(text_lines):
-            if line.startswith('@'):
-                # Bio starts after the handle and potentially a "Follow" line
-                if i + 1 < len(text_lines) and text_lines[i+1] in {"Follow", "Following"}:
-                    bio_start_index = i + 2
-                else:
-                    bio_start_index = i + 1
-                break
-        
-        if bio_start_index != -1 and bio_start_index < len(text_lines):
-            return " ".join(text_lines[bio_start_index:])
-            
+        try:
+            text_lines = [line.strip() for line in (cell.text or "").splitlines() if line.strip()]
+            bio_start_index = -1
+            for i, line in enumerate(text_lines):
+                if line.startswith('@'):
+                    # Bio starts after the handle and potentially a "Follow" line
+                    if i + 1 < len(text_lines) and text_lines[i+1] in {"Follow", "Following"}:
+                        bio_start_index = i + 2
+                    else:
+                        bio_start_index = i + 1
+                    break
+
+            if bio_start_index != -1 and bio_start_index < len(text_lines):
+                return " ".join(text_lines[bio_start_index:])
+        except StaleElementReferenceException:
+            LOGGER.debug("Cell became stale while extracting bio")
+
         return None
 
     @staticmethod
     def _extract_website(cell) -> Optional[str]:
-        anchors = cell.find_elements(By.CSS_SELECTOR, "a[data-testid='UserUrl']")
-        if not anchors:
-            anchors = cell.find_elements(By.CSS_SELECTOR, "a[href]")
-        for anchor in anchors:
-            href = (anchor.get_attribute("href") or "").strip()
-            if not href:
-                continue
-            if "twitter.com" in href or href.startswith("/"):
-                continue
-            return href
+        from selenium.common.exceptions import StaleElementReferenceException
+
+        try:
+            anchors = cell.find_elements(By.CSS_SELECTOR, "a[data-testid='UserUrl']")
+            if not anchors:
+                anchors = cell.find_elements(By.CSS_SELECTOR, "a[href]")
+            for anchor in anchors:
+                try:
+                    href = (anchor.get_attribute("href") or "").strip()
+                    if not href:
+                        continue
+                    if "twitter.com" in href or href.startswith("/"):
+                        continue
+                    return href
+                except StaleElementReferenceException:
+                    continue
+        except StaleElementReferenceException:
+            LOGGER.debug("Cell became stale while extracting website")
         return None
 
     @staticmethod
     def _extract_profile_image_url(cell) -> Optional[str]:
-        images = cell.find_elements(By.CSS_SELECTOR, "img[src]")
-        for img in images:
-            src = (img.get_attribute("src") or "").strip()
-            if not src:
-                continue
-            if "twimg.com" in src or "profile_images" in src:
-                return src
+        from selenium.common.exceptions import StaleElementReferenceException
+
+        try:
+            images = cell.find_elements(By.CSS_SELECTOR, "img[src]")
+            for img in images:
+                try:
+                    src = (img.get_attribute("src") or "").strip()
+                    if not src:
+                        continue
+                    if "twimg.com" in src or "profile_images" in src:
+                        return src
+                except StaleElementReferenceException:
+                    continue
+        except StaleElementReferenceException:
+            LOGGER.debug("Cell became stale while extracting profile image")
         return None
 
     def _extract_profile_overview(self, username: str) -> Optional[ProfileOverview]:
@@ -603,6 +679,10 @@ class SeleniumWorker:
             f"/{username}/{list_type.lower()}",
             f"/{username}/{list_type.replace('_', '')}",
         ]
+
+        # Twitter now uses verified_followers instead of followers
+        if list_type == "followers":
+            href_variants.append(f"/{username}/verified_followers")
 
         for href in href_variants:
             anchors = self._driver.find_elements(By.CSS_SELECTOR, f"a[href='{href}']")

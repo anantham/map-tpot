@@ -71,6 +71,7 @@ class ShadowEnrichmentConfig:
     selenium_scroll_delay_min: float = 5.0
     selenium_scroll_delay_max: float = 40.0
     selenium_max_no_change_scrolls: int = 6
+    selenium_retry_delays: List[float] = None
     user_pause_seconds: float = 5.0
     action_delay_min: float = 5.0
     action_delay_max: float = 40.0
@@ -85,6 +86,11 @@ class ShadowEnrichmentConfig:
     preview_sample_size: int = 10
     profile_only: bool = False
     profile_only_all: bool = False
+
+    def __post_init__(self):
+        """Set default retry delays if not provided."""
+        if self.selenium_retry_delays is None:
+            self.selenium_retry_delays = [5.0, 15.0, 60.0]
 
 
 class HybridShadowEnricher:
@@ -109,6 +115,7 @@ class HybridShadowEnricher:
             action_delay_max=config.action_delay_max,
             chrome_binary=config.chrome_binary,
             require_confirmation=config.wait_for_manual_login,
+            retry_delays=config.selenium_retry_delays,
         )
         self._selenium = SeleniumWorker(selenium_config)
         self._api: Optional[XAPIClient] = None
@@ -120,6 +127,29 @@ class HybridShadowEnricher:
             self._api = XAPIClient(api_config)
         self._resolution_cache: Dict[str, Dict[str, object]] = {}
         self._first_scrape_confirmed = not config.confirm_first_scrape
+
+    def _log_pre_run_summary(self, seed: SeedAccount):
+        logger = logging.getLogger(__name__)
+        logger.info(f"--- Pre-run DB status for @{seed.username} ---")
+
+        # Get account info
+        account = self._store.get_shadow_account(seed.account_id)
+        if account:
+            logger.info(f"  Account found: followers={account.followers_count}, following={account.following_count}, fetched_at={account.fetched_at}")
+        else:
+            logger.info("  Account not found in DB.")
+
+        # Get last scrape metrics
+        metrics = self._store.get_last_scrape_metrics(seed.account_id)
+        if metrics:
+            logger.info(f"  Last scrape: run_at={metrics.run_at}, following_captured={metrics.following_captured}, followers_captured={metrics.followers_captured}")
+        else:
+            logger.info("  No previous scrape metrics found.")
+
+        # Get edge summary
+        edge_summary = self._store.edge_summary_for_seed(seed.account_id)
+        logger.info(f"  Edge counts: following={edge_summary['following']}, followers={edge_summary['followers']}")
+        logger.info("-------------------------------------------------")
 
     # ------------------------------------------------------------------
     # Enrichment Workflow Helpers
@@ -142,6 +172,11 @@ class HybridShadowEnricher:
         edge_summary = self._store.edge_summary_for_seed(seed.account_id)
         has_edges = edge_summary["following"] > 0 and edge_summary["followers"] > 0
         has_profile = self._store.is_seed_profile_complete(seed.account_id)
+
+        # If --skip-if-ever-scraped is enabled, skip this policy check entirely
+        # (it was already handled earlier in the enrich() method)
+        if self._policy.skip_if_ever_scraped:
+            return (False, None, edge_summary, None)
 
         # Check if we have complete data
         if not self._config.profile_only and has_edges and has_profile:
@@ -476,18 +511,18 @@ class HybridShadowEnricher:
         self,
         seed: SeedAccount,
         overview: ProfileOverview,
-    ) -> tuple[Optional[UserListCapture], Optional[UserListCapture]]:
+    ) -> tuple[Optional[UserListCapture], Optional[UserListCapture], Optional[UserListCapture]]:
         """Refresh followers lists with policy-driven caching.
 
         Returns:
-            tuple of (followers_capture, followers_you_follow_capture)
+            tuple of (followers_capture, followers_you_follow_capture, verified_followers_capture)
         """
         if not self._config.include_followers:
             LOGGER.info(
                 "Skipping @%s followers list: include_followers disabled in config",
                 seed.username,
             )
-            return (None, None)
+            return (None, None, None)
 
         # Check if refresh is needed based on policy
         should_refresh, reason = self._should_refresh_list(
@@ -496,12 +531,12 @@ class HybridShadowEnricher:
 
         if not should_refresh:
             LOGGER.info("Skipping @%s followers list: %s", seed.username, reason)
-            return (None, None)
+            return (None, None, None)
 
         # Prompt user if needed
         if not self._confirm_refresh(seed, "followers", reason):
             LOGGER.warning("Skipping @%s followers list: user declined", seed.username)
-            return (None, None)
+            return (None, None, None)
 
         # Scrape followers
         LOGGER.info("Scraping @%s followers list (reason: %s)...", seed.username, reason)
@@ -515,6 +550,19 @@ class HybridShadowEnricher:
             )
         else:
             LOGGER.warning("✗ Failed to scrape @%s followers list", seed.username)
+
+        # Scrape verified_followers
+        LOGGER.info("Scraping @%s verified-followers list...", seed.username)
+        verified_followers_capture = self._selenium.fetch_verified_followers(seed.username)
+        if verified_followers_capture:
+            LOGGER.info(
+                "✓ Scraped @%s verified-followers: captured %d/%s accounts",
+                seed.username,
+                len(verified_followers_capture.entries),
+                verified_followers_capture.claimed_total if verified_followers_capture.claimed_total else "?",
+            )
+        else:
+            LOGGER.warning("✗ Failed to scrape @%s verified-followers list", seed.username)
 
         # Scrape followers_you_follow if enabled
         followers_you_follow_capture = None
@@ -538,7 +586,7 @@ class HybridShadowEnricher:
                 seed.username,
             )
 
-        return (followers_capture, followers_you_follow_capture)
+        return (followers_capture, followers_you_follow_capture, verified_followers_capture)
 
     # ------------------------------------------------------------------
     # Public API
@@ -551,6 +599,8 @@ class HybridShadowEnricher:
             if not seed.username:
                 LOGGER.warning("Seed %s missing username; skipping", seed.account_id)
                 continue
+
+            self._log_pre_run_summary(seed)
 
             # Check if --skip-if-ever-scraped flag is enabled
             if self._policy.skip_if_ever_scraped:
@@ -707,7 +757,7 @@ class HybridShadowEnricher:
 
             # Use policy-driven refresh helpers
             following_capture = self._refresh_following(seed, overview)
-            followers_capture, followers_you_follow_capture = self._refresh_followers(seed, overview)
+            followers_capture, followers_you_follow_capture, verified_followers_capture = self._refresh_followers(seed, overview)
 
             # Check if policy skipped all lists (preserve baseline, don't corrupt metrics)
             policy_skipped_all = (following_capture is None and followers_capture is None)
@@ -767,7 +817,7 @@ class HybridShadowEnricher:
                 else []
             )
             followers_entries: List[CapturedUser] = self._combine_captures(
-                [capture for capture in (followers_capture, followers_you_follow_capture) if capture]
+                [capture for capture in (followers_capture, followers_you_follow_capture, verified_followers_capture) if capture]
             )
             followers_you_follow_entries: List[CapturedUser] = (
                 list(followers_you_follow_capture.entries)
