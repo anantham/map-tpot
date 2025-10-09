@@ -348,6 +348,35 @@ class HybridShadowEnricher:
             },
         }
 
+    def _would_skip_list_by_history(
+        self,
+        last_metrics: ScrapeRunMetrics,
+        list_type: str,  # "following" or "followers"
+    ) -> bool:
+        """Check if a list would be skipped based ONLY on historical data (no profile fetch needed).
+
+        Returns:
+            True if the list would be skipped, False otherwise
+        """
+        # Get captured count from last run
+        if list_type == "following":
+            last_captured = last_metrics.following_captured
+        else:  # "followers"
+            last_captured = last_metrics.followers_captured
+
+        # Rule: If we have very few captured accounts, it's worth trying again.
+        MIN_RAW_TO_RETRY = 5
+        if last_captured is None or last_captured <= MIN_RAW_TO_RETRY:
+            return False  # Would NOT skip (would refresh)
+
+        # Rule: If we have a decent number of accounts, only refresh if the data is very old.
+        age_days = (datetime.utcnow() - last_metrics.run_at).days
+        if age_days > self._policy.list_refresh_days:
+            return False  # Would NOT skip (would refresh)
+
+        # Otherwise, skip
+        return True
+
     def _should_refresh_list(
         self,
         seed: SeedAccount,
@@ -722,6 +751,51 @@ class HybridShadowEnricher:
             start = time.perf_counter()
             LOGGER.info("Enriching @%s...", seed.username)
 
+            # Optimization: If --skip-if-ever-scraped is enabled, check if we can skip profile fetch entirely
+            # by checking if policy would skip both edge lists based on historical data alone
+            if self._policy.skip_if_ever_scraped and not cached_overview:
+                last_metrics = self._store.get_last_scrape_metrics(seed.account_id)
+                if last_metrics:
+                    # Check if both lists would be skipped based on historical data
+                    following_would_skip = self._would_skip_list_by_history(last_metrics, "following")
+                    followers_would_skip = self._would_skip_list_by_history(last_metrics, "followers")
+
+                    if following_would_skip and followers_would_skip:
+                        LOGGER.info(
+                            "Skipping @%s — both edge lists are fresh (last scraped %d days ago) and --skip-if-ever-scraped is enabled",
+                            seed.username,
+                            (datetime.utcnow() - last_metrics.run_at).days,
+                        )
+                        skip_metrics = ScrapeRunMetrics(
+                            seed_account_id=seed.account_id,
+                            seed_username=seed.username or "",
+                            run_at=datetime.utcnow(),
+                            duration_seconds=0.0,
+                            following_captured=0,
+                            followers_captured=0,
+                            followers_you_follow_captured=0,
+                            following_claimed_total=None,
+                            followers_claimed_total=None,
+                            followers_you_follow_claimed_total=None,
+                            following_coverage=None,
+                            followers_coverage=None,
+                            followers_you_follow_coverage=None,
+                            accounts_upserted=0,
+                            edges_upserted=0,
+                            discoveries_upserted=0,
+                            skipped=True,
+                            skip_reason="both_lists_fresh_and_skip_if_ever_scraped_enabled",
+                            error_type=None,
+                            error_details=None,
+                        )
+                        self._store.record_scrape_metrics(skip_metrics)
+                        summary[seed.account_id] = {
+                            "username": seed.username,
+                            "skipped": True,
+                            "reason": "both_lists_fresh_and_skip_if_ever_scraped_enabled",
+                        }
+                        continue
+
             # Fetch profile overview first to check counts for policy
             overview = cached_overview or self._selenium.fetch_profile_overview(seed.username)
             if not overview:
@@ -763,6 +837,42 @@ class HybridShadowEnricher:
             policy_skipped_all = (following_capture is None and followers_capture is None)
 
             if policy_skipped_all:
+                # If --skip-if-ever-scraped is enabled, don't waste time on metadata-only updates
+                if self._policy.skip_if_ever_scraped:
+                    LOGGER.info(
+                        "Skipping @%s — policy skipped all edge lists and --skip-if-ever-scraped is enabled (metadata update skipped)",
+                        seed.username,
+                    )
+                    skip_metrics = ScrapeRunMetrics(
+                        seed_account_id=seed.account_id,
+                        seed_username=seed.username or "",
+                        run_at=datetime.utcnow(),
+                        duration_seconds=0.0,
+                        following_captured=0,
+                        followers_captured=0,
+                        followers_you_follow_captured=0,
+                        following_claimed_total=None,
+                        followers_claimed_total=None,
+                        followers_you_follow_claimed_total=None,
+                        following_coverage=None,
+                        followers_coverage=None,
+                        followers_you_follow_coverage=None,
+                        accounts_upserted=0,
+                        edges_upserted=0,
+                        discoveries_upserted=0,
+                        skipped=True,
+                        skip_reason="policy_skipped_all_lists_and_skip_if_ever_scraped_enabled",
+                        error_type=None,
+                        error_details=None,
+                    )
+                    self._store.record_scrape_metrics(skip_metrics)
+                    summary[seed.account_id] = {
+                        "username": seed.username,
+                        "skipped": True,
+                        "reason": "policy_skipped_all_lists_and_skip_if_ever_scraped_enabled",
+                    }
+                    continue
+
                 # Even if lists are fresh, refresh seed profile metadata for canonical counts
                 account_record = self._make_seed_account_record(seed, overview)
                 LOGGER.info(
