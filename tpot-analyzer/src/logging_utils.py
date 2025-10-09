@@ -1,8 +1,7 @@
 
-"""Colored, filtered console logging for enrichment scripts.""" 
+"""Colored, filtered console logging for enrichment scripts."""
 import logging
 import logging.handlers
-import re
 from pathlib import Path
 
 class Colors:

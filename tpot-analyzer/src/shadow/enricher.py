@@ -348,6 +348,53 @@ class HybridShadowEnricher:
             },
         }
 
+    def _check_list_freshness_across_runs(
+        self,
+        account_id: str,
+        list_type: str,  # "following" or "followers"
+    ) -> tuple[bool, int, int]:
+        """Check if a list has fresh data across ANY recent run, not just the last one.
+
+        This is smarter than checking only the last run, because different lists might
+        have been scraped in different runs (e.g., following in run #1, followers in run #2).
+
+        Returns:
+            tuple of (would_skip: bool, days_ago: int, captured_count: int)
+        """
+        # Query the database for recent runs with data for this list
+        # We only need to look at the last N days (policy.list_refresh_days)
+        from sqlalchemy import select, desc
+        from datetime import timedelta
+
+        cutoff_date = datetime.utcnow() - timedelta(days=self._policy.list_refresh_days)
+
+        def _query(engine):
+            with engine.begin() as conn:
+                query = select(self._store._metrics_table).where(
+                    self._store._metrics_table.c.seed_account_id == account_id,
+                    self._store._metrics_table.c.run_at >= cutoff_date,
+                ).order_by(desc(self._store._metrics_table.c.run_at))
+                results = conn.execute(query).fetchall()
+                return results
+
+        recent_metrics = self._store._execute_with_retry("check_list_freshness", _query)
+
+        # Look for the most recent run where this list was successfully scraped
+        MIN_RAW_TO_SKIP = 5
+        for metrics_row in recent_metrics:
+            if list_type == "following":
+                captured = metrics_row.following_captured
+            else:  # "followers"
+                captured = metrics_row.followers_captured
+
+            # Found a run with meaningful data for this list
+            if captured is not None and captured > MIN_RAW_TO_SKIP:
+                age_days = (datetime.utcnow() - metrics_row.run_at).days
+                return (True, age_days, captured)  # Would skip (fresh data exists)
+
+        # No recent run with good data for this list
+        return (False, 0, 0)  # Would NOT skip (needs refresh)
+
     def _would_skip_list_by_history(
         self,
         last_metrics: ScrapeRunMetrics,
@@ -643,6 +690,20 @@ class HybridShadowEnricher:
             # Check if --skip-if-ever-scraped flag is enabled
             if self._policy.skip_if_ever_scraped:
                 last_scrape = self._store.get_last_scrape_metrics(seed.account_id)
+
+                # CRITICAL: Skip immediately if account was previously detected as deleted/suspended
+                # This prevents wasting time trying to visit non-existent profiles
+                if last_scrape and last_scrape.skipped and last_scrape.skip_reason == "account_deleted_or_suspended":
+                    days_since = (datetime.utcnow() - last_scrape.run_at).days
+                    LOGGER.info("⏭️  SKIPPED — account previously detected as deleted/suspended")
+                    LOGGER.info("   └─ Last detected: %d days ago", days_since)
+                    summary[seed.account_id] = {
+                        "username": seed.username,
+                        "skipped": True,
+                        "reason": "previously_detected_as_deleted",
+                    }
+                    continue
+
                 if last_scrape and not last_scrape.skipped:
                     # Check if we have complete metadata AND sufficient edge coverage
                     account = self._store.get_shadow_account(seed.account_id)
@@ -766,19 +827,15 @@ class HybridShadowEnricher:
 
             # Optimization: If --skip-if-ever-scraped is enabled, check if we can skip profile fetch entirely
             # by checking if policy would skip both edge lists based on historical data alone
+            # IMPROVEMENT: Check multiple recent runs, not just the last one
             if self._policy.skip_if_ever_scraped and not cached_overview:
-                last_metrics = self._store.get_last_scrape_metrics(seed.account_id)
-                if last_metrics:
-                    # Check if both lists would be skipped based on historical data
-                    following_would_skip = self._would_skip_list_by_history(last_metrics, "following")
-                    followers_would_skip = self._would_skip_list_by_history(last_metrics, "followers")
+                following_would_skip, following_days_ago, following_captured = self._check_list_freshness_across_runs(seed.account_id, "following")
+                followers_would_skip, followers_days_ago, followers_captured = self._check_list_freshness_across_runs(seed.account_id, "followers")
 
-                    if following_would_skip and followers_would_skip:
-                        days_ago = (datetime.utcnow() - last_metrics.run_at).days
+                if following_would_skip and followers_would_skip:
                         LOGGER.info("⏭️  SKIPPED — both edge lists are fresh (no profile visit needed)")
-                        LOGGER.info("   └─ Last scraped: %d days ago", days_ago)
-                        LOGGER.info("   └─ Following captured: %s", last_metrics.following_captured or 0)
-                        LOGGER.info("   └─ Followers captured: %s", last_metrics.followers_captured or 0)
+                        LOGGER.info("   └─ Following: %s accounts captured %d days ago", following_captured, following_days_ago)
+                        LOGGER.info("   └─ Followers: %s accounts captured %d days ago", followers_captured, followers_days_ago)
                         skip_metrics = ScrapeRunMetrics(
                             seed_account_id=seed.account_id,
                             seed_username=seed.username or "",
@@ -849,10 +906,16 @@ class HybridShadowEnricher:
                 LOGGER.warning("⏭️  SKIPPED — account deleted or suspended")
                 LOGGER.info("   └─ Saving account record with deleted marker")
                 # Save the deleted account record to DB
+                # Ensure display_name isn't also the marker (defensive)
+                display_name = (
+                    None
+                    if overview.display_name == "[ACCOUNT DELETED OR SUSPENDED]"
+                    else overview.display_name
+                )
                 deleted_account = ShadowAccount(
                     account_id=seed.account_id,
                     username=seed.username,
-                    display_name=overview.display_name,
+                    display_name=display_name,
                     bio=overview.bio,
                     location=overview.location,
                     website=overview.website,
@@ -879,7 +942,7 @@ class HybridShadowEnricher:
                     following_coverage=None,
                     followers_coverage=None,
                     followers_you_follow_coverage=None,
-                    accounts_upserted=0,
+                    accounts_upserted=1,  # We upserted the deleted account marker
                     edges_upserted=0,
                     discoveries_upserted=0,
                     skipped=True,

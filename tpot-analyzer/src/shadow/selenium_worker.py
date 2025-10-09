@@ -545,28 +545,34 @@ class SeleniumWorker:
 
     @staticmethod
     def _clean_bio_text(bio: str) -> str:
-        """Remove Twitter UI relationship indicators from bio text."""
+        """Remove Twitter UI relationship indicators from bio text.
+
+        Twitter adds badges like "Follows you" and "Following" as standalone elements.
+        These appear at the start of the bio text, typically followed by whitespace or another badge.
+        We need to be careful not to strip legitimate user content like "Following my dreams".
+        """
         if not bio:
             return bio
 
-        # Strip relationship indicators that Twitter adds to bios
-        # These appear at the beginning of the bio text in the DOM
+        import re
+
+        # Twitter badges are typically standalone at the start, followed by:
+        # - newline (\n)
+        # - another badge
+        # - end of string (when bio is empty)
+        # - significant whitespace (multiple spaces)
+
         cleaned = bio.strip()
 
-        # Remove "Follows you" badge
-        if cleaned.startswith("Follows you"):
-            cleaned = cleaned[len("Follows you"):].strip()
+        # Pattern: "Follows you" or "Following" at start, followed by newline, another badge, or end
+        # Use \s{2,} to match 2+ spaces (Twitter often uses multiple spaces between badges and content)
+        pattern = r'^(Follows you|Following)(\s{2,}|\n|(?=Follows you)|(?=Following)|$)'
 
-        # Remove "Following" badge
-        if cleaned.startswith("Following"):
-            cleaned = cleaned[len("Following"):].strip()
-
-        # Sometimes both appear: "Follows you Following actual bio text"
-        # So we need to check again after first removal
-        if cleaned.startswith("Follows you"):
-            cleaned = cleaned[len("Follows you"):].strip()
-        if cleaned.startswith("Following"):
-            cleaned = cleaned[len("Following"):].strip()
+        # Keep removing badges until none remain
+        prev_cleaned = None
+        while prev_cleaned != cleaned:
+            prev_cleaned = cleaned
+            cleaned = re.sub(pattern, '', cleaned, flags=re.MULTILINE).strip()
 
         return cleaned
 
