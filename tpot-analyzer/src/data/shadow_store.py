@@ -653,17 +653,17 @@ class ShadowStore:
             "followers_claimed_total": metrics.followers_claimed_total,
             "followers_you_follow_claimed_total": metrics.followers_you_follow_claimed_total,
             "following_coverage": (
-                int(metrics.following_coverage * 10000)
+                round(metrics.following_coverage * 100, 2)  # Store as percentage (0-100)
                 if metrics.following_coverage is not None
                 else None
             ),
             "followers_coverage": (
-                int(metrics.followers_coverage * 10000)
+                round(metrics.followers_coverage * 100, 2)  # Store as percentage (0-100)
                 if metrics.followers_coverage is not None
                 else None
             ),
             "followers_you_follow_coverage": (
-                int(metrics.followers_you_follow_coverage * 10000)
+                round(metrics.followers_you_follow_coverage * 100, 2)  # Store as percentage (0-100)
                 if metrics.followers_you_follow_coverage is not None
                 else None
             ),
