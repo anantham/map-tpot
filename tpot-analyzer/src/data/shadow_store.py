@@ -20,6 +20,7 @@ from sqlalchemy import (
     Table,
     func,
     select,
+    tuple_,
 )
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
@@ -343,6 +344,7 @@ class ShadowStore:
         if not edges:
             return 0
         rows = []
+        edge_keys = []  # Track keys for existence check
         for edge in edges:
             rows.append(
                 {
@@ -356,6 +358,25 @@ class ShadowStore:
                     "metadata": edge.metadata,
                 }
             )
+            edge_keys.append((edge.source_id, edge.target_id, edge.direction))
+
+        # Check which edges already exist in the database
+        # This allows us to accurately count new vs duplicate edges
+        existing_count = 0
+        with self._engine.connect() as conn:
+            # Use tuple_ IN query for efficient batch check
+            existing_result = conn.execute(
+                select(func.count()).select_from(self._edge_table).where(
+                    tuple_(
+                        self._edge_table.c.source_id,
+                        self._edge_table.c.target_id,
+                        self._edge_table.c.direction,
+                    ).in_(edge_keys)
+                )
+            )
+            existing_count = existing_result.scalar() or 0
+
+        new_count = len(rows) - existing_count
 
         def _op(engine: Engine) -> int:
             with engine.begin() as conn:
@@ -375,7 +396,7 @@ class ShadowStore:
                         set_=update_cols,
                     )
                 )
-            return len(rows)
+            return new_count  # Return actual new edges, not total attempted
 
         return self._execute_with_retry("upsert_edges", _op)
 
