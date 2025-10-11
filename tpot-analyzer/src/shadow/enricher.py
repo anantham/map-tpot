@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import logging
 import random
+import select
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -445,44 +447,67 @@ class HybridShadowEnricher:
             )
             return (True, "first_run")
 
-        # Get captured count from last run
+        # Get captured count from last run metrics
         if list_type == "following":
             last_captured = last_metrics.following_captured
         else:  # "followers"
             last_captured = last_metrics.followers_captured
 
-        # Rule: If we have very few captured accounts, it's worth trying again.
+        # CRITICAL: Also check actual edges in DB to detect corruption
+        # Metrics might say we captured 95, but DB could have corrupted/incomplete data
+        edge_summary = self._store.edge_summary_for_seed(seed.account_id)
+        actual_edge_count = edge_summary.get(list_type, 0)
+
         MIN_RAW_TO_RETRY = 5
+
+        # Rule 1: If metrics show low captured count, retry
         if last_captured is None or last_captured <= MIN_RAW_TO_RETRY:
             LOGGER.info(
-                "@%s %s list has low captured count (%s <= %d); refresh needed.",
+                "@%s %s list has low captured count in metrics (%s <= %d); refresh needed.",
                 seed.username,
                 list_type,
                 last_captured,
                 MIN_RAW_TO_RETRY,
             )
-            return (True, "low_captured_count")
+            return (True, "low_captured_count_in_metrics")
 
-        # Rule: If we have a decent number of accounts, only refresh if the data is very old.
+        # Rule 2: CRITICAL - Verify DB actually has edges matching the metrics
+        # If metrics say we captured data but DB is empty/sparse, that's corruption!
+        if actual_edge_count <= MIN_RAW_TO_RETRY:
+            LOGGER.warning(
+                "⚠️  DATA INTEGRITY CHECK: @%s %s metrics show %d captured, but DB only has %d edges!",
+                seed.username,
+                list_type,
+                last_captured,
+                actual_edge_count,
+            )
+            LOGGER.warning(
+                "   └─ Likely data corruption or partial write - forcing re-scrape to repair data"
+            )
+            return (True, "metrics_db_mismatch_corruption_detected")
+
+        # Rule 3: If we have sufficient edges, only refresh if data is very old
         age_days = (datetime.utcnow() - last_metrics.run_at).days
         if age_days > self._policy.list_refresh_days:
             LOGGER.info(
-                "@%s %s list is %d days old (threshold: %d days) - refresh needed despite sufficient captured count (%d).",
+                "@%s %s list is %d days old (threshold: %d days) - refresh needed despite sufficient data (metrics: %d captured, DB: %d edges).",
                 seed.username,
                 list_type,
                 age_days,
                 self._policy.list_refresh_days,
                 last_captured,
+                actual_edge_count,
             )
             return (True, "age_threshold")
 
         # Otherwise, the data is considered fresh enough.
         LOGGER.info(
-            "@%s %s list is considered fresh (age: %d days, captured: %d) - skipping",
+            "@%s %s list is considered fresh (age: %d days, metrics: %d captured, DB: %d edges) - skipping",
             seed.username,
             list_type,
             age_days,
             last_captured,
+            actual_edge_count,
         )
         return (False, f"{list_type}_fresh_sufficient_capture")
 
@@ -1590,6 +1615,38 @@ class HybridShadowEnricher:
     # ------------------------------------------------------------------
     # Human confirmation helper
     # ------------------------------------------------------------------
+    @staticmethod
+    def _input_with_timeout(prompt: str, timeout_seconds: int = 30) -> Optional[str]:
+        """Get user input with a timeout. Auto-accepts after timeout.
+
+        Args:
+            prompt: The prompt to display to the user
+            timeout_seconds: Seconds to wait before auto-accepting (default 30)
+
+        Returns:
+            User input string, or None if timeout occurred (auto-accept)
+        """
+        print(prompt, end='', flush=True)
+
+        # Use select to wait for input with timeout (Unix/macOS only)
+        # On Windows, this will fall back to regular input (no timeout)
+        if sys.platform == 'win32':
+            # Windows doesn't support select on stdin, fall back to regular input
+            return input()
+
+        # Print countdown timer
+        print(f" (auto-accepting in {timeout_seconds}s)", flush=True)
+
+        ready, _, _ = select.select([sys.stdin], [], [], timeout_seconds)
+
+        if ready:
+            # User provided input before timeout
+            return sys.stdin.readline().strip()
+        else:
+            # Timeout occurred - auto-accept
+            print("\n⏱️  Timeout - auto-accepting...")
+            return None  # None signals auto-accept
+
     def _confirm_first_scrape(
         self,
         seed_username: str,
@@ -1663,7 +1720,15 @@ class HybridShadowEnricher:
             return
 
         while True:
-            response = input("Proceed with enrichment? [Y/n]: ").strip().lower()
+            response = self._input_with_timeout("Proceed with enrichment? [Y/n]:", timeout_seconds=30)
+
+            # None means timeout occurred - auto-accept
+            if response is None:
+                self._first_scrape_confirmed = True
+                print("Continuing enrichment…\n")
+                return
+
+            response = response.strip().lower()
             if response in ("", "y", "yes"):
                 self._first_scrape_confirmed = True
                 print("Continuing enrichment…\n")

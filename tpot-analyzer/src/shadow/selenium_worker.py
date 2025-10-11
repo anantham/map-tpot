@@ -331,6 +331,30 @@ class SeleniumWorker:
         
         self._apply_delay(f"{list_type}-viewport-ready")
 
+        # Validate that the timeline actually loaded with content
+        # Check for empty state indicators (Twitter shows these when lists are truly empty)
+        try:
+            timeline_section = self._driver.find_element(By.CSS_SELECTOR, 'section[role="region"]')
+            initial_cells = timeline_section.find_elements(By.CSS_SELECTOR, '[data-testid="UserCell"]')
+
+            if len(initial_cells) == 0:
+                # Check if there's an empty state message
+                empty_state_elements = self._driver.find_elements(By.CSS_SELECTOR, '[data-testid="emptyState"]')
+                if empty_state_elements:
+                    LOGGER.warning(
+                        "⚠️  Timeline shows empty state for @%s %s list - likely has 0 %s",
+                        username, list_type, "following" if list_type == "following" else "followers"
+                    )
+                else:
+                    LOGGER.warning(
+                        "⚠️  No UserCells found in main timeline for @%s %s list (after initial load)",
+                        username, list_type
+                    )
+                    # Save snapshot to debug timeline loading issues
+                    self._save_page_snapshot(f"{username}_{list_type}", "empty-timeline")
+        except Exception as exc:
+            LOGGER.warning("Could not validate timeline state for @%s %s: %s", username, list_type, exc)
+
         discovered: Dict[str, CapturedUser] = {}
         last_height = self._driver.execute_script("return document.body.scrollHeight")
         stagnant_scrolls = 0
@@ -342,7 +366,16 @@ class SeleniumWorker:
         while stagnant_scrolls < self._config.max_no_change_scrolls:
             scroll_round += 1
             LOGGER.debug("[%s] scroll #%s (collected=%s)", list_type, scroll_round, len(discovered))
-            user_cells = self._driver.find_elements(By.CSS_SELECTOR, '[data-testid="UserCell"]')
+
+            # CRITICAL FIX: Scope UserCell search to main timeline only, exclude sidebar recommendations
+            # Find the main timeline section (already verified to exist in line 301)
+            try:
+                timeline_section = self._driver.find_element(By.CSS_SELECTOR, 'section[role="region"]')
+                # Search for UserCells ONLY within the main timeline, not the entire page
+                user_cells = timeline_section.find_elements(By.CSS_SELECTOR, '[data-testid="UserCell"]')
+            except Exception as exc:
+                LOGGER.warning("[%s] Could not find timeline section on scroll %s: %s", list_type, scroll_round, exc)
+                user_cells = []
             if LOGGER.isEnabledFor(logging.DEBUG):
                 sample_html = (
                     user_cells[0].get_attribute("outerHTML")[:500]

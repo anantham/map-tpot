@@ -650,6 +650,78 @@ class TestEdgeOperations:
         assert len(follower_edges) == 1
         assert follower_edges[0]["direction"] == "followers"
 
+    def test_upsert_edges_returns_accurate_new_count(self, shadow_store: ShadowStore):
+        """Should return count of only NEW edges inserted, not duplicates."""
+        # First insert: 10 new edges
+        edges_batch1 = [
+            ShadowEdge(
+                source_id="shadow:seed1",
+                target_id=f"shadow:user{i}",
+                direction="following",
+                source_channel="selenium",
+                fetched_at=datetime(2025, 1, 1, 12, 0, 0),
+                metadata={"list_type": "following"},
+            )
+            for i in range(10)
+        ]
+        new_count = shadow_store.upsert_edges(edges_batch1)
+        assert new_count == 10, "First insert should report 10 new edges"
+
+        # Second insert: same 10 edges (all duplicates)
+        new_count = shadow_store.upsert_edges(edges_batch1)
+        assert new_count == 0, "Re-inserting same edges should report 0 new edges"
+
+        # Third insert: 5 existing + 5 new (mixed)
+        edges_batch2 = [
+            ShadowEdge(
+                source_id="shadow:seed1",
+                target_id=f"shadow:user{i}",
+                direction="following",
+                source_channel="selenium",
+                fetched_at=datetime(2025, 1, 2, 12, 0, 0),
+                metadata={"list_type": "following"},
+            )
+            for i in range(5, 15)  # user5-user9 exist, user10-user14 are new
+        ]
+        new_count = shadow_store.upsert_edges(edges_batch2)
+        assert new_count == 5, "Mixed batch should report only 5 new edges"
+
+        # Verify total edges in DB is correct
+        all_edges = shadow_store.fetch_edges()
+        assert len(all_edges) == 15, "Should have 15 total unique edges"
+
+    def test_upsert_edges_new_count_with_different_directions(self, shadow_store: ShadowStore):
+        """Should treat same source/target with different direction as separate edges."""
+        # Insert following edge
+        following_edge = ShadowEdge(
+            source_id="shadow:user1",
+            target_id="shadow:user2",
+            direction="following",
+            source_channel="selenium",
+            fetched_at=datetime(2025, 1, 1, 12, 0, 0),
+        )
+        new_count = shadow_store.upsert_edges([following_edge])
+        assert new_count == 1
+
+        # Insert reverse followers edge (different direction, should be NEW)
+        followers_edge = ShadowEdge(
+            source_id="shadow:user1",
+            target_id="shadow:user2",
+            direction="followers",
+            source_channel="selenium",
+            fetched_at=datetime(2025, 1, 1, 12, 0, 0),
+        )
+        new_count = shadow_store.upsert_edges([followers_edge])
+        assert new_count == 1, "Different direction should count as new edge"
+
+        # Re-insert following edge (should be duplicate)
+        new_count = shadow_store.upsert_edges([following_edge])
+        assert new_count == 0, "Re-inserting same edge should count as duplicate"
+
+        # Verify we have 2 distinct edges
+        all_edges = shadow_store.fetch_edges()
+        assert len(all_edges) == 2
+
 
 # ==============================================================================
 # Discovery Operations Tests
