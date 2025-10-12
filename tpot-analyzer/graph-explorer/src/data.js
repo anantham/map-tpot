@@ -1,54 +1,256 @@
-// This file will contain the logic for fetching data from the backend.
-// For now, it provides placeholder data to allow for UI development.
+/**
+ * API client for graph-explorer backend.
+ *
+ * Connects to Flask backend running on localhost:5001
+ * to fetch graph data and compute metrics dynamically.
+ */
 
-const mockData = {
-  graph: {
-    nodes: {
-      '1': { username: 'seed1', followers_count: 1000 },
-      '2': { username: 'seed2', followers_count: 2000 },
-      '3': { username: 'node3', followers_count: 500 },
-      '4': { username: 'node4', followers_count: 800 },
-      '5': { username: 'node5', followers_count: 1200 },
-    },
-    edges: [
-      { source: '1', target: '2', mutual: true },
-      { source: '1', target: '3', mutual: true },
-      { source: '2', target: '4', mutual: false },
-      { source: '3', target: '5', mutual: true },
-    ],
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
+/**
+ * Performance tracking utility.
+ */
+const performanceLog = {
+  calls: [],
+  log(operation, duration, details = {}) {
+    const entry = {
+      operation,
+      duration_ms: duration,
+      timestamp: new Date().toISOString(),
+      ...details,
+    };
+    this.calls.push(entry);
+
+    // Log to console with color coding
+    const color = duration < 500 ? 'green' : duration < 1000 ? 'orange' : 'red';
+    console.log(
+      `%c[API] ${operation}: ${duration.toFixed(2)}ms`,
+      `color: ${color}; font-weight: bold`,
+      details
+    );
+
+    // Keep only last 100 entries
+    if (this.calls.length > 100) {
+      this.calls = this.calls.slice(-100);
+    }
   },
-  metrics: {
-    pagerank: {
-      '1': 0.25,
-      '2': 0.2,
-      '3': 0.15,
-      '4': 0.1,
-      '5': 0.05,
-    },
-    betweenness: {
-        '1': 0.5,
-        '2': 0.4,
-        '3': 0.3,
-        '4': 0.2,
-        '5': 0.1,
-    },
-    communities: {
-        '1': 0,
-        '2': 0,
-        '3': 0,
-        '4': 1,
-        '5': 0,
-    },
-    engagement: {},
+  getStats() {
+    const byOperation = {};
+    this.calls.forEach(call => {
+      if (!byOperation[call.operation]) {
+        byOperation[call.operation] = [];
+      }
+      byOperation[call.operation].push(call.duration_ms);
+    });
+
+    const stats = {};
+    Object.entries(byOperation).forEach(([op, durations]) => {
+      const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
+      stats[op] = {
+        count: durations.length,
+        avg: avg.toFixed(2),
+        min: Math.min(...durations).toFixed(2),
+        max: Math.max(...durations).toFixed(2),
+      };
+    });
+    return stats;
   },
-  seeds: ['seed1', 'seed2'],
-  resolved_seeds: ['1', '2'],
+  clear() {
+    this.calls = [];
+  }
 };
 
-export const fetchGraphData = async () => {
-  const response = await fetch('http://localhost:5001/api/graph-data');
+// Expose to window for debugging
+if (typeof window !== 'undefined') {
+  window.apiPerformance = performanceLog;
+}
+
+/**
+ * Fetch raw graph structure (nodes and edges) from backend.
+ *
+ * @param {Object} options - Graph options
+ * @param {boolean} options.includeShadow - Include shadow nodes (default: true)
+ * @param {boolean} options.mutualOnly - Only mutual edges (default: false)
+ * @param {number} options.minFollowers - Min followers filter (default: 0)
+ * @returns {Promise<Object>} Graph data with nodes and edges
+ */
+export const fetchGraphData = async (options = {}) => {
+  const startTime = performance.now();
+
+  const {
+    includeShadow = true,
+    mutualOnly = false,
+    minFollowers = 0,
+  } = options;
+
+  const params = new URLSearchParams({
+    include_shadow: includeShadow.toString(),
+    mutual_only: mutualOnly.toString(),
+    min_followers: minFollowers.toString(),
+  });
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/graph-data?${params}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch graph data: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const duration = performance.now() - startTime;
+
+    // Extract server timing from header
+    const serverTime = response.headers.get('X-Response-Time');
+
+    performanceLog.log('fetchGraphData', duration, {
+      serverTime,
+      nodeCount: data.directed_nodes,
+      edgeCount: data.directed_edges,
+      includeShadow,
+    });
+
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchGraphData [ERROR]', duration, { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Compute graph metrics with custom seeds and weights.
+ *
+ * @param {Object} options - Computation options
+ * @param {string[]} options.seeds - Seed usernames/account_ids
+ * @param {number[]} options.weights - [alpha, beta, gamma] for PageRank, Betweenness, Engagement
+ * @param {number} options.alpha - PageRank damping factor (default: 0.85)
+ * @param {number} options.resolution - Louvain resolution (default: 1.0)
+ * @param {boolean} options.includeShadow - Include shadow nodes (default: true)
+ * @param {boolean} options.mutualOnly - Only mutual edges (default: false)
+ * @param {number} options.minFollowers - Min followers filter (default: 0)
+ * @returns {Promise<Object>} Computed metrics
+ */
+export const computeMetrics = async (options = {}) => {
+  const startTime = performance.now();
+
+  const {
+    seeds = [],
+    weights = [0.4, 0.3, 0.3],
+    alpha = 0.85,
+    resolution = 1.0,
+    includeShadow = true,
+    mutualOnly = false,
+    minFollowers = 0,
+  } = options;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/metrics/compute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        seeds,
+        weights,
+        alpha,
+        resolution,
+        include_shadow: includeShadow,
+        mutual_only: mutualOnly,
+        min_followers: minFollowers,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to compute metrics: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const duration = performance.now() - startTime;
+
+    // Extract server timing from header
+    const serverTime = response.headers.get('X-Response-Time');
+
+    performanceLog.log('computeMetrics', duration, {
+      serverTime,
+      seedCount: seeds.length,
+      resolvedSeeds: data.resolved_seeds?.length || 0,
+      weights,
+    });
+
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceLog.log('computeMetrics [ERROR]', duration, { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Fetch available seed presets.
+ *
+ * @returns {Promise<Object>} Preset configurations
+ */
+export const fetchPresets = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/metrics/presets`);
   if (!response.ok) {
-    throw new Error('Failed to fetch graph data from the local API server.');
+    throw new Error(`Failed to fetch presets: ${response.statusText}`);
   }
   return response.json();
+};
+
+/**
+ * Check if backend is available.
+ *
+ * @returns {Promise<boolean>} True if backend is healthy
+ */
+export const checkHealth = async () => {
+  const startTime = performance.now();
+  try {
+    const response = await fetch(`${API_BASE_URL}/health`);
+    const duration = performance.now() - startTime;
+    performanceLog.log('checkHealth', duration, { ok: response.ok });
+    return response.ok;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceLog.log('checkHealth [ERROR]', duration, { error: error.message });
+    return false;
+  }
+};
+
+/**
+ * Fetch backend performance metrics.
+ *
+ * @returns {Promise<Object>} Performance metrics from backend
+ */
+export const fetchPerformanceMetrics = async () => {
+  const startTime = performance.now();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/metrics/performance`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch performance metrics: ${response.statusText}`);
+    }
+    const data = await response.json();
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchPerformanceMetrics', duration);
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchPerformanceMetrics [ERROR]', duration, { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Get client-side performance statistics.
+ *
+ * @returns {Object} Performance statistics
+ */
+export const getClientPerformanceStats = () => {
+  return performanceLog.getStats();
+};
+
+/**
+ * Clear client-side performance logs.
+ */
+export const clearClientPerformanceLogs = () => {
+  performanceLog.clear();
 };
