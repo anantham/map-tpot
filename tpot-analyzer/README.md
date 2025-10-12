@@ -11,6 +11,12 @@ Python-based network analysis toolkit for exploring the TPOT (This Part of Twitt
 
 See [docs/WORKLOG.md](./docs/WORKLOG.md) for detailed progress and [docs/adr/](./docs/adr/) for architectural decisions.
 
+## Data Snapshot
+
+<!-- AUTO:GRAPH_SNAPSHOT -->
+_Directed graph snapshot pending — run `python -m scripts.analyze_graph --include-shadow --update-readme` to populate this section._
+<!-- /AUTO:GRAPH_SNAPSHOT -->
+
 ## Prerequisites
 
 - Python 3.9+
@@ -210,6 +216,20 @@ with CachedDataFetcher() as fetcher:
 - **Clear cache:** Delete `data/cache.db` and re-run fetcher
 - **Adjust freshness:** Set `CACHE_MAX_AGE_DAYS` in `.env`
 
+### Refresh Graph Snapshot
+
+After scraping or re-running analysis, refresh the README data snapshot:
+
+```bash
+python -m scripts.analyze_graph --include-shadow --update-readme
+```
+
+Use `--summary-only` to inspect the JSON payload without writing `analysis_output.json`:
+
+```bash
+python -m scripts.analyze_graph --include-shadow --summary-only
+```
+
 ## Testing
 
 ```bash
@@ -226,16 +246,16 @@ pytest --cov=src --cov-report=term-missing tests/
 pytest tests/test_shadow_enrichment_integration.py -v
 ```
 
-Test coverage (54% overall, see `docs/test-coverage-baseline.md`):
-- ✅ Supabase connectivity and authentication
-- ✅ Cache read/write/expiry logic with staleness detection
-- ✅ DataFrame schema validation
-- ✅ Error handling for network failures
+Test coverage (~68% overall, see `docs/test-coverage-baseline.md` for module-level stats):
+- ✅ Supabase connectivity, authentication, and cache expiry safeguards
+- ✅ DataFrame schema validation and network error handling
 - ✅ Shadow enrichment policy logic (age/delta triggers, skip behavior)
 - ✅ Profile extraction (Selenium selector parsing, JSON-LD fallback)
-- ✅ Integration tests for enrichment workflow (91 tests total)
+- ✅ Hybrid shadow store persistence (retry logic, coverage conversion)
+- ✅ Flask API endpoints powering the graph explorer
+- 🧪 191 pytest cases spanning unit, integration, and Selenium parsing suites
 
-Test suite follows behavioral testing principles (see `AGENTS.md` TEST_DESIGN_PRINCIPLES).
+Test suite follows the behavioral testing principles captured in `docs/test-coverage-baseline.md`.
 
 ## Development Workflow
 
@@ -250,23 +270,39 @@ Test suite follows behavioral testing principles (see `AGENTS.md` TEST_DESIGN_PR
 ```
 tpot-analyzer/
 ├── data/
-│   ├── .gitkeep
-│   └── cache.db          # SQLite cache (gitignored)
+│   └── cache.db                  # SQLite cache (gitignored)
 ├── docs/
-│   ├── WORKLOG.md        # Development log
-│   └── adr/              # Architectural decision records
+│   ├── BACKEND_IMPLEMENTATION.md
+│   ├── DATABASE_SCHEMA.md
+│   ├── ENRICHMENT_FLOW.md
+│   ├── ROADMAP.md
+│   ├── WORKLOG.md
+│   └── adr/
+│       ├── 001-data-pipeline-architecture.md
+│       ├── 002-graph-analysis-foundation.md
+│       └── 003-backend-api-integration.md
+├── graph-explorer/
+│   ├── README.md
+│   ├── package.json
+│   └── src/
 ├── scripts/
-│   └── verify_setup.py   # Setup verification and diagnostics
+│   ├── analyze_graph.py
+│   ├── enrich_shadow_graph.py
+│   ├── verify_shadow_graph.py
+│   └── verify_setup.py
 ├── src/
-│   ├── __init__.py
-│   ├── config.py         # Environment configuration
-│   └── data/
-│       ├── __init__.py
-│       └── fetcher.py    # Cached Supabase data access layer
+│   ├── api/
+│   │   └── server.py
+│   ├── data/
+│   ├── graph/
+│   ├── shadow/
+│   ├── ui/
+│   └── logging_utils.py
 ├── tests/
-│   ├── __init__.py
-│   └── test_connection.py
-├── .env.example          # Environment template
+│   ├── test_api.py
+│   ├── test_shadow_enrichment_integration.py
+│   └── ...
+├── .env.example
 ├── requirements.txt
 └── README.md
 ```
@@ -310,7 +346,9 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 - **[CENTER_USER_FIX.md](./CENTER_USER_FIX.md)** — Fixes for center user prioritization and Twitter DOM changes (Oct 7-8, 2025)
 - **[BUGFIXES.md](./BUGFIXES.md)** — Graph Explorer MVP bug fixes (Oct 7, 2025)
 - **[TEST_MODE.md](./TEST_MODE.md)** — API server test mode for fast UI development
+- **[docs/BACKEND_IMPLEMENTATION.md](./docs/BACKEND_IMPLEMENTATION.md)** — Flask backend implementation summary (Option B)
 - **[docs/WORKLOG.md](./docs/WORKLOG.md)** — Detailed development log
+- **[docs/ROADMAP.md](./docs/ROADMAP.md)** — Forward-looking backlog (testing, features, infra)
 - **[docs/adr/](./docs/adr/)** — Architectural decision records
 
 ## References
