@@ -2,12 +2,11 @@ import React, {
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  useCallback
 } from "react";
 import ForceGraph2D from "react-force-graph-2d";
-import { fetchGraphData } from "./data";
-
-const fetcher = (url) => fetch(url).then((res) => res.json());
+import { fetchGraphData, computeMetrics, checkHealth } from "./data";
 const DEFAULT_PRESETS = {
   "Adi's Seeds": [
     "prerationalist",
@@ -69,31 +68,26 @@ const toLowerSet = (items = []) => {
 };
 
 export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
-  const [data, setData] = useState(null);
+  const [graphStructure, setGraphStructure] = useState(null);
+  const [metrics, setMetrics] = useState(null);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [computing, setComputing] = useState(false);
+  const [backendAvailable, setBackendAvailable] = useState(null);
 
+  // Check backend health on mount
   useEffect(() => {
-    const getData = async () => {
-      try {
-        const graphData = await fetchGraphData();
-        setData(graphData);
-      } catch (err) {
-        setError(err);
+    const checkBackend = async () => {
+      const isHealthy = await checkHealth();
+      setBackendAvailable(isHealthy);
+      if (!isHealthy) {
+        console.warn("Backend API not available. Some features will be limited.");
       }
     };
-    getData();
+    checkBackend();
   }, []);
-
-  const mutate = async () => {
-    try {
-      const graphData = await fetchGraphData();
-      setData(graphData);
-    } catch (err) {
-      setError(err);
-    }
-  };
   const [panelOpen, setPanelOpen] = useState(true);
-  const [mutualOnly, setMutualOnly] = useState(true);
+  const [mutualOnly, setMutualOnly] = useState(false);
   const [weights, setWeights] = useState({ pr: 0.4, bt: 0.3, eng: 0.3 });
   const [linkDistance, setLinkDistance] = useState(140);
   const [chargeStrength, setChargeStrength] = useState(-220);
@@ -102,10 +96,84 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const [customSeeds, setCustomSeeds] = useState([]);
   const [presetName, setPresetName] = useState("Adi's Seeds");
   const [includeShadows, setIncludeShadows] = useState(true);
-
   const [subgraphSize, setSubgraphSize] = useState(50);
 
   const graphRef = useRef(null);
+
+  // Load initial graph structure
+  useEffect(() => {
+    const loadGraph = async () => {
+      if (!backendAvailable) return;
+
+      try {
+        setLoading(true);
+        const structure = await fetchGraphData({
+          includeShadow: includeShadows,
+          mutualOnly: false, // Load all edges, filter in UI
+          minFollowers: 0,
+        });
+        setGraphStructure(structure);
+      } catch (err) {
+        console.error("Failed to load graph structure:", err);
+        setError(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadGraph();
+  }, [backendAvailable, includeShadows]);
+
+  // Compute metrics when seeds or weights change
+  const recomputeMetrics = useCallback(async () => {
+    if (!backendAvailable || !graphStructure) return;
+
+    try {
+      setComputing(true);
+      const seedList = customSeeds.length > 0
+        ? customSeeds
+        : DEFAULT_PRESETS[presetName] || [];
+
+      const result = await computeMetrics({
+        seeds: seedList,
+        weights: [weights.pr, weights.bt, weights.eng],
+        alpha: 0.85,
+        resolution: 1.0,
+        includeShadow: includeShadows,
+        mutualOnly: false,
+        minFollowers: 0,
+      });
+
+      setMetrics(result);
+    } catch (err) {
+      console.error("Failed to compute metrics:", err);
+      setError(err);
+    } finally {
+      setComputing(false);
+    }
+  }, [backendAvailable, graphStructure, customSeeds, presetName, weights, includeShadows]);
+
+  // Trigger metric recomputation when dependencies change
+  useEffect(() => {
+    recomputeMetrics();
+  }, [recomputeMetrics]);
+
+  // Merged data for backwards compatibility
+  const data = useMemo(() => {
+    if (!graphStructure || !metrics) return null;
+
+    return {
+      graph: {
+        nodes: graphStructure.nodes,
+        edges: graphStructure.edges,
+        directed_nodes: graphStructure.directed_nodes,
+        directed_edges: graphStructure.directed_edges,
+        undirected_edges: graphStructure.undirected_edges,
+      },
+      metrics: metrics.metrics,
+      seeds: metrics.seeds || [],
+      resolved_seeds: metrics.resolved_seeds || [],
+    };
+  }, [graphStructure, metrics]);
 
   useEffect(() => {
     console.debug("[GraphExplorer] control panel open:", panelOpen);
@@ -121,41 +189,12 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const customSeedSet = useMemo(() => toLowerSet(customSeeds), [customSeeds]);
   const effectiveSeedSet = useMemo(() => new Set([...resolvedSeeds, ...customSeedSet]), [resolvedSeeds, customSeedSet]);
 
-  const metrics = data?.metrics ?? EMPTY_METRICS;
+  const metricsData = data?.metrics ?? EMPTY_METRICS;
 
+  // Use composite score from backend (already computed with all three weights)
   const tpotnessScores = useMemo(() => {
-    if (!metrics || !data?.graph?.nodes) return {};
-
-    const followedBySeeds = {};
-    const totalSeeds = effectiveSeedSet.size;
-
-    data.graph.edges.forEach(edge => {
-      const sourceId = typeof edge.source === 'object' ? edge.source.id : edge.source;
-      const targetId = typeof edge.target === 'object' ? edge.target.id : edge.target;
-
-      if (effectiveSeedSet.has(sourceId.toLowerCase())) {
-        followedBySeeds[targetId] = (followedBySeeds[targetId] || 0) + 1;
-      }
-    });
-
-    const normPR = normalizeScores(metrics.pagerank);
-    const normFollowedBySeeds = normalizeScores(followedBySeeds);
-
-    const nodes = new Set([
-      ...Object.keys(normPR),
-      ...Object.keys(normFollowedBySeeds),
-    ]);
-
-    const alpha = weights.pr; // Using the 'pr' weight as alpha for now
-
-    return Array.from(nodes).reduce((acc, node) => {
-      const score =
-        alpha * (normPR[node] ?? 0) +
-        (1 - alpha) * (normFollowedBySeeds[node] ?? 0);
-      acc[node] = score;
-      return acc;
-    }, {});
-  }, [metrics, data, effectiveSeedSet, weights.pr]);
+    return metricsData?.composite ?? {};
+  }, [metricsData]);
 
   const { graphData, graphStats } = useMemo(() => {
     if (!data) {
@@ -330,10 +369,10 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         inGroupScore,
         provenance: meta.provenance || (isShadow ? "shadow" : "archive"),
         shadow: isShadow,
-        community: metrics.communities?.[id],
-        pagerank: metrics.pagerank?.[id],
-        betweenness: metrics.betweenness?.[id],
-        engagement: metrics.engagement?.[id],
+        community: metricsData.communities?.[id],
+        pagerank: metricsData.pagerank?.[id],
+        betweenness: metricsData.betweenness?.[id],
+        engagement: metricsData.engagement?.[id],
         tpotnessScore: tpotnessScore,
         isSeed,
         neighbors: [],
@@ -377,7 +416,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         visibleShadowEdges: filteredLinks.filter((edge) => edge.shadow).length
       }
     };
-  }, [data, tpotnessScores, effectiveSeedSet, includeShadows, metrics, mutualOnly]);
+  }, [data, tpotnessScores, effectiveSeedSet, includeShadows, metricsData, mutualOnly]);
 
   useEffect(() => {
     if (!graphData.nodes.length) return;
@@ -550,11 +589,12 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   };
 
   const handleRefreshData = async () => {
-    await mutate();
+    await recomputeMetrics();
   };
 
-  if (error) return <div className="status-message">Error loading graph.</div>;
-  if (!data) return <div className="status-message">Loading…</div>;
+  if (error) return <div className="status-message">Error loading graph: {error.message}</div>;
+  if (loading) return <div className="status-message">Loading graph structure…</div>;
+  if (!data) return <div className="status-message">Waiting for data…</div>;
 
   return (
     <div className="layout">
@@ -571,9 +611,21 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         {panelOpen && (
           <div className="panel-content">
             <h1>TPOT Graph Explorer</h1>
+            {backendAvailable === false && (
+              <div style={{ padding: '10px', background: '#fee', borderRadius: '4px', marginBottom: '10px' }}>
+                ⚠️ Backend API not available. Start the server with: <code>python -m scripts.start_api_server</code>
+              </div>
+            )}
+            {computing && (
+              <div style={{ padding: '10px', background: '#fef3cd', borderRadius: '4px', marginBottom: '10px' }}>
+                🔄 Computing metrics...
+              </div>
+            )}
             <div className="panel-actions">
-              <button onClick={handleDownloadCsv}>Download CSV</button>
-              <button onClick={handleRefreshData}>Refresh Data</button>
+              <button onClick={handleDownloadCsv} disabled={computing}>Download CSV</button>
+              <button onClick={handleRefreshData} disabled={computing}>
+                {computing ? "Computing..." : "Recompute Metrics"}
+              </button>
             </div>
 
             <section>
@@ -648,9 +700,10 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             </section>
 
            <section>
-             <h2>Status weights</h2>
+             <h2>Status weights (TPOT-ness = α·PR + β·BT + γ·ENG)</h2>
+             <small>Adjust weights for composite score calculation. Changes trigger metric recomputation.</small>
              <div className="slider">
-               <label>α (Alpha) {weights.pr.toFixed(2)}</label>
+               <label>α (PageRank) {weights.pr.toFixed(2)}</label>
                <input
                   type="range"
                   min="0"
@@ -658,7 +711,36 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
                   step="0.05"
                   value={weights.pr}
                   onChange={handleWeightChange("pr")}
+                  disabled={computing}
                 />
+              </div>
+              <div className="slider">
+               <label>β (Betweenness) {weights.bt.toFixed(2)}</label>
+               <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={weights.bt}
+                  onChange={handleWeightChange("bt")}
+                  disabled={computing}
+                />
+              </div>
+              <div className="slider">
+               <label>γ (Engagement) {weights.eng.toFixed(2)}</label>
+               <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={weights.eng}
+                  onChange={handleWeightChange("eng")}
+                  disabled={computing}
+                />
+              </div>
+              <div style={{ marginTop: '8px', fontSize: '0.85em', color: '#94a3b8' }}>
+                Total: {(weights.pr + weights.bt + weights.eng).toFixed(2)}
+                {Math.abs(weights.pr + weights.bt + weights.eng - 1.0) > 0.01 && " (⚠️ should sum to 1.0)"}
               </div>
             </section>
 
