@@ -137,3 +137,24 @@
 - Tradeoff: Fetches profile overview for every complete seed (~2-5s overhead) but enables correct cache invalidation behavior.
 - Verification: `pytest tests/test_shadow_enrichment_integration.py -v -m unit` → 14/14 passed.
 - Impact: Policy refresh now works as designed—complete seeds with stale (age) or significantly changed (delta) data trigger re-scraping; skip reason includes "policy confirms fresh" for transparency.
+
+## 2025-10-11T17:28:21Z — Documentation alignment
+- `README.md`:213-276, 309-317 — refreshed coverage/test counts (68%, 191 tests), updated directory tree to reflect current layout, and linked to `docs/ROADMAP.md`.
+- `docs/adr/002-graph-analysis-foundation.md`:2 — marked decision as accepted (accepted 2025-10-10).
+- `docs/adr/003-backend-api-integration.md`:1-68 — captured Option B Flask backend decision and consequences.
+- `docs/ROADMAP.md`:1-36 — established roadmap sections (Testing Coverage, Features & Analysis, Infrastructure & Tooling, Developer Experience).
+- Note: No automated tests run; documentation-only update.
+
+## 2025-10-11T17:35:54Z — README snapshot automation
+- `scripts/analyze_graph.py`:1-320 — added `--summary-only` and `--update-readme` flags, coverage aggregation helper, and README marker replacement logic.
+- `README.md`:12-33, 213-234 — introduced Data Snapshot section, documented refresh workflow, and referenced new CLI options.
+- `docs/ROADMAP.md`:6-24 — marked snapshot automation complete with command reference.
+- Pending: run `python -m scripts.analyze_graph --include-shadow --update-readme` once dependencies (`networkx`, etc.) are installed to populate the new snapshot block.
+
+## 2025-10-11T17:42:29Z — Backend docs relocation
+- Moved `BACKEND_IMPLEMENTATION.md` to `docs/BACKEND_IMPLEMENTATION.md` and updated references in README + ADR 003.
+
+## 2025-10-11T18:06:09Z — Profile metadata logging
+- `src/shadow/selenium_worker.py`:28-312 — added `_shorten_text` helper and INFO logs that record followers/following totals, location, website, and truncated bio when profile overviews succeed.
+- `src/shadow/enricher.py`:31-1260 — mirrored profile snapshot/bio logging after persistence so DB writes are auditable in console/file logs.
+- `src/logging_utils.py`:54-80 — allowed new log patterns (`Profile overview fetched`, `Profile snapshot`, `Profile bio`) through the console filter so the details surface in real time.

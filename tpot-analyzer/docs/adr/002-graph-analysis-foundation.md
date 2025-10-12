@@ -1,7 +1,7 @@
 # ADR 002: Graph Analysis & Interactive Exploration Foundation
 
-- Status: Proposed
-- Date: 2025-10-04
+- Status: Accepted
+- Date: 2025-10-04 (accepted 2025-10-10)
 - Authors: Computational Peer + Human Collaborator
 - Phase: 1.2 — Follow Graph Construction, Metrics, and Interactive Exploration
 
