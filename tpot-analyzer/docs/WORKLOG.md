@@ -159,6 +159,15 @@
 - `src/shadow/enricher.py`:31-1260 — mirrored profile snapshot/bio logging after persistence so DB writes are auditable in console/file logs.
 - `src/logging_utils.py`:54-80 — allowed new log patterns (`Profile overview fetched`, `Profile snapshot`, `Profile bio`) through the console filter so the details surface in real time.
 
+## 2025-10-13T04:56:00Z — README snapshot automation + profile counter audit tooling
+- `scripts/analyze_graph.py`:27-360 — added summary-only CLI flag, README snapshot updater with coverage metrics sourced from enrichment runs, and marker-aware insertion helpers so automation remains idempotent.
+- `src/logging_utils.py`:57-80 — surfaced the new profile overview/bio log lines past the console filter to align runtime output with persisted metadata.
+- `src/shadow/enricher.py`:34-1270 — compressed profile logs via `_shorten_text()` and emitted persisted snapshot/bio details after each seed to tighten observability.
+- `src/shadow/selenium_worker.py`:27-1140 — hardened counter extraction (canonical handle resolution, href normalization, priority scoring) and added INFO logs when profile overviews succeed.
+- `scripts/verify_profile_counters.py`:1-210 — new verification script that inspects archived HTML snapshots, reports ✓/✗ for followers/following counters, and suggests next steps when data is missing.
+- `docs/BACKEND_IMPLEMENTATION.md`:1-320 — captured Option B backend deliverables and performance notes for future review.
+- Verification: pending — run `scripts/verify_profile_counters.py <snapshot.html>` and Selenium enrichment smoke test once fresh snapshots/cookies are available.
+
 ## 2025-10-12T10:47:26Z — Profile counter wait
 - `src/shadow/selenium_worker.py`:120-945 — added `_wait_for_counter()` helper and invoked it before parsing href counters so follower/following totals have time to render, reducing false “incomplete profile” retries.
 
