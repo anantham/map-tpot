@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set
+from urllib.parse import urlparse
 
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
@@ -21,6 +22,22 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _shorten_text(value: Optional[str], limit: int) -> str:
+    """Return a trimmed, single-line representation for logging."""
+
+    if value is None:
+        return "-"
+
+    text = str(value).strip()
+    if not text:
+        return "-"
+
+    if len(text) <= limit:
+        return text
+
+    return text[: max(0, limit - 3)] + "..."
 
 
 @dataclass(frozen=True)
@@ -172,6 +189,24 @@ class SeleniumWorker:
     def fetch_verified_followers(self, username: str) -> UserListCapture:
         return self._collect_user_list(username=username, list_type="verified_followers")
 
+    def _wait_for_counter(self, href: str, timeout: float = 10.0) -> bool:
+        """Wait until the follower/following counter link renders non-empty text."""
+
+        if self._driver is None:
+            return False
+
+        try:
+            WebDriverWait(self._driver, timeout).until(
+                lambda driver: any(
+                    (element.text or "").strip()
+                    for element in driver.find_elements(By.CSS_SELECTOR, f"a[href='{href}'] span")
+                )
+            )
+            return True
+        except TimeoutException:
+            LOGGER.debug("Counter %s not ready after %.1fs", href, timeout)
+            return False
+
     def fetch_profile_overview(self, username: str) -> Optional[ProfileOverview]:
         if not self._ensure_driver():
             return None
@@ -219,6 +254,23 @@ class SeleniumWorker:
                 profile_overview = self._extract_profile_overview(username)
                 if profile_overview and profile_overview.followers_total is not None and profile_overview.following_total is not None:
                     self._profile_overviews[username] = profile_overview
+
+                    LOGGER.info(
+                        "Profile overview fetched for @%s — followers=%s, following=%s, location=%s, website=%s",
+                        username,
+                        profile_overview.followers_total,
+                        profile_overview.following_total,
+                        _shorten_text(profile_overview.location, 60),
+                        _shorten_text(profile_overview.website, 80),
+                    )
+
+                    if profile_overview.bio:
+                        LOGGER.info(
+                            "Profile bio for @%s: %s",
+                            username,
+                            _shorten_text(profile_overview.bio, 160),
+                        )
+
                     return profile_overview
 
                 # Add detailed logging for incomplete data
@@ -797,8 +849,24 @@ class SeleniumWorker:
             LOGGER.debug("Could not find profile image for @%s", username)
             profile_image_url = None
 
-        followers_total = self._extract_claimed_total(username, "followers")
-        following_total = self._extract_claimed_total(username, "following")
+        canonical_handle = self._resolve_canonical_handle(username)
+        if canonical_handle and canonical_handle.lower() != username.lower():
+            LOGGER.debug(
+                "Resolved canonical handle for @%s → @%s",
+                username,
+                canonical_handle,
+            )
+
+        followers_total = self._extract_claimed_total(
+            username,
+            "followers",
+            canonical_username=canonical_handle,
+        )
+        following_total = self._extract_claimed_total(
+            username,
+            "following",
+            canonical_username=canonical_handle,
+        )
 
         schema_fallback = None
         if (
@@ -809,7 +877,8 @@ class SeleniumWorker:
             or not profile_image_url
             or not bio
         ):
-            schema_fallback = self._extract_profile_schema(username)
+            schema_target = canonical_handle or username
+            schema_fallback = self._extract_profile_schema(schema_target)
 
         if schema_fallback:
             if followers_total is None and schema_fallback.get("followers_total") is not None:
@@ -839,8 +908,10 @@ class SeleniumWorker:
             if joined_date is None and schema_fallback.get("joined_date"):
                 joined_date = schema_fallback["joined_date"]
 
+        profile_username = canonical_handle or username
+
         return ProfileOverview(
-            username=username,
+            username=profile_username,
             display_name=display_name,
             bio=bio,
             location=location,
@@ -851,60 +922,249 @@ class SeleniumWorker:
             profile_image_url=profile_image_url,
         )
 
-    def _extract_claimed_total(self, username: str, list_type: str) -> Optional[int]:
+    def _extract_claimed_total(
+        self,
+        username: str,
+        list_type: str,
+        *,
+        canonical_username: Optional[str] = None,
+    ) -> Optional[int]:
         assert self._driver is not None
+        handles = [username]
+        if canonical_username and canonical_username.lower() not in {
+            username.lower(),
+        }:
+            handles.append(canonical_username)
 
-        href_variants = [
-            f"/{username}/{list_type}",
-            f"/{username}/{list_type.lower()}",
-            f"/{username}/{list_type.replace('_', '')}",
-        ]
-
-        # Twitter now uses verified_followers instead of followers
-        if list_type == "followers":
-            href_variants.append(f"/{username}/verified_followers")
+        href_variants: List[str] = []
+        seen_hrefs: Set[str] = set()
+        for handle in handles:
+            for href in self._build_href_variants(handle, list_type):
+                if href not in seen_hrefs:
+                    href_variants.append(href)
+                    seen_hrefs.add(href)
 
         for href in href_variants:
-            anchors = self._driver.find_elements(By.CSS_SELECTOR, f"a[href='{href}']")
-            if not anchors:
-                continue
-            for anchor in anchors:
-                text = (anchor.text or "").strip()
-                value = self._parse_compact_count(text)
-                if value is not None:
-                    LOGGER.debug("Found count for href %s: %d", href, value)
-                    return value
-                spans = anchor.find_elements(By.TAG_NAME, "span")
-                for span in spans:
-                    value = self._parse_compact_count(span.text)
-                    if value is not None:
-                        LOGGER.debug("Found count from span for href %s: %d", href, value)
-                        return value
+            value = self._extract_total_from_exact_href(href)
+            if value is not None:
+                LOGGER.debug("Found %s total via exact href %s", list_type, href)
+                return value
 
-        # Fallback: walk the profile header counters and match by label text.
+        for href in href_variants:
+            value = self._extract_total_case_insensitive(href)
+            if value is not None:
+                LOGGER.debug("Found %s total via case-insensitive href %s", list_type, href)
+                return value
+
+        header_value = self._extract_total_from_header(
+            list_type,
+            handles=set(handles),
+        )
+        if header_value is not None:
+            return header_value
+
+        LOGGER.debug(
+            "Unable to resolve %s total for @%s using handles=%s",
+            list_type,
+            username,
+            handles,
+        )
+        return None
+
+    def _extract_total_from_exact_href(self, href: str) -> Optional[int]:
+        assert self._driver is not None
+
+        if not self._wait_for_counter(href):
+            return None
+
+        anchors = self._driver.find_elements(By.CSS_SELECTOR, f"a[href='{href}']")
+        for anchor in anchors:
+            value = self._extract_value_from_anchor(anchor)
+            if value is not None:
+                return value
+        return None
+
+    def _extract_total_case_insensitive(self, href: str) -> Optional[int]:
+        assert self._driver is not None
+
+        target = href.lower()
+        safe_target = target.replace('"', '\\"')
+        xpath = (
+            "//a[translate(@href,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')="
+            f"\"{safe_target}\"]"
+        )
+        try:
+            anchors = self._driver.find_elements(By.XPATH, xpath)
+        except Exception as exc:  # pragma: no cover - defensive against driver quirks
+            LOGGER.debug("Case-insensitive lookup failed for %s: %s", href, exc)
+            return None
+
+        for anchor in anchors:
+            value = self._extract_value_from_anchor(anchor)
+            if value is not None:
+                return value
+        return None
+
+    def _extract_total_from_header(
+        self,
+        list_type: str,
+        *,
+        handles: Set[str],
+    ) -> Optional[int]:
+        assert self._driver is not None
+
         try:
             header = self._driver.find_element(By.CSS_SELECTOR, "div[data-testid='UserProfileHeader_Items']")
-            counters = header.find_elements(By.CSS_SELECTOR, "a[href]")
-            target_label = "followers" if list_type.startswith("followers") else "following"
-            for counter in counters:
-                label_text = (counter.text or counter.get_attribute("aria-label") or "").lower()
-                if target_label not in label_text:
-                    continue
-                spans = counter.find_elements(By.TAG_NAME, "span")
-                span_texts = [span.text for span in spans if span.text.strip()]
-                candidates = span_texts or [counter.text]
-                for candidate in candidates:
-                    value = self._parse_compact_count(candidate)
-                    if value is not None:
-                        LOGGER.debug(
-                            "Fallback header counter matched '%s': %s => %d",
-                            target_label,
-                            candidate,
-                            value,
-                        )
-                        return value
         except NoSuchElementException:
-            LOGGER.debug("Profile header counters not found for @%s", username)
+            LOGGER.debug("Profile header counters not found")
+            return None
+
+        counters = header.find_elements(By.CSS_SELECTOR, "a[href]")
+        handle_prefixes = {
+            f"/{handle.strip('/')}".lower()
+            for handle in handles
+            if handle
+        }
+
+        candidates = self._collect_header_candidates(
+            counters,
+            list_type=list_type,
+            handle_prefixes=handle_prefixes,
+            require_handle=True,
+        )
+        if not candidates:
+            candidates = self._collect_header_candidates(
+                counters,
+                list_type=list_type,
+                handle_prefixes=handle_prefixes,
+                require_handle=False,
+            )
+
+        if not candidates:
+            return None
+
+        priority, value, path, label = min(candidates, key=lambda item: (item[0], -item[1]))
+        LOGGER.debug(
+            "Header counter resolved %s via %s (label=%s, priority=%s)",
+            list_type,
+            path,
+            label,
+            priority,
+        )
+        return value
+
+    def _collect_header_candidates(
+        self,
+        counters,
+        *,
+        list_type: str,
+        handle_prefixes: Set[str],
+        require_handle: bool,
+    ) -> List[tuple[int, int, str, str]]:
+        target_label = "followers" if list_type.startswith("followers") else "following"
+        matches: List[tuple[int, int, str, str]] = []
+
+        for counter in counters:
+            label_text_raw = counter.text or counter.get_attribute("aria-label") or ""
+            label_text = label_text_raw.lower()
+            href_value = counter.get_attribute("href") or ""
+            path = self._normalize_href_path(href_value)
+            path_lower = path.lower()
+
+            if target_label not in label_text and target_label not in path_lower:
+                continue
+
+            if require_handle and handle_prefixes:
+                if not any(path_lower.startswith(prefix) for prefix in handle_prefixes):
+                    continue
+
+            value = self._extract_value_from_anchor(counter)
+            if value is None:
+                continue
+
+            priority = self._counter_priority(path_lower, target_label)
+            matches.append((priority, value, path, label_text_raw))
+
+        return matches
+
+    @staticmethod
+    def _counter_priority(path_lower: str, target_label: str) -> int:
+        if target_label == "followers":
+            if "verified_followers" in path_lower:
+                return 0
+            if path_lower.endswith("/followers"):
+                return 1
+            if "followers_you_follow" in path_lower:
+                return 2
+        else:
+            if path_lower.endswith("/following"):
+                return 0
+        return 5
+
+    def _extract_value_from_anchor(self, anchor) -> Optional[int]:
+        text = (anchor.text or "").strip()
+        value = self._parse_compact_count(text)
+        if value is not None:
+            return value
+        spans = anchor.find_elements(By.TAG_NAME, "span")
+        for span in spans:
+            value = self._parse_compact_count(span.text)
+            if value is not None:
+                return value
+        return None
+
+    @staticmethod
+    def _normalize_href_path(href: str) -> str:
+        if not href:
+            return ""
+
+        parsed = urlparse(href)
+        path = parsed.path or ""
+        if not path:
+            path = href if href.startswith("/") else f"/{href}"
+        return path
+
+    def _build_href_variants(self, handle: str, list_type: str) -> List[str]:
+        base = list_type
+        variants = [
+            f"/{handle}/{base}",
+            f"/{handle}/{base.lower()}",
+            f"/{handle}/{base.replace('_', '')}",
+        ]
+        if list_type == "followers":
+            variants.append(f"/{handle}/verified_followers")
+        return variants
+
+    def _resolve_canonical_handle(self, fallback: str) -> Optional[str]:
+        assert self._driver is not None
+
+        current_url = ""
+        try:
+            current_url = self._driver.current_url or ""
+        except Exception:  # pragma: no cover - guard against driver quirks
+            current_url = ""
+
+        handle = self._handle_from_href(current_url)
+        if handle:
+            return handle
+
+        try:
+            name_container = self._driver.find_element(By.CSS_SELECTOR, "div[data-testid='UserName']")
+        except NoSuchElementException:
+            name_container = None
+
+        if name_container:
+            links = name_container.find_elements(By.TAG_NAME, "a")
+            for link in links:
+                handle = self._handle_from_href(link.get_attribute("href"))
+                if handle:
+                    return handle
+
+            spans = name_container.find_elements(By.TAG_NAME, "span")
+            for span in spans:
+                text = span.text.strip()
+                if text.startswith("@") and len(text) > 1:
+                    return text[1:]
 
         return None
 

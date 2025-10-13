@@ -57,7 +57,8 @@ class ConsoleFilter(logging.Filter):
                     "VISITING",      # Section headers
                     "===",           # Separator lines
                     "Extracted:",    # Legacy format (if any)
-                    "Already captured"  # Legacy format (if any)
+                    "Already captured",  # Legacy format (if any)
+                    "Profile overview fetched",  # Profile metadata summaries
                 ]):
                     return True
             
@@ -73,6 +74,8 @@ class ConsoleFilter(logging.Filter):
                     "COMPLETE",           # Completion summaries
                     "━",                  # Separator lines
                     "═",                  # Separator lines
+                    "Profile snapshot",  # Persisted profile metadata
+                    "Profile bio",        # Persisted profile bio text
                     "Starting enrichment" # Run start
                 ]):
                     return True

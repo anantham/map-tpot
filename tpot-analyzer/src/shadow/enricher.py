@@ -34,6 +34,22 @@ from .x_api_client import XAPIClient, XAPIClientConfig
 LOGGER = logging.getLogger(__name__)
 
 
+def _shorten_text(value: Optional[str], limit: int = 160) -> str:
+    """Return a condensed representation for log output."""
+
+    if value is None:
+        return "-"
+
+    text = str(value).strip()
+    if not text:
+        return "-"
+
+    if len(text) <= limit:
+        return text
+
+    return text[: max(0, limit - 3)] + "..."
+
+
 @dataclass(frozen=True)
 class SeedAccount:
     account_id: str
@@ -1219,6 +1235,28 @@ class HybridShadowEnricher:
                     ),
                 }
                 summary[seed.account_id] = seed_summary
+
+                profile_snapshot = seed_summary.get("profile_overview") or {}
+                LOGGER.info(
+                    "   Profile snapshot for @%s: display=\"%s\", followers=%s, following=%s, location=\"%s\", website=%s",
+                    seed.username,
+                    _shorten_text(
+                        profile_snapshot.get("display_name")
+                        or profile_snapshot.get("username"),
+                        80,
+                    ),
+                    profile_snapshot.get("followers_total"),
+                    profile_snapshot.get("following_total"),
+                    _shorten_text(profile_snapshot.get("location"), 60),
+                    _shorten_text(profile_snapshot.get("website"), 80),
+                )
+
+                if profile_snapshot.get("bio"):
+                    LOGGER.info(
+                        "   Profile bio for @%s: %s",
+                        seed.username,
+                        _shorten_text(profile_snapshot.get("bio"), 200),
+                    )
 
                 # Record scrape metrics
                 run_metrics = ScrapeRunMetrics(
