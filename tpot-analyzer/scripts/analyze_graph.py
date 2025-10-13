@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Optional
 
 import networkx as nx
 
@@ -26,6 +27,9 @@ from src.graph import (
 )
 
 DEFAULT_OUTPUT = Path("analysis_output.json")
+README_PATH = Path("README.md")
+MARKER_START = "<!-- AUTO:GRAPH_SNAPSHOT -->"
+MARKER_END = "<!-- /AUTO:GRAPH_SNAPSHOT -->"
 
 
 def _serialize_datetime(value) -> str | None:
@@ -92,6 +96,16 @@ def parse_args() -> argparse.Namespace:
         "--include-shadow",
         action="store_true",
         help="Include shadow accounts/edges from enrichment cache.",
+    )
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Print JSON summary to stdout instead of writing to a file.",
+    )
+    parser.add_argument(
+        "--update-readme",
+        action="store_true",
+        help="Update README data snapshot (will prompt if marker is missing).",
     )
     return parser.parse_args()
 
@@ -193,6 +207,125 @@ def run_metrics(graph: GraphBuildResult, seeds: List[str], args: argparse.Namesp
     }
 
 
+def _compute_coverage_stats(shadow_store) -> Optional[Dict[str, float]]:
+    """Estimate coverage percentages from recorded scrape runs.
+
+    Returns average coverage (captured/claimed) for following/followers/
+    followers_you_follow across all recorded runs. Values expressed as
+    percentages (0-100). Returns None if enrichment data is unavailable.
+    """
+
+    if shadow_store is None:
+        return None
+
+    totals = {
+        "following": {"captured": 0, "claimed": 0},
+        "followers": {"captured": 0, "claimed": 0},
+        "followers_you_follow": {"captured": 0, "claimed": 0},
+    }
+
+    for run in shadow_store.get_recent_scrape_runs(days=3650):
+        mappings = (
+            ("following", run.following_captured, run.following_claimed_total),
+            ("followers", run.followers_captured, run.followers_claimed_total),
+            (
+                "followers_you_follow",
+                run.followers_you_follow_captured,
+                run.followers_you_follow_claimed_total,
+            ),
+        )
+        for key, captured, claimed in mappings:
+            if captured is None or claimed in (None, 0):
+                continue
+            totals[key]["captured"] += captured
+            totals[key]["claimed"] += claimed
+
+    coverage: Dict[str, float] = {}
+    for key, values in totals.items():
+        claimed_total = values["claimed"]
+        if claimed_total > 0:
+            coverage[key] = (values["captured"] / claimed_total) * 100
+
+    return coverage or None
+
+
+def _format_snapshot(summary: dict, include_shadow: bool, coverage: Optional[Dict[str, float]]) -> str:
+    directed_nodes = summary["graph"]["directed_nodes"]
+    directed_edges = summary["graph"]["directed_edges"]
+    parts = [
+        f"Directed graph: {directed_nodes:,} nodes / {directed_edges:,} edges",
+        f"shadow included: {'yes' if include_shadow else 'no'}",
+    ]
+
+    if coverage:
+        label_map = {
+            "following": "following",
+            "followers": "followers",
+            "followers_you_follow": "mutual follows",
+        }
+        cov_parts = [
+            f"{label_map[key]} {value:.1f}%"
+            for key, value in coverage.items()
+            if value is not None and key in label_map
+        ]
+        if cov_parts:
+            parts.append("average coverage " + ", ".join(cov_parts))
+
+    parts.append(f"generated {datetime.utcnow().strftime('%Y-%m-%d')}")
+    return f"_{'; '.join(parts)}._"
+
+
+def _insert_snapshot_section(readme_text: str, block: str) -> str:
+    section = f"## Data Snapshot\n\n{block}\n"
+    marker = "## Project Status"
+    idx = readme_text.find(marker)
+    if idx == -1:
+        return readme_text.rstrip() + "\n\n" + section + "\n"
+
+    next_idx = readme_text.find("\n## ", idx + len(marker))
+    if next_idx == -1:
+        return readme_text.rstrip() + "\n\n" + section + "\n"
+
+    return readme_text[:next_idx] + "\n\n" + section + "\n" + readme_text[next_idx:]
+
+
+def update_readme_snapshot(
+    summary: dict,
+    *,
+    include_shadow: bool,
+    coverage: Optional[Dict[str, float]],
+    readme_path: Path = README_PATH,
+) -> bool:
+    if not readme_path.exists():
+        print("README not found; skipping README update.")
+        return False
+
+    snapshot_line = _format_snapshot(summary, include_shadow, coverage)
+    block = f"{MARKER_START}\n{snapshot_line}\n{MARKER_END}"
+
+    text = readme_path.read_text()
+    if MARKER_START in text and MARKER_END in text:
+        pattern = re.compile(r"<!-- AUTO:GRAPH_SNAPSHOT -->.*?<!-- /AUTO:GRAPH_SNAPSHOT -->", re.DOTALL)
+        updated = pattern.sub(block, text)
+        readme_path.write_text(updated)
+        return True
+
+    try:
+        response = input(
+            "README snapshot marker not found. Insert Data Snapshot section now? [y/N]: "
+        ).strip().lower()
+    except EOFError:
+        response = ""
+
+    if response != "y":
+        print("Skipped README update; marker block not present.")
+        return False
+
+    updated_text = _insert_snapshot_section(text, block)
+    readme_path.write_text(updated_text)
+    return True
+
+
 def main() -> None:
     args = parse_args()
     seeds = load_seeds(args)
@@ -210,8 +343,24 @@ def main() -> None:
 
     summary = run_metrics(graph, seeds, args)
 
-    args.output.write_text(json.dumps(summary, indent=2))
-    print(f"Wrote summary to {args.output}")
+    coverage = _compute_coverage_stats(shadow_store)
+
+    if args.summary_only:
+        print(json.dumps(summary, indent=2))
+    else:
+        args.output.write_text(json.dumps(summary, indent=2))
+        print(f"Wrote summary to {args.output}")
+
+    if args.update_readme:
+        updated = update_readme_snapshot(
+            summary,
+            include_shadow=args.include_shadow,
+            coverage=coverage,
+        )
+        if updated:
+            nodes = summary["graph"]["directed_nodes"]
+            edges = summary["graph"]["directed_edges"]
+            print(f"Updated README snapshot ({nodes:,} nodes / {edges:,} edges).")
 
 
 if __name__ == "__main__":
