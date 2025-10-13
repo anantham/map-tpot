@@ -354,26 +354,36 @@ class HybridShadowEnricher:
         self,
         account_id: str,
         list_type: str,  # "following" or "followers"
+        username: Optional[str] = None,
     ) -> tuple[bool, int, int]:
         """Check if a list has fresh data across ANY recent run, not just the last one.
 
         This is smarter than checking only the last run, because different lists might
         have been scraped in different runs (e.g., following in run #1, followers in run #2).
 
+        Also handles account ID migration from shadow IDs to real IDs by checking both.
+
         Returns:
             tuple of (would_skip: bool, days_ago: int, captured_count: int)
         """
         # Query the database for recent runs with data for this list
         # We only need to look at the last N days (policy.list_refresh_days)
-        from sqlalchemy import select, desc
+        from sqlalchemy import select, desc, or_
         from datetime import timedelta
 
         cutoff_date = datetime.utcnow() - timedelta(days=self._policy.list_refresh_days)
 
         def _query(engine):
             with engine.begin() as conn:
+                # Build list of account IDs to check (handles shadow ID migration)
+                account_id_variants = [account_id]
+                if username:
+                    shadow_id = f"shadow:{username.lower()}"
+                    if shadow_id != account_id:
+                        account_id_variants.append(shadow_id)
+
                 query = select(self._store._metrics_table).where(
-                    self._store._metrics_table.c.seed_account_id == account_id,
+                    self._store._metrics_table.c.seed_account_id.in_(account_id_variants),
                     self._store._metrics_table.c.run_at >= cutoff_date,
                 ).order_by(desc(self._store._metrics_table.c.run_at))
                 results = conn.execute(query).fetchall()
@@ -854,8 +864,8 @@ class HybridShadowEnricher:
             # by checking if policy would skip both edge lists based on historical data alone
             # IMPROVEMENT: Check multiple recent runs, not just the last one
             if self._policy.skip_if_ever_scraped and not cached_overview:
-                following_would_skip, following_days_ago, following_captured = self._check_list_freshness_across_runs(seed.account_id, "following")
-                followers_would_skip, followers_days_ago, followers_captured = self._check_list_freshness_across_runs(seed.account_id, "followers")
+                following_would_skip, following_days_ago, following_captured = self._check_list_freshness_across_runs(seed.account_id, "following", seed.username)
+                followers_would_skip, followers_days_ago, followers_captured = self._check_list_freshness_across_runs(seed.account_id, "followers", seed.username)
 
                 if following_would_skip and followers_would_skip:
                         LOGGER.info("⏭️  SKIPPED — both edge lists are fresh (no profile visit needed)")

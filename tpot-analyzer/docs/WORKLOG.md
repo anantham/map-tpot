@@ -158,3 +158,21 @@
 - `src/shadow/selenium_worker.py`:28-312 — added `_shorten_text` helper and INFO logs that record followers/following totals, location, website, and truncated bio when profile overviews succeed.
 - `src/shadow/enricher.py`:31-1260 — mirrored profile snapshot/bio logging after persistence so DB writes are auditable in console/file logs.
 - `src/logging_utils.py`:54-80 — allowed new log patterns (`Profile overview fetched`, `Profile snapshot`, `Profile bio`) through the console filter so the details surface in real time.
+
+## 2025-10-12T10:47:26Z — Profile counter wait
+- `src/shadow/selenium_worker.py`:120-945 — added `_wait_for_counter()` helper and invoked it before parsing href counters so follower/following totals have time to render, reducing false “incomplete profile” retries.
+
+## 2025-10-12T11:01:52Z — Profile counter extraction hardening
+- `src/shadow/selenium_worker.py`:806-1105 — resolved canonical handle case mismatches, layered href lookups (exact, case-insensitive, header sweep), and richer debug logs when counters still fail to resolve.
+- `scripts/verify_profile_counters.py`:1-200 — added verification utility that parses saved snapshots, reports ✓/✗ for followers/following counters, and suggests follow-up actions.
+- Verification: `python3 scripts/verify_profile_counters.py logs/snapshot_cardcolm_INCOMPLETE_DATA_attempt1_1760263889.html logs/snapshot_caroline30_INCOMPLETE_DATA_attempt1_1760264012.html`
+- Pending: install `pytest` in the active interpreter to run `python3 -m pytest tests/test_shadow_enrichment_integration.py -k profile_overview -q` (current environment lacks the module).
+
+## 2025-10-13T10:00:00Z — Account ID migration cache lookup fix
+- **Bug**: When an account migrated from shadow ID (`shadow:username`) to real Twitter ID (e.g., `261659859`), the enricher's freshness check (`_check_list_freshness_across_runs`) would fail to find historical scrape records because it only queried by the current account_id. This caused unnecessary re-scraping of accounts that already had fresh data.
+- **Root cause**: `build_seed_accounts()` in `scripts/enrich_shadow_graph.py` resolves usernames to real IDs when available (from archive/DB). Previous runs used shadow IDs, but current runs used real IDs. The freshness check query (`WHERE seed_account_id == account_id`) only matched one or the other, never both.
+- **Example**: @adityaarpitha had 8 scrape runs with `seed_account_id='shadow:adityaarpitha'` (853 following on 2025-10-08, 539 followers on 2025-10-08, both within 180-day threshold). When enrichment ran with `--center adityaarpitha` using real ID `261659859`, the freshness check found no matching records and re-scraped unnecessarily.
+- **Fix**: `src/shadow/enricher.py`:369-408 — `_check_list_freshness_across_runs()` now accepts optional `username` parameter and builds `account_id_variants = [account_id, f"shadow:{username.lower()}"]`, querying `WHERE seed_account_id IN (variants)`. Call sites (lines 883-884) updated to pass `seed.username`.
+- **Tests**: `tests/test_shadow_enricher_utils.py`:402-485 — added `TestAccountIDMigrationCacheLookup` integration test class verifying enricher finds shadow ID records when seed has real ID, and handles None username gracefully.
+- **Verification**: `pytest tests/test_shadow_enricher_utils.py::TestAccountIDMigrationCacheLookup -v` → 2/2 passed; manual DB query confirms query now returns historical scrape runs.
+- **Impact**: Eliminates redundant scrapes for migrated accounts; enricher correctly skips when historical data exists under shadow ID; `--center` mode now respects cache properly.

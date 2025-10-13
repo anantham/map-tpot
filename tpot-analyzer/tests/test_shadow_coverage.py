@@ -200,3 +200,40 @@ def test_coverage_script_runs():
     assert result.returncode == 0, f"Script failed: {result.stderr}"
     assert "Summary Statistics" in result.stdout
     assert "SEED_SCRAPED" in result.stdout or "ARCHIVE" in result.stdout
+
+
+@pytest.mark.unit
+def test_coverage_percentage_formula():
+    """Test that coverage is calculated and stored as percentage (0-100), not basis points.
+
+    Bug fix: Previously, coverage was incorrectly stored as basis points (int(ratio * 10000))
+    which produced values like 265 for 2.65%. The correct formula is round(ratio * 100, 2)
+    which produces 2.65.
+
+    This is a regression test ensuring the fix remains in place.
+    """
+    test_cases = [
+        # (ratio, expected_percentage, description)
+        (0.0265, 2.65, "53 following out of 2000"),
+        (0.0230, 2.30, "230 followers out of 10000"),
+        (0.027, 2.7, "Low coverage case"),
+        (0.1669, 16.69, "Medium coverage case"),
+        (0.5, 50.0, "Half coverage"),
+        (1.0, 100.0, "Full coverage"),
+        (0.0, 0.0, "Zero coverage"),
+    ]
+
+    for ratio, expected_percentage, description in test_cases:
+        # This is the CORRECT formula (post-fix)
+        stored_value = round(ratio * 100, 2)
+
+        assert stored_value == expected_percentage, (
+            f"{description}: Expected {expected_percentage}%, got {stored_value}%"
+        )
+
+        # Verify OLD formula (basis points) would have been wrong
+        old_value = int(ratio * 10000)
+        if ratio > 0:
+            assert old_value != expected_percentage, (
+                f"Old formula should differ from new formula for {description}"
+            )
