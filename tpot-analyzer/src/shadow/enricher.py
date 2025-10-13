@@ -765,16 +765,19 @@ class HybridShadowEnricher:
                     )
 
                     # Calculate edge coverage from last scrape
-                    following_coverage = (
-                        (last_scrape.following_captured / account.following_count * 100)
-                        if (account and account.following_count and account.following_count > 0 and last_scrape.following_captured is not None)
-                        else 0
-                    )
-                    followers_coverage = (
-                        (last_scrape.followers_captured / account.followers_count * 100)
-                        if (account and account.followers_count and account.followers_count > 0 and last_scrape.followers_captured is not None)
-                        else 0
-                    )
+                    # Special case: 0/0 means we captured all 0 items = 100% coverage
+                    if account and account.following_count and account.following_count > 0 and last_scrape.following_captured is not None:
+                        following_coverage = (last_scrape.following_captured / account.following_count * 100)
+                    elif account and account.following_count == 0 and (last_scrape.following_captured or 0) == 0:
+                        following_coverage = 100.0  # Captured all 0 items = complete coverage
+                    else:
+                        following_coverage = 0
+                    if account and account.followers_count and account.followers_count > 0 and last_scrape.followers_captured is not None:
+                        followers_coverage = (last_scrape.followers_captured / account.followers_count * 100)
+                    elif account and account.followers_count == 0 and (last_scrape.followers_captured or 0) == 0:
+                        followers_coverage = 100.0  # Captured all 0 items = complete coverage
+                    else:
+                        followers_coverage = 0
 
                     # Only skip if we have complete metadata AND sufficient edge coverage (by percent or raw count)
                     MIN_COVERAGE_PCT = 10.0
