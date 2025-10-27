@@ -170,6 +170,9 @@ python -m scripts.enrich_shadow_graph \
   --bearer-token "$X_BEARER_TOKEN" \
   --center adityaarpitha
 
+# For long-running enrichment (macOS): prevent system sleep with caffeinate
+caffeinate -disu .venv/bin/python3 -m scripts.enrich_shadow_graph --center adityaarpitha
+
 # Analyze and verify
 python -m scripts.analyze_graph --include-shadow --output analysis_output.json
 python -m scripts.verify_shadow_graph

@@ -7,11 +7,12 @@ import pickle
 import random
 import re
 import select
+import signal
 import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 from urllib.parse import urlparse
 
 from selenium import webdriver
@@ -19,6 +20,7 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from urllib3.exceptions import MaxRetryError, NewConnectionError
 
 
 LOGGER = logging.getLogger(__name__)
@@ -96,11 +98,21 @@ class SeleniumWorker:
         self._profile_overviews: Dict[str, ProfileOverview] = {}
         self._snapshot_dir = Path("logs")
         self._snapshot_dir.mkdir(exist_ok=True)
+        self._pause_callback: Optional[Callable[[], bool]] = None
+        self._shutdown_callback: Optional[Callable[[], bool]] = None
 
 
     # ------------------------------------------------------------------
     # Lifecycle helpers
     # ------------------------------------------------------------------
+    def set_pause_callback(self, callback: Callable[[], bool]) -> None:
+        """Set callback to check if pause is requested."""
+        self._pause_callback = callback
+
+    def set_shutdown_callback(self, callback: Callable[[], bool]) -> None:
+        """Set callback to check if shutdown is requested."""
+        self._shutdown_callback = callback
+
     def _init_driver(self) -> None:
         if self._driver:
             self._driver.quit()
@@ -113,10 +125,62 @@ class SeleniumWorker:
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
-        self._driver = webdriver.Chrome(options=options)
+
+        # CRITICAL: Temporarily ignore SIGINT when creating driver to prevent chromedriver
+        # from receiving the signal when user presses Ctrl+C (which would kill it immediately)
+        old_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            self._driver = webdriver.Chrome(options=options)
+        finally:
+            # Restore original SIGINT handler so Python can catch Ctrl+C
+            signal.signal(signal.SIGINT, old_sigint_handler)
+
         self._driver.execute_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
+        # Force page visibility to prevent Twitter from throttling when window loses focus
+        self._inject_visibility_override()
+
+    def _inject_visibility_override(self) -> None:
+        """Override page visibility APIs to prevent Twitter from detecting when window loses focus.
+
+        This fixes the issue where Twitter stops loading content when the browser tab is not visible,
+        resulting in only ~11 accounts being captured instead of the full list.
+        """
+        if not self._driver:
+            return
+
+        visibility_script = """
+        // Override document.hidden to always return false (page is "visible")
+        Object.defineProperty(document, 'hidden', {
+            get: function() { return false; },
+            configurable: true
+        });
+
+        // Override document.visibilityState to always return 'visible'
+        Object.defineProperty(document, 'visibilityState', {
+            get: function() { return 'visible'; },
+            configurable: true
+        });
+
+        // Prevent visibilitychange events from firing
+        var originalAddEventListener = document.addEventListener;
+        document.addEventListener = function(type, listener, options) {
+            if (type === 'visibilitychange') {
+                // Silently ignore visibility change listeners
+                return;
+            }
+            return originalAddEventListener.call(this, type, listener, options);
+        };
+
+        console.log('[INJECTED] Page visibility override active - infinite scroll will work when unfocused');
+        """
+
+        try:
+            self._driver.execute_script(visibility_script)
+            LOGGER.debug("✓ Injected visibility override to maintain scroll performance when window loses focus")
+        except Exception as exc:
+            LOGGER.warning("Failed to inject visibility override: %s", exc)
 
     def _ensure_driver(self) -> bool:
         if not self._driver:
@@ -347,6 +411,8 @@ class SeleniumWorker:
         for attempt in range(attempts):
             LOGGER.debug("Navigating to %s (attempt %s/%s)", list_page_url, attempt + 1, attempts)
             self._driver.get(list_page_url)
+            # Re-inject visibility override after page navigation (Twitter is a SPA)
+            self._inject_visibility_override()
             self._apply_delay(f"load-{list_type}-page")
             try:
                 WebDriverWait(self._driver, 30).until(
@@ -408,7 +474,11 @@ class SeleniumWorker:
             LOGGER.warning("Could not validate timeline state for @%s %s: %s", username, list_type, exc)
 
         discovered: Dict[str, CapturedUser] = {}
-        last_height = self._driver.execute_script("return document.body.scrollHeight")
+        try:
+            last_height = self._driver.execute_script("return document.body.scrollHeight")
+        except (ConnectionRefusedError, MaxRetryError, NewConnectionError) as exc:
+            LOGGER.warning("Driver connection lost before scrolling (likely pause/shutdown): %s", exc)
+            raise KeyboardInterrupt("Driver connection lost") from exc
         stagnant_scrolls = 0
         scroll_round = 0
         extraction_counter = 0
@@ -416,6 +486,14 @@ class SeleniumWorker:
         LOGGER.info("📝 Starting scroll and extraction...")
 
         while stagnant_scrolls < self._config.max_no_change_scrolls:
+            # Check for pause/shutdown requests before continuing scroll
+            if self._pause_callback and self._pause_callback():
+                LOGGER.info("⏸️  Pause requested during %s collection - stopping gracefully...", list_type)
+                break
+            if self._shutdown_callback and self._shutdown_callback():
+                LOGGER.warning("🛑 Shutdown requested during %s collection - stopping immediately...", list_type)
+                raise KeyboardInterrupt("Shutdown requested during collection")
+
             scroll_round += 1
             LOGGER.debug("[%s] scroll #%s (collected=%s)", list_type, scroll_round, len(discovered))
 
@@ -498,9 +576,20 @@ class SeleniumWorker:
                 )
                 discovered[handle] = captured
 
-            self._driver.execute_script("window.scrollBy(0, 1200);")
+            try:
+                self._driver.execute_script("window.scrollBy(0, 1200);")
+            except (ConnectionRefusedError, MaxRetryError, NewConnectionError) as exc:
+                LOGGER.warning("Driver connection lost during scroll (likely pause/shutdown): %s", exc)
+                raise KeyboardInterrupt("Driver connection lost during scroll") from exc
+
             time.sleep(random.uniform(self._config.scroll_delay_min, self._config.scroll_delay_max))
-            new_height = self._driver.execute_script("return document.body.scrollHeight")
+
+            try:
+                new_height = self._driver.execute_script("return document.body.scrollHeight")
+            except (ConnectionRefusedError, MaxRetryError, NewConnectionError) as exc:
+                LOGGER.warning("Driver connection lost checking scroll height (likely pause/shutdown): %s", exc)
+                raise KeyboardInterrupt("Driver connection lost") from exc
+
             if new_height == last_height:
                 stagnant_scrolls += 1
                 LOGGER.debug("[%s] scroll %s no height change (%s/%s)", list_type, scroll_round, stagnant_scrolls, self._config.max_no_change_scrolls)
