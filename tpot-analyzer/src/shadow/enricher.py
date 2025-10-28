@@ -5,6 +5,7 @@ import json
 import logging
 import random
 import select
+import signal
 import sys
 import time
 from dataclasses import dataclass
@@ -136,6 +137,9 @@ class HybridShadowEnricher:
             retry_delays=config.selenium_retry_delays,
         )
         self._selenium = SeleniumWorker(selenium_config)
+        # Wire up pause/shutdown callbacks so selenium worker can respond to Ctrl+C
+        self._selenium.set_pause_callback(lambda: self._pause_requested)
+        self._selenium.set_shutdown_callback(lambda: self._shutdown_requested)
         self._api: Optional[XAPIClient] = None
         if config.bearer_token:
             api_config = XAPIClientConfig(
@@ -145,6 +149,11 @@ class HybridShadowEnricher:
             self._api = XAPIClient(api_config)
         self._resolution_cache: Dict[str, Dict[str, object]] = {}
         self._first_scrape_confirmed = not config.confirm_first_scrape
+
+        # Pause/resume state
+        self._pause_requested = False
+        self._shutdown_requested = False
+        self._original_sigint_handler = None
 
     def _log_pre_run_summary(self, seed: SeedAccount):
         logger = logging.getLogger(__name__)
@@ -168,6 +177,67 @@ class HybridShadowEnricher:
         edge_summary = self._store.edge_summary_for_seed(seed.account_id)
         logger.info(f"  Edge counts: following={edge_summary['following']}, followers={edge_summary['followers']}")
         logger.info("-------------------------------------------------")
+
+    # ------------------------------------------------------------------
+    # Pause/Resume Helpers
+    # ------------------------------------------------------------------
+    def _setup_signal_handler(self) -> None:
+        """Setup signal handler for graceful pause on Ctrl+C."""
+        def signal_handler(signum, frame):
+            if self._pause_requested:
+                # Second Ctrl+C - immediate shutdown
+                LOGGER.warning("\n⚠️  Second Ctrl+C detected - forcing shutdown...")
+                self._shutdown_requested = True
+                # Restore original handler and re-raise to trigger immediate exit
+                signal.signal(signal.SIGINT, self._original_sigint_handler)
+                raise KeyboardInterrupt
+            else:
+                # First Ctrl+C - request pause after current seed
+                LOGGER.warning("\n⏸️  Pause requested (Ctrl+C). Will pause after current seed completes...")
+                LOGGER.warning("   Press Ctrl+C again to force immediate shutdown.")
+                self._pause_requested = True
+
+        self._original_sigint_handler = signal.signal(signal.SIGINT, signal_handler)
+
+    def _restore_signal_handler(self) -> None:
+        """Restore original signal handler."""
+        if self._original_sigint_handler:
+            signal.signal(signal.SIGINT, self._original_sigint_handler)
+
+    def _handle_pause_menu(self, current_seed_idx: int, total_seeds: int) -> str:
+        """Show pause menu and return user choice.
+
+        Returns:
+            'resume' - Continue enrichment
+            'shutdown' - Exit cleanly
+            'skip' - Skip remaining seeds
+        """
+        print("\n" + "=" * 80)
+        print("⏸️  ENRICHMENT PAUSED")
+        print("=" * 80)
+        print(f"Progress: {current_seed_idx}/{total_seeds} seeds completed")
+        print(f"Remaining: {total_seeds - current_seed_idx} seeds")
+        print("\nOptions:")
+        print("  [r] Resume enrichment")
+        print("  [s] Shutdown and save progress")
+        print("  [q] Quit (same as shutdown)")
+        print("=" * 80)
+
+        while True:
+            try:
+                response = input("\nYour choice [r/s/q]: ").strip().lower()
+                if response in ('r', 'resume'):
+                    print("▶️  Resuming enrichment...\n")
+                    return 'resume'
+                elif response in ('s', 'shutdown', 'q', 'quit'):
+                    print("🛑 Shutting down gracefully...\n")
+                    return 'shutdown'
+                else:
+                    print("Invalid choice. Please enter 'r' (resume) or 's' (shutdown).")
+            except (KeyboardInterrupt, EOFError):
+                # Handle Ctrl+C or Ctrl+D during menu
+                print("\n🛑 Shutdown requested during pause menu...\n")
+                return 'shutdown'
 
     # ------------------------------------------------------------------
     # Enrichment Workflow Helpers
@@ -408,7 +478,7 @@ class HybridShadowEnricher:
         recent_metrics = self._store._execute_with_retry("check_list_freshness", _query)
 
         # Look for the most recent run where this list was successfully scraped
-        MIN_RAW_TO_SKIP = 5
+        MIN_RAW_TO_SKIP = 13
         for metrics_row in recent_metrics:
             if list_type == "following":
                 captured = metrics_row.following_captured
@@ -440,7 +510,7 @@ class HybridShadowEnricher:
             last_captured = last_metrics.followers_captured
 
         # Rule: If we have very few captured accounts, it's worth trying again.
-        MIN_RAW_TO_RETRY = 5
+        MIN_RAW_TO_RETRY = 13
         if last_captured is None or last_captured <= MIN_RAW_TO_RETRY:
             return False  # Would NOT skip (would refresh)
 
@@ -484,7 +554,7 @@ class HybridShadowEnricher:
         edge_summary = self._store.edge_summary_for_seed(seed.account_id)
         actual_edge_count = edge_summary.get(list_type, 0)
 
-        MIN_RAW_TO_RETRY = 5
+        MIN_RAW_TO_RETRY = 13
 
         # Rule 1: If metrics show low captured count, retry
         if last_captured is None or last_captured <= MIN_RAW_TO_RETRY:
@@ -720,6 +790,9 @@ class HybridShadowEnricher:
     # ------------------------------------------------------------------
     def enrich(self, seeds: Sequence[SeedAccount]) -> Dict[str, Dict[str, object]]:
         """Enrich the graph starting from provided seed accounts."""
+
+        # Setup signal handler for graceful pause/resume
+        self._setup_signal_handler()
 
         total_seeds = len(seeds)
         LOGGER.info("=" * 80)
@@ -1347,13 +1420,34 @@ class HybridShadowEnricher:
                 self._store.record_scrape_metrics(error_metrics)
                 continue
 
+            # Check if pause was requested (Ctrl+C)
+            if self._pause_requested:
+                choice = self._handle_pause_menu(seed_idx, total_seeds)
+                if choice == 'shutdown':
+                    LOGGER.info("Enrichment shutdown by user. Progress saved.")
+                    self._restore_signal_handler()
+                    return summary
+                elif choice == 'resume':
+                    # Clear pause flag and continue
+                    self._pause_requested = False
+                    LOGGER.info("Resuming enrichment from seed #%d/%d...", seed_idx + 1, total_seeds)
+
+            # Check if shutdown was forced (second Ctrl+C)
+            if self._shutdown_requested:
+                LOGGER.warning("Forced shutdown detected. Exiting immediately.")
+                self._restore_signal_handler()
+                return summary
+
             if self._config.user_pause_seconds > 0:
                 time.sleep(self._config.user_pause_seconds)
 
+        # Restore original signal handler at the end
+        self._restore_signal_handler()
         return summary
 
     def quit(self):
         """Safely quits the underlying Selenium browser instance."""
+        self._restore_signal_handler()
         self._selenium.quit()
 
     # ------------------------------------------------------------------
