@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from urllib3.exceptions import MaxRetryError, NewConnectionError
@@ -181,6 +182,61 @@ class SeleniumWorker:
             LOGGER.debug("✓ Injected visibility override to maintain scroll performance when window loses focus")
         except Exception as exc:
             LOGGER.warning("Failed to inject visibility override: %s", exc)
+
+    def _restore_browser_focus(self) -> None:
+        """Restore browser focus through simulated mouse movements and clicks.
+
+        This is a defensive measure to wake up the browser when Twitter throttling is detected.
+        Performs random mouse movements and clicks to simulate user interaction.
+        """
+        if not self._driver:
+            return
+
+        try:
+            LOGGER.info("🖱️  Performing focus restoration: mouse movements + clicks...")
+
+            # Get window size for random positioning
+            window_size = self._driver.get_window_size()
+            width = window_size['width']
+            height = window_size['height']
+
+            # Create action chain
+            actions = ActionChains(self._driver)
+
+            # Perform several random mouse movements
+            for i in range(3):
+                x_offset = random.randint(100, width - 100)
+                y_offset = random.randint(100, height - 100)
+                actions.move_by_offset(x_offset - (width // 2), y_offset - (height // 2))
+                actions.pause(random.uniform(0.3, 0.8))
+
+            # Click in a safe area (middle of screen, away from buttons)
+            try:
+                # Find the main timeline section and click on it
+                timeline = self._driver.find_element(By.CSS_SELECTOR, 'section[role="region"]')
+                actions.move_to_element(timeline).pause(0.5)
+                actions.click().pause(0.5)
+            except Exception:
+                # Fallback: click on body
+                body = self._driver.find_element(By.TAG_NAME, 'body')
+                actions.move_to_element(body).click()
+
+            # Right-click to trigger context menu (strong focus signal)
+            actions.context_click().pause(0.3)
+
+            # Escape to dismiss context menu
+            actions.send_keys('\ue00c')  # ESC key
+
+            # Execute all actions
+            actions.perform()
+
+            # Small delay to let browser process focus events
+            time.sleep(1.5)
+
+            LOGGER.info("✓ Focus restoration complete")
+
+        except Exception as exc:
+            LOGGER.warning("Failed to restore browser focus: %s", exc)
 
     def _ensure_driver(self) -> bool:
         if not self._driver:
@@ -610,6 +666,134 @@ class SeleniumWorker:
                 claimed_total = final_overview.followers_total
             elif list_type == "following":
                 claimed_total = final_overview.following_total
+
+        # DEFENSIVE RETRY: Detect browser focus throttling (suspicious low capture count)
+        # Only retry ONCE if we captured suspiciously few accounts (like the "11 captured" pattern)
+        SUSPICIOUS_LOW_THRESHOLD = 13
+        MIN_CLAIMED_FOR_RETRY = 50  # Only retry if claimed total suggests there should be more
+
+        if (len(captured_entries) <= SUSPICIOUS_LOW_THRESHOLD and
+            claimed_total and claimed_total > MIN_CLAIMED_FOR_RETRY):
+
+            LOGGER.warning("="*80)
+            LOGGER.warning("⚠️  BROWSER FOCUS THROTTLING DETECTED!")
+            LOGGER.warning("   Captured: %d accounts", len(captured_entries))
+            LOGGER.warning("   Claimed:  %d accounts", claimed_total)
+            LOGGER.warning("   Gap:      %d accounts (%.1f%% missing)",
+                          claimed_total - len(captured_entries),
+                          (1 - len(captured_entries)/claimed_total) * 100)
+            LOGGER.warning("   This matches the known pattern of browser window losing focus.")
+            LOGGER.warning("   Attempting recovery: focus restoration + page reload...")
+            LOGGER.warning("="*80)
+
+            try:
+                # Step 1: Restore browser focus with mouse movements and clicks
+                self._restore_browser_focus()
+
+                # Step 2: Reload the page to reset Twitter's state
+                LOGGER.info("🔄 Reloading %s page...", list_type)
+                self._driver.get(list_page_url)
+                self._inject_visibility_override()
+                self._apply_delay(f"reload-{list_type}-page")
+
+                # Wait for timeline to load
+                WebDriverWait(self._driver, 30).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'section[role="region"]'))
+                )
+
+                # Step 3: Retry scroll and extraction
+                LOGGER.info("🔁 RETRY: Starting scroll and extraction (attempt 2/2)...")
+
+                retry_discovered: Dict[str, CapturedUser] = {}
+                retry_last_height = self._driver.execute_script("return document.body.scrollHeight")
+                retry_stagnant_scrolls = 0
+                retry_scroll_round = 0
+                retry_extraction_counter = 0
+
+                while retry_stagnant_scrolls < self._config.max_no_change_scrolls:
+                    # Check for pause/shutdown
+                    if self._pause_callback and self._pause_callback():
+                        LOGGER.info("⏸️  Pause requested during retry - stopping...")
+                        break
+                    if self._shutdown_callback and self._shutdown_callback():
+                        LOGGER.warning("🛑 Shutdown requested during retry - stopping...")
+                        break
+
+                    retry_scroll_round += 1
+                    LOGGER.debug("[RETRY %s] scroll #%s (collected=%s)", list_type, retry_scroll_round, len(retry_discovered))
+
+                    # Extract users from current viewport
+                    try:
+                        timeline_section = self._driver.find_element(By.CSS_SELECTOR, 'section[role="region"]')
+                        user_cells = timeline_section.find_elements(By.CSS_SELECTOR, '[data-testid="UserCell"]')
+                    except Exception as exc:
+                        LOGGER.warning("[RETRY %s] Could not find timeline: %s", list_type, exc)
+                        user_cells = []
+
+                    for cell in user_cells:
+                        handle = self._extract_handle(cell)
+                        if not handle or handle in retry_discovered:
+                            continue
+
+                        display_name = self._extract_display_name(cell) or handle
+                        bio = self._extract_bio(cell)
+                        website = self._extract_website(cell)
+                        profile_image_url = self._extract_profile_image_url(cell)
+
+                        retry_extraction_counter += 1
+                        bio_preview = (bio[:77] + "...") if bio and len(bio) > 80 else bio
+                        LOGGER.info(
+                            "  %3d. ✓ @%s (%s) - \"%s\"",
+                            retry_extraction_counter,
+                            handle,
+                            display_name or "no name",
+                            bio_preview or "no bio"
+                        )
+
+                        retry_discovered[handle] = CapturedUser(
+                            username=handle,
+                            display_name=display_name,
+                            bio=bio,
+                            profile_url=f"https://x.com/{handle}",
+                            website=website,
+                            profile_image_url=profile_image_url,
+                            list_types={list_type},
+                        )
+
+                    # Scroll
+                    self._driver.execute_script("window.scrollBy(0, 1200);")
+                    time.sleep(random.uniform(self._config.scroll_delay_min, self._config.scroll_delay_max))
+
+                    # Check height
+                    retry_new_height = self._driver.execute_script("return document.body.scrollHeight")
+                    if retry_new_height == retry_last_height:
+                        retry_stagnant_scrolls += 1
+                    else:
+                        retry_stagnant_scrolls = 0
+                    retry_last_height = retry_new_height
+
+                # Use retry results
+                retry_entries = list(retry_discovered.values())
+
+                LOGGER.warning("="*80)
+                LOGGER.warning("🔁 RETRY COMPLETE:")
+                LOGGER.warning("   First attempt:  %d accounts", len(captured_entries))
+                LOGGER.warning("   Retry attempt:  %d accounts", len(retry_entries))
+                LOGGER.warning("   Improvement:    %+d accounts (%.1f%% → %.1f%%)",
+                              len(retry_entries) - len(captured_entries),
+                              (len(captured_entries)/claimed_total*100) if claimed_total else 0,
+                              (len(retry_entries)/claimed_total*100) if claimed_total else 0)
+
+                if len(retry_entries) > len(captured_entries):
+                    LOGGER.warning("   ✅ Retry successful - using retry results")
+                    captured_entries = retry_entries
+                else:
+                    LOGGER.warning("   ⚠️  Retry did not improve results - keeping original")
+                LOGGER.warning("="*80 + "\n")
+
+            except Exception as exc:
+                LOGGER.error("Failed during defensive retry: %s", exc, exc_info=True)
+                LOGGER.warning("Continuing with original captured entries (%d accounts)", len(captured_entries))
 
         return UserListCapture(
             list_type=list_type,
