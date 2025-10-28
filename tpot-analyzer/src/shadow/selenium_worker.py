@@ -541,11 +541,17 @@ class SeleniumWorker:
 
         LOGGER.info("📝 Starting scroll and extraction...")
 
+        pause_pending = False
+
         while stagnant_scrolls < self._config.max_no_change_scrolls:
             # Check for pause/shutdown requests before continuing scroll
             if self._pause_callback and self._pause_callback():
-                LOGGER.info("⏸️  Pause requested during %s collection - stopping gracefully...", list_type)
-                break
+                if not pause_pending:
+                    LOGGER.info(
+                        "⏸️  Pause requested during %s collection - finishing current seed before pausing...",
+                        list_type,
+                    )
+                pause_pending = True
             if self._shutdown_callback and self._shutdown_callback():
                 LOGGER.warning("🛑 Shutdown requested during %s collection - stopping immediately...", list_type)
                 raise KeyboardInterrupt("Shutdown requested during collection")
@@ -710,11 +716,16 @@ class SeleniumWorker:
                 retry_scroll_round = 0
                 retry_extraction_counter = 0
 
+                retry_pause_pending = pause_pending
+
                 while retry_stagnant_scrolls < self._config.max_no_change_scrolls:
                     # Check for pause/shutdown
                     if self._pause_callback and self._pause_callback():
-                        LOGGER.info("⏸️  Pause requested during retry - stopping...")
-                        break
+                        if not retry_pause_pending:
+                            LOGGER.info(
+                                "⏸️  Pause requested during retry - finishing current seed before pausing..."
+                            )
+                        retry_pause_pending = True
                     if self._shutdown_callback and self._shutdown_callback():
                         LOGGER.warning("🛑 Shutdown requested during retry - stopping...")
                         break
