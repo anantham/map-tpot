@@ -20,6 +20,8 @@ coverage gaps, or UX improvements surface.
   (requires historical scrape storage upgrades).
 - Investigate advanced metrics (heat diffusion, GNN embeddings) once baseline
   enrichment stabilizes.
+- Surface cached list snapshot freshness in CLI summaries and reuse them when
+  prioritising seeds (now that persistence exists).
 
 ## Infrastructure & Tooling
 
@@ -29,6 +31,10 @@ coverage gaps, or UX improvements surface.
   exceeds current performance envelope.
 - Bundle verification scripts (`scripts/verify_*.py`) into a consolidated CLI
   entry point for Phase 2.
+- Add housekeeping task to expire or refresh list snapshots that exceed
+  `list_refresh_days` so cache stays accurate.
+- Instrument Selenium/enricher phases with timing metrics so slow steps are
+  visible in summaries and `ScrapeRunMetrics`.
 
 ## Developer Experience
 

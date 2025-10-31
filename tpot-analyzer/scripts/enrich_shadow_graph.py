@@ -154,7 +154,12 @@ def parse_args() -> argparse.Namespace:
         "--center",
         type=str,
         default=None,
-        help="Center username (e.g., 'adityaarpitha'). Fetches their /following list and prioritizes those accounts after the seed preset.",
+        help="Center username (e.g., 'adityaarpitha') OR Twitter list ID (e.g., '1788441465326064008'). For usernames: fetches their /following list and prioritizes those accounts after the seed preset. For list IDs: scrapes list members and uses them as priority seeds.",
+    )
+    parser.add_argument(
+        "--force-refresh-list",
+        action="store_true",
+        help="Force Selenium to refresh list members even if a fresh cached snapshot exists.",
     )
     parser.add_argument(
         "--log-level",
@@ -299,9 +304,14 @@ def main() -> None:
 
         store = get_shadow_store(fetcher.engine)
 
-        # If a center user is specified, enrich them FIRST then use their
-        # following list from the DB to prioritize remaining seeds
-        if args.center:
+        # Detect if --center is a list ID (numeric) or username (string)
+        center_is_list_id = False
+        center_list_id = None
+        if args.center and args.center.strip().isdigit():
+            center_is_list_id = True
+            center_list_id = args.center.strip()
+            LOGGER.info("Center is a Twitter list ID: %s - will scrape list members and use as priority seeds.", center_list_id)
+        elif args.center:
             center_username_lower = args.center.lower()
             LOGGER.info("Center user @%s specified - will enrich first, then prioritize their following list.", args.center)
 
@@ -350,8 +360,66 @@ def main() -> None:
 
         enricher = HybridShadowEnricher(store, config, policy)
         try:
-            # If --center was specified, enrich just the center user first
-            if args.center and len(seeds) > 0 and seeds[0].username == args.center.lower():
+            # Handle list ID mode: scrape list members and use as priority seeds
+            if center_is_list_id and center_list_id:
+                LOGGER.info("Fetching list members from Twitter list ID: %s...", center_list_id)
+
+                # Fetch list members using cache-aware helper
+                list_capture = enricher.fetch_list_members_with_cache(
+                    center_list_id,
+                    force_refresh=args.force_refresh_list,
+                )
+
+                if list_capture.entries:
+                    list_member_usernames = {user.username.lower() for user in list_capture.entries if user.username}
+                    LOGGER.info("✓ Captured %d list members from list ID %s", len(list_member_usernames), center_list_id)
+
+                    # Build seed priority: preset seeds first, then ALL list members, then others
+                    preset_usernames = set(load_seed_candidates())
+                    archive_usernames = set(seed_usernames)
+
+                    # Priority groups
+                    priority_seeds = archive_usernames.intersection(preset_usernames)
+                    list_members_not_in_archive = list_member_usernames - archive_usernames - priority_seeds
+                    list_members_in_archive = list_member_usernames.intersection(archive_usernames) - priority_seeds
+                    other_seeds = archive_usernames - priority_seeds - list_members_in_archive
+
+                    # Build reordered list: presets, then list members (in archive), then list members (not in archive), then others
+                    reordered_usernames = (
+                        sorted(list(priority_seeds)) +
+                        sorted(list(list_members_in_archive)) +
+                        sorted(list(list_members_not_in_archive)) +
+                        sorted(list(other_seeds))
+                    )
+
+                    # Build seeds: use archive data where available, create shadow seeds for the rest
+                    archive_based_seeds = build_seed_accounts(fetcher, reordered_usernames)
+
+                    # Create shadow seeds for usernames not found in archive (these will get enriched from scratch)
+                    existing_archive_usernames = {s.username.lower() for s in archive_based_seeds if s.username}
+                    shadow_seed_usernames = [u for u in reordered_usernames if u.lower() not in existing_archive_usernames]
+                    shadow_seeds = [
+                        SeedAccount(account_id=f"shadow:{username}", username=username, trust=0.8)
+                        for username in shadow_seed_usernames
+                    ]
+
+                    seeds = archive_based_seeds + shadow_seeds
+
+                    LOGGER.info("\n" + "=" * 80)
+                    LOGGER.info("SEED LIST PRIORITIZATION SUMMARY (LIST MODE)")
+                    LOGGER.info("=" * 80)
+                    LOGGER.info("  1. Preset seeds (high priority): %d accounts", len(priority_seeds))
+                    LOGGER.info("  2. List %s members (in archive): %d accounts", center_list_id, len(list_members_in_archive))
+                    LOGGER.info("  3. List %s members (new shadow seeds): %d accounts", center_list_id, len(shadow_seeds))
+                    LOGGER.info("  4. Other archive accounts: %d accounts", len(other_seeds))
+                    LOGGER.info("-" * 80)
+                    LOGGER.info("TOTAL SEEDS: %d", len(seeds))
+                    LOGGER.info("=" * 80 + "\n")
+                else:
+                    LOGGER.warning("No list members captured from list %s. Continuing with original seed order.", center_list_id)
+
+            # Handle username mode: enrich center user first, then use their following list
+            elif args.center and len(seeds) > 0 and seeds[0].username == args.center.lower():
                 center_seed = seeds[0]
                 remaining_seeds = seeds[1:]
 
@@ -411,12 +479,13 @@ def main() -> None:
                     # Restore full seeds list
                     seeds = [center_seed] + remaining_seeds
             else:
-                # No center user specified - use default seed order
+                # No center specified - use default seed order
                 LOGGER.info("\n" + "=" * 80)
                 LOGGER.info("SEED LIST SUMMARY")
                 LOGGER.info("=" * 80)
                 LOGGER.info("  Total seeds: %d accounts", len(seeds))
                 LOGGER.info("  (Use --center <username> to prioritize a user's following list)")
+                LOGGER.info("  (Use --center <list_id> to prioritize a Twitter list's members)")
                 LOGGER.info("=" * 80 + "\n")
 
             # Run the main enrichment loop
