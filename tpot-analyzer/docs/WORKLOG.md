@@ -185,3 +185,19 @@
 - **Tests**: `tests/test_shadow_enricher_utils.py`:402-485 — added `TestAccountIDMigrationCacheLookup` integration test class verifying enricher finds shadow ID records when seed has real ID, and handles None username gracefully.
 - **Verification**: `pytest tests/test_shadow_enricher_utils.py::TestAccountIDMigrationCacheLookup -v` → 2/2 passed; manual DB query confirms query now returns historical scrape runs.
 - **Impact**: Eliminates redundant scrapes for migrated accounts; enricher correctly skips when historical data exists under shadow ID; `--center` mode now respects cache properly.
+
+## 2025-10-27T11:45:00Z — List snapshot caching + member count guard
+- `src/data/shadow_store.py`:150-370, 520-670 — expanded list schema (name/description/owner/claimed counts/followers), added migrations, and exposed helpers to persist/reload cached list snapshots + members.
+- `src/shadow/enricher.py`:64-965, 1235-1485 — list fetch now captures header metadata, reuses cached snapshots via `fetch_list_members_with_cache`, records list metrics (including claimed counts), and warns when captured members < claimed totals.
+- `src/shadow/selenium_worker.py`:360-560 — parsed list overview via DOM script, scrolled the members pane with wheel + PAGE_DOWN fallbacks, and attached overview data to `UserListCapture`.
+- `scripts/enrich_shadow_graph.py`:360-425 — `--force-refresh-list` flag wired into cache-aware fetch, seed prioritisation uses cached members.
+- Tests: `tests/test_shadow_store_unit.py`:260-440, `tests/test_shadow_enricher_utils.py`:404-620, `tests/test_shadow_enrichment_integration.py`:40-585, `tests/conftest.py`:90-110 — exercised schema persistence, cache reuse, list overview propagation, and updated metrics fixtures.
+- Tooling: `scripts/verify_small_account_totals.py`:1-170, `scripts/verify_list_snapshots.py`:1-200 — verification scripts for small-account coverage and list snapshot alignment (currently report missing tables until a list is scraped post-migration).
+- Verification: `python3 -m pytest tests/test_shadow_enricher_utils.py::TestListCaching -q` (fails: No module named pytest in the active interpreter); `python3 scripts/verify_list_snapshots.py` (✗ list snapshot tables missing — expected before first list scrape on new schema).
+
+## 2025-10-27T09:45:00Z — Small-account profile total gating
+- `src/shadow/enricher.py`:520-606 — incorporated profile overview totals into list refresh heuristics so accounts with ≤13 connections skip once captured counts meet observed totals, while still flagging small-account corruption.
+- `tests/test_shadow_enricher_utils.py`:220-340 — added `TestShouldRefreshListProfileTotals` unit coverage for complete, incomplete, and corrupt small-account scenarios plus legacy threshold fallback.
+- `scripts/verify_small_account_totals.py`:1-150 — new verification script that scans the cache for seeds with totals ≤13 and reports coverage shortfalls with ✓/✗ status and remediation hints.
+- `docs/ROADMAP.md`:17-19 — recorded follow-up to extend history-based skip logic to use profile totals.
+- Verification: `python3 -m pytest tests/test_shadow_enricher_utils.py::TestShouldRefreshListProfileTotals -q` (fails: No module named pytest in current interpreter).

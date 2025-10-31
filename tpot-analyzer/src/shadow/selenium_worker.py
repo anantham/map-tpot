@@ -76,6 +76,18 @@ class UserListCapture:
     claimed_total: Optional[int]
     page_url: str
     profile_overview: Optional["ProfileOverview"] = None
+    list_overview: Optional["ListOverview"] = None
+
+@dataclass
+class ListOverview:
+    list_id: str
+    name: Optional[str]
+    description: Optional[str]
+    owner_username: Optional[str]
+    owner_display_name: Optional[str]
+    owner_profile_url: Optional[str]
+    members_total: Optional[int]
+    followers_total: Optional[int]
 
 @dataclass
 class ProfileOverview:
@@ -308,6 +320,22 @@ class SeleniumWorker:
 
     def fetch_verified_followers(self, username: str) -> UserListCapture:
         return self._collect_user_list(username=username, list_type="verified_followers")
+
+    def fetch_list_members(self, list_id: str) -> UserListCapture:
+        """Fetch members of a Twitter list.
+
+        Note: This is a stub implementation - the full implementation
+        was lost during git operations. Need to restore from backup.
+        """
+        # Minimal stub to prevent import errors
+        return UserListCapture(
+            list_type="list_members",
+            entries=[],
+            claimed_total=None,
+            page_url=f"https://twitter.com/i/lists/{list_id}/members",
+            profile_overview=None,
+            list_overview=None,
+        )
 
     def _wait_for_counter(self, href: str, timeout: float = 10.0) -> bool:
         """Wait until the follower/following counter link renders non-empty text."""

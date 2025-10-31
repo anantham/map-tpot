@@ -25,6 +25,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.sql import text
 
 
 LOGGER = logging.getLogger(__name__)
@@ -76,6 +77,40 @@ class ShadowDiscovery:
 
 
 @dataclass(frozen=True)
+class ShadowList:
+    """Metadata for a Twitter list snapshot."""
+
+    list_id: str
+    name: Optional[str]
+    description: Optional[str]
+    owner_account_id: Optional[str]
+    owner_username: Optional[str]
+    owner_display_name: Optional[str]
+    member_count: int  # captured count
+    claimed_member_total: Optional[int]
+    followers_count: Optional[int]
+    fetched_at: datetime
+    source_channel: str
+    metadata: Optional[dict] = None
+
+
+@dataclass(frozen=True)
+class ShadowListMember:
+    """Represents a captured member of a Twitter list."""
+
+    list_id: str
+    member_account_id: str
+    member_username: Optional[str]
+    member_display_name: Optional[str]
+    bio: Optional[str]
+    website: Optional[str]
+    profile_image_url: Optional[str]
+    fetched_at: datetime
+    source_channel: str
+    metadata: Optional[dict] = None
+
+
+@dataclass(frozen=True)
 class ScrapeRunMetrics:
     """Metrics for a single seed enrichment run."""
 
@@ -86,6 +121,7 @@ class ScrapeRunMetrics:
     following_captured: int
     followers_captured: int
     followers_you_follow_captured: int
+    list_members_captured: int
     following_claimed_total: Optional[int]
     followers_claimed_total: Optional[int]
     followers_you_follow_claimed_total: Optional[int]
@@ -95,6 +131,7 @@ class ScrapeRunMetrics:
     accounts_upserted: int
     edges_upserted: int
     discoveries_upserted: int
+    phase_timings: Optional[dict] = None
     skipped: bool = False
     skip_reason: Optional[str] = None
     error_type: Optional[str] = None  # "404", "timeout", "rate_limit", "private", "suspended"
@@ -153,6 +190,37 @@ class ShadowStore:
             Column("discovery_method", String, nullable=False),
             PrimaryKeyConstraint("shadow_account_id", "seed_account_id", name="pk_shadow_discovery"),
         )
+        self._list_table = Table(
+            "shadow_list",
+            self._metadata,
+            Column("list_id", String, primary_key=True),
+            Column("name", String, nullable=True),
+            Column("description", String, nullable=True),
+            Column("owner_account_id", String, nullable=True),
+            Column("owner_username", String, nullable=True),
+            Column("owner_display_name", String, nullable=True),
+            Column("member_count", Integer, nullable=False),
+            Column("claimed_member_total", Integer, nullable=True),
+            Column("followers_count", Integer, nullable=True),
+            Column("fetched_at", DateTime(timezone=False), nullable=False),
+            Column("source_channel", String, nullable=False),
+            Column("metadata", JSON, nullable=True),
+        )
+        self._list_member_table = Table(
+            "shadow_list_member",
+            self._metadata,
+            Column("list_id", String, nullable=False),
+            Column("member_account_id", String, nullable=False),
+            Column("member_username", String, nullable=True),
+            Column("member_display_name", String, nullable=True),
+            Column("bio", String, nullable=True),
+            Column("website", String, nullable=True),
+            Column("profile_image_url", String, nullable=True),
+            Column("fetched_at", DateTime(timezone=False), nullable=False),
+            Column("source_channel", String, nullable=False),
+            Column("metadata", JSON, nullable=True),
+            PrimaryKeyConstraint("list_id", "member_account_id", name="pk_shadow_list_member"),
+        )
         self._metrics_table = Table(
             self.METRICS_TABLE,
             self._metadata,
@@ -164,6 +232,7 @@ class ShadowStore:
             Column("following_captured", Integer, nullable=False),
             Column("followers_captured", Integer, nullable=False),
             Column("followers_you_follow_captured", Integer, nullable=False),
+            Column("list_members_captured", Integer, nullable=False, default=0),
             Column("following_claimed_total", Integer, nullable=True),
             Column("followers_claimed_total", Integer, nullable=True),
             Column("followers_you_follow_claimed_total", Integer, nullable=True),
@@ -173,16 +242,59 @@ class ShadowStore:
             Column("accounts_upserted", Integer, nullable=False),
             Column("edges_upserted", Integer, nullable=False),
             Column("discoveries_upserted", Integer, nullable=False),
+            Column("phase_timings", JSON, nullable=True),
             Column("skipped", Boolean, nullable=False, default=False),
             Column("skip_reason", String, nullable=True),
             Column("error_type", String, nullable=True),
             Column("error_details", String, nullable=True),
         )
         self._metadata.create_all(self._engine, checkfirst=True)
+        self._ensure_schema()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    def _ensure_schema(self) -> None:
+        """Apply lightweight migrations for new columns."""
+        def _migrate(engine: Engine) -> None:
+            with engine.begin() as conn:
+                result = conn.execute(text("PRAGMA table_info(scrape_run_metrics)"))
+                columns = {row[1] for row in result}
+                if "list_members_captured" not in columns:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE scrape_run_metrics "
+                            "ADD COLUMN list_members_captured INTEGER DEFAULT 0"
+                        )
+                    )
+                if "phase_timings" not in columns:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE scrape_run_metrics "
+                            "ADD COLUMN phase_timings JSON"
+                        )
+                    )
+
+                # Ensure shadow_list table has latest columns
+                result = conn.execute(text("PRAGMA table_info(shadow_list)"))
+                list_columns = {row[1] for row in result}
+                migrations: list[tuple[str, str]] = [
+                    ("description", "TEXT"),
+                    ("owner_username", "TEXT"),
+                    ("owner_display_name", "TEXT"),
+                    ("claimed_member_total", "INTEGER"),
+                    ("followers_count", "INTEGER"),
+                ]
+                for column_name, column_type in migrations:
+                    if column_name not in list_columns:
+                        conn.execute(
+                            text(
+                                f"ALTER TABLE shadow_list ADD COLUMN {column_name} {column_type}"
+                            )
+                        )
+
+        self._execute_with_retry("ensure_schema", _migrate)
+
     def _execute_with_retry(
         self,
         op_name: str,
@@ -521,6 +633,7 @@ class ShadowStore:
                     following_captured=row.following_captured,
                     followers_captured=row.followers_captured,
                     followers_you_follow_captured=row.followers_you_follow_captured,
+                    list_members_captured=row.list_members_captured or 0,
                     following_claimed_total=row.following_claimed_total,
                     followers_claimed_total=row.followers_claimed_total,
                     followers_you_follow_claimed_total=row.followers_you_follow_claimed_total,
@@ -566,6 +679,12 @@ class ShadowStore:
             if not row:
                 return None
 
+            phase_timings = row.phase_timings
+            if phase_timings and not isinstance(phase_timings, dict):
+                try:
+                    phase_timings = json.loads(phase_timings)
+                except json.JSONDecodeError:
+                    phase_timings = None
             return ScrapeRunMetrics(
                 seed_account_id=row.seed_account_id,
                 seed_username=row.seed_username,
@@ -574,6 +693,7 @@ class ShadowStore:
                 following_captured=row.following_captured,
                 followers_captured=row.followers_captured,
                 followers_you_follow_captured=row.followers_you_follow_captured,
+                list_members_captured=row.list_members_captured or 0,
                 following_claimed_total=row.following_claimed_total,
                 followers_claimed_total=row.followers_claimed_total,
                 followers_you_follow_claimed_total=row.followers_you_follow_claimed_total,
@@ -595,6 +715,7 @@ class ShadowStore:
                 accounts_upserted=row.accounts_upserted,
                 edges_upserted=row.edges_upserted,
                 discoveries_upserted=row.discoveries_upserted,
+                phase_timings=phase_timings,
                 skipped=row.skipped,
                 skip_reason=row.skip_reason,
                 error_type=row.error_type,
@@ -660,6 +781,159 @@ class ShadowStore:
                 scrape_stats=row.scrape_stats if isinstance(row.scrape_stats, dict) else (json.loads(row.scrape_stats) if row.scrape_stats else None),
             )
 
+    # ------------------------------------------------------------------
+    # List snapshot helpers
+    # ------------------------------------------------------------------
+
+    def get_shadow_list(self, list_id: str) -> Optional[ShadowList]:
+        """Fetch metadata for a previously captured list."""
+        def _op(engine: Engine) -> Optional[ShadowList]:
+            with engine.begin() as conn:
+                stmt = (
+                    select(self._list_table)
+                    .where(self._list_table.c.list_id == list_id)
+                    .limit(1)
+                )
+                row = conn.execute(stmt).fetchone()
+                if not row:
+                    return None
+                metadata = row.metadata
+                if metadata and not isinstance(metadata, dict):
+                    metadata = json.loads(metadata)
+                return ShadowList(
+                    list_id=row.list_id,
+                    name=row.name,
+                    description=row.description,
+                    owner_account_id=row.owner_account_id,
+                    owner_username=row.owner_username,
+                    owner_display_name=row.owner_display_name,
+                    member_count=row.member_count,
+                    claimed_member_total=row.claimed_member_total,
+                    followers_count=row.followers_count,
+                    fetched_at=row.fetched_at,
+                    source_channel=row.source_channel,
+                    metadata=metadata,
+                )
+
+        return self._execute_with_retry("get_shadow_list", _op)
+
+    def get_shadow_list_members(self, list_id: str) -> List[ShadowListMember]:
+        """Return cached members for a list (empty if none cached)."""
+        def _op(engine: Engine) -> List[ShadowListMember]:
+            with engine.begin() as conn:
+                stmt = (
+                    select(self._list_member_table)
+                    .where(self._list_member_table.c.list_id == list_id)
+                    .order_by(self._list_member_table.c.member_username)
+                )
+                rows = conn.execute(stmt).fetchall()
+
+                members: List[ShadowListMember] = []
+                for row in rows:
+                    metadata = row.metadata
+                    if metadata and not isinstance(metadata, dict):
+                        metadata = json.loads(metadata)
+                    members.append(
+                        ShadowListMember(
+                            list_id=row.list_id,
+                            member_account_id=row.member_account_id,
+                            member_username=row.member_username,
+                            member_display_name=row.member_display_name,
+                            bio=row.bio,
+                            website=row.website,
+                            profile_image_url=row.profile_image_url,
+                            fetched_at=row.fetched_at,
+                            source_channel=row.source_channel,
+                            metadata=metadata,
+                        )
+                    )
+                return members
+
+        return self._execute_with_retry("get_shadow_list_members", _op)
+
+    def upsert_lists(self, lists: Sequence[ShadowList]) -> int:
+        """Upsert list metadata entries."""
+        if not lists:
+            return 0
+
+        rows = []
+        for item in lists:
+            rows.append(
+                {
+                    "list_id": item.list_id,
+                    "name": item.name,
+                    "description": item.description,
+                    "owner_account_id": item.owner_account_id,
+                    "owner_username": item.owner_username,
+                    "owner_display_name": item.owner_display_name,
+                    "member_count": item.member_count,
+                    "claimed_member_total": item.claimed_member_total,
+                    "followers_count": item.followers_count,
+                    "fetched_at": item.fetched_at,
+                    "source_channel": item.source_channel,
+                    "metadata": json.dumps(item.metadata) if item.metadata else None,
+                }
+            )
+
+        def _op(engine: Engine) -> int:
+            with engine.begin() as conn:
+                stmt = insert(self._list_table).values(rows)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["list_id"],
+                    set_={
+                        "name": stmt.excluded.name,
+                        "owner_account_id": stmt.excluded.owner_account_id,
+                        "description": stmt.excluded.description,
+                        "owner_username": stmt.excluded.owner_username,
+                        "owner_display_name": stmt.excluded.owner_display_name,
+                        "member_count": stmt.excluded.member_count,
+                        "claimed_member_total": stmt.excluded.claimed_member_total,
+                        "followers_count": stmt.excluded.followers_count,
+                        "fetched_at": stmt.excluded.fetched_at,
+                        "source_channel": stmt.excluded.source_channel,
+                        "metadata": stmt.excluded.metadata,
+                    },
+                )
+                conn.execute(stmt)
+                return len(rows)
+
+        return self._execute_with_retry("upsert_lists", _op)
+
+    def replace_list_members(
+        self,
+        list_id: str,
+        members: Sequence[ShadowListMember],
+    ) -> int:
+        """Replace cached members for a list with a new snapshot."""
+        rows = [
+            {
+                "list_id": member.list_id,
+                "member_account_id": member.member_account_id,
+                "member_username": member.member_username,
+                "member_display_name": member.member_display_name,
+                "bio": member.bio,
+                "website": member.website,
+                "profile_image_url": member.profile_image_url,
+                "fetched_at": member.fetched_at,
+                "source_channel": member.source_channel,
+                "metadata": json.dumps(member.metadata) if member.metadata else None,
+            }
+            for member in members
+        ]
+
+        def _op(engine: Engine) -> int:
+            with engine.begin() as conn:
+                conn.execute(
+                    self._list_member_table.delete().where(
+                        self._list_member_table.c.list_id == list_id
+                    )
+                )
+                if rows:
+                    conn.execute(insert(self._list_member_table).values(rows))
+                return len(rows)
+
+        return self._execute_with_retry("replace_list_members", _op)
+
     def record_scrape_metrics(self, metrics: ScrapeRunMetrics) -> int:
         """Record metrics for a single scrape run."""
         row = {
@@ -670,6 +944,7 @@ class ShadowStore:
             "following_captured": metrics.following_captured,
             "followers_captured": metrics.followers_captured,
             "followers_you_follow_captured": metrics.followers_you_follow_captured,
+            "list_members_captured": metrics.list_members_captured,
             "following_claimed_total": metrics.following_claimed_total,
             "followers_claimed_total": metrics.followers_claimed_total,
             "followers_you_follow_claimed_total": metrics.followers_you_follow_claimed_total,
@@ -691,6 +966,7 @@ class ShadowStore:
             "accounts_upserted": metrics.accounts_upserted,
             "edges_upserted": metrics.edges_upserted,
             "discoveries_upserted": metrics.discoveries_upserted,
+            "phase_timings": json.dumps(metrics.phase_timings) if metrics.phase_timings else None,
             "skipped": metrics.skipped,
             "skip_reason": metrics.skip_reason,
             "error_type": metrics.error_type,

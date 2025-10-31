@@ -59,6 +59,7 @@ class ConsoleFilter(logging.Filter):
                     "Extracted:",    # Legacy format (if any)
                     "Already captured",  # Legacy format (if any)
                     "Profile overview fetched",  # Profile metadata summaries
+                    "List overview",
                 ]):
                     return True
             
