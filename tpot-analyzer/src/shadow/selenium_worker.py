@@ -16,9 +16,10 @@ from typing import Callable, Dict, List, Optional, Set
 from urllib.parse import urlparse
 
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from urllib3.exceptions import MaxRetryError, NewConnectionError
@@ -322,20 +323,441 @@ class SeleniumWorker:
         return self._collect_user_list(username=username, list_type="verified_followers")
 
     def fetch_list_members(self, list_id: str) -> UserListCapture:
-        """Fetch members of a Twitter list.
+        """Fetch members of a Twitter list by scrolling the members page.
 
-        Note: This is a stub implementation - the full implementation
-        was lost during git operations. Need to restore from backup.
+        Args:
+            list_id: Twitter list ID (numeric string)
+
+        Returns:
+            UserListCapture with list_overview containing metadata
         """
-        # Minimal stub to prevent import errors
+        if not self._ensure_driver():
+            return UserListCapture(
+                list_type="list_members",
+                entries=[],
+                claimed_total=None,
+                page_url=f"https://twitter.com/i/lists/{list_id}/members",
+                profile_overview=None,
+                list_overview=None,
+            )
+
+        list_page_url = f"https://twitter.com/i/lists/{list_id}/members"
+        list_type = "list_members"
+
+        LOGGER.info("")
+        LOGGER.info("="*80)
+        LOGGER.info("🔍 VISITING LIST → MEMBERS (ID: %s)", list_id)
+        LOGGER.info("="*80)
+
+        try:
+            self._driver.get(list_page_url)
+        except Exception as exc:
+            LOGGER.error("Failed to navigate to list %s: %s", list_id, exc)
+            return UserListCapture(
+                list_type=list_type,
+                entries=[],
+                claimed_total=None,
+                page_url=list_page_url,
+                profile_overview=None,
+                list_overview=None,
+            )
+
+        self._apply_delay("list-page-load")
+
+        # Wait for the page to load - try to find either members or error state
+        try:
+            WebDriverWait(self._driver, 30).until(
+                lambda d: (
+                    d.find_elements(By.CSS_SELECTOR, 'section[role="region"]')
+                    or d.find_elements(By.CSS_SELECTOR, '[data-testid="emptyState"]')
+                )
+            )
+        except TimeoutException:
+            LOGGER.error("Timeout waiting for list page to load for list %s", list_id)
+            self._save_page_snapshot(f"list_{list_id}", "load-timeout")
+            return UserListCapture(
+                list_type=list_type,
+                entries=[],
+                claimed_total=None,
+                page_url=list_page_url,
+                profile_overview=None,
+                list_overview=None,
+            )
+
+        self._apply_delay("list-members-viewport-ready")
+
+        # Switch to members tab (may already be there, but ensure it)
+        self._switch_to_list_tab("members")
+
+        # Extract list overview metadata
+        list_overview = self._extract_list_overview(list_id)
+        target_member_total = list_overview.members_total if list_overview else None
+
+        # Wait for actual members to load in the main timeline (not just sidebar)
+        LOGGER.info("⏳ Waiting for list members to load...")
+        members_loaded = False
+        for wait_attempt in range(10):
+            try:
+                # Check for UserCells that are NOT in the sidebar
+                main_timeline_cells = self._driver.execute_script("""
+                    const allCells = Array.from(document.querySelectorAll('[data-testid="UserCell"]'));
+                    const mainCells = allCells.filter(cell => {
+                        return cell.closest('aside[aria-label]') === null;
+                    });
+                    return mainCells.length;
+                """)
+
+                if main_timeline_cells > 0:
+                    LOGGER.info("✅ Found %d members in main timeline", main_timeline_cells)
+                    members_loaded = True
+                    break
+                else:
+                    LOGGER.debug("Waiting for members... (attempt %d/10, sidebar cells only)", wait_attempt + 1)
+                    time.sleep(2)
+            except Exception as exc:
+                LOGGER.debug("Error checking for members: %s", exc)
+                time.sleep(2)
+
+        if not members_loaded:
+            LOGGER.warning("⚠️  Timeout waiting for list members to load - only sidebar content found")
+            self._save_page_snapshot(f"list_{list_id}", "members-load-timeout")
+
+        # Validate that the timeline actually loaded with content
+        try:
+            timeline_section = self._driver.find_element(By.CSS_SELECTOR, 'section[role="region"]')
+            initial_cells = timeline_section.find_elements(By.CSS_SELECTOR, '[data-testid="UserCell"]')
+
+            if len(initial_cells) == 0:
+                empty_state_elements = self._driver.find_elements(By.CSS_SELECTOR, '[data-testid="emptyState"]')
+                if empty_state_elements:
+                    LOGGER.warning("⚠️  Timeline shows empty state for list %s - likely has 0 members", list_id)
+                else:
+                    LOGGER.warning("⚠️  No UserCells found in main timeline for list %s (after initial load)", list_id)
+                    self._save_page_snapshot(f"list_{list_id}", "empty-timeline")
+        except Exception as exc:
+            LOGGER.warning("Could not validate timeline state for list %s: %s", list_id, exc)
+
+        discovered: Dict[str, CapturedUser] = {}
+        stagnant_scrolls = 0
+        scroll_round = 0
+        extraction_counter = 0
+
+        # Find the scrollable container for the list members
+        # Twitter shows list members in the main timeline section
+        container_selector_used = None
+        scroll_container = None
+
+        candidate_selectors = [
+            'div[aria-label="Timeline: List members"]',
+            'div[aria-label^="Timeline: List members"]',
+            'section[role="region"] div[aria-label^="Timeline: List members"]',
+            'div[data-testid="primaryColumn"] section[role="region"][aria-label*="List members"]',
+            'section[role="region"][aria-label*="List members"]',
+            'div[data-testid="primaryColumn"] section[role="region"] div[data-testid="UserCell"]',
+            'div[data-testid="primaryColumn"] section[role="region"]',
+            'section[role="region"]',
+        ]
+
+        for selector in candidate_selectors:
+            try:
+                element = self._driver.find_element(By.CSS_SELECTOR, selector)
+                if selector.endswith('div[data-testid="UserCell"]'):
+                    element = element.find_element(By.XPATH, "./ancestor::section[@role='region']")
+                scroll_container = element
+                container_selector_used = selector
+                LOGGER.debug("[list_members] using scroll container selector: %s", selector)
+                break
+            except (NoSuchElementException, StaleElementReferenceException):
+                continue
+
+        if scroll_container is None:
+            try:
+                scroll_container = self._driver.find_element(By.CSS_SELECTOR, 'div[aria-label^="Timeline: List members"]')
+                container_selector_used = 'div[aria-label^="Timeline: List members"] (fallback)'
+                LOGGER.debug("[list_members] fallback to timeline div selector")
+            except NoSuchElementException:
+                scroll_container = None
+
+        if scroll_container is None:
+            try:
+                scroll_container = self._driver.find_element(By.CSS_SELECTOR, 'div[data-testid="primaryColumn"]')
+                container_selector_used = 'div[data-testid="primaryColumn"]'
+                LOGGER.debug("[list_members] fallback to primaryColumn container")
+            except NoSuchElementException:
+                scroll_container = timeline_section
+                container_selector_used = 'section[role="region"]'
+                LOGGER.debug("[list_members] defaulting to section[role=\"region\"] scroll container")
+
+        # Move mouse to container to ensure focus
+        try:
+            ActionChains(self._driver).move_to_element(scroll_container).perform()
+        except Exception as exc:
+            LOGGER.debug("[list_members] unable to move pointer to scroll container: %s", exc)
+
+        LOGGER.info("📝 Starting scroll and extraction...")
+
+        while stagnant_scrolls < self._config.max_no_change_scrolls:
+            # Check for pause/shutdown
+            if self._pause_callback and self._pause_callback():
+                LOGGER.info("⏸️  Pause requested - stopping list member collection...")
+                break
+            if self._shutdown_callback and self._shutdown_callback():
+                LOGGER.warning("🛑 Shutdown requested - stopping list member collection immediately...")
+                raise KeyboardInterrupt("Shutdown requested")
+
+            scroll_round += 1
+            starting_seen = len(discovered)
+
+            # Extract users from current viewport
+            try:
+                timeline_section = self._driver.find_element(By.CSS_SELECTOR, 'section[role="region"]')
+                user_cells = timeline_section.find_elements(By.CSS_SELECTOR, '[data-testid="UserCell"]')
+            except Exception as exc:
+                LOGGER.warning("[list_members] Could not find timeline section on scroll %s: %s", scroll_round, exc)
+                user_cells = []
+
+            for cell in user_cells:
+                handle = self._extract_handle(cell)
+                if not handle:
+                    continue
+                display_name = self._extract_display_name(cell) or handle
+                bio = self._extract_bio(cell)
+                profile_url = f"https://x.com/{handle}"
+                website = self._extract_website(cell)
+                profile_image_url = self._extract_profile_image_url(cell)
+
+                if handle not in discovered:
+                    extraction_counter += 1
+                    LOGGER.info(
+                        "    %d. ✓ @%s (%s) - \"%s\"",
+                        extraction_counter,
+                        handle,
+                        display_name,
+                        (bio or "no bio")[:70],
+                    )
+
+                captured = CapturedUser(
+                    username=handle,
+                    display_name=display_name,
+                    bio=bio,
+                    profile_url=profile_url,
+                    website=website,
+                    profile_image_url=profile_image_url,
+                    list_types={list_type},
+                )
+                discovered[handle] = captured
+
+            # Scroll the container (not the window!)
+            try:
+                if scroll_container:
+                    self._driver.execute_script("arguments[0].scrollBy(0, 1200);", scroll_container)
+                    LOGGER.debug("[list_members] scrolled container (%s) by 1200px", container_selector_used)
+                else:
+                    # Fallback to window scroll if container not found
+                    self._driver.execute_script("window.scrollBy(0, 1200);")
+                    LOGGER.debug("[list_members] scrolled window by 1200px (fallback)")
+            except (ConnectionRefusedError, MaxRetryError, NewConnectionError) as exc:
+                LOGGER.warning("Driver connection lost during scroll (likely pause/shutdown): %s", exc)
+                raise KeyboardInterrupt("Driver connection lost during scroll") from exc
+
+            time.sleep(random.uniform(self._config.scroll_delay_min, self._config.scroll_delay_max))
+
+            new_seen = len(discovered)
+            if new_seen == starting_seen:
+                stagnant_scrolls += 1
+
+                # Try alternative scroll methods
+                try:
+                    if scroll_container:
+                        self._driver.execute_script("arguments[0].scrollBy(0, 800);", scroll_container)
+                    else:
+                        self._driver.execute_script("window.scrollBy(0, 800);")
+                except Exception:
+                    try:
+                        # PAGE_DOWN key should work regardless since focus is on the modal
+                        ActionChains(self._driver).send_keys(Keys.PAGE_DOWN).perform()
+                    except Exception:
+                        pass
+
+                # Check if we're at bottom
+                at_bottom = False
+                try:
+                    if scroll_container:
+                        at_bottom = self._driver.execute_script(
+                            "return Math.ceil(arguments[0].scrollTop + arguments[0].clientHeight) >= arguments[0].scrollHeight;",
+                            scroll_container
+                        )
+                    else:
+                        at_bottom = self._driver.execute_script(
+                            "return Math.ceil(window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight;"
+                        )
+                except Exception:
+                    at_bottom = False
+
+                LOGGER.debug(
+                    "[list_members] scroll %s yielded no new members (%s/%s)%s",
+                    scroll_round,
+                    stagnant_scrolls,
+                    self._config.max_no_change_scrolls,
+                    " — reached end" if at_bottom else "",
+                )
+            else:
+                stagnant_scrolls = 0
+
+        captured_entries = list(discovered.values())
+
+        LOGGER.info("="*80)
+        LOGGER.info("✅ CAPTURED %d unique accounts from LIST MEMBERS (ID: %s)", len(captured_entries), list_id)
+        LOGGER.info("="*80)
+
+        if len(captured_entries) == 0:
+            LOGGER.warning("[list_members] No members captured for list %s; saving snapshot for debugging", list_id)
+            self._save_page_snapshot(f"list_{list_id}", "no-members-captured")
+
         return UserListCapture(
-            list_type="list_members",
-            entries=[],
-            claimed_total=None,
-            page_url=f"https://twitter.com/i/lists/{list_id}/members",
+            list_type=list_type,
+            entries=captured_entries,
+            claimed_total=target_member_total,
+            page_url=list_page_url,
             profile_overview=None,
-            list_overview=None,
+            list_overview=list_overview,
         )
+
+    def _switch_to_list_tab(self, tab: str) -> None:
+        """Switch to a specific tab on a list page (posts, about, members)."""
+        if self._driver is None:
+            return
+
+        tab = tab.lower()
+        valid_tabs = {
+            "posts": "/posts",
+            "about": "/info",
+            "members": "/members",
+        }
+        suffix = valid_tabs.get(tab)
+        if not suffix:
+            return
+
+        try:
+            tab_selector = f'a[role="tab"][href$="{suffix}"]'
+            elements = self._driver.find_elements(By.CSS_SELECTOR, tab_selector)
+            if not elements:
+                LOGGER.debug("[list_members] tab '%s' not found via selector %s", tab, tab_selector)
+                return
+            target = elements[0]
+            if target.get_attribute("aria-selected") == "true":
+                LOGGER.debug("[list_members] tab '%s' already selected", tab)
+                return
+            LOGGER.debug("[list_members] clicking tab '%s'", tab)
+            self._driver.execute_script("arguments[0].click();", target)
+            self._apply_delay(f"open-list-tab-{tab}")
+        except Exception as exc:
+            LOGGER.debug("[list_members] failed to switch to tab '%s': %s", tab, exc)
+
+    def _extract_list_overview(self, list_id: str) -> ListOverview:
+        """Extract list metadata from the current list page."""
+        if self._driver is None:
+            return ListOverview(
+                list_id=list_id,
+                name=None,
+                description=None,
+                owner_username=None,
+                owner_display_name=None,
+                owner_profile_url=None,
+                members_total=None,
+                followers_total=None,
+            )
+
+        script = """
+        const listId = arguments[0];
+        const info = {};
+
+        // Helper to normalize count strings like "1.2K" -> 1200
+        const normalizeCount = (value) => {
+            if (!value) return null;
+            const text = value.trim();
+            if (!text) return null;
+            const lower = text.toLowerCase().replace(/,/g, '').replace(/\\s+/g, '');
+            const matchSuffix = lower.match(/^(\\d+(?:\\.\\d+)?)([km]?)$/i);
+            if (!matchSuffix) {
+                return null;
+            }
+            let num = parseFloat(matchSuffix[1]);
+            const suffix = matchSuffix[2];
+            if (suffix === 'k') num *= 1000;
+            if (suffix === 'm') num *= 1000000;
+            return Math.floor(num);
+        };
+
+        // Extract list name
+        const nameElement = document.querySelector('h2[role="heading"]');
+        info.name = nameElement ? nameElement.textContent.trim() : null;
+
+        // Extract description
+        const descElements = document.querySelectorAll('div[data-testid="listDescription"]');
+        info.description = descElements.length > 0 ? descElements[0].textContent.trim() : null;
+
+        // Extract owner info
+        const ownerLinks = Array.from(document.querySelectorAll('a[href^="/"]'));
+        const ownerLink = ownerLinks.find(a => a.href.match(/^https?:\\/\\/[^/]+\\/[^/]+$/));
+        if (ownerLink) {
+            info.owner_profile_url = ownerLink.href;
+            info.owner_username = ownerLink.href.split('/').pop();
+
+            // Try to find display name near the link
+            const parent = ownerLink.closest('[data-testid="UserCell"]') || ownerLink.parentElement;
+            const displayNameSpans = parent ? parent.querySelectorAll('span') : [];
+            for (const span of displayNameSpans) {
+                const text = span.textContent.trim();
+                if (text && text !== '@' + info.owner_username && !text.startsWith('@')) {
+                    info.owner_display_name = text;
+                    break;
+                }
+            }
+        }
+
+        // Extract counts - look for links with numbers
+        const countLinks = Array.from(document.querySelectorAll('a[href*="/lists/"]'));
+        for (const link of countLinks) {
+            const href = link.href;
+            const text = link.textContent.trim();
+            const count = normalizeCount(text);
+
+            if (href.includes('/members') && count !== null) {
+                info.members_total = count;
+            } else if (href.includes('/followers') && count !== null) {
+                info.followers_total = count;
+            }
+        }
+
+        return info;
+        """
+
+        try:
+            result = self._driver.execute_script(script, list_id)
+
+            return ListOverview(
+                list_id=list_id,
+                name=result.get("name"),
+                description=result.get("description"),
+                owner_username=result.get("owner_username"),
+                owner_display_name=result.get("owner_display_name"),
+                owner_profile_url=result.get("owner_profile_url"),
+                members_total=result.get("members_total"),
+                followers_total=result.get("followers_total"),
+            )
+        except Exception as exc:
+            LOGGER.warning("Could not extract list overview for list %s: %s", list_id, exc)
+            return ListOverview(
+                list_id=list_id,
+                name=None,
+                description=None,
+                owner_username=None,
+                owner_display_name=None,
+                owner_profile_url=None,
+                members_total=None,
+                followers_total=None,
+            )
 
     def _wait_for_counter(self, href: str, timeout: float = 10.0) -> bool:
         """Wait until the follower/following counter link renders non-empty text."""
