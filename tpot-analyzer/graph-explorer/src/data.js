@@ -66,12 +66,77 @@ if (typeof window !== 'undefined') {
 }
 
 /**
+ * localStorage cache for graph data with TTL.
+ * Uses stale-while-revalidate pattern.
+ */
+const graphCache = {
+  getCacheKey(options) {
+    const { includeShadow, mutualOnly, minFollowers } = options;
+    return `graph_data_${includeShadow}_${mutualOnly}_${minFollowers}`;
+  },
+
+  get(options) {
+    try {
+      const key = this.getCacheKey(options);
+      const cached = localStorage.getItem(key);
+      if (!cached) return null;
+
+      const { data, timestamp } = JSON.parse(cached);
+      const age = Date.now() - timestamp;
+      const maxAge = 5 * 60 * 1000; // 5 minutes
+
+      // Return cached data even if stale (stale-while-revalidate)
+      return {
+        data,
+        isStale: age > maxAge,
+        age: Math.floor(age / 1000) // age in seconds
+      };
+    } catch (error) {
+      console.warn('[Cache] Failed to read cache:', error);
+      return null;
+    }
+  },
+
+  set(options, data) {
+    try {
+      const key = this.getCacheKey(options);
+      const cached = JSON.stringify({
+        data,
+        timestamp: Date.now()
+      });
+      localStorage.setItem(key, cached);
+      console.log(`[Cache] Saved graph data to cache: ${key}`);
+    } catch (error) {
+      console.warn('[Cache] Failed to write cache:', error);
+      // Likely quota exceeded - clear old cache
+      this.clear();
+    }
+  },
+
+  clear() {
+    try {
+      const keys = Object.keys(localStorage);
+      keys.forEach(key => {
+        if (key.startsWith('graph_data_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      console.log('[Cache] Cleared graph data cache');
+    } catch (error) {
+      console.warn('[Cache] Failed to clear cache:', error);
+    }
+  }
+};
+
+/**
  * Fetch raw graph structure (nodes and edges) from backend.
+ * Uses localStorage cache with stale-while-revalidate pattern.
  *
  * @param {Object} options - Graph options
  * @param {boolean} options.includeShadow - Include shadow nodes (default: true)
  * @param {boolean} options.mutualOnly - Only mutual edges (default: false)
  * @param {number} options.minFollowers - Min followers filter (default: 0)
+ * @param {boolean} options.skipCache - Skip cache and force fresh fetch (default: false)
  * @returns {Promise<Object>} Graph data with nodes and edges
  */
 export const fetchGraphData = async (options = {}) => {
@@ -81,8 +146,33 @@ export const fetchGraphData = async (options = {}) => {
     includeShadow = true,
     mutualOnly = false,
     minFollowers = 0,
+    skipCache = false,
   } = options;
 
+  // Check cache first (unless skipCache is true)
+  if (!skipCache) {
+    const cached = graphCache.get({ includeShadow, mutualOnly, minFollowers });
+    if (cached) {
+      console.log(
+        `[Cache] ${cached.isStale ? 'Stale' : 'Fresh'} cache hit (age: ${cached.age}s) - returning immediately`
+      );
+
+      // Return cached data immediately
+      // If stale, refresh in background (don't await)
+      if (cached.isStale) {
+        console.log('[Cache] Refreshing stale cache in background...');
+        fetchGraphData({ ...options, skipCache: true }).then(freshData => {
+          console.log('[Cache] Background refresh complete');
+        }).catch(err => {
+          console.warn('[Cache] Background refresh failed:', err);
+        });
+      }
+
+      return cached.data;
+    }
+  }
+
+  // No cache or skipCache=true - fetch from backend
   const params = new URLSearchParams({
     include_shadow: includeShadow.toString(),
     mutual_only: mutualOnly.toString(),
@@ -106,7 +196,11 @@ export const fetchGraphData = async (options = {}) => {
       nodeCount: data.directed_nodes,
       edgeCount: data.directed_edges,
       includeShadow,
+      fromCache: false,
     });
+
+    // Save to cache
+    graphCache.set({ includeShadow, mutualOnly, minFollowers }, data);
 
     return data;
   } catch (error) {
@@ -254,3 +348,16 @@ export const getClientPerformanceStats = () => {
 export const clearClientPerformanceLogs = () => {
   performanceLog.clear();
 };
+
+/**
+ * Clear graph data cache.
+ * Useful for debugging or forcing fresh data.
+ */
+export const clearGraphCache = () => {
+  graphCache.clear();
+};
+
+// Expose cache to window for debugging
+if (typeof window !== 'undefined') {
+  window.graphCache = graphCache;
+}
