@@ -101,6 +101,28 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
 
   const graphRef = useRef(null);
 
+  // Dismiss context menu on outside click or ESC key
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handleClick = () => setContextMenu(null);
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+
+    // Small delay to prevent immediate dismissal from the right-click event
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleClick);
+      document.addEventListener('keydown', handleEscape);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [contextMenu]);
+
   const activeSeedList = useMemo(() => {
     if (customSeeds.length > 0) {
       return customSeeds;
