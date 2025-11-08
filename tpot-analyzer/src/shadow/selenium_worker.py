@@ -2008,28 +2008,31 @@ class SeleniumWorker:
         if not raw:
             return None
         cleaned = raw.strip()
-        match = re.match(r"^[0-9.,]+(?:[KkMm])?$", cleaned.replace(" ", ""))
-        if match:
-            normalized = cleaned.replace(",", "").replace(" ", "")
-            multiplier = 1
-            if normalized.lower().endswith("k"):
-                multiplier = 1_000
-                normalized = normalized[:-1]
-            elif normalized.lower().endswith("m"):
-                multiplier = 1_000_000
-                normalized = normalized[:-1]
-            try:
-                base = float(normalized)
-            except ValueError:
-                return None
-            return int(base * multiplier)
-        digits = re.findall(r"[0-9,]+", cleaned)
-        if digits:
-            try:
-                return int(digits[0].replace(",", ""))
-            except ValueError:
-                return None
-        return None
+
+        # First, try to extract a number pattern (with optional K/M suffix) from the text.
+        # This handles cases like "90.5K Followers" by extracting "90.5K" before parsing.
+        number_pattern = re.search(r"([0-9][0-9.,]*[KkMm]?)", cleaned)
+        if not number_pattern:
+            return None
+
+        number_text = number_pattern.group(1)
+
+        # Parse the extracted number
+        normalized = number_text.replace(",", "").replace(" ", "")
+        multiplier = 1
+        if normalized.lower().endswith("k"):
+            multiplier = 1_000
+            normalized = normalized[:-1]
+        elif normalized.lower().endswith("m"):
+            multiplier = 1_000_000
+            normalized = normalized[:-1]
+
+        try:
+            base = float(normalized)
+        except ValueError:
+            return None
+
+        return int(base * multiplier)
 
     def _save_page_snapshot(self, username: str, label: str) -> None:
         assert self._driver is not None
