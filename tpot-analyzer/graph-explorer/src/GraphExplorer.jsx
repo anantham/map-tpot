@@ -97,6 +97,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const [presetName, setPresetName] = useState("Adi's Seeds");
   const [includeShadows, setIncludeShadows] = useState(true);
   const [subgraphSize, setSubgraphSize] = useState(50);
+  const [contextMenu, setContextMenu] = useState(null);
 
   const graphRef = useRef(null);
 
@@ -965,6 +966,14 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           }}
           onNodeClick={(node) => {
             setSelectedNodeId(node.id === selectedNodeId ? null : node.id);
+          }}
+          onNodeRightClick={(node, event) => {
+            event.preventDefault();
+            setContextMenu({
+              node,
+              x: event.clientX,
+              y: event.clientY
+            });
           }}
         />
       </div>
