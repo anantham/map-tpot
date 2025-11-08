@@ -100,12 +100,20 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
 
   const graphRef = useRef(null);
 
+  const activeSeedList = useMemo(() => {
+    if (customSeeds.length > 0) {
+      return customSeeds;
+    }
+    return DEFAULT_PRESETS[presetName] || [];
+  }, [customSeeds, presetName]);
+
   // Load initial graph structure
   useEffect(() => {
     const loadGraph = async () => {
       if (!backendAvailable) return;
 
       try {
+        console.log('[GraphExplorer] Loading graph structure...');
         setLoading(true);
         const structure = await fetchGraphData({
           includeShadow: includeShadows,
@@ -113,6 +121,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           minFollowers: 0,
         });
         setGraphStructure(structure);
+        console.log('[GraphExplorer] Graph structure loaded - graph can now display!');
       } catch (err) {
         console.error("Failed to load graph structure:", err);
         setError(err);
@@ -129,12 +138,9 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
 
     try {
       setComputing(true);
-      const seedList = customSeeds.length > 0
-        ? customSeeds
-        : DEFAULT_PRESETS[presetName] || [];
-
+      console.log(`[GraphExplorer] Computing metrics with ${activeSeedList.length} seeds (non-blocking)...`);
       const result = await computeMetrics({
-        seeds: seedList,
+        seeds: activeSeedList,
         weights: [weights.pr, weights.bt, weights.eng],
         alpha: 0.85,
         resolution: 1.0,
@@ -144,22 +150,23 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       });
 
       setMetrics(result);
+      console.log('[GraphExplorer] Metrics computed! Tooltips and node sizing updated.');
     } catch (err) {
       console.error("Failed to compute metrics:", err);
       setError(err);
     } finally {
       setComputing(false);
     }
-  }, [backendAvailable, graphStructure, customSeeds, presetName, weights, includeShadows]);
+  }, [backendAvailable, graphStructure, activeSeedList, weights, includeShadows]);
 
   // Trigger metric recomputation when dependencies change
   useEffect(() => {
     recomputeMetrics();
   }, [recomputeMetrics]);
 
-  // Merged data for backwards compatibility
+  // Merged data - metrics are optional, graph can display without them
   const data = useMemo(() => {
-    if (!graphStructure || !metrics) return null;
+    if (!graphStructure) return null;  // Only require structure
 
     return {
       graph: {
@@ -169,9 +176,9 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         directed_edges: graphStructure.directed_edges,
         undirected_edges: graphStructure.undirected_edges,
       },
-      metrics: metrics.metrics,
-      seeds: metrics.seeds || [],
-      resolved_seeds: metrics.resolved_seeds || [],
+      metrics: metrics?.metrics || {},  // Optional - defaults to empty
+      seeds: metrics?.seeds || [],
+      resolved_seeds: metrics?.resolved_seeds || [],
     };
   }, [graphStructure, metrics]);
 
@@ -186,7 +193,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     return combined;
   }, [data]);
 
-  const customSeedSet = useMemo(() => toLowerSet(customSeeds), [customSeeds]);
+  const customSeedSet = useMemo(() => toLowerSet(activeSeedList), [activeSeedList]);
   const effectiveSeedSet = useMemo(() => new Set([...resolvedSeeds, ...customSeedSet]), [resolvedSeeds, customSeedSet]);
 
   const metricsData = data?.metrics ?? EMPTY_METRICS;
@@ -195,6 +202,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const tpotnessScores = useMemo(() => {
     return metricsData?.composite ?? {};
   }, [metricsData]);
+  const metricsReady = useMemo(() => Object.keys(tpotnessScores).length > 0, [tpotnessScores]);
 
   const { graphData, graphStats } = useMemo(() => {
     if (!data) {
@@ -208,7 +216,8 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           visibleEdges: 0,
           visibleMutualEdges: 0,
           visibleShadowNodes: 0,
-          visibleShadowEdges: 0
+          visibleShadowEdges: 0,
+          usingStructuralFallback: false
         }
       };
     }
@@ -311,13 +320,18 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       if (value > maxSeedTouch) maxSeedTouch = value;
     });
 
-    const topNIds = Object.entries(tpotnessScores)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, subgraphSize)
-      .map(([id]) => id);
+    const fallbackIds = !metricsReady
+      ? Object.keys(nodesMeta).slice(0, Math.max(subgraphSize, 50))
+      : [];
+    const topNIds = metricsReady
+      ? Object.entries(tpotnessScores)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, subgraphSize)
+          .map(([id]) => id)
+      : [];
 
     // Build allowed set with both account IDs and usernames for matching
-    const allowedNodeSet = new Set(topNIds);
+    const allowedNodeSet = new Set(metricsReady ? topNIds : fallbackIds);
 
     // Add seed nodes to the allowed set (they should always be visible)
     nodeIds.forEach((rawId) => {
@@ -391,7 +405,8 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         return {
           source,
           target,
-          mutual: !!edge.mutual
+          mutual: !!edge.mutual,
+          shadow: !!edge.shadow
         };
       });
 
@@ -413,10 +428,11 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         visibleEdges: filteredLinks.length,
         visibleMutualEdges,
         visibleShadowNodes: nodes.filter((node) => node.shadow).length,
-        visibleShadowEdges: filteredLinks.filter((edge) => edge.shadow).length
+        visibleShadowEdges: filteredLinks.filter((edge) => edge.shadow).length,
+        usingStructuralFallback: !metricsReady
       }
     };
-  }, [data, tpotnessScores, effectiveSeedSet, includeShadows, metricsData, mutualOnly]);
+  }, [data, tpotnessScores, effectiveSeedSet, includeShadows, metricsData, mutualOnly, metricsReady]);
 
   useEffect(() => {
     if (!graphData.nodes.length) return;
@@ -629,12 +645,12 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             </div>
 
             <section>
-              <h2>Graph summary</h2>
-              <div className="summary-grid">
-                <div>
-                  <span className="summary-label">Nodes</span>
-                  <span className="summary-value">{graphStats.totalNodes}</span>
-                </div>
+            <h2>Graph summary</h2>
+            <div className="summary-grid">
+              <div>
+                <span className="summary-label">Nodes</span>
+                <span className="summary-value">{graphStats.totalNodes}</span>
+              </div>
                 <div>
                   <span className="summary-label">Visible edges</span>
                   <span className="summary-value">{graphStats.visibleEdges}</span>
@@ -658,9 +674,14 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
                 <div>
                   <span className="summary-label">Shadow edges visible</span>
                   <span className="summary-value">{graphStats.visibleShadowEdges}</span>
-                </div>
               </div>
-            </section>
+            </div>
+            {graphStats.usingStructuralFallback && (
+              <p style={{ marginTop: 8, fontSize: '0.85em', color: '#94a3b8' }}>
+                Structural view is visible while personalized metrics finish computing.
+              </p>
+            )}
+          </section>
 
             <section>
               <h2>Legend</h2>
@@ -870,7 +891,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           ref={graphRef}
           graphData={graphData}
           nodeRelSize={6}
-          enableNodeDrag={false}
+          enableNodeDrag={true}
           nodeColor={(node) => {
             if (node.id === selectedNodeId) return COLORS.selectedNode;
             if (selectedNeighbors.has(node.id)) return COLORS.neighborNode;
