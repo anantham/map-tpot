@@ -999,6 +999,40 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           }}
         />
       </div>
+
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            zIndex: 1000
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="context-menu-item"
+            onClick={() => {
+              const username = contextMenu.node.username || contextMenu.node.id;
+              navigator.clipboard.writeText(username);
+              setContextMenu(null);
+            }}
+          >
+            Copy @{contextMenu.node.username || contextMenu.node.id}
+          </button>
+          <button
+            className="context-menu-item"
+            onClick={() => {
+              const username = contextMenu.node.username || contextMenu.node.id;
+              window.open(`https://twitter.com/${username}`, '_blank');
+              setContextMenu(null);
+            }}
+          >
+            Open on Twitter
+          </button>
+        </div>
+      )}
     </div>
   );
 }
