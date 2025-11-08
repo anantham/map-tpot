@@ -11,6 +11,10 @@ from typing import Any, Dict, List
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 
+from src.api.discovery import (
+    discover_subgraph,
+    validate_request,
+)
 from src.api.snapshot_loader import get_snapshot_loader
 from src.config import get_cache_settings
 from src.data.fetcher import CachedDataFetcher
@@ -33,6 +37,9 @@ performance_metrics = {
     "requests": [],  # List of request timing data
     "aggregates": defaultdict(lambda: {"count": 0, "total_time": 0.0, "min": float('inf'), "max": 0.0}),
 }
+
+# Rate limiting storage (in-memory, resets on restart)
+rate_limits = defaultdict(lambda: {"count": 0, "reset_time": 0})
 
 
 def _serialize_datetime(value) -> str | None:
@@ -459,6 +466,171 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
         except Exception as e:
             logger.exception("Error loading presets")
             return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/subgraph/discover", methods=["POST"])
+    def discover():
+        """
+        Discover personalized recommendations based on seed accounts.
+
+        Request body:
+        {
+            "seeds": ["handle1", "handle2"],  // Required: 1-20 seed handles
+            "weights": {  // Optional: scoring weights (will be normalized)
+                "neighbor_overlap": 0.4,
+                "pagerank": 0.3,
+                "community": 0.2,
+                "path_distance": 0.1
+            },
+            "filters": {  // Optional: filtering criteria
+                "max_distance": 3,  // Max graph distance from seeds (1-4)
+                "min_overlap": 2,  // Min seed connections required
+                "min_followers": 100,  // Min follower count
+                "max_followers": 50000,  // Max follower count
+                "include_communities": [1, 2],  // Community IDs to include
+                "exclude_communities": [7],  // Community IDs to exclude
+                "include_shadow": true  // Include shadow-enriched accounts
+            },
+            "limit": 100,  // Results per page (max 500)
+            "offset": 0,  // Pagination offset
+            "use_cache": true,  // Use cached results if available
+            "debug": false  // Include debug information
+        }
+
+        Response:
+        {
+            "recommendations": [...],  // Ranked list of recommendations
+            "meta": {...},  // Request metadata
+            "warnings": [...]  // Any warnings
+        }
+        """
+        try:
+            # Rate limiting (30 req/min per IP)
+            client_ip = request.remote_addr
+            now = time.time()
+            minute_window = int(now / 60)
+
+            rate_key = f"{client_ip}:{minute_window}"
+            rate_info = rate_limits[rate_key]
+
+            if rate_info["reset_time"] < now:
+                rate_info["count"] = 0
+                rate_info["reset_time"] = now + 60
+
+            rate_info["count"] += 1
+
+            if rate_info["count"] > 30:
+                logger.warning(f"Rate limit exceeded for {client_ip}")
+                return jsonify({
+                    "error": {
+                        "code": "RATE_LIMIT_EXCEEDED",
+                        "message": "Too many requests. Max 30 per minute.",
+                        "retry_after": int(rate_info["reset_time"] - now)
+                    }
+                }), 429
+
+            # Validate request
+            data = request.json or {}
+            parsed_request, errors = validate_request(data)
+
+            if errors:
+                return jsonify({
+                    "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "Invalid request parameters",
+                        "details": errors
+                    }
+                }), 400
+
+            with profile_operation("api_discover", {
+                "seed_count": len(parsed_request.seeds),
+                "limit": parsed_request.limit,
+                "has_filters": bool(parsed_request.filters)
+            }, verbose=False) as report:
+
+                # Load graph (prefer snapshot)
+                graph = None
+                snapshot_loader = app.config["SNAPSHOT_LOADER"]
+
+                # Try snapshot first
+                with profile_phase("load_graph", "api_discover"):
+                    graph = snapshot_loader.load_graph()
+
+                    # Fall back to live build if needed
+                    if graph is None:
+                        logger.info("Building graph from cache for discovery (snapshot unavailable)")
+                        cache_path = app.config["CACHE_DB_PATH"]
+
+                        with CachedDataFetcher(cache_db=cache_path) as fetcher:
+                            # Always include shadow for discovery
+                            shadow_store = get_shadow_store(fetcher.engine)
+                            graph = build_graph(
+                                fetcher=fetcher,
+                                mutual_only=False,
+                                min_followers=0,
+                                include_shadow=True,
+                                shadow_store=shadow_store,
+                            )
+
+                # Load precomputed PageRank scores
+                with profile_phase("load_pagerank", "api_discover"):
+                    # Try to load from snapshot metadata first
+                    pagerank_scores = {}
+
+                    # Check if we have frontend analysis output with precomputed scores
+                    frontend_path = Path("graph-explorer/public/analysis_output.json")
+                    if frontend_path.exists():
+                        try:
+                            import json
+                            with open(frontend_path) as f:
+                                analysis_data = json.load(f)
+                                pagerank_scores = analysis_data.get("metrics", {}).get("pagerank", {})
+                        except Exception as e:
+                            logger.warning(f"Failed to load precomputed PageRank: {e}")
+
+                    # Fallback: compute PageRank if not available
+                    if not pagerank_scores:
+                        logger.info("Computing PageRank scores (no precomputed scores found)")
+                        with profile_phase("compute_pagerank_fallback", "api_discover"):
+                            # Use default seeds for PageRank if none provided
+                            pr_seeds = parsed_request.seeds if parsed_request.seeds else sorted(load_seed_candidates())
+                            resolved_pr_seeds = _resolve_seeds(graph, pr_seeds)
+                            pagerank_scores = compute_personalized_pagerank(
+                                graph.directed,
+                                seeds=resolved_pr_seeds,
+                                alpha=0.85
+                            )
+
+                # Resolve seeds (usernames -> account IDs)
+                with profile_phase("resolve_seeds", "api_discover"):
+                    resolved_seeds = _resolve_seeds(graph, parsed_request.seeds)
+
+                    # Update the request with resolved seeds
+                    parsed_request.seeds = resolved_seeds
+
+                # Run discovery
+                with profile_phase("discover_subgraph", "api_discover"):
+                    result = discover_subgraph(
+                        graph.directed,
+                        parsed_request,
+                        pagerank_scores
+                    )
+
+                # Add rate limit headers
+                result_response = jsonify(result)
+                result_response.headers['X-RateLimit-Limit'] = '30'
+                result_response.headers['X-RateLimit-Remaining'] = str(30 - rate_info["count"])
+                result_response.headers['X-RateLimit-Reset'] = str(int(rate_info["reset_time"]))
+
+                return result_response
+
+        except Exception as e:
+            logger.exception("Error in discovery endpoint")
+            return jsonify({
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": str(e)
+                }
+            }), 500
 
     return app
 

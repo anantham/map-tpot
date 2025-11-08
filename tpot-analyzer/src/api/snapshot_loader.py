@@ -35,6 +35,7 @@ class SnapshotManifest:
     resolved_seed_count: int
     metrics_computed: bool
     parameters: dict
+    cache_row_counts: Optional[dict] = None  # {table: row_count}
 
     @classmethod
     def from_dict(cls, data: dict) -> SnapshotManifest:
@@ -50,6 +51,7 @@ class SnapshotManifest:
             resolved_seed_count=data["resolved_seed_count"],
             metrics_computed=data.get("metrics_computed", False),
             parameters=data.get("parameters", {}),
+            cache_row_counts=data.get("cache_row_counts"),
         )
 
     def is_stale(self, max_age_seconds: int = 86400) -> bool:
@@ -57,17 +59,79 @@ class SnapshotManifest:
         age = datetime.utcnow() - self.generated_at
         return age.total_seconds() > max_age_seconds
 
-    def cache_updated_since_snapshot(self) -> bool:
-        """Check if the cache DB has been modified since snapshot generation."""
-        if not self.cache_db_modified:
-            return False
+    def has_significant_data_changes(self, min_account_diff: int = 100) -> tuple[bool, str]:
+        """Check if cache has significant data changes since snapshot.
+
+        Args:
+            min_account_diff: Minimum new accounts to trigger regeneration
+
+        Returns:
+            (has_changes, reason) tuple
+        """
+        if not self.cache_row_counts:
+            # Old manifest format, fall back to mtime check
+            return self._cache_mtime_changed()
 
         cache_path = Path(self.cache_db_path)
         if not cache_path.exists():
-            return False
+            return False, "Cache DB not found"
+
+        # Query current row counts
+        try:
+            import sqlite3
+            conn = sqlite3.connect(cache_path)
+            cursor = conn.cursor()
+
+            current_counts = {}
+            for table in ["account", "profile", "followers", "following"]:
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                current_counts[table] = cursor.fetchone()[0]
+
+            conn.close()
+
+            # Compare with snapshot counts
+            old_counts = self.cache_row_counts
+            account_diff = current_counts.get("account", 0) - old_counts.get("account", 0)
+            profile_diff = current_counts.get("profile", 0) - old_counts.get("profile", 0)
+
+            if account_diff >= min_account_diff:
+                return True, f"{account_diff} new accounts added (threshold: {min_account_diff})"
+
+            if profile_diff >= min_account_diff:
+                return True, f"{profile_diff} new profiles added (threshold: {min_account_diff})"
+
+            # Check for significant relationship changes (10% increase)
+            followers_old = old_counts.get("followers", 0)
+            followers_new = current_counts.get("followers", 0)
+            if followers_old > 0 and (followers_new - followers_old) / followers_old > 0.1:
+                return True, f"Followers increased by {(followers_new - followers_old) / followers_old:.1%}"
+
+            following_old = old_counts.get("following", 0)
+            following_new = current_counts.get("following", 0)
+            if following_old > 0 and (following_new - following_old) / following_old > 0.1:
+                return True, f"Following increased by {(following_new - following_old) / following_old:.1%}"
+
+            return False, f"Data changes below threshold (accounts: +{account_diff}, profiles: +{profile_diff})"
+
+        except Exception as e:
+            logger.warning(f"Failed to check cache row counts: {e}")
+            # Fall back to mtime check
+            return self._cache_mtime_changed()
+
+    def _cache_mtime_changed(self) -> tuple[bool, str]:
+        """Fallback: Check if cache file mtime changed (old behavior)."""
+        if not self.cache_db_modified:
+            return False, "No cache mtime recorded"
+
+        cache_path = Path(self.cache_db_path)
+        if not cache_path.exists():
+            return False, "Cache DB not found"
 
         cache_mtime = datetime.fromtimestamp(os.path.getmtime(cache_path))
-        return cache_mtime > self.cache_db_modified
+        if cache_mtime > self.cache_db_modified:
+            return True, "Cache DB file modified since snapshot (mtime fallback)"
+
+        return False, "Cache DB file not modified"
 
 
 class SnapshotLoader:
@@ -108,9 +172,13 @@ class SnapshotLoader:
     def should_use_snapshot(
         self,
         max_age_seconds: int = 86400,
-        check_cache_freshness: bool = True
+        min_account_diff: int = 100
     ) -> tuple[bool, str]:
         """Determine if snapshot should be used.
+
+        Args:
+            max_age_seconds: Maximum age before snapshot is considered stale
+            min_account_diff: Minimum new accounts to trigger regeneration
 
         Returns:
             (should_use, reason) tuple
@@ -127,22 +195,28 @@ class SnapshotLoader:
             age_hours = (datetime.utcnow() - manifest.generated_at).total_seconds() / 3600
             return False, f"Snapshot is stale ({age_hours:.1f}h old, max {max_age_seconds/3600:.1f}h)"
 
-        # Check if cache has been updated
-        if check_cache_freshness and manifest.cache_updated_since_snapshot():
-            return False, "Cache DB has been updated since snapshot generation"
+        # Check for significant data changes (data-based, not file mtime)
+        has_changes, reason = manifest.has_significant_data_changes(min_account_diff)
+        if has_changes:
+            logger.info(f"Snapshot has significant data changes: {reason}")
+            return False, reason
 
-        return True, "Snapshot is fresh"
+        return True, f"Snapshot is fresh ({reason})"
 
     def load_graph(
         self,
         force_reload: bool = False,
-        max_age_seconds: int = 86400
+        max_age_seconds: int = 86400,
+        min_account_diff: int = 100,
+        load_communities: bool = True
     ) -> Optional[GraphBuildResult]:
         """Load graph from snapshot.
 
         Args:
             force_reload: Force reload even if cached
             max_age_seconds: Maximum snapshot age before considering stale
+            min_account_diff: Minimum new accounts to trigger regeneration
+            load_communities: Load community assignments from analysis output
 
         Returns:
             GraphBuildResult or None if snapshot unavailable/stale
@@ -152,7 +226,7 @@ class SnapshotLoader:
             return self._cached_graph
 
         # Check if we should use snapshot
-        should_use, reason = self.should_use_snapshot(max_age_seconds)
+        should_use, reason = self.should_use_snapshot(max_age_seconds, min_account_diff)
         if not should_use:
             logger.warning(f"Not using snapshot: {reason}")
             return None
@@ -164,6 +238,19 @@ class SnapshotLoader:
             nodes_df = pd.read_parquet(self.nodes_path)
             edges_df = pd.read_parquet(self.edges_path)
 
+            # Load community assignments if available
+            communities = {}
+            if load_communities:
+                analysis_path = Path("graph-explorer/public/analysis_output.json")
+                if analysis_path.exists():
+                    try:
+                        with open(analysis_path) as f:
+                            analysis_data = json.load(f)
+                            communities = analysis_data.get("metrics", {}).get("communities", {})
+                            logger.info(f"Loaded {len(communities)} community assignments")
+                    except Exception as e:
+                        logger.warning(f"Failed to load community data: {e}")
+
             logger.info(f"Loaded {len(nodes_df)} nodes and {len(edges_df)} edges from snapshot")
 
             # Reconstruct NetworkX directed graph
@@ -171,6 +258,7 @@ class SnapshotLoader:
 
             # Add nodes with attributes
             for _, row in nodes_df.iterrows():
+                node_id = row["node_id"]
                 node_attrs = {
                     "username": row.get("username"),
                     "account_display_name": row.get("display_name"),
@@ -187,9 +275,14 @@ class SnapshotLoader:
                     "shadow": row.get("shadow", False),
                     "fetched_at": row.get("fetched_at"),
                 }
+
+                # Add community assignment if available
+                if node_id in communities:
+                    node_attrs["community"] = communities[node_id]
+
                 # Filter out None values
                 node_attrs = {k: v for k, v in node_attrs.items() if v is not None}
-                directed.add_node(row["node_id"], **node_attrs)
+                directed.add_node(node_id, **node_attrs)
 
             # Add edges with attributes
             for _, row in edges_df.iterrows():

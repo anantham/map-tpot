@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+from sqlalchemy import text
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -134,6 +135,13 @@ def main():
     with CachedDataFetcher(cache_db=cache_path) as fetcher:
         shadow_store = get_shadow_store(fetcher.engine) if args.include_shadow else None
 
+        # Record cache row counts for data-based freshness checking
+        cache_row_counts = {}
+        with fetcher.engine.connect() as conn:
+            for table in ["account", "profile", "followers", "following"]:
+                result = conn.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                cache_row_counts[table] = result.fetchone()[0]
+
         print(f"[2/6] Building graph structure...")
         graph = build_graph(
             fetcher=fetcher,
@@ -247,6 +255,7 @@ def main():
             "seed_count": len(seeds),
             "resolved_seed_count": len(resolved_seeds),
             "metrics_computed": True,
+            "cache_row_counts": cache_row_counts,  # For data-based freshness checking
             "parameters": {
                 "alpha": args.alpha,
                 "resolution": args.resolution,
