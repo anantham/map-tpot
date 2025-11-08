@@ -73,6 +73,11 @@ def parse_args() -> argparse.Namespace:
         help="Path to dump JSON summary (default: enrichment_summary.json).",
     )
     parser.add_argument(
+        "--refresh-snapshot",
+        action="store_true",
+        help="Refresh graph snapshot after successful enrichment (regenerates Parquet/JSON artifacts for API/Explorer startup).",
+    )
+    parser.add_argument(
         "--headless",
         action="store_true",
         help="Run Chrome in headless mode (default is visible window).",
@@ -505,6 +510,30 @@ def main() -> None:
         args.output.write_text(payload)
     else:
         print(payload)
+
+    # Refresh snapshot if requested and enrichment succeeded
+    if args.refresh_snapshot and summary.get("status") != "aborted":
+        LOGGER.info("\n" + "=" * 80)
+        LOGGER.info("REFRESHING GRAPH SNAPSHOT (--refresh-snapshot)")
+        LOGGER.info("=" * 80)
+
+        import subprocess
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "scripts.refresh_graph_snapshot", "--include-shadow"],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            LOGGER.info(result.stdout)
+            LOGGER.info("✓ Snapshot refresh completed successfully")
+        except subprocess.CalledProcessError as e:
+            LOGGER.error("✗ Snapshot refresh failed:")
+            LOGGER.error(e.stderr)
+            LOGGER.warning("Enrichment completed but snapshot refresh failed. Run manually: python -m scripts.refresh_graph_snapshot --include-shadow")
+        except Exception as e:
+            LOGGER.error(f"✗ Unexpected error during snapshot refresh: {e}")
+            LOGGER.warning("Run manually: python -m scripts.refresh_graph_snapshot --include-shadow")
 
 
 if __name__ == "__main__":

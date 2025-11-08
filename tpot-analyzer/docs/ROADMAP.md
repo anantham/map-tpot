@@ -35,6 +35,9 @@ coverage gaps, or UX improvements surface.
   `list_refresh_days` so cache stays accurate.
 - Instrument Selenium/enricher phases with timing metrics so slow steps are
   visible in summaries and `ScrapeRunMetrics`.
+- Add GPU-aware execution path: at startup detect CUDA-capable hardware
+  (e.g., via `nvidia-smi` or PyTorch), route heavy graph metrics to cuGraph /
+  RAPIDS when available, and fall back to CPU when no dGPU is present.
 
 ## Developer Experience
 
