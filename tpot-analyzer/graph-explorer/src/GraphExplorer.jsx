@@ -898,7 +898,6 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         <ForceGraph2D
           ref={graphRef}
           graphData={graphData}
-          nodeRelSize={6}
           enableNodeDrag={true}
           nodeColor={getNodeColor}
           linkColor={(link) => getLinkStyle(link).color}
@@ -933,13 +932,36 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             const provenanceLabel = node.provenance || (node.shadow ? "shadow" : "archive");
             return `${name}\nProvenance: ${provenanceLabel}\nTPOT-ness: ${(tpotness * 100).toFixed(1)}\nMutual edges: ${node.mutualCount}\nSeed touches: ${node.seedTouchCount}\nHop distance: ${distanceLabel}\nPageRank: ${(node.pagerank ?? 0).toFixed(3)}\nBetweenness: ${(node.betweenness ?? 0).toFixed(3)}\nEngagement: ${(node.engagement ?? 0).toFixed(3)}`;
           }}
-          nodeCanvasObjectMode={() => "after"}
+          nodeCanvasObjectMode={() => "replace"}
           nodeCanvasObject={(node, ctx, globalScale) => {
+            // Calculate zoom-responsive radius
+            const baseRadius = 6;
+            const radius = baseRadius / Math.sqrt(globalScale);
+
+            // Get node color
+            const color = getNodeColor(node);
+
+            // Draw circle
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // Optional: Add border for selected nodes
+            if (node.id === selectedNodeId) {
+              ctx.strokeStyle = COLORS.selectedNode;
+              ctx.lineWidth = 2 / globalScale;
+              ctx.stroke();
+            }
+
+            // Draw label
             const label = node.display_name || node.username || node.id;
             const fontSize = 12 / globalScale;
             ctx.font = `${fontSize}px sans-serif`;
             ctx.fillStyle = "rgba(248, 250, 252, 0.92)";
-            ctx.fillText(label, node.x + 8, node.y + fontSize / 2);
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+            ctx.fillText(label, node.x + radius + 2, node.y);
           }}
           onNodeClick={(node) => {
             setSelectedNodeId(node.id === selectedNodeId ? null : node.id);
