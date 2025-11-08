@@ -1,14 +1,16 @@
 """Flask API server for graph metrics computation."""
 from __future__ import annotations
 
+import json
 import logging
+import math
 import time
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from flask import Flask, jsonify, request, g
+from flask import Flask, jsonify, request, g, Response
 from flask_cors import CORS
 
 from src.api.discovery import (
@@ -31,6 +33,33 @@ from src.graph import (
 from src.performance_profiler import profile_operation, profile_phase, get_profiler
 
 logger = logging.getLogger(__name__)
+
+
+class SafeJSONEncoder(json.JSONEncoder):
+    """JSON encoder that handles NaN and Infinity values."""
+
+    def encode(self, o):
+        """Recursively sanitize NaN/Inf values before encoding."""
+        def sanitize(obj):
+            if isinstance(obj, dict):
+                return {k: sanitize(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [sanitize(item) for item in obj]
+            elif isinstance(obj, float):
+                if math.isnan(obj) or math.isinf(obj):
+                    return None
+            return obj
+
+        return super().encode(sanitize(o))
+
+
+def safe_jsonify(data):
+    """Create a JSON response with NaN/Inf handling."""
+    return Response(
+        json.dumps(data, cls=SafeJSONEncoder),
+        mimetype='application/json'
+    )
+
 
 # Performance metrics storage (in-memory for now)
 performance_metrics = {
@@ -75,7 +104,8 @@ def _resolve_seeds(graph_result, seeds: List[str]) -> List[str]:
 def create_app(cache_db_path: Path | None = None) -> Flask:
     """Create and configure Flask app."""
     app = Flask(__name__)
-    CORS(app)  # Enable CORS for frontend
+    # Enable CORS for frontend and expose custom headers
+    CORS(app, expose_headers=['X-Response-Time'])
 
     # Store cache path in app config
     if cache_db_path is None:
@@ -310,7 +340,7 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                             "fetched_at": _serialize_datetime(data.get("fetched_at")),
                         }
 
-                return jsonify({
+                return safe_jsonify({
                     "nodes": nodes,
                     "edges": edges,
                     "directed_nodes": directed.number_of_nodes(),
@@ -425,7 +455,7 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                     top_betweenness = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:20]
                     top_composite = sorted(composite.items(), key=lambda x: x[1], reverse=True)[:20]
 
-                return jsonify({
+                return safe_jsonify({
                     "seeds": seeds,
                     "resolved_seeds": resolved_seeds,
                     "metrics": {
@@ -445,6 +475,269 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
         except Exception as e:
             logger.exception("Error computing metrics")
             return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/accounts/search", methods=["GET"])
+    def search_accounts():
+        """
+        Search for accounts by username prefix.
+
+        Query params:
+            q: Search query (username prefix)
+            limit: Max results (default 10)
+        """
+        try:
+            query = request.args.get('q', '').lower().strip()
+            limit = min(int(request.args.get('limit', '10')), 50)
+
+            if not query or len(query) < 1:
+                return safe_jsonify([])
+
+            # Load graph from cache
+            snapshot_loader = app.config["SNAPSHOT_LOADER"]
+            graph = snapshot_loader.load_graph()
+
+            if graph is None:
+                # Fall back to loading from cache
+                cache_path = app.config["CACHE_DB_PATH"]
+                with CachedDataFetcher(cache_db=cache_path) as fetcher:
+                    shadow_store = get_shadow_store(fetcher.engine)
+                    graph = build_graph(
+                        fetcher=fetcher,
+                        mutual_only=False,
+                        min_followers=0,
+                        include_shadow=True,
+                        shadow_store=shadow_store,
+                    )
+
+            # Search for matching usernames and deduplicate
+            matches_by_username = {}  # username -> best match
+            for node, data in graph.directed.nodes(data=True):
+                username = data.get('username', '')
+                if username and username.lower().startswith(query):
+                    # Use num_followers if available, otherwise use graph in-degree
+                    num_followers = data.get('num_followers')
+                    # Check if num_followers is missing, NaN, or infinity
+                    if num_followers is None or (isinstance(num_followers, float) and (math.isnan(num_followers) or math.isinf(num_followers))):
+                        # Fallback to graph in-degree for shadow accounts
+                        num_followers = graph.directed.in_degree(node)
+
+                    match = {
+                        'username': username,
+                        'display_name': data.get('account_display_name') or data.get('display_name', ''),
+                        'num_followers': num_followers,
+                        'is_shadow': data.get('shadow', False),
+                        'bio': (data.get('bio', '') or '')[:100]  # First 100 chars of bio
+                    }
+
+                    # Deduplicate: prefer non-shadow accounts, or the one with more followers
+                    username_lower = username.lower()
+                    if username_lower not in matches_by_username:
+                        matches_by_username[username_lower] = match
+                    else:
+                        existing = matches_by_username[username_lower]
+                        # Prefer non-shadow over shadow
+                        if match['is_shadow'] and not existing['is_shadow']:
+                            continue  # Keep existing (non-shadow)
+                        elif not match['is_shadow'] and existing['is_shadow']:
+                            matches_by_username[username_lower] = match  # Replace with non-shadow
+                        else:
+                            # Both shadow or both non-shadow: prefer higher follower count
+                            if (match['num_followers'] or 0) > (existing['num_followers'] or 0):
+                                matches_by_username[username_lower] = match
+
+            # Convert to list, sort by followers (descending) and limit
+            matches = list(matches_by_username.values())
+            matches.sort(key=lambda x: x['num_followers'] or 0, reverse=True)
+            matches = matches[:limit]
+
+            return safe_jsonify(matches)
+
+        except Exception as e:
+            logger.exception("Error in account search")
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/ego-network", methods=["POST"])
+    def get_ego_network():
+        """
+        Get ego network for a specific user - their immediate network + top recommendations.
+
+        This is much faster than loading the entire graph.
+
+        Request body:
+        {
+            "username": "twitter_handle",
+            "depth": 2,  // How many hops out (default: 2)
+            "top_recommendations": 20,  // How many recommendations (default: 20)
+            "weights": {...},  // Optional scoring weights
+            "filters": {...}  // Optional filters
+        }
+        """
+        try:
+            data = request.json or {}
+
+            # Validate username
+            username = data.get('username', '').strip()
+            if not username:
+                return safe_jsonify({"error": "username is required"}), 400
+
+            depth = min(data.get('depth', 2), 3)  # Max 3 hops
+            top_n = min(data.get('top_recommendations', 20), 50)  # Max 50 recommendations
+
+            logger.info(f"[EGO-NETWORK] Starting for user '{username}', depth={depth}, top_n={top_n}")
+
+            # Load graph
+            snapshot_loader = app.config["SNAPSHOT_LOADER"]
+            graph = snapshot_loader.load_graph()
+
+            # Resolve username to account ID
+            resolved_seeds = _resolve_seeds(graph, [username])
+            if not resolved_seeds:
+                logger.warning(f"[EGO-NETWORK] User '{username}' not found in graph")
+                return safe_jsonify({"error": f"User '{username}' not found in graph"}), 404
+
+            account_id = resolved_seeds[0]  # Should only have one seed
+            logger.info(f"[EGO-NETWORK] Resolved '{username}' to account ID: {account_id}")
+
+            # Create discovery request with account ID as seed
+            discovery_data = {
+                'seeds': [account_id],
+                'weights': data.get('weights', {}),
+                'filters': data.get('filters', {}),
+                'limit': top_n,
+                'offset': 0,
+                'use_cache': False,
+                'debug': False
+            }
+            parsed_request, errors = validate_request(discovery_data)
+            if errors:
+                return safe_jsonify({"error": "Invalid weights or filters", "details": errors}), 400
+
+            # Load PageRank scores (same logic as discovery endpoint)
+            pagerank_scores = {}
+            frontend_path = Path("graph-explorer/public/analysis_output.json")
+            if frontend_path.exists():
+                try:
+                    import json
+                    with open(frontend_path) as f:
+                        analysis_data = json.load(f)
+                        pagerank_scores = analysis_data.get("metrics", {}).get("pagerank", {})
+                except Exception as e:
+                    logger.warning(f"Failed to load precomputed PageRank: {e}")
+
+            # Fallback: compute PageRank if not available
+            if not pagerank_scores:
+                logger.info("[EGO-NETWORK] Computing PageRank scores (no precomputed scores found)")
+                from src.api.graph_metrics import compute_personalized_pagerank
+                pagerank_scores = compute_personalized_pagerank(
+                    graph.directed,
+                    seeds=[account_id],  # Use the resolved account ID
+                    alpha=0.85
+                )
+
+            logger.info(f"[EGO-NETWORK] Extracting {depth}-hop subgraph around '{username}'")
+
+            # Extract k-hop neighborhood using account ID
+            from src.api.discovery import extract_subgraph
+            subgraph, candidates = extract_subgraph(graph.directed, [account_id], depth=depth)
+
+            logger.info(f"[EGO-NETWORK] Extracted subgraph: {len(subgraph.nodes())} nodes, {len(candidates)} candidates")
+
+            # Run discovery to get top recommendations
+            logger.info(f"[EGO-NETWORK] Computing top {top_n} recommendations")
+            from src.api.discovery import discover_subgraph
+
+            discovery_result = discover_subgraph(graph.directed, parsed_request, pagerank_scores)
+
+            # Combine ego network nodes + recommendations
+            logger.info(f"[EGO-NETWORK] Building response with network + recommendations")
+
+            # Get all nodes in subgraph
+            network_nodes = set(subgraph.nodes())
+
+            # Add recommendation nodes
+            recommendation_nodes = set()
+            for rec in discovery_result.get('recommendations', []):
+                recommendation_nodes.add(rec['handle'])
+
+            # Combine unique nodes
+            all_nodes = network_nodes | recommendation_nodes
+            logger.info(f"[EGO-NETWORK] Total nodes: {len(all_nodes)} (network: {len(network_nodes)}, recs: {len(recommendation_nodes)})")
+
+            # Serialize nodes
+            nodes = {}
+            for node in all_nodes:
+                if node in graph.directed:
+                    node_data = graph.directed.nodes[node]
+                    nodes[node] = {
+                        "username": node_data.get("username"),
+                        "display_name": node_data.get("account_display_name") or node_data.get("display_name"),
+                        "num_followers": node_data.get("num_followers"),
+                        "num_following": node_data.get("num_following"),
+                        "bio": node_data.get("bio"),
+                        "shadow": node_data.get("shadow", False),
+                        "is_ego": node == username,  # Mark the ego node
+                        "is_recommendation": node in recommendation_nodes and node not in network_nodes
+                    }
+
+            # Serialize edges (only between nodes we're including)
+            edges = []
+            for u, v in subgraph.edges():
+                if u in all_nodes and v in all_nodes:
+                    edges.append({
+                        "source": u,
+                        "target": v,
+                        "mutual": subgraph.has_edge(v, u)
+                    })
+
+            # Add edges to/from recommendation nodes
+            for rec_node in recommendation_nodes:
+                if rec_node in graph.directed:
+                    # Add edges between rec_node and network nodes
+                    for neighbor in graph.directed.neighbors(rec_node):
+                        if neighbor in all_nodes and {"source": rec_node, "target": neighbor, "mutual": graph.directed.has_edge(neighbor, rec_node)} not in edges:
+                            edges.append({
+                                "source": rec_node,
+                                "target": neighbor,
+                                "mutual": graph.directed.has_edge(neighbor, rec_node)
+                            })
+                    for predecessor in graph.directed.predecessors(rec_node):
+                        if predecessor in all_nodes and {"source": predecessor, "target": rec_node, "mutual": graph.directed.has_edge(rec_node, predecessor)} not in edges:
+                            edges.append({
+                                "source": predecessor,
+                                "target": rec_node,
+                                "mutual": graph.directed.has_edge(rec_node, predecessor)
+                            })
+
+            logger.info(f"[EGO-NETWORK] Serialized {len(nodes)} nodes, {len(edges)} edges")
+
+            # Build response
+            response = {
+                "ego": {
+                    "username": username,
+                    **nodes.get(username, {})
+                },
+                "network": {
+                    "nodes": nodes,
+                    "edges": edges
+                },
+                "recommendations": discovery_result.get('recommendations', []),
+                "stats": {
+                    "total_nodes": len(nodes),
+                    "total_edges": len(edges),
+                    "network_nodes": len(network_nodes),
+                    "recommendation_nodes": len(recommendation_nodes),
+                    "depth": depth,
+                    "computation_time_ms": discovery_result.get('meta', {}).get('computation_time_ms', 0)
+                },
+                "meta": discovery_result.get('meta', {})
+            }
+
+            logger.info(f"[EGO-NETWORK] Completed successfully for '{username}'")
+            return safe_jsonify(response)
+
+        except Exception as e:
+            logger.exception("Error in ego-network endpoint")
+            return safe_jsonify({"error": str(e)}), 500
 
     @app.route("/api/metrics/presets", methods=["GET"])
     def get_presets():
@@ -616,7 +909,7 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                     )
 
                 # Add rate limit headers
-                result_response = jsonify(result)
+                result_response = safe_jsonify(result)
                 result_response.headers['X-RateLimit-Limit'] = '30'
                 result_response.headers['X-RateLimit-Remaining'] = str(30 - rate_info["count"])
                 result_response.headers['X-RateLimit-Reset'] = str(int(rate_info["reset_time"]))
