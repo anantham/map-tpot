@@ -498,6 +498,14 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const totalWeight = weights.pr + weights.bt + weights.eng;
   const selectedNeighbors = selectedNodeId ? neighborMap.get(selectedNodeId) || new Set() : new Set();
 
+  const getNodeColor = useCallback((node) => {
+    if (node.id === selectedNodeId) return COLORS.selectedNode;
+    if (selectedNeighbors.has(node.id)) return COLORS.neighborNode;
+    if (node.isSeed) return COLORS.seedNode;
+    if (node.shadow) return COLORS.shadowNode;
+    return COLORS.baseNode;
+  }, [selectedNodeId, selectedNeighbors]);
+
   const getLinkStyle = (link) => {
     const sourceId = typeof link.source === "object" ? link.source.id : link.source;
     const targetId = typeof link.target === "object" ? link.target.id : link.target;
@@ -892,13 +900,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           graphData={graphData}
           nodeRelSize={6}
           enableNodeDrag={true}
-          nodeColor={(node) => {
-            if (node.id === selectedNodeId) return COLORS.selectedNode;
-            if (selectedNeighbors.has(node.id)) return COLORS.neighborNode;
-            if (node.isSeed) return COLORS.seedNode;
-            if (node.shadow) return COLORS.shadowNode;
-            return COLORS.baseNode;
-          }}
+          nodeColor={getNodeColor}
           linkColor={(link) => getLinkStyle(link).color}
           linkWidth={(link) => getLinkStyle(link).width}
           linkDirectionalParticles={(link) => (link.mutual ? 0 : 2)}
