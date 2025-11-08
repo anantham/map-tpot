@@ -1,0 +1,31 @@
+# GPU-accelerated graph metrics using RAPIDS cuGraph
+# Requires NVIDIA GPU with CUDA 11.2+ or 12.0+
+#
+# Installation (conda recommended):
+#   conda create -n tpot-gpu python=3.10
+#   conda activate tpot-gpu
+#   conda install -c rapidsai -c conda-forge -c nvidia \
+#       cugraph=24.02 cudf=24.02 python=3.10 cudatoolkit=11.8
+#   pip install -r requirements.txt
+#
+# For CUDA 12.x:
+#   conda install -c rapidsai -c conda-forge -c nvidia \
+#       cugraph=24.02 cudf=24.02 python=3.10 'cuda-version>=12.0,<13.0a0'
+#
+# System requirements:
+#   - NVIDIA GPU (RTX 20xx series or newer recommended)
+#   - CUDA 11.2+ or 12.0+
+#   - Linux or WSL2 (Windows not officially supported)
+#   - 4GB+ GPU memory for 70k node graphs
+#
+# Performance gains (70k nodes, 226k edges):
+#   - PageRank: 10-30s (vs 30-60s CPU)
+#   - Betweenness: 30-90s (vs 30-60 min CPU exact, 2-3 min sampled)
+#   - Louvain: 10-20s (vs 30-60s CPU)
+#
+# Optional dependencies for GPU support:
+#   numba>=0.57  # For CUDA detection
+#
+# Note: RAPIDS packages are best installed via conda.
+# Pip wheels are available but may have compatibility issues.
+# See: https://rapids.ai/start.html

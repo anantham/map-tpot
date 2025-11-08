@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 
+from src.api.snapshot_loader import get_snapshot_loader
 from src.config import get_cache_settings
 from src.data.fetcher import CachedDataFetcher
 from src.data.shadow_store import get_shadow_store
@@ -23,6 +24,7 @@ from src.graph import (
     compute_personalized_pagerank,
     load_seed_candidates,
 )
+from src.performance_profiler import profile_operation, profile_phase, get_profiler
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +74,24 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
     if cache_db_path is None:
         cache_db_path = get_cache_settings().path
     app.config["CACHE_DB_PATH"] = cache_db_path
+
+    # Initialize snapshot loader
+    snapshot_loader = get_snapshot_loader()
+    app.config["SNAPSHOT_LOADER"] = snapshot_loader
+
+    # Try to load snapshot on startup
+    logger.info("Checking for graph snapshot...")
+    should_use, reason = snapshot_loader.should_use_snapshot()
+    if should_use:
+        logger.info(f"Loading snapshot: {reason}")
+        graph = snapshot_loader.load_graph()
+        if graph:
+            logger.info(f"Snapshot loaded successfully: {graph.directed.number_of_nodes()} nodes, {graph.directed.number_of_edges()} edges")
+        else:
+            logger.warning("Failed to load snapshot, will rebuild on first request")
+    else:
+        logger.warning(f"Snapshot not available: {reason}")
+        logger.info("Graph will be rebuilt from cache on first request")
 
     # Performance tracking middleware
     @app.before_request
@@ -130,10 +150,10 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
         """
         Get performance metrics for API endpoints.
 
-        Returns aggregated timing data for all endpoints.
+        Returns aggregated timing data for all endpoints plus detailed profiling data.
         """
         try:
-            # Calculate averages
+            # Calculate averages from request tracking
             aggregates = {}
             for key, data in performance_metrics["aggregates"].items():
                 if data["count"] > 0:
@@ -148,10 +168,34 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             # Get recent requests (last 50)
             recent = performance_metrics["requests"][-50:]
 
+            # Get detailed profiling data
+            profiler = get_profiler()
+            detailed_reports = []
+            for report in profiler.get_all_reports()[-20:]:  # Last 20 detailed reports
+                detailed_reports.append({
+                    "operation": report.operation,
+                    "total_ms": report.total_duration_ms,
+                    "metadata": report.metadata,
+                    "phases": [
+                        {
+                            "name": phase.name,
+                            "duration_ms": phase.duration_ms,
+                            "metadata": phase.metadata
+                        }
+                        for phase in report.phases
+                    ],
+                    "breakdown": report.get_phase_breakdown()
+                })
+
+            # Get profiler summary
+            profiler_summary = profiler.get_summary()
+
             return jsonify({
                 "aggregates": aggregates,
                 "recent_requests": recent,
                 "total_requests": sum(data["count"] for data in performance_metrics["aggregates"].values()),
+                "detailed_reports": detailed_reports,
+                "profiler_summary": profiler_summary,
             })
 
         except Exception as e:
@@ -161,74 +205,112 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
     @app.route("/api/graph-data", methods=["GET"])
     def get_graph_data():
         """
-        Load raw graph structure (nodes and edges) from SQLite cache.
+        Load raw graph structure (nodes and edges).
+
+        Prefers snapshot if available and fresh, falls back to live build.
 
         Query params:
             include_shadow: bool (default: true)
             mutual_only: bool (default: false)
             min_followers: int (default: 0)
+            force_rebuild: bool (default: false) - skip snapshot, rebuild from cache
         """
         try:
             include_shadow = request.args.get("include_shadow", "true").lower() == "true"
             mutual_only = request.args.get("mutual_only", "false").lower() == "true"
             min_followers = int(request.args.get("min_followers", "0"))
+            force_rebuild = request.args.get("force_rebuild", "false").lower() == "true"
 
-            cache_path = app.config["CACHE_DB_PATH"]
+            with profile_operation("api_get_graph_data", {
+                "include_shadow": include_shadow,
+                "mutual_only": mutual_only,
+                "min_followers": min_followers,
+                "force_rebuild": force_rebuild
+            }, verbose=False) as report:
 
-            with CachedDataFetcher(cache_db=cache_path) as fetcher:
-                shadow_store = get_shadow_store(fetcher.engine) if include_shadow else None
-                graph = build_graph(
-                    fetcher=fetcher,
-                    mutual_only=mutual_only,
-                    min_followers=min_followers,
-                    include_shadow=include_shadow,
-                    shadow_store=shadow_store,
+                graph = None
+                source = "snapshot"
+
+                # Try snapshot first unless force_rebuild
+                # NOTE: Snapshot is always built with include_shadow=True, mutual_only=False, min_followers=0
+                # If client requests different parameters, we must rebuild
+                snapshot_loader = app.config["SNAPSHOT_LOADER"]
+                can_use_snapshot = (
+                    not force_rebuild
+                    and include_shadow  # Snapshot always has shadow data
+                    and not mutual_only  # Snapshot is built without mutual_only filter
+                    and min_followers == 0  # Snapshot has no follower filter
                 )
 
-            directed = graph.directed
+                if can_use_snapshot:
+                    with profile_phase("load_snapshot", "api_get_graph_data"):
+                        graph = snapshot_loader.load_graph()
 
-            # Serialize edges
-            edges = []
-            for u, v in directed.edges():
-                data = directed.get_edge_data(u, v, default={})
-                edges.append({
-                    "source": u,
-                    "target": v,
-                    "mutual": directed.has_edge(v, u),
-                    "provenance": data.get("provenance", "archive"),
-                    "shadow": data.get("shadow", False),
-                    "metadata": data.get("metadata"),
-                    "direction_label": data.get("direction_label"),
-                    "fetched_at": _serialize_datetime(data.get("fetched_at")),
+                # Fall back to live build if snapshot unavailable or incompatible
+                if graph is None:
+                    source = "live_build"
+                    logger.info("Building graph from cache (snapshot unavailable or stale)")
+
+                    cache_path = app.config["CACHE_DB_PATH"]
+
+                    with profile_phase("build_graph", "api_get_graph_data"):
+                        with CachedDataFetcher(cache_db=cache_path) as fetcher:
+                            shadow_store = get_shadow_store(fetcher.engine) if include_shadow else None
+                            graph = build_graph(
+                                fetcher=fetcher,
+                                mutual_only=mutual_only,
+                                min_followers=min_followers,
+                                include_shadow=include_shadow,
+                                shadow_store=shadow_store,
+                            )
+
+                directed = graph.directed
+
+                # Serialize edges
+                with profile_phase("serialize_edges", "api_get_graph_data", {"edge_count": directed.number_of_edges()}):
+                    edges = []
+                    for u, v in directed.edges():
+                        data = directed.get_edge_data(u, v, default={})
+                        edges.append({
+                            "source": u,
+                            "target": v,
+                            "mutual": directed.has_edge(v, u),
+                            "provenance": data.get("provenance", "archive"),
+                            "shadow": data.get("shadow", False),
+                            "metadata": data.get("metadata"),
+                            "direction_label": data.get("direction_label"),
+                            "fetched_at": _serialize_datetime(data.get("fetched_at")),
+                        })
+
+                # Serialize nodes
+                with profile_phase("serialize_nodes", "api_get_graph_data", {"node_count": directed.number_of_nodes()}):
+                    nodes = {}
+                    for node, data in directed.nodes(data=True):
+                        nodes[node] = {
+                            "username": data.get("username"),
+                            "display_name": data.get("account_display_name") or data.get("display_name"),
+                            "num_followers": data.get("num_followers"),
+                            "num_following": data.get("num_following"),
+                            "num_likes": data.get("num_likes"),
+                            "num_tweets": data.get("num_tweets"),
+                            "bio": data.get("bio"),
+                            "location": data.get("location"),
+                            "website": data.get("website"),
+                            "profile_image_url": data.get("profile_image_url"),
+                            "provenance": data.get("provenance", "archive"),
+                            "shadow": data.get("shadow", False),
+                            "shadow_scrape_stats": data.get("shadow_scrape_stats"),
+                            "fetched_at": _serialize_datetime(data.get("fetched_at")),
+                        }
+
+                return jsonify({
+                    "nodes": nodes,
+                    "edges": edges,
+                    "directed_nodes": directed.number_of_nodes(),
+                    "directed_edges": directed.number_of_edges(),
+                    "undirected_edges": graph.undirected.number_of_edges(),
+                    "source": source,  # Indicates if from snapshot or live build
                 })
-
-            # Serialize nodes
-            nodes = {}
-            for node, data in directed.nodes(data=True):
-                nodes[node] = {
-                    "username": data.get("username"),
-                    "display_name": data.get("account_display_name") or data.get("display_name"),
-                    "num_followers": data.get("num_followers"),
-                    "num_following": data.get("num_following"),
-                    "num_likes": data.get("num_likes"),
-                    "num_tweets": data.get("num_tweets"),
-                    "bio": data.get("bio"),
-                    "location": data.get("location"),
-                    "website": data.get("website"),
-                    "profile_image_url": data.get("profile_image_url"),
-                    "provenance": data.get("provenance", "archive"),
-                    "shadow": data.get("shadow", False),
-                    "shadow_scrape_stats": data.get("shadow_scrape_stats"),
-                    "fetched_at": _serialize_datetime(data.get("fetched_at")),
-                }
-
-            return jsonify({
-                "nodes": nodes,
-                "edges": edges,
-                "directed_nodes": directed.number_of_nodes(),
-                "directed_edges": directed.number_of_edges(),
-                "undirected_edges": graph.undirected.number_of_edges(),
-            })
 
         except Exception as e:
             logger.exception("Error loading graph data")
@@ -262,66 +344,96 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             mutual_only = data.get("mutual_only", False)
             min_followers = data.get("min_followers", 0)
 
-            # Load default seeds if none provided
-            if not seeds:
-                seeds = sorted(load_seed_candidates())
+            with profile_operation("api_compute_metrics", {
+                "seed_count": len(seeds),
+                "include_shadow": include_shadow
+            }, verbose=False) as report:
 
-            cache_path = app.config["CACHE_DB_PATH"]
+                # Load default seeds if none provided
+                if not seeds:
+                    with profile_phase("load_default_seeds", "api_compute_metrics"):
+                        seeds = sorted(load_seed_candidates())
 
-            # Build graph
-            with CachedDataFetcher(cache_db=cache_path) as fetcher:
-                shadow_store = get_shadow_store(fetcher.engine) if include_shadow else None
-                graph = build_graph(
-                    fetcher=fetcher,
-                    mutual_only=mutual_only,
-                    min_followers=min_followers,
-                    include_shadow=include_shadow,
-                    shadow_store=shadow_store,
+                # Try snapshot first
+                graph = None
+                snapshot_loader = app.config["SNAPSHOT_LOADER"]
+
+                # Check if snapshot parameters match request
+                can_use_snapshot = (
+                    include_shadow
+                    and not mutual_only
+                    and min_followers == 0
                 )
 
-            directed = graph.directed
-            undirected = graph.undirected
+                if can_use_snapshot:
+                    with profile_phase("load_graph", "api_compute_metrics"):
+                        graph = snapshot_loader.load_graph()
 
-            # Resolve seeds (usernames -> account IDs)
-            resolved_seeds = _resolve_seeds(graph, seeds)
+                # Fall back to live build if snapshot unavailable or incompatible
+                if graph is None:
+                    logger.info("Building graph from cache for metrics (snapshot unavailable)")
+                    cache_path = app.config["CACHE_DB_PATH"]
 
-            # Compute metrics
-            pagerank = compute_personalized_pagerank(
-                directed,
-                seeds=resolved_seeds,
-                alpha=alpha
-            )
-            betweenness = compute_betweenness(undirected)
-            engagement = compute_engagement_scores(undirected)
-            composite = compute_composite_score(
-                pagerank=pagerank,
-                betweenness=betweenness,
-                engagement=engagement,
-                weights=weights,
-            )
-            communities = compute_louvain_communities(undirected, resolution=resolution)
+                    with CachedDataFetcher(cache_db=cache_path) as fetcher:
+                        shadow_store = get_shadow_store(fetcher.engine) if include_shadow else None
+                        graph = build_graph(
+                            fetcher=fetcher,
+                            mutual_only=mutual_only,
+                            min_followers=min_followers,
+                            include_shadow=include_shadow,
+                            shadow_store=shadow_store,
+                        )
 
-            # Get top accounts
-            top_pagerank = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[:20]
-            top_betweenness = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:20]
-            top_composite = sorted(composite.items(), key=lambda x: x[1], reverse=True)[:20]
+                directed = graph.directed
+                undirected = graph.undirected
 
-            return jsonify({
-                "seeds": seeds,
-                "resolved_seeds": resolved_seeds,
-                "metrics": {
-                    "pagerank": pagerank,
-                    "betweenness": betweenness,
-                    "engagement": engagement,
-                    "composite": composite,
-                    "communities": communities,
-                },
-                "top": {
-                    "pagerank": top_pagerank,
-                    "betweenness": top_betweenness,
-                    "composite": top_composite,
-                },
-            })
+                # Resolve seeds (usernames -> account IDs)
+                with profile_phase("resolve_seeds", "api_compute_metrics"):
+                    resolved_seeds = _resolve_seeds(graph, seeds)
+
+                # Compute metrics
+                pagerank = compute_personalized_pagerank(
+                    directed,
+                    seeds=resolved_seeds,
+                    alpha=alpha
+                )
+                betweenness = compute_betweenness(undirected)
+
+                with profile_phase("compute_engagement", "api_compute_metrics"):
+                    engagement = compute_engagement_scores(undirected)
+
+                with profile_phase("compute_composite", "api_compute_metrics"):
+                    composite = compute_composite_score(
+                        pagerank=pagerank,
+                        betweenness=betweenness,
+                        engagement=engagement,
+                        weights=weights,
+                    )
+
+                communities = compute_louvain_communities(undirected, resolution=resolution)
+
+                # Get top accounts
+                with profile_phase("sort_top_accounts", "api_compute_metrics"):
+                    top_pagerank = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[:20]
+                    top_betweenness = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:20]
+                    top_composite = sorted(composite.items(), key=lambda x: x[1], reverse=True)[:20]
+
+                return jsonify({
+                    "seeds": seeds,
+                    "resolved_seeds": resolved_seeds,
+                    "metrics": {
+                        "pagerank": pagerank,
+                        "betweenness": betweenness,
+                        "engagement": engagement,
+                        "composite": composite,
+                        "communities": communities,
+                    },
+                    "top": {
+                        "pagerank": top_pagerank,
+                        "betweenness": top_betweenness,
+                        "composite": top_composite,
+                    },
+                })
 
         except Exception as e:
             logger.exception("Error computing metrics")

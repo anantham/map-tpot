@@ -3,6 +3,12 @@
 
 # Generated analysis files
 enrichment_summary.json
+analysis_output.json
+
+# Graph snapshots (precomputed for fast API startup)
+data/graph_snapshot.nodes.parquet
+data/graph_snapshot.edges.parquet
+data/graph_snapshot.meta.json
 
 # Test coverage
 .coverage

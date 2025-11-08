@@ -5,6 +5,8 @@ from typing import Dict, Iterable, Optional, Tuple
 
 import networkx as nx
 
+from src.performance_profiler import profile_phase
+
 
 def compute_personalized_pagerank(
     graph: nx.DiGraph,
@@ -15,33 +17,64 @@ def compute_personalized_pagerank(
 ) -> Dict[str, float]:
     """Personalized PageRank seeded on provided nodes."""
 
-    seeds = list(seeds)
-    if not seeds:
-        return nx.pagerank(graph, alpha=alpha, weight=weight)
-    personalization = {node: 0.0 for node in graph.nodes}
-    for seed in seeds:
-        if seed in personalization:
-            personalization[seed] = 1.0 / len(seeds)
-    return nx.pagerank(graph, alpha=alpha, personalization=personalization, weight=weight)
+    with profile_phase("compute_personalized_pagerank", metadata={
+        "nodes": graph.number_of_nodes(),
+        "edges": graph.number_of_edges(),
+        "seeds": len(list(seeds)) if seeds else 0
+    }):
+        seeds = list(seeds)
+        if not seeds:
+            return nx.pagerank(graph, alpha=alpha, weight=weight)
+        personalization = {node: 0.0 for node in graph.nodes}
+        for seed in seeds:
+            if seed in personalization:
+                personalization[seed] = 1.0 / len(seeds)
+        return nx.pagerank(graph, alpha=alpha, personalization=personalization, weight=weight)
 
 
 def compute_louvain_communities(graph: nx.Graph, *, resolution: float = 1.0) -> Dict[str, int]:
     """Compute Louvain communities (requires networkx>=3.1)."""
 
-    from networkx.algorithms.community import louvain_communities
+    with profile_phase("compute_louvain_communities", metadata={
+        "nodes": graph.number_of_nodes(),
+        "edges": graph.number_of_edges()
+    }):
+        from networkx.algorithms.community import louvain_communities
 
-    communities = louvain_communities(graph, resolution=resolution, seed=42)
-    membership: Dict[str, int] = {}
-    for idx, community in enumerate(communities):
-        for node in community:
-            membership[node] = idx
-    return membership
+        communities = louvain_communities(graph, resolution=resolution, seed=42)
+        membership: Dict[str, int] = {}
+        for idx, community in enumerate(communities):
+            for node in community:
+                membership[node] = idx
+        return membership
 
 
-def compute_betweenness(graph: nx.Graph, *, normalized: bool = True) -> Dict[str, float]:
-    """Compute betweenness centrality."""
+def compute_betweenness(graph: nx.Graph, *, normalized: bool = True, sample_size: Optional[int] = None) -> Dict[str, float]:
+    """Compute betweenness centrality.
 
-    return nx.betweenness_centrality(graph, normalized=normalized)
+    For large graphs (>500 nodes), uses approximate algorithm with sampling
+    to avoid O(n³) complexity.
+
+    Args:
+        graph: Undirected graph
+        normalized: Whether to normalize scores
+        sample_size: Number of nodes to sample (auto: min(500, n) for graphs >500 nodes)
+    """
+
+    with profile_phase("compute_betweenness", metadata={
+        "nodes": graph.number_of_nodes(),
+        "edges": graph.number_of_edges()
+    }):
+        num_nodes = graph.number_of_nodes()
+
+        # Use approximate betweenness for large graphs
+        if sample_size is None and num_nodes > 500:
+            sample_size = min(500, num_nodes)
+
+        if sample_size and sample_size < num_nodes:
+            return nx.betweenness_centrality(graph, normalized=normalized, k=sample_size)
+
+        return nx.betweenness_centrality(graph, normalized=normalized)
 
 
 def compute_engagement_scores(graph: nx.Graph) -> Dict[str, float]:

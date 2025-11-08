@@ -201,3 +201,13 @@
 - `scripts/verify_small_account_totals.py`:1-150 — new verification script that scans the cache for seeds with totals ≤13 and reports coverage shortfalls with ✓/✗ status and remediation hints.
 - `docs/ROADMAP.md`:17-19 — recorded follow-up to extend history-based skip logic to use profile totals.
 - Verification: `python3 -m pytest tests/test_shadow_enricher_utils.py::TestShouldRefreshListProfileTotals -q` (fails: No module named pytest in current interpreter).
+
+## 2025-11-06T02:20:08Z — macOS launcher for graph explorer
+- `StartGraphExplorer.command`:1-59 — added macOS-friendly launcher that opens the Flask API (`scripts.start_api_server`) and Vite dev server in separate Terminal windows, then launches the browser to `http://localhost:5173`, with graceful fallback instructions if `osascript` automation fails.
+- `README.md`:102-112 — documented how to enable and run the new `.command` helper.
+- Verification: manual run pending (`chmod +x StartGraphExplorer.command && ./StartGraphExplorer.command`).
+
+## 2025-11-06T11:41:27Z — Shadow store read retries
+- `src/data/shadow_store.py`:393-915 — wrapped read operations (`fetch_accounts`, `fetch_edges`, metrics/discovery getters, account/list lookups) in `_execute_with_retry` so transient SQLite “disk i/o error” responses back off and retry instead of surfacing 500s; preserved JSON/datetime normalization after retry.
+- Rationale: `/api/metrics/compute` was returning 500 during cache warm-up because `shadow_store.fetch_edges()` hit a transient disk I/O error.
+- Verification: attempted `python3 -m scripts.verify_shadow_graph.py` and in-process fetch smoke test; both terminated early in this sandbox (Signal 11). UI retest pending once backend restarted with updated code.

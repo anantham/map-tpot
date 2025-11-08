@@ -108,6 +108,14 @@ Generate analysis data:
 python -m scripts.analyze_graph --include-shadow --output graph-explorer/public/analysis_output.json
 ```
 
+#### macOS launcher
+
+On macOS you can automate the dual-terminal startup with `StartGraphExplorer.command`:
+1. `chmod +x StartGraphExplorer.command` (one-time to mark it executable)
+2. Double-click the file in Finder or run `./StartGraphExplorer.command`
+
+The script opens Terminal windows for the Flask API (`scripts.start_api_server`) and the Vite dev server, then launches your browser at `http://localhost:5173`.
+
 ### Shadow Enrichment Pipeline (Phase 1.4 — In Progress)
 
 Shadow enrichment expands the graph beyond Community Archive’s 275 indexed accounts by scraping follow/follower lists with Selenium and backfilling metadata via the X API v2 when available. Data lives in dedicated `shadow_account` / `shadow_edge` tables so provenance stays explicit.
@@ -219,18 +227,38 @@ with CachedDataFetcher() as fetcher:
 - **Clear cache:** Delete `data/cache.db` and re-run fetcher
 - **Adjust freshness:** Set `CACHE_MAX_AGE_DAYS` in `.env`
 
-### Refresh Graph Snapshot
+### Graph Snapshot Management
 
-After scraping or re-running analysis, refresh the README data snapshot:
+The API and frontend use precomputed graph snapshots for fast startup (see [ADR 004](./docs/adr/004-precomputed-graph-snapshots.md)).
+
+**Refresh the snapshot after enrichment:**
+
+```bash
+python -m scripts.refresh_graph_snapshot --include-shadow
+```
+
+This generates:
+- `data/graph_snapshot.nodes.parquet` — node table
+- `data/graph_snapshot.edges.parquet` — edge table
+- `data/graph_snapshot.meta.json` — freshness manifest
+- `graph-explorer/public/analysis_output.json` — frontend JSON
+
+**Automated refresh:** Add `--refresh-snapshot` to enrichment commands:
+
+```bash
+python -m scripts.enrich_shadow_graph --center adityaarpitha --refresh-snapshot
+```
+
+**Verify snapshot health:**
+
+```bash
+python -m scripts.verify_graph_snapshot
+```
+
+**Update README data snapshot (legacy):**
 
 ```bash
 python -m scripts.analyze_graph --include-shadow --update-readme
-```
-
-Use `--summary-only` to inspect the JSON payload without writing `analysis_output.json`:
-
-```bash
-python -m scripts.analyze_graph --include-shadow --summary-only
 ```
 
 ## Testing
