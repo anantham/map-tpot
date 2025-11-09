@@ -5,6 +5,19 @@
   color: #e2e8f0;
 }
 
+/* Ensure all text elements are light colored */
+.layout *, .control-panel *, .graph-container * {
+  color: inherit;
+}
+
+h1, h2, h3, h4, h5, h6, p, li, label, span, div, strong {
+  color: #e2e8f0;
+}
+
+small {
+  color: #94a3b8;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -288,4 +301,17 @@ select {
 
 .context-menu-item:active {
   background: #475569;
+}
+
+.context-menu-hint {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #cbd5f5;
+  opacity: 0.8;
+}
+
+.top-list-empty {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  margin: 0;
 }
