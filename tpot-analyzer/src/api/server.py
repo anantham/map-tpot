@@ -4,8 +4,11 @@ from __future__ import annotations
 import json
 import logging
 import math
+import subprocess
+import sys
+import threading
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -28,6 +31,7 @@ from src.graph import (
     compute_engagement_scores,
     compute_louvain_communities,
     compute_personalized_pagerank,
+    get_graph_settings,
     get_seed_state,
     load_seed_candidates,
     save_seed_list,
@@ -37,6 +41,80 @@ from src.graph import (
 from src.performance_profiler import profile_operation, profile_phase, get_profiler
 
 logger = logging.getLogger(__name__)
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+analysis_status = {
+    "status": "idle",
+    "started_at": None,
+    "finished_at": None,
+    "error": None,
+    "log": [],
+}
+analysis_lock = threading.Lock()
+analysis_thread = None
+
+
+def _append_analysis_log(line: str) -> None:
+    with analysis_lock:
+        analysis_status.setdefault("log", [])
+        analysis_status["log"].append(line)
+        if len(analysis_status["log"]) > 200:
+            analysis_status["log"] = analysis_status["log"][-200:]
+
+
+def _analysis_worker(active_list: str, include_shadow: bool, alpha: float) -> None:
+    global analysis_thread
+    cmd = [
+        sys.executable or "python3",
+        "scripts/analyze_graph.py",
+        "--seed-list",
+        active_list,
+        "--alpha",
+        f"{alpha:.4f}",
+        "--global-pagerank",
+    ]
+    if include_shadow:
+        cmd.append("--include-shadow")
+
+    process = None
+    try:
+        _append_analysis_log(f"Starting analysis: {' '.join(cmd)}")
+        process = subprocess.Popen(
+            cmd,
+            cwd=str(REPO_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=1,
+            universal_newlines=True,
+        )
+        assert process.stdout is not None
+        for line in process.stdout:
+            _append_analysis_log(line.rstrip())
+        process.wait()
+        exit_code = process.returncode
+        with analysis_lock:
+            analysis_status["finished_at"] = datetime.utcnow().isoformat() + "Z"
+            if exit_code == 0:
+                analysis_status["status"] = "succeeded"
+                analysis_status["error"] = None
+                _append_analysis_log("Analysis completed successfully.")
+            else:
+                analysis_status["status"] = "failed"
+                analysis_status["error"] = f"Process exited with code {exit_code}"
+                _append_analysis_log(f"Analysis failed with exit code {exit_code}.")
+    except Exception as exc:
+        logger.exception("Analysis job failed")
+        with analysis_lock:
+            analysis_status["status"] = "failed"
+            analysis_status["error"] = str(exc)
+            analysis_status["finished_at"] = datetime.utcnow().isoformat() + "Z"
+            _append_analysis_log(f"Analysis failed: {exc}")
+    finally:
+        if process and process.poll() is None:
+            process.kill()
+        with analysis_lock:
+            analysis_thread = None
 
 
 class SafeJSONEncoder(json.JSONEncoder):
@@ -586,6 +664,45 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             return safe_jsonify({"ok": True, "state": state})
         except ValueError as exc:
             return safe_jsonify({"error": str(exc)}), 400
+
+    @app.route("/api/analysis/status", methods=["GET"])
+    def analysis_status_endpoint():
+        with analysis_lock:
+            payload = {
+                "status": analysis_status.get("status"),
+                "started_at": analysis_status.get("started_at"),
+                "finished_at": analysis_status.get("finished_at"),
+                "error": analysis_status.get("error"),
+                "log": list(analysis_status.get("log", []))[-50:],
+            }
+        return safe_jsonify(payload)
+
+    @app.route("/api/analysis/run", methods=["POST"])
+    def run_analysis():
+        global analysis_thread
+        graph_state = get_graph_settings()
+        active_list = graph_state.get("active_list") or "adi_tpot"
+        settings = graph_state.get("settings", {})
+        include_shadow = settings.get("auto_include_shadow", True)
+        alpha = settings.get("alpha", 0.85)
+
+        with analysis_lock:
+            if analysis_status.get("status") == "running":
+                return safe_jsonify({"error": "Analysis already running", "status": analysis_status}), 409
+            analysis_status["status"] = "running"
+            analysis_status["started_at"] = datetime.utcnow().isoformat() + "Z"
+            analysis_status["finished_at"] = None
+            analysis_status["error"] = None
+            analysis_status["log"] = []
+
+            analysis_thread = threading.Thread(
+                target=_analysis_worker,
+                args=(active_list, include_shadow, alpha),
+                daemon=True,
+            )
+            analysis_thread.start()
+
+        return safe_jsonify({"ok": True, "status": analysis_status})
 
     @app.route("/api/ego-network", methods=["POST"])
     def get_ego_network():
