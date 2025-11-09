@@ -28,7 +28,11 @@ from src.graph import (
     compute_engagement_scores,
     compute_louvain_communities,
     compute_personalized_pagerank,
+    get_seed_state,
     load_seed_candidates,
+    save_seed_list,
+    set_active_seed_list,
+    update_graph_settings,
 )
 from src.performance_profiler import profile_operation, profile_phase, get_profiler
 
@@ -556,6 +560,33 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             logger.exception("Error in account search")
             return jsonify({"error": str(e)}), 500
 
+    @app.route("/api/seeds", methods=["GET", "POST"])
+    def seed_collections():
+        """List or update Discovery seed collections."""
+        if request.method == "GET":
+            return safe_jsonify(get_seed_state())
+
+        data = request.json or {}
+        name = data.get("name") or "discovery_active"
+        seeds = data.get("seeds")
+        set_active = data.get("set_active", True)
+        settings_payload = data.get("settings")
+
+        try:
+            if settings_payload is not None:
+                if not isinstance(settings_payload, dict):
+                    return safe_jsonify({"error": "settings must be an object"}), 400
+                state = update_graph_settings(settings_payload)
+            elif seeds is None:
+                state = set_active_seed_list(name)
+            else:
+                if not isinstance(seeds, list):
+                    return safe_jsonify({"error": "seeds must be an array"}), 400
+                state = save_seed_list(name, seeds, set_active=set_active)
+            return safe_jsonify({"ok": True, "state": state})
+        except ValueError as exc:
+            return safe_jsonify({"error": str(exc)}), 400
+
     @app.route("/api/ego-network", methods=["POST"])
     def get_ego_network():
         """
@@ -566,10 +597,12 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
         Request body:
         {
             "username": "twitter_handle",
-            "depth": 2,  // How many hops out (default: 2)
-            "top_recommendations": 20,  // How many recommendations (default: 20)
-            "weights": {...},  // Optional scoring weights
-            "filters": {...}  // Optional filters
+            "depth": 2,               // How many hops out (default: 2, max: 3)
+            "top_recommendations": 20 // Deprecated alias for limit
+            "limit": 50,              // Batch size (default: 50, max: 200 here / 500 overall)
+            "offset": 0,              // Pagination offset
+            "weights": {...},         // Optional scoring weights
+            "filters": {...}          // Optional filters
         }
         """
         try:
@@ -580,10 +613,22 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             if not username:
                 return safe_jsonify({"error": "username is required"}), 400
 
-            depth = min(data.get('depth', 2), 3)  # Max 3 hops
-            top_n = min(data.get('top_recommendations', 20), 50)  # Max 50 recommendations
+            depth = min(data.get('depth', 2), 5)  # Max 5 hops
 
-            logger.info(f"[EGO-NETWORK] Starting for user '{username}', depth={depth}, top_n={top_n}")
+            raw_limit = data.get('limit', data.get('top_recommendations', 50))
+            try:
+                limit = int(raw_limit)
+            except (TypeError, ValueError):
+                limit = 50
+            limit = max(10, min(limit, 500))
+
+            try:
+                offset = int(data.get('offset', 0))
+            except (TypeError, ValueError):
+                offset = 0
+            offset = max(0, offset)
+
+            logger.info(f"[EGO-NETWORK] Starting for user '{username}', depth={depth}, limit={limit}, offset={offset}")
 
             # Load graph
             snapshot_loader = app.config["SNAPSHOT_LOADER"]
@@ -603,9 +648,9 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                 'seeds': [account_id],
                 'weights': data.get('weights', {}),
                 'filters': data.get('filters', {}),
-                'limit': top_n,
-                'offset': 0,
-                'use_cache': False,
+                'limit': limit,
+                'offset': offset,
+                'use_cache': True,  # Enable caching for ego-network
                 'debug': False
             }
             parsed_request, errors = validate_request(discovery_data)
@@ -643,7 +688,7 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             logger.info(f"[EGO-NETWORK] Extracted subgraph: {len(subgraph.nodes())} nodes, {len(candidates)} candidates")
 
             # Run discovery to get top recommendations
-            logger.info(f"[EGO-NETWORK] Computing top {top_n} recommendations")
+            logger.info(f"[EGO-NETWORK] Computing top {limit} recommendations")
             from src.api.discovery import discover_subgraph
 
             discovery_result = discover_subgraph(graph.directed, parsed_request, pagerank_scores)
@@ -669,13 +714,14 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                 if node in graph.directed:
                     node_data = graph.directed.nodes[node]
                     nodes[node] = {
+                        "account_id": node,
                         "username": node_data.get("username"),
                         "display_name": node_data.get("account_display_name") or node_data.get("display_name"),
                         "num_followers": node_data.get("num_followers"),
                         "num_following": node_data.get("num_following"),
                         "bio": node_data.get("bio"),
                         "shadow": node_data.get("shadow", False),
-                        "is_ego": node == username,  # Mark the ego node
+                        "is_ego": node == account_id,
                         "is_recommendation": node in recommendation_nodes and node not in network_nodes
                     }
 
@@ -711,11 +757,12 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             logger.info(f"[EGO-NETWORK] Serialized {len(nodes)} nodes, {len(edges)} edges")
 
             # Build response
+            ego_details = nodes.get(account_id, {}).copy()
+            ego_details.setdefault("account_id", account_id)
+            ego_details.setdefault("username", username)
+
             response = {
-                "ego": {
-                    "username": username,
-                    **nodes.get(username, {})
-                },
+                "ego": ego_details,
                 "network": {
                     "nodes": nodes,
                     "edges": edges
