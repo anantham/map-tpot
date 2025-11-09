@@ -93,23 +93,25 @@ def _analysis_worker(active_list: str, include_shadow: bool, alpha: float) -> No
             _append_analysis_log(line.rstrip())
         process.wait()
         exit_code = process.returncode
-        with analysis_lock:
-            analysis_status["finished_at"] = datetime.utcnow().isoformat() + "Z"
-            if exit_code == 0:
+        if exit_code == 0:
+            with analysis_lock:
+                analysis_status["finished_at"] = datetime.utcnow().isoformat() + "Z"
                 analysis_status["status"] = "succeeded"
                 analysis_status["error"] = None
-                _append_analysis_log("Analysis completed successfully.")
-            else:
+            _append_analysis_log("Analysis completed successfully.")
+        else:
+            with analysis_lock:
+                analysis_status["finished_at"] = datetime.utcnow().isoformat() + "Z"
                 analysis_status["status"] = "failed"
                 analysis_status["error"] = f"Process exited with code {exit_code}"
-                _append_analysis_log(f"Analysis failed with exit code {exit_code}.")
+            _append_analysis_log(f"Analysis failed with exit code {exit_code}.")
     except Exception as exc:
         logger.exception("Analysis job failed")
         with analysis_lock:
             analysis_status["status"] = "failed"
             analysis_status["error"] = str(exc)
             analysis_status["finished_at"] = datetime.utcnow().isoformat() + "Z"
-            _append_analysis_log(f"Analysis failed: {exc}")
+        _append_analysis_log(f"Analysis failed: {exc}")
     finally:
         if process and process.poll() is None:
             process.kill()

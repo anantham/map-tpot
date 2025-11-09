@@ -1018,9 +1018,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
 
     const handleNoMoreResults = () => {
       const relaxed = advanceQueryState()
-      if (!relaxed) {
-        setHasMoreResults(false)
-      }
+      setHasMoreResults(relaxed)
       return relaxed
     }
 
