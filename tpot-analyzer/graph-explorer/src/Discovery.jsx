@@ -43,6 +43,12 @@ const DEFAULT_MAX_DISTANCE = 3
 const DEFAULT_MAX_FOLLOWERS = Number.MAX_SAFE_INTEGER
 const DEFAULT_LIMIT = 200  // Initial result limit per request
 
+// Progressive loading limits
+const MAX_DEPTH = 5  // Maximum depth to advance to
+const MAX_AUTO_DISTANCE = 6  // Maximum distance for progressive loading
+const MAX_AUTO_LIMIT = 2000  // Maximum limit for progressive loading
+const FOLLOWER_CEILING = 1000000  // Maximum follower count ceiling
+
 // Community name mappings (expand as needed)
 const COMMUNITY_NAMES = {
   0: "General",
