@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Dict, Iterable, Optional, Tuple
 
 import networkx as nx
@@ -10,6 +11,151 @@ from networkx.exception import PowerIterationFailedConvergence
 from src.performance_profiler import profile_phase
 
 logger = logging.getLogger(__name__)
+
+
+def compute_gini_coefficient(scores: Dict[str, float]) -> float:
+    """Compute Gini coefficient for distribution inequality.
+
+    Returns:
+        Gini coefficient in range [0, 1]
+        - 0 = perfect equality (all nodes have same score)
+        - 1 = perfect inequality (one node has all score)
+    """
+    if not scores:
+        return 0.0
+
+    sorted_scores = sorted(scores.values())
+    n = len(sorted_scores)
+
+    if n == 0:
+        return 0.0
+
+    # Gini formula: G = (2 * sum(i * x_i)) / (n * sum(x_i)) - (n + 1) / n
+    cumsum = sum((i + 1) * score for i, score in enumerate(sorted_scores))
+    total = sum(sorted_scores)
+
+    if total == 0:
+        return 0.0
+
+    gini = (2 * cumsum) / (n * total) - (n + 1) / n
+    return gini
+
+
+def compute_entropy(scores: Dict[str, float]) -> float:
+    """Compute Shannon entropy of score distribution.
+
+    Returns:
+        Entropy in bits
+        - Higher entropy = more dispersed/uniform distribution
+        - Lower entropy = more concentrated distribution
+    """
+    if not scores:
+        return 0.0
+
+    values = list(scores.values())
+    total = sum(values)
+
+    if total == 0:
+        return 0.0
+
+    # Normalize to probabilities
+    probs = [v / total for v in values if v > 0]
+
+    # Shannon entropy: H = -sum(p * log2(p))
+    entropy = -sum(p * math.log2(p) for p in probs)
+    return entropy
+
+
+def analyze_score_distribution(scores: Dict[str, float], label: str = "Score") -> Dict:
+    """Analyze distribution properties of scores.
+
+    Returns:
+        Dictionary with distribution statistics
+    """
+    if not scores:
+        return {}
+
+    sorted_scores = sorted(scores.values(), reverse=True)
+    total = sum(sorted_scores)
+    n = len(sorted_scores)
+
+    if total == 0:
+        return {
+            "total_mass": 0.0,
+            "num_nodes": n,
+            "concentration": {},
+            "gini": 0.0,
+            "entropy": 0.0,
+        }
+
+    # Concentration at different percentiles
+    percentiles = {"1%": 0.01, "5%": 0.05, "10%": 0.10, "25%": 0.25}
+    concentration = {}
+
+    for pct_label, pct in percentiles.items():
+        idx = max(1, int(n * pct))
+        mass = sum(sorted_scores[:idx]) / total
+        concentration[pct_label] = mass
+
+    # Gini and entropy
+    gini = compute_gini_coefficient(scores)
+    entropy = compute_entropy(scores)
+
+    # Percentile scores (what score puts you in top X%)
+    percentile_scores = {
+        "top_1%": sorted_scores[max(0, int(n * 0.01) - 1)] if n >= 100 else sorted_scores[0],
+        "top_5%": sorted_scores[max(0, int(n * 0.05) - 1)] if n >= 20 else sorted_scores[0],
+        "top_10%": sorted_scores[max(0, int(n * 0.10) - 1)] if n >= 10 else sorted_scores[0],
+    }
+
+    stats = {
+        "total_mass": total,
+        "num_nodes": n,
+        "max": sorted_scores[0],
+        "min": sorted_scores[-1],
+        "median": sorted_scores[n // 2],
+        "mean": total / n,
+        "concentration": concentration,
+        "percentile_thresholds": percentile_scores,
+        "gini": gini,
+        "entropy": entropy,
+    }
+
+    return stats
+
+
+def log_distribution_analysis(scores: Dict[str, float], label: str = "PageRank") -> None:
+    """Log detailed distribution analysis."""
+    stats = analyze_score_distribution(scores, label)
+
+    if not stats:
+        logger.info(f"{label} distribution: No scores available")
+        return
+
+    logger.info(f"\n{'='*60}")
+    logger.info(f"{label} Distribution Analysis")
+    logger.info(f"{'='*60}")
+    logger.info(f"Total nodes: {stats['num_nodes']:,}")
+    logger.info(f"Total mass: {stats['total_mass']:.6f}")
+    logger.info(f"")
+    logger.info(f"Score Range:")
+    logger.info(f"  Max:    {stats['max']:.6f}")
+    logger.info(f"  Median: {stats['median']:.6f}")
+    logger.info(f"  Mean:   {stats['mean']:.6f}")
+    logger.info(f"  Min:    {stats['min']:.6f}")
+    logger.info(f"")
+    logger.info(f"Concentration (what % of total mass is held by top X% of nodes):")
+    for pct, mass in stats['concentration'].items():
+        logger.info(f"  Top {pct:>4} of nodes hold: {mass*100:5.1f}% of total {label}")
+    logger.info(f"")
+    logger.info(f"Inequality Metrics:")
+    logger.info(f"  Gini coefficient: {stats['gini']:.4f}  (0=equality, 1=inequality)")
+    logger.info(f"  Entropy:          {stats['entropy']:.2f} bits  (higher=more dispersed)")
+    logger.info(f"")
+    logger.info(f"Threshold Scores (minimum score to be in top X%):")
+    for pct, score in stats['percentile_thresholds'].items():
+        logger.info(f"  {pct:>7}: {score:.6f}")
+    logger.info(f"{'='*60}\n")
 
 
 def compute_personalized_pagerank(
@@ -95,6 +241,10 @@ def compute_personalized_pagerank(
                 )
 
             logger.info(f"✅ PageRank converged successfully")
+
+            # Analyze distribution
+            log_distribution_analysis(result, label=f"PageRank (α={alpha:.4f})")
+
             return result
 
         except PowerIterationFailedConvergence as e:
