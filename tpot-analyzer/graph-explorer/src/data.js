@@ -66,62 +66,116 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * localStorage cache for graph data with TTL.
+ * IndexedDB cache for graph data with TTL.
  * Uses stale-while-revalidate pattern.
+ * Much larger quota than localStorage (~50MB+ vs 5-10MB).
  */
 const graphCache = {
+  dbName: 'tpot-graph-cache',
+  storeName: 'graph-data',
+  db: null,
+
+  async init() {
+    if (this.db) return this.db;
+
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+    });
+  },
+
   getCacheKey(options) {
     const { includeShadow, mutualOnly, minFollowers } = options;
     return `graph_data_${includeShadow}_${mutualOnly}_${minFollowers}`;
   },
 
-  get(options) {
+  async get(options) {
     try {
+      await this.init();
       const key = this.getCacheKey(options);
-      const cached = localStorage.getItem(key);
-      if (!cached) return null;
 
-      const { data, timestamp } = JSON.parse(cached);
-      const age = Date.now() - timestamp;
-      const maxAge = 5 * 60 * 1000; // 5 minutes
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction([this.storeName], 'readonly');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.get(key);
 
-      // Return cached data even if stale (stale-while-revalidate)
-      return {
-        data,
-        isStale: age > maxAge,
-        age: Math.floor(age / 1000) // age in seconds
-      };
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const cached = request.result;
+          if (!cached) {
+            resolve(null);
+            return;
+          }
+
+          const { data, timestamp } = cached;
+          const age = Date.now() - timestamp;
+          const maxAge = 5 * 60 * 1000; // 5 minutes
+
+          resolve({
+            data,
+            isStale: age > maxAge,
+            age: Math.floor(age / 1000)
+          });
+        };
+      });
     } catch (error) {
       console.warn('[Cache] Failed to read cache:', error);
       return null;
     }
   },
 
-  set(options, data) {
+  async set(options, data) {
     try {
+      await this.init();
       const key = this.getCacheKey(options);
-      const cached = JSON.stringify({
+      const cached = {
         data,
         timestamp: Date.now()
+      };
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.put(cached, key);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          console.log(`[Cache] Saved graph data to IndexedDB: ${key}`);
+          resolve();
+        };
       });
-      localStorage.setItem(key, cached);
-      console.log(`[Cache] Saved graph data to cache: ${key}`);
     } catch (error) {
       console.warn('[Cache] Failed to write cache:', error);
-      // Likely quota exceeded - clear old cache
-      this.clear();
+      await this.clear();
     }
   },
 
-  clear() {
+  async clear() {
     try {
-      const keys = Object.keys(localStorage);
-      keys.forEach(key => {
-        if (key.startsWith('graph_data_')) {
-          localStorage.removeItem(key);
-        }
+      await this.init();
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.clear();
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          console.log('[Cache] Cleared IndexedDB graph cache');
+          resolve();
+        };
       });
-      console.log('[Cache] Cleared graph data cache');
     } catch (error) {
       console.warn('[Cache] Failed to clear cache:', error);
     }
@@ -130,7 +184,7 @@ const graphCache = {
 
 /**
  * Fetch raw graph structure (nodes and edges) from backend.
- * Uses localStorage cache with stale-while-revalidate pattern.
+ * Uses IndexedDB cache with stale-while-revalidate pattern.
  *
  * @param {Object} options - Graph options
  * @param {boolean} options.includeShadow - Include shadow nodes (default: true)
@@ -151,7 +205,7 @@ export const fetchGraphData = async (options = {}) => {
 
   // Check cache first (unless skipCache is true)
   if (!skipCache) {
-    const cached = graphCache.get({ includeShadow, mutualOnly, minFollowers });
+    const cached = await graphCache.get({ includeShadow, mutualOnly, minFollowers });
     if (cached) {
       console.log(
         `[Cache] ${cached.isStale ? 'Stale' : 'Fresh'} cache hit (age: ${cached.age}s) - returning immediately`
@@ -199,8 +253,10 @@ export const fetchGraphData = async (options = {}) => {
       fromCache: false,
     });
 
-    // Save to cache
-    graphCache.set({ includeShadow, mutualOnly, minFollowers }, data);
+    // Save to cache (don't await - let it happen in background)
+    graphCache.set({ includeShadow, mutualOnly, minFollowers }, data).catch(err => {
+      console.warn('[Cache] Failed to save to cache:', err);
+    });
 
     return data;
   } catch (error) {
