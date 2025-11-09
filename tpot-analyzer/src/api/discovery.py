@@ -264,7 +264,8 @@ def extract_subgraph(
 def apply_filters(
     candidates: List[Dict],
     filters: Dict[str, Any],
-    seeds: List[str]
+    seeds: List[str],
+    graph: nx.DiGraph = None
 ) -> List[Dict]:
     """Apply filters to candidate list."""
     filtered = []
@@ -275,7 +276,19 @@ def apply_filters(
         len(seeds)
     )
 
+    # Get list of accounts the ego node already follows (if exclude_following is enabled)
+    following_set = set()
+    if filters.get('exclude_following', False) and len(seeds) == 1 and graph:
+        # Only apply if we have exactly one seed (ego node)
+        ego_node = seeds[0]
+        if ego_node in graph:
+            following_set = set(graph.successors(ego_node))
+
     for candidate in candidates:
+        # Exclude following filter (only for ego-network mode)
+        if following_set and candidate['candidate'] in following_set:
+            continue
+
         # Distance filter
         if 'max_distance' in filters:
             min_dist = candidate['details']['distance']['min_distance']
@@ -331,6 +344,9 @@ def build_recommendation(
     handle = scored_candidate['candidate']
     node_data = graph.nodes[handle]
 
+    account_id = handle
+    username = node_data.get('username') or account_id
+
     # Get metadata
     metadata = {
         'num_followers': node_data.get('num_followers'),
@@ -340,12 +356,15 @@ def build_recommendation(
         'bio': node_data.get('bio', '')[:200] if node_data.get('bio') else None,
         'location': node_data.get('location')
     }
+    metadata['username'] = username
 
-    # Calculate ratio
-    if metadata['num_followers'] and metadata['num_following']:
+    # Calculate ratio safely
+    if metadata['num_followers'] and metadata['num_following'] and metadata['num_following'] > 0:
         metadata['follower_following_ratio'] = round(
             metadata['num_followers'] / metadata['num_following'], 1
         )
+    else:
+        metadata['follower_following_ratio'] = None
 
     # Build explanation
     overlap_details = scored_candidate['details']['overlap']
@@ -381,8 +400,10 @@ def build_recommendation(
                 })
 
     return {
-        'handle': handle,
-        'display_name': node_data.get('display_name', handle),
+        'account_id': account_id,
+        'handle': account_id,  # Back-compat: internal identifier
+        'username': username,
+        'display_name': node_data.get('display_name', username),
         'composite_score': scored_candidate['composite_score'],
         'scores': scored_candidate['scores'],
         'explanation': explanation,
@@ -457,7 +478,7 @@ def discover_subgraph(
 
     # Apply filters
     t0 = time.time()
-    filtered = apply_filters(scored_candidates, request.filters, valid_seeds)
+    filtered = apply_filters(scored_candidates, request.filters, valid_seeds, graph)
     timing['filtering_ms'] = int((time.time() - t0) * 1000)
 
     # Sort by composite score
