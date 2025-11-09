@@ -109,16 +109,29 @@ def build_graph(
     mutual_only: bool = True,
     min_followers: int = 0,
     include_shadow: bool = False,
+    include_archive: bool = True,
     shadow_store: Optional[ShadowStore] = None,
 ) -> GraphBuildResult:
     """Fetch necessary tables via the fetcher and build graphs."""
 
-    with profile_operation("build_graph", {"include_shadow": include_shadow}, verbose=False):
+    with profile_operation("build_graph", {"include_shadow": include_shadow, "include_archive": include_archive}, verbose=False):
         with profile_phase("fetch_data", "build_graph"):
             accounts = fetcher.fetch_accounts(use_cache=use_cache, force_refresh=force_refresh)
             profiles = fetcher.fetch_profiles(use_cache=use_cache, force_refresh=force_refresh)
             followers = fetcher.fetch_followers(use_cache=use_cache, force_refresh=force_refresh)
             following = fetcher.fetch_following(use_cache=use_cache, force_refresh=force_refresh)
+
+            # Fetch archive data if enabled
+            if include_archive:
+                archive_followers = fetcher.fetch_archive_followers()
+                archive_following = fetcher.fetch_archive_following()
+
+                # Merge archive data with REST data
+                # NetworkX will handle duplicate edges naturally (last write wins for attributes)
+                if not archive_followers.empty:
+                    followers = pd.concat([followers, archive_followers], ignore_index=True)
+                if not archive_following.empty:
+                    following = pd.concat([following, archive_following], ignore_index=True)
 
         return build_graph_from_frames(
             accounts=accounts,
