@@ -36,13 +36,33 @@ const COLORS = {
   selectedNode: "#f472b6",
   neighborNode: "#5eead4",
   shadowNode: "#94a3b8",
-  mutualEdge: "rgba(224, 242, 254, 0.92)",
-  oneWayEdge: "rgba(125, 211, 252, 0.7)",
+  mutualEdge: "rgba(224, 242, 254, 0.25)", // More transparent
+  oneWayEdge: "rgba(125, 211, 252, 0.15)", // More transparent
   selectedEdge: "#fb923c",
   neighborEdge: "#facc15"
 };
 
 const EMPTY_METRICS = Object.freeze({});
+
+const normalizeHandle = (value) => {
+  if (!value && value !== 0) return null;
+  const cleaned = String(value).trim().replace(/^@/, "");
+  if (!cleaned) return null;
+  return cleaned.toLowerCase();
+};
+
+const dedupeHandles = (handles = []) => {
+  const seen = new Set();
+  const result = [];
+  handles.forEach((handle) => {
+    const normalized = normalizeHandle(handle);
+    if (normalized && !seen.has(normalized)) {
+      seen.add(normalized);
+      result.push(normalized);
+    }
+  });
+  return result;
+};
 
 const normalizeScores = (scores = {}) => {
   const entries = Object.entries(scores).map(([key, value]) => [key, value ?? 0]);
@@ -66,6 +86,8 @@ const toLowerSet = (items = []) => {
   });
   return set;
 };
+
+const sanitizeSeedList = (handles = []) => dedupeHandles(handles);
 
 export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const [graphStructure, setGraphStructure] = useState(null);
@@ -91,6 +113,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const [weights, setWeights] = useState({ pr: 0.4, bt: 0.3, eng: 0.3 });
   const [linkDistance, setLinkDistance] = useState(140);
   const [chargeStrength, setChargeStrength] = useState(-220);
+  const [edgeOpacity, setEdgeOpacity] = useState(0.25); // Default opacity for edges
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [seedTextarea, setSeedTextarea] = useState("");
   const [customSeeds, setCustomSeeds] = useState([]);
@@ -98,8 +121,19 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const [includeShadows, setIncludeShadows] = useState(true);
   const [subgraphSize, setSubgraphSize] = useState(50);
   const [contextMenu, setContextMenu] = useState(null);
+  const [myAccount, setMyAccount] = useState(''); // User's own account for filtering
+  const [excludeFollowing, setExcludeFollowing] = useState(false); // Filter out accounts I follow
 
   const graphRef = useRef(null);
+
+  const applyCustomSeedList = useCallback((nextSeeds, { keepPresetName = false } = {}) => {
+    const sanitized = sanitizeSeedList(Array.isArray(nextSeeds) ? nextSeeds : []);
+    setCustomSeeds(sanitized);
+    setSeedTextarea(sanitized.join("\n"));
+    if (!keepPresetName) {
+      setPresetName("Custom");
+    }
+  }, []);
 
   // Dismiss context menu on outside click or ESC key
   useEffect(() => {
@@ -216,8 +250,9 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     return combined;
   }, [data]);
 
-  const customSeedSet = useMemo(() => toLowerSet(activeSeedList), [activeSeedList]);
-  const effectiveSeedSet = useMemo(() => new Set([...resolvedSeeds, ...customSeedSet]), [resolvedSeeds, customSeedSet]);
+  const activeSeedHandleSet = useMemo(() => toLowerSet(activeSeedList), [activeSeedList]);
+  const customSeedHandleSet = useMemo(() => toLowerSet(customSeeds), [customSeeds]);
+  const effectiveSeedSet = useMemo(() => new Set([...resolvedSeeds, ...activeSeedHandleSet]), [resolvedSeeds, activeSeedHandleSet]);
 
   const metricsData = data?.metrics ?? EMPTY_METRICS;
 
@@ -497,11 +532,50 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     return map;
   }, [graphData.links]);
 
+  // Get following list for myAccount (if specified)
+  const myFollowingSet = useMemo(() => {
+    if (!myAccount || !graphStructure) return new Set();
+
+    const myAccountLower = normalizeHandle(myAccount);
+    if (!myAccountLower) return new Set();
+
+    // Find my account node in the graph
+    const edges = graphStructure.graph?.edges || [];
+    const following = new Set();
+
+    edges.forEach(edge => {
+      const sourceLower = normalizeHandle(edge.source);
+      if (sourceLower === myAccountLower) {
+        const targetLower = normalizeHandle(edge.target);
+        if (targetLower) {
+          following.add(targetLower);
+        }
+      }
+    });
+
+    return following;
+  }, [myAccount, graphStructure]);
+
   const topEntries = useMemo(() => {
-    return Object.entries(tpotnessScores)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 12);
-  }, [tpotnessScores]);
+    let entries = Object.entries(tpotnessScores)
+      .sort((a, b) => b[1] - a[1]);
+
+    // Filter out accounts I'm already following
+    if (excludeFollowing && myFollowingSet.size > 0) {
+      entries = entries.filter(([id]) => {
+        const idLower = normalizeHandle(id);
+        return !myFollowingSet.has(idLower);
+      });
+    }
+
+    return entries.slice(0, 12);
+  }, [tpotnessScores, excludeFollowing, myFollowingSet]);
+
+  const contextHandle = contextMenu?.node
+    ? normalizeHandle(contextMenu.node.username || contextMenu.node.id)
+    : null;
+  const contextIsCustomSeed = contextHandle ? customSeedHandleSet.has(contextHandle) : false;
+  const contextIsSeed = contextHandle ? effectiveSeedSet.has(contextHandle) : false;
 
   const seedList = useMemo(() => {
     const unique = new Map();
@@ -510,13 +584,13 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         unique.set(node.idLower, node);
       }
     });
-    customSeedSet.forEach((seed) => {
+    customSeedHandleSet.forEach((seed) => {
       if (!unique.has(seed)) {
         unique.set(seed, { id: seed, username: seed, display_name: seed, idLower: seed });
       }
     });
     return Array.from(unique.values());
-  }, [graphData.nodes, effectiveSeedSet, customSeedSet]);
+  }, [graphData.nodes, effectiveSeedSet, customSeedHandleSet]);
 
   const totalWeight = weights.pr + weights.bt + weights.eng;
   const selectedNeighbors = selectedNodeId ? neighborMap.get(selectedNodeId) || new Set() : new Set();
@@ -535,24 +609,24 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     const isSelectedEdge =
       selectedNodeId && (sourceId === selectedNodeId || targetId === selectedNodeId);
     if (isSelectedEdge) {
-      return { color: COLORS.selectedEdge, width: 2.6, dash: [] };
+      return { color: COLORS.selectedEdge, width: 1.5, dash: [] };
     }
 
     const connectsNeighbors =
       selectedNodeId && selectedNeighbors.has(sourceId) && selectedNeighbors.has(targetId);
     if (connectsNeighbors) {
-      return { color: COLORS.neighborEdge, width: 2.2, dash: [] };
+      return { color: COLORS.neighborEdge, width: 1.2, dash: [] };
     }
 
     if (link.shadow) {
-      return { color: "rgba(203, 213, 225, 0.7)", width: 1.2, dash: [3, 5] };
+      return { color: `rgba(203, 213, 225, ${edgeOpacity})`, width: 0.6, dash: [3, 5] };
     }
 
     if (link.mutual) {
-      return { color: COLORS.mutualEdge, width: 1.7, dash: [] };
+      return { color: `rgba(224, 242, 254, ${edgeOpacity})`, width: 0.8, dash: [] };
     }
 
-    return { color: COLORS.oneWayEdge, width: 1.3, dash: [6, 4] };
+    return { color: `rgba(125, 211, 252, ${edgeOpacity * 0.6})`, width: 0.7, dash: [6, 4] };
   };
 
   useEffect(() => {
@@ -573,6 +647,29 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     }
   }, [linkDistance, graphData]);
 
+  const focusOnNode = useCallback((node) => {
+    if (!graphRef.current || !node) return;
+    const duration = 800;
+    graphRef.current.centerAt(node.x, node.y, duration);
+    graphRef.current.zoom(2.2, duration);
+  }, []);
+
+  const addNodeToCustomSeeds = useCallback((node) => {
+    if (!node) return;
+    const normalized = normalizeHandle(node.username || node.id);
+    if (!normalized) return;
+    applyCustomSeedList([...customSeeds, normalized]);
+    setContextMenu(null);
+  }, [applyCustomSeedList, customSeeds]);
+
+  const removeNodeFromCustomSeeds = useCallback((node) => {
+    if (!node) return;
+    const normalized = normalizeHandle(node.username || node.id);
+    if (!normalized) return;
+    applyCustomSeedList(customSeeds.filter((seed) => normalizeHandle(seed) !== normalized), { keepPresetName: false });
+    setContextMenu(null);
+  }, [applyCustomSeedList, customSeeds]);
+
   const handleWeightChange = (key) => (event) => {
     const value = Number(event.target.value);
     setWeights((prev) => ({ ...prev, [key]: value }));
@@ -582,8 +679,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     const name = event.target.value;
     setPresetName(name);
     const presetSeeds = DEFAULT_PRESETS[name] || [];
-    setCustomSeeds(presetSeeds);
-    setSeedTextarea(presetSeeds.join("\n"));
+    applyCustomSeedList(presetSeeds, { keepPresetName: true });
   };
 
   const handleApplyCustomSeeds = () => {
@@ -591,7 +687,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       .split(/[,\n]/)
       .map((line) => line.trim())
       .filter(Boolean);
-    setCustomSeeds(lines);
+    applyCustomSeedList(lines);
   };
 
   const handleDownloadCsv = () => {
@@ -737,6 +833,22 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             </section>
 
             <section>
+              <h2>Edge opacity</h2>
+              <div className="slider">
+                <label>Transparency {edgeOpacity.toFixed(2)}</label>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="1.0"
+                  step="0.05"
+                  value={edgeOpacity}
+                  onChange={(e) => setEdgeOpacity(parseFloat(e.target.value))}
+                />
+              </div>
+              <small>Adjust edge transparency (lower = more transparent)</small>
+            </section>
+
+            <section>
               <h2>Shadow enrichment</h2>
               <label className="toggle">
                 <input
@@ -850,26 +962,61 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             </section>
 
             <section>
-              <h2>Top accounts</h2>
-              <ol className="top-list">
-                {topEntries.map(([id, score]) => {
-                  const node = nodeLookup.get(id) || {};
-                  const label = node.display_name || node.username || id;
-                  return (
-                    <li
-                      key={`${id}`}
-                      onMouseEnter={() => setSelectedNodeId(node.id)}
-                      onMouseLeave={() => setSelectedNodeId(null)}
-                      onClick={() => setSelectedNodeId(node.id)}
-                    >
-                      <strong>{label}</strong>
-                      <div className="top-metrics">
-                        {(score * 100).toFixed(1)} · PR {(node.pagerank ?? 0).toFixed(3)} · BT {(node.betweenness ?? 0).toFixed(3)} · EN {(node.engagement ?? 0).toFixed(3)}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+              <h2>My Account (optional)</h2>
+              <input
+                type="text"
+                value={myAccount}
+                onChange={(e) => setMyAccount(e.target.value)}
+                placeholder="Your username (e.g., adityaarpitha)"
+                style={{ width: '100%', padding: '8px', marginBottom: '8px' }}
+              />
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={excludeFollowing}
+                  onChange={(e) => setExcludeFollowing(e.target.checked)}
+                  disabled={!myAccount || myFollowingSet.size === 0}
+                />
+                Exclude accounts I follow from Top Accounts
+              </label>
+              {myAccount && myFollowingSet.size > 0 && (
+                <small style={{ display: 'block', marginTop: '4px', color: '#94a3b8' }}>
+                  Found {myFollowingSet.size} accounts you follow
+                </small>
+              )}
+            </section>
+
+            <section>
+              <h2>Top accounts (by TPOT-ness score)</h2>
+              <small style={{ display: 'block', marginBottom: '8px', color: '#94a3b8' }}>
+                Ranked by weighted composite: {weights.pr.toFixed(2)}·PR + {weights.bt.toFixed(2)}·BT + {weights.eng.toFixed(2)}·ENG
+                {excludeFollowing && myFollowingSet.size > 0 && ' · Excluding accounts you follow'}
+              </small>
+              {topEntries.length === 0 ? (
+                <p className="top-list-empty">
+                  Metrics still loading. Run a computation or adjust your seeds to populate this list.
+                </p>
+              ) : (
+                <ol className="top-list">
+                  {topEntries.map(([id, score]) => {
+                    const node = nodeLookup.get(id) || {};
+                    const label = node.display_name || node.username || id;
+                    return (
+                      <li
+                        key={`${id}`}
+                        onMouseEnter={() => setSelectedNodeId(node.id)}
+                        onMouseLeave={() => setSelectedNodeId(null)}
+                        onClick={() => setSelectedNodeId(node.id)}
+                      >
+                        <strong>{label}</strong>
+                        <div className="top-metrics">
+                          {(score * 100).toFixed(1)} · PR {(node.pagerank ?? 0).toFixed(3)} · BT {(node.betweenness ?? 0).toFixed(3)} · EN {(node.engagement ?? 0).toFixed(3)}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
             </section>
 
             <section>
@@ -928,6 +1075,9 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           linkDirectionalParticles={(link) => (link.mutual ? 0 : 2)}
           linkDirectionalParticleWidth={1.6}
           linkDirectionalParticleColor={(link) => getLinkStyle(link).color}
+          linkDirectionalArrowLength={(link) => (link.mutual ? 0 : 8)}
+          linkDirectionalArrowRelPos={(link) => (link.mutual ? 0.5 : 0.92)}
+          linkDirectionalArrowColor={(link) => getLinkStyle(link).color}
           linkCanvasObjectMode={() => "replace"}
           linkCanvasObject={(link, ctx) => {
             if (!link.source || !link.target) return;
@@ -957,8 +1107,9 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           }}
           nodeCanvasObjectMode={() => "replace"}
           nodeCanvasObject={(node, ctx, globalScale) => {
-            // Calculate zoom-responsive radius
-            const baseRadius = 6;
+            // Calculate zoom-responsive radius - size based on betweenness centrality
+            const betweenness = node.betweenness ?? 0;
+            const baseRadius = 4 + (betweenness * 20); // Scale 4-8 based on betweenness
             const radius = baseRadius / Math.sqrt(globalScale);
 
             // Get node color
@@ -977,11 +1128,11 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
               ctx.stroke();
             }
 
-            // Draw label
+            // Draw label - black text for better readability
             const label = node.display_name || node.username || node.id;
             const fontSize = 12 / globalScale;
             ctx.font = `${fontSize}px sans-serif`;
-            ctx.fillStyle = "rgba(248, 250, 252, 0.92)";
+            ctx.fillStyle = "#000000"; // Black text
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";
             ctx.fillText(label, node.x + radius + 2, node.y);
@@ -1024,12 +1175,38 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           <button
             className="context-menu-item"
             onClick={() => {
+              if (contextIsCustomSeed) {
+                removeNodeFromCustomSeeds(contextMenu.node);
+              } else {
+                addNodeToCustomSeeds(contextMenu.node);
+              }
+            }}
+          >
+            {contextIsCustomSeed ? 'Remove from custom seeds' : 'Add as custom seed'}
+          </button>
+          {!contextIsCustomSeed && contextIsSeed && (
+            <div className="context-menu-hint">
+              Already part of the active preset
+            </div>
+          )}
+          <button
+            className="context-menu-item"
+            onClick={() => {
               const username = contextMenu.node.username || contextMenu.node.id;
               window.open(`https://twitter.com/${username}`, '_blank');
               setContextMenu(null);
             }}
           >
             Open on Twitter
+          </button>
+          <button
+            className="context-menu-item"
+            onClick={() => {
+              focusOnNode(contextMenu.node);
+              setContextMenu(null);
+            }}
+          >
+            Center & zoom here
           </button>
         </div>
       )}
