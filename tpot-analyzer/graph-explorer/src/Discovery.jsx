@@ -392,6 +392,114 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     return changed
   }, [modelSettings.max_distance, modelSettings.limit, filters.max_distance, batchSize])
 
+  const updateModelSettingsDraft = (updater) => {
+    setModelSettingsDraft((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      return next
+    })
+    setModelSettingsDirty(true)
+  }
+
+  const handleAlphaChange = (value) => {
+    updateModelSettingsDraft((prev) => ({
+      ...prev,
+      alpha: value
+    }))
+  }
+
+  const handleDiscoveryWeightChange = (key, value) => {
+    updateModelSettingsDraft((prev) => ({
+      ...prev,
+      discovery_weights: {
+        ...prev.discovery_weights,
+        [key]: value
+      }
+    }))
+  }
+
+  const handleModelNumberChange = (key, value) => {
+    updateModelSettingsDraft((prev) => ({
+      ...prev,
+      [key]: value
+    }))
+  }
+
+  const handleToggleAutoShadow = (checked) => {
+    updateModelSettingsDraft((prev) => ({
+      ...prev,
+      auto_include_shadow: checked
+    }))
+  }
+
+  const normalizeSettingsPayload = (draft) => ({
+    alpha: Number(draft.alpha) || 0.85,
+    discovery_weights: {
+      ...draft.discovery_weights
+    },
+    max_distance: Number.isFinite(draft.max_distance) ? Number(draft.max_distance) : 3,
+    limit: Number.isFinite(draft.limit) ? Number(draft.limit) : 500,
+    auto_include_shadow: Boolean(draft.auto_include_shadow)
+  })
+
+  const handleSaveModelSettings = async () => {
+    const payload = normalizeSettingsPayload(modelSettingsDraft)
+    setSavingModelSettings(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/seeds`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ settings: payload })
+      })
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'Failed to save settings')
+      }
+      const data = await response.json()
+      const updated = data?.state?.settings || payload
+      setModelSettings(updated)
+      setModelSettingsDraft(updated)
+      setModelSettingsDirty(false)
+      resetQueryState()
+    } catch (err) {
+      console.error('Failed to save model settings:', err)
+      window.alert(err.message || 'Unable to save model settings.')
+    } finally {
+      setSavingModelSettings(false)
+    }
+  }
+
+  const fetchAnalysisStatus = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analysis/status`)
+      if (!response.ok) return
+      const data = await response.json()
+      setAnalysisStatus(data)
+    } catch (err) {
+      console.error('Failed to fetch analysis status:', err)
+    }
+  }, [])
+
+  const handleRunAnalysis = async () => {
+    setAnalysisPolling(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/analysis/run`, {
+        method: 'POST'
+      })
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        window.alert(data?.error || 'Unable to start analysis.')
+      }
+      await fetchAnalysisStatus()
+    } catch (err) {
+      console.error('Failed to run analysis:', err)
+      window.alert('Unable to start analysis.')
+    } finally {
+      setAnalysisPolling(false)
+    }
+  }
+
   const resetRecommendationState = useCallback(() => {
     setAllRecommendations([])
     setRecommendations([])
@@ -568,6 +676,12 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
       valid: Boolean(validatedAccount && myAccountValid)
     })
   }, [validatedAccount, myAccountValid, onAccountStatusChange])
+
+  useEffect(() => {
+    fetchAnalysisStatus()
+    const interval = setInterval(fetchAnalysisStatus, 5000)
+    return () => clearInterval(interval)
+  }, [fetchAnalysisStatus])
 
   useEffect(() => {
     return () => {
@@ -876,7 +990,13 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     }
     setError(null)
 
-    if (!activeAccount && seeds.length === 0) {
+    // Build the seed list: include myAccount + custom seeds
+    const allSeeds = [...seeds]
+    if (activeAccount && !allSeeds.some(s => normalizeHandle(s) === normalizeHandle(activeAccount))) {
+      allSeeds.unshift(activeAccount) // Add my account as the first seed
+    }
+
+    if (allSeeds.length === 0) {
       if (!append) {
         setAllRecommendations([])
         setMeta(null)
@@ -898,213 +1018,97 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     })
 
     try {
-      if (activeAccount) {
-        console.log(`[DISCOVERY] Using ego-network endpoint for '${activeAccount}' (depth=${depth}, limit=${requestLimit}, offset=${offset})`)
-        const apiFilters = buildFilterPayload()
+      // Always use subgraph discovery mode - it searches the entire graph
+      setEgoAccountId(null)
+      setEgoFollowing(new Set())
+      console.log(`[DISCOVERY] Using subgraph/discover endpoint with ${allSeeds.length} seeds (limit=${requestLimit}, offset=${offset})`)
 
-        const response = await fetch(`${API_BASE_URL}/api/ego-network`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: activeAccount,
-            depth,
-            limit: requestLimit,
-            offset,
-            weights,
-            filters: apiFilters
-          })
+      const response = await fetch(`${API_BASE_URL}/api/subgraph/discover`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          seeds: allSeeds,
+          weights,
+          filters: buildFilterPayload(),
+          limit: requestLimit,
+          offset,
+          debug: true
         })
+      })
 
-        const data = await response.json()
+      const data = await response.json()
 
-        if (response.ok) {
-          if (data.error) {
-            setError(data.error)
-            if (!append) {
-              setAllRecommendations([])
-              setMeta(null)
-              setHasMoreResults(false)
-            }
-            setEgoFollowing(new Set())
-            setEgoAccountId(null)
-          } else {
-            const incoming = data.recommendations || []
-            const merged = append
-              ? mergeRecommendationLists(allRecommendationsRef.current, incoming)
-              : incoming
-            setAllRecommendations(merged)
-
-            const network = data.network || {}
-            const nodesById = network.nodes || {}
-            const edges = network.edges || []
-            const normalizedAccount = normalizeHandle(activeAccount)
-
-            const resolvedAccountId =
-              data.ego?.account_id ||
-              Object.keys(nodesById).find((id) => normalizeHandle(nodesById[id]?.username) === normalizedAccount) ||
-              null
-
-            setEgoAccountId(resolvedAccountId)
-
-            const following = new Set()
-            if (resolvedAccountId) {
-              edges
-                .filter(edge => edge.source === resolvedAccountId)
-                .forEach(edge => {
-                  const node = nodesById[edge.target]
-                  const normalizedTarget = normalizeHandle(node?.username) || normalizeHandle(edge.target)
-                  if (normalizedTarget) {
-                    following.add(normalizedTarget)
-                  }
-                })
-            }
-            setEgoFollowing(following)
-
-            const metaPayload = data.meta
-              ? {
-                  ...data.meta,
-                  network_nodes: data.stats?.network_nodes,
-                  recommendation_nodes: data.stats?.recommendation_nodes,
-                  total_nodes: data.stats?.total_nodes
-                }
-              : null
-
-            const nextMeta = (() => {
-              if (!metaPayload) {
-                return append ? meta : null
-              }
-              if (!append || !meta) {
-                return metaPayload
-              }
-              return {
-                ...meta,
-                ...metaPayload,
-                pagination: metaPayload.pagination || meta.pagination
-              }
-            })()
-            setMeta(nextMeta)
-
-            const added = (data.recommendations || []).length
-            paginationRef.current.offset = offset + added
-            const paginationInfo = data.meta?.pagination
-            const moreAvailable = Boolean(paginationInfo?.has_more)
-            setHasMoreResults(moreAvailable)
-
-            persistCacheSnapshot({
-              recommendations: merged,
-              meta: nextMeta,
-              queryState: queryStateRef.current,
-              paginationOffset: paginationRef.current.offset,
-              hasMore: moreAvailable,
-              egoFollowing: Array.from(following),
-              egoAccountId: resolvedAccountId
-            })
-            console.log(`[DISCOVERY] Ego-network page loaded (${added} candidates, next offset ${paginationRef.current.offset}, has_more=${moreAvailable})`)
-          }
-        } else {
-          setError(`API Error: ${response.status} - ${data.error || 'Unknown error'}`)
-          setEgoFollowing(new Set())
-          setEgoAccountId(null)
+      if (response.ok) {
+        if (data.error) {
+          setError(data.error.message || 'Unknown error occurred')
           if (!append) {
             setAllRecommendations([])
             setMeta(null)
             setHasMoreResults(false)
           }
+        } else {
+          const incoming = data.recommendations || []
+          const merged = append
+            ? mergeRecommendationLists(allRecommendationsRef.current, incoming)
+            : incoming
+          setAllRecommendations(merged)
+          const metaPayload = data.meta || null
+          const nextMeta = (() => {
+            if (!metaPayload) {
+              return append ? meta : null
+            }
+            if (!append || !meta) {
+              return metaPayload
+            }
+            return {
+              ...meta,
+              ...metaPayload,
+              pagination: metaPayload.pagination || meta.pagination
+            }
+          })()
+          setMeta(nextMeta)
+          if (data.warnings) {
+            console.warn('API Warnings:', data.warnings)
+          }
+          const added = incoming.length
+          paginationRef.current.offset = offset + added
+          const moreAvailable = Boolean(data.meta?.pagination?.has_more)
+          setHasMoreResults(moreAvailable)
+
+          persistCacheSnapshot({
+            recommendations: merged,
+            meta: nextMeta,
+            queryState: queryStateRef.current,
+            paginationOffset: paginationRef.current.offset,
+            hasMore: moreAvailable,
+            egoFollowing: [],
+            egoAccountId: null
+          })
+          console.log(`[DISCOVERY] Subgraph page loaded (${added} candidates, next offset ${paginationRef.current.offset}, has_more=${moreAvailable})`)
         }
       } else {
-        setEgoAccountId(null)
-        setEgoFollowing(new Set())
-        console.log(`[DISCOVERY] Using subgraph/discover endpoint with ${seeds.length} seeds (limit=${requestLimit}, offset=${offset})`)
-
-        const response = await fetch(`${API_BASE_URL}/api/subgraph/discover`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            seeds,
-            weights,
-            filters: buildFilterPayload(),
-            limit: requestLimit,
-            offset,
-            debug: true
-          })
-        })
-
-        const data = await response.json()
-
-        if (response.ok) {
-          if (data.error) {
-            setError(data.error.message || 'Unknown error occurred')
-            if (!append) {
-              setAllRecommendations([])
-              setMeta(null)
-              setHasMoreResults(false)
-            }
-          } else {
-            const incoming = data.recommendations || []
-            const merged = append
-              ? mergeRecommendationLists(allRecommendationsRef.current, incoming)
-              : incoming
-            setAllRecommendations(merged)
-            const metaPayload = data.meta || null
-            const nextMeta = (() => {
-              if (!metaPayload) {
-                return append ? meta : null
-              }
-              if (!append || !meta) {
-                return metaPayload
-              }
-              return {
-                ...meta,
-                ...metaPayload,
-                pagination: metaPayload.pagination || meta.pagination
-              }
-            })()
-            setMeta(nextMeta)
-            if (data.warnings) {
-              console.warn('API Warnings:', data.warnings)
-            }
-            const added = incoming.length
-            paginationRef.current.offset = offset + added
-            const moreAvailable = Boolean(data.meta?.pagination?.has_more)
-            setHasMoreResults(moreAvailable)
-
-            persistCacheSnapshot({
-              recommendations: merged,
-              meta: nextMeta,
-              queryState: queryStateRef.current,
-              paginationOffset: paginationRef.current.offset,
-              hasMore: moreAvailable,
-              egoFollowing: [],
-              egoAccountId: null
-            })
-            console.log(`[DISCOVERY] Subgraph page loaded (${added} candidates, next offset ${paginationRef.current.offset}, has_more=${moreAvailable})`)
-          }
-        } else {
-          setError(`API Error: ${response.status} - ${data.error?.message || 'Unknown error'}`)
-          if (!append) {
-            setAllRecommendations([])
-            setMeta(null)
-            setHasMoreResults(false)
-          }
+        setError(`API Error: ${response.status} - ${data.error?.message || 'Unknown error'}`)
+        if (!append) {
+          setAllRecommendations([])
+          setMeta(null)
+          setHasMoreResults(false)
         }
       }
-    } catch (err) {
-      setError(`Network error: ${err.message}`)
-      if (!append) {
-        setAllRecommendations([])
-        setMeta(null)
-        setEgoFollowing(new Set())
-        setEgoAccountId(null)
-        setHasMoreResults(false)
+    } catch (error) {
+      const duration = performance.now() - startTime
+      console.error('[DISCOVERY] Error fetching recommendations:', error)
+      setError(`Failed to load recommendations: ${error.message}`)
+      if (append) {
+        setLoadingMore(false)
+      } else {
+        setLoading(false)
       }
     } finally {
       if (append) {
         setLoadingMore(false)
-        if (loadMoreStartRef.current != null) {
+        if (loadMoreStartRef.current) {
           const duration = performance.now() - loadMoreStartRef.current
           const stats = loadMoreStatsRef.current
           stats.avgMs = stats.avgMs == null ? duration : (stats.avgMs * 0.7 + duration * 0.3)
@@ -1681,6 +1685,112 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
               </label>
             </div>
           </div>
+        </div>
+
+        {/* Advanced Settings */}
+        <div className="control-section advanced-settings">
+          <h3>Advanced Model Settings</h3>
+          <p className="advanced-hint">
+            Tune the global scoring model. Changes apply to both Discovery and Graph Explorer.
+          </p>
+          <div className="advanced-grid">
+            <div className="advanced-field">
+              <label>PageRank alpha: {modelSettingsDraft.alpha.toFixed(3)}</label>
+              <input
+                type="range"
+                min="0.5"
+                max="0.995"
+                step="0.005"
+                value={modelSettingsDraft.alpha}
+                onChange={(e) => handleAlphaChange(parseFloat(e.target.value))}
+              />
+            </div>
+            <div className="advanced-field">
+              <label>Auto-include shadow accounts</label>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={modelSettingsDraft.auto_include_shadow}
+                  onChange={(e) => handleToggleAutoShadow(e.target.checked)}
+                />
+                <span className="slider-round"></span>
+              </label>
+            </div>
+            <div className="advanced-field">
+              <label>Auto max distance</label>
+              <input
+                type="number"
+                min="1"
+                max="6"
+                value={modelSettingsDraft.max_distance}
+                onChange={(e) => handleModelNumberChange('max_distance', parseInt(e.target.value) || 1)}
+              />
+            </div>
+            <div className="advanced-field">
+              <label>Auto batch limit</label>
+              <input
+                type="number"
+                min={MIN_BATCH_SIZE}
+                max={5000}
+                value={modelSettingsDraft.limit}
+                onChange={(e) => handleModelNumberChange('limit', parseInt(e.target.value) || MIN_BATCH_SIZE)}
+              />
+            </div>
+          </div>
+          <div className="weights-grid compact">
+            {Object.entries(modelSettingsDraft.discovery_weights).map(([key, value]) => (
+              <div key={`adv-${key}`} className="weight-control">
+                <label>
+                  {key.replace(/_/g, ' ')}
+                  <span className="weight-value">{(value * 100).toFixed(0)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={value}
+                  onChange={(e) => handleDiscoveryWeightChange(key, parseFloat(e.target.value))}
+                  className="weight-slider"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="advanced-actions">
+            <button
+              onClick={handleSaveModelSettings}
+              disabled={!modelSettingsDirty || savingModelSettings}
+            >
+              {savingModelSettings ? 'Saving…' : modelSettingsDirty ? 'Save model settings' : 'Settings saved'}
+            </button>
+            <button
+              onClick={handleRunAnalysis}
+              disabled={analysisStatus?.status === 'running' || analysisPolling}
+            >
+              {analysisStatus?.status === 'running' || analysisPolling ? 'Rebuilding…' : 'Rebuild graph snapshot'}
+            </button>
+          </div>
+          {analysisStatus && (
+            <div className="analysis-status">
+              <div>
+                <strong>Status:</strong> {analysisStatus.status || 'unknown'}
+              </div>
+              {analysisStatus.started_at && (
+                <div>Started: {analysisStatus.started_at}</div>
+              )}
+              {analysisStatus.finished_at && (
+                <div>Finished: {analysisStatus.finished_at}</div>
+              )}
+              {analysisStatus.error && (
+                <div className="analysis-error">Error: {analysisStatus.error}</div>
+              )}
+              {analysisStatus.log && analysisStatus.log.length > 0 && (
+                <pre className="analysis-log">
+                  {analysisStatus.log.slice(-5).join('\n')}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
