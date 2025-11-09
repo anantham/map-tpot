@@ -93,6 +93,11 @@ def parse_args() -> argparse.Namespace:
         help="Louvain resolution parameter.",
     )
     parser.add_argument(
+        "--global-pagerank",
+        action="store_true",
+        help="Also compute global (non-personalized) PageRank for comparison.",
+    )
+    parser.add_argument(
         "--include-shadow",
         action="store_true",
         help="Include shadow accounts/edges from enrichment cache.",
@@ -107,11 +112,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Update README data snapshot (will prompt if marker is missing).",
     )
+    parser.add_argument(
+        "--seed-list",
+        type=str,
+        default=None,
+        help="Name of a saved seed list (defaults to the active list synced from the UI).",
+    )
     return parser.parse_args()
 
 
 def load_seeds(args: argparse.Namespace) -> List[str]:
-    seeds = load_seed_candidates(additional=args.seeds)
+    seeds = load_seed_candidates(additional=args.seeds, preset=args.seed_list)
     if args.seed_html and args.seed_html.exists():
         seeds.update(extract_usernames_from_html(args.seed_html.read_text()))
     return sorted(seeds)
@@ -139,6 +150,9 @@ def run_metrics(graph: GraphBuildResult, seeds: List[str], args: argparse.Namesp
     resolved_seeds = _resolve_seeds(graph, seeds)
 
     pagerank = compute_personalized_pagerank(directed, seeds=resolved_seeds, alpha=args.alpha)
+    global_pagerank = None
+    if args.global_pagerank:
+        global_pagerank = compute_personalized_pagerank(directed, seeds=[], alpha=args.alpha)
     betweenness = compute_betweenness(undirected)
     engagement = compute_engagement_scores(undirected)
     composite = compute_composite_score(
@@ -187,6 +201,7 @@ def run_metrics(graph: GraphBuildResult, seeds: List[str], args: argparse.Namesp
         "resolved_seeds": resolved_seeds,
         "metrics": {
             "pagerank": pagerank,
+            **({"global_pagerank": global_pagerank} if global_pagerank is not None else {}),
             "betweenness": betweenness,
             "engagement": engagement,
             "composite": composite,
