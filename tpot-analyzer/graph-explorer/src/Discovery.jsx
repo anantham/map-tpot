@@ -216,6 +216,18 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   const [hasMoreResults, setHasMoreResults] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadMoreCountdown, setLoadMoreCountdown] = useState(null)
+  const [modelSettings, setModelSettings] = useState({
+    alpha: 0.85,
+    discovery_weights: { ...DEFAULT_WEIGHTS },
+    max_distance: 3,
+    limit: 500,
+    auto_include_shadow: true
+  })
+  const [modelSettingsDraft, setModelSettingsDraft] = useState(modelSettings)
+  const [modelSettingsDirty, setModelSettingsDirty] = useState(false)
+  const [savingModelSettings, setSavingModelSettings] = useState(false)
+  const [analysisStatus, setAnalysisStatus] = useState(null)
+  const [analysisPolling, setAnalysisPolling] = useState(false)
   const [queryState, setQueryState] = useState(() => ({
     depth: DEFAULT_DEPTH,
     maxDistance: filters.max_distance,
@@ -257,6 +269,8 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   )
   const isPresetSelection = presetSeedLists.includes(selectedSeedList)
   const canLoadMore = hasMoreResults && !loadingMore && !loading
+  const effectiveMaxAutoLimit = modelSettings.limit || MAX_AUTO_LIMIT
+  const autoScopeSummary = `Depth ${queryState.depth}, max distance ${queryState.maxDistance}, limit ${Math.min(queryState.limit, effectiveMaxAutoLimit)}${queryState.maxFollowers > serverFilters.max_followers ? ' · follower cap lifted' : ''}`
   const normalizedAccountHandle = normalizeHandle(validatedAccount)
   const normalizedSeedSignature = useMemo(() => {
     const seen = new Set()
@@ -318,19 +332,65 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
       setSeeds(Array.isArray(lists[activeName]) ? [...lists[activeName]] : [])
     }
     setSeedsDirty(false)
+
+    if (state.settings) {
+      const sanitizedSettings = {
+        alpha: Number(state.settings.alpha) || 0.85,
+        discovery_weights: {
+          ...DEFAULT_WEIGHTS,
+          ...(state.settings.discovery_weights || {})
+        },
+        max_distance: state.settings.max_distance ?? 3,
+        limit: state.settings.limit ?? 500,
+        auto_include_shadow: state.settings.auto_include_shadow ?? true
+      }
+      setModelSettings(sanitizedSettings)
+      setModelSettingsDraft(sanitizedSettings)
+      setModelSettingsDirty(false)
+    }
   }, [])
 
-  // Define these before they're used in useEffects below
   const resetQueryState = useCallback(() => {
+    const baseMaxDistance = Math.max(
+      filters.max_distance,
+      modelSettings.max_distance || filters.max_distance
+    )
+    const baseLimit = modelSettings.limit || batchSize || DEFAULT_BATCH_SIZE
     const base = {
       depth: DEFAULT_DEPTH,
-      maxDistance: DEFAULT_MAX_DISTANCE,
-      maxFollowers: DEFAULT_MAX_FOLLOWERS,
-      limit: DEFAULT_LIMIT
+      maxDistance: baseMaxDistance,
+      maxFollowers: filters.max_followers,
+      limit: baseLimit
     }
     queryStateRef.current = base
     setQueryState(base)
-  }, [])
+  }, [filters.max_distance, filters.max_followers, modelSettings.max_distance, modelSettings.limit, batchSize])
+
+  const advanceQueryState = useCallback(() => {
+    const maxDistanceCap = Math.max(modelSettings.max_distance || MAX_AUTO_DISTANCE, filters.max_distance)
+    const limitCap = Math.max(modelSettings.limit || MAX_AUTO_LIMIT, MIN_BATCH_SIZE)
+    let changed = false
+    setQueryState(prev => {
+      let next = prev
+      if (prev.depth < MAX_DEPTH) {
+        next = { ...prev, depth: prev.depth + 1 }
+      } else if (prev.maxDistance < maxDistanceCap) {
+        next = { ...prev, maxDistance: prev.maxDistance + 1 }
+      } else if (prev.maxFollowers < FOLLOWER_CEILING) {
+        next = { ...prev, maxFollowers: FOLLOWER_CEILING }
+      } else if (prev.limit < limitCap) {
+        next = { ...prev, limit: Math.min(limitCap, prev.limit + batchSize) }
+      }
+      if (next !== prev) {
+        changed = true
+        queryStateRef.current = next
+        paginationRef.current.offset = 0
+        return next
+      }
+      return prev
+    })
+    return changed
+  }, [modelSettings.max_distance, modelSettings.limit, filters.max_distance, batchSize])
 
   const resetRecommendationState = useCallback(() => {
     setAllRecommendations([])
