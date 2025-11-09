@@ -1129,10 +1129,10 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             }
 
             // Draw label - black text for better readability
-            const label = node.display_name || node.username || node.id;
+            const label = node.username || node.id;
             const fontSize = 12 / globalScale;
             ctx.font = `${fontSize}px sans-serif`;
-            ctx.fillStyle = "#000000"; // Black text
+            ctx.fillStyle = "#0284c7";
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";
             ctx.fillText(label, node.x + radius + 2, node.y);
