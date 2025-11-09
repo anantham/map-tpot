@@ -1,11 +1,15 @@
 """Graph metric computations."""
 from __future__ import annotations
 
+import logging
 from typing import Dict, Iterable, Optional, Tuple
 
 import networkx as nx
+from networkx.exception import PowerIterationFailedConvergence
 
 from src.performance_profiler import profile_phase
+
+logger = logging.getLogger(__name__)
 
 
 def compute_personalized_pagerank(
@@ -14,22 +18,99 @@ def compute_personalized_pagerank(
     seeds: Iterable[str],
     alpha: float = 0.85,
     weight: Optional[str] = None,
+    max_iter: Optional[int] = None,
+    tol: float = 1.0e-6,
 ) -> Dict[str, float]:
-    """Personalized PageRank seeded on provided nodes."""
+    """Personalized PageRank seeded on provided nodes.
+
+    Args:
+        graph: Directed graph
+        seeds: Seed nodes for personalization
+        alpha: Damping factor (0.85 default, higher values = slower convergence)
+        weight: Edge weight attribute name
+        max_iter: Maximum iterations (auto-scales with alpha if not provided)
+        tol: Convergence tolerance
+
+    Returns:
+        Dictionary mapping node to PageRank score
+
+    Notes:
+        - High alpha values (>0.95) require more iterations to converge
+        - Auto-adjusts max_iter based on alpha if not specified
+        - Logs convergence diagnostics and warnings
+    """
 
     with profile_phase("compute_personalized_pagerank", metadata={
         "nodes": graph.number_of_nodes(),
         "edges": graph.number_of_edges(),
-        "seeds": len(list(seeds)) if seeds else 0
+        "seeds": len(list(seeds)) if seeds else 0,
+        "alpha": alpha
     }):
         seeds = list(seeds)
-        if not seeds:
-            return nx.pagerank(graph, alpha=alpha, weight=weight)
-        personalization = {node: 0.0 for node in graph.nodes}
-        for seed in seeds:
-            if seed in personalization:
-                personalization[seed] = 1.0 / len(seeds)
-        return nx.pagerank(graph, alpha=alpha, personalization=personalization, weight=weight)
+
+        # Auto-scale max_iter based on alpha
+        if max_iter is None:
+            if alpha >= 0.99:
+                max_iter = 500
+            elif alpha >= 0.95:
+                max_iter = 300
+            elif alpha >= 0.90:
+                max_iter = 200
+            else:
+                max_iter = 100
+
+        logger.info(
+            f"Computing PageRank: alpha={alpha:.4f}, max_iter={max_iter}, "
+            f"tol={tol:.2e}, seeds={len(seeds)}, nodes={graph.number_of_nodes()}"
+        )
+
+        # Warn about high alpha values
+        if alpha > 0.95:
+            logger.warning(
+                f"⚠️  High alpha={alpha:.4f} detected. This may slow convergence. "
+                f"Consider using alpha ≤ 0.95 for faster results."
+            )
+
+        try:
+            if not seeds:
+                result = nx.pagerank(
+                    graph,
+                    alpha=alpha,
+                    weight=weight,
+                    max_iter=max_iter,
+                    tol=tol
+                )
+            else:
+                personalization = {node: 0.0 for node in graph.nodes}
+                for seed in seeds:
+                    if seed in personalization:
+                        personalization[seed] = 1.0 / len(seeds)
+                result = nx.pagerank(
+                    graph,
+                    alpha=alpha,
+                    personalization=personalization,
+                    weight=weight,
+                    max_iter=max_iter,
+                    tol=tol
+                )
+
+            logger.info(f"✅ PageRank converged successfully")
+            return result
+
+        except PowerIterationFailedConvergence as e:
+            logger.error(
+                f"❌ PageRank FAILED to converge in {max_iter} iterations!\n"
+                f"   Alpha: {alpha:.4f} (high alpha = slower convergence)\n"
+                f"   Tolerance: {tol:.2e}\n"
+                f"   Graph size: {graph.number_of_nodes()} nodes, {graph.number_of_edges()} edges\n"
+                f"   \n"
+                f"   Recommendations:\n"
+                f"   1. Lower alpha (try 0.90 or 0.85)\n"
+                f"   2. Increase --max-iter (current: {max_iter})\n"
+                f"   3. Increase tolerance (try 1e-5 or 1e-4)\n"
+                f"   4. Check for disconnected components or dead ends"
+            )
+            raise
 
 
 def compute_louvain_communities(graph: nx.Graph, *, resolution: float = 1.0) -> Dict[str, int]:
