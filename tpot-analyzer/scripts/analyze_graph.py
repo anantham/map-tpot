@@ -16,6 +16,7 @@ from src.data.fetcher import CachedDataFetcher
 from src.data.shadow_store import get_shadow_store
 from src.graph import (
     GraphBuildResult,
+    get_graph_settings,
     compute_betweenness,
     compute_composite_score,
     compute_engagement_scores,
@@ -75,8 +76,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--alpha",
         type=float,
-        default=0.85,
-        help="PageRank damping factor (alpha).",
+        default=None,
+        help="PageRank damping factor (alpha). Defaults to UI setting if omitted.",
     )
     parser.add_argument(
         "--weights",
@@ -99,9 +100,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--include-shadow",
+        dest="include_shadow",
         action="store_true",
         help="Include shadow accounts/edges from enrichment cache.",
     )
+    parser.add_argument(
+        "--no-include-shadow",
+        dest="include_shadow",
+        action="store_false",
+        help="Exclude shadow accounts (override UI setting).",
+    )
+    parser.set_defaults(include_shadow=None)
     parser.add_argument(
         "--summary-only",
         action="store_true",
@@ -343,6 +352,13 @@ def update_readme_snapshot(
 
 def main() -> None:
     args = parse_args()
+    graph_state = get_graph_settings()
+    ui_settings = graph_state.get("settings", {})
+    include_shadow = ui_settings.get("auto_include_shadow", True) if args.include_shadow is None else args.include_shadow
+    alpha_value = args.alpha if args.alpha is not None else ui_settings.get("alpha", 0.85)
+    args.include_shadow = include_shadow
+    args.alpha = alpha_value
+
     seeds = load_seeds(args)
 
     cache_settings = get_cache_settings()
