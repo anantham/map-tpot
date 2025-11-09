@@ -990,10 +990,9 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     }
     setError(null)
 
-    // Build the seed list: include myAccount + custom seeds
     const allSeeds = [...seeds]
-    if (activeAccount && !allSeeds.some(s => normalizeHandle(s) === normalizeHandle(activeAccount))) {
-      allSeeds.unshift(activeAccount) // Add my account as the first seed
+    if (activeAccount && !allSeeds.some((seed) => normalizeHandle(seed) === normalizeHandle(activeAccount))) {
+      allSeeds.unshift(activeAccount)
     }
 
     if (allSeeds.length === 0) {
@@ -1017,8 +1016,134 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
       max_followers: maxFollowers
     })
 
+    const handleNoMoreResults = () => {
+      const relaxed = advanceQueryState()
+      if (!relaxed) {
+        setHasMoreResults(false)
+      }
+      return relaxed
+    }
+
     try {
-      // Always use subgraph discovery mode - it searches the entire graph
+      if (activeAccount) {
+        console.log(`[DISCOVERY] Using ego-network endpoint for '${activeAccount}' (depth=${depth}, limit=${requestLimit}, offset=${offset})`)
+        const response = await fetch(`${API_BASE_URL}/api/ego-network`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: activeAccount,
+            depth,
+            limit: requestLimit,
+            offset,
+            weights,
+            filters: buildFilterPayload()
+          })
+        })
+
+        const data = await response.json()
+
+        if (response.ok) {
+          if (data.error) {
+            setError(data.error)
+            if (!append) {
+              setAllRecommendations([])
+              setMeta(null)
+              setHasMoreResults(false)
+            }
+            setEgoFollowing(new Set())
+            setEgoAccountId(null)
+          } else {
+            const incoming = data.recommendations || []
+            const merged = append
+              ? mergeRecommendationLists(allRecommendationsRef.current, incoming)
+              : incoming
+            setAllRecommendations(merged)
+
+            const network = data.network || {}
+            const nodesById = network.nodes || {}
+            const edges = network.edges || []
+            const normalizedAccount = normalizeHandle(activeAccount)
+
+            const resolvedAccountId =
+              data.ego?.account_id ||
+              Object.keys(nodesById).find((id) => normalizeHandle(nodesById[id]?.username) === normalizedAccount) ||
+              null
+
+            setEgoAccountId(resolvedAccountId)
+
+            const following = new Set()
+            if (resolvedAccountId) {
+              edges
+                .filter(edge => edge.source === resolvedAccountId)
+                .forEach(edge => {
+                  const node = nodesById[edge.target]
+                  const normalizedTarget = normalizeHandle(node?.username) || normalizeHandle(edge.target)
+                  if (normalizedTarget) {
+                    following.add(normalizedTarget)
+                  }
+                })
+            }
+            setEgoFollowing(following)
+
+            const metaPayload = data.meta
+              ? {
+                  ...data.meta,
+                  network_nodes: data.stats?.network_nodes,
+                  recommendation_nodes: data.stats?.recommendation_nodes,
+                  total_nodes: data.stats?.total_nodes
+                }
+              : null
+
+            const nextMeta = (() => {
+              if (!metaPayload) {
+                return append ? meta : null
+              }
+              if (!append || !meta) {
+                return metaPayload
+              }
+              return {
+                ...meta,
+                ...metaPayload,
+                pagination: metaPayload.pagination || meta.pagination
+              }
+            })()
+            setMeta(nextMeta)
+
+            const added = incoming.length
+            paginationRef.current.offset = offset + added
+            let moreAvailable = Boolean(data.meta?.pagination?.has_more)
+            if (!moreAvailable) {
+              moreAvailable = handleNoMoreResults()
+            } else {
+              setHasMoreResults(true)
+            }
+
+            persistCacheSnapshot({
+              recommendations: merged,
+              meta: nextMeta,
+              queryState: queryStateRef.current,
+              paginationOffset: paginationRef.current.offset,
+              hasMore: Boolean(moreAvailable),
+              egoFollowing: Array.from(following),
+              egoAccountId: resolvedAccountId
+            })
+            console.log(`[DISCOVERY] Ego-network page loaded (${added} candidates, next offset ${paginationRef.current.offset}, depth=${depth})`)
+          }
+        } else {
+          setError(`API Error: ${response.status} - ${data.error || 'Unknown error'}`)
+          setEgoFollowing(new Set())
+          setEgoAccountId(null)
+          if (!append) {
+            setAllRecommendations([])
+            setMeta(null)
+            setHasMoreResults(false)
+          }
+        }
+        return
+      }
+
       setEgoAccountId(null)
       setEgoFollowing(new Set())
       console.log(`[DISCOVERY] Using subgraph/discover endpoint with ${allSeeds.length} seeds (limit=${requestLimit}, offset=${offset})`)
@@ -1074,15 +1199,19 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
           }
           const added = incoming.length
           paginationRef.current.offset = offset + added
-          const moreAvailable = Boolean(data.meta?.pagination?.has_more)
-          setHasMoreResults(moreAvailable)
+          let moreAvailable = Boolean(data.meta?.pagination?.has_more)
+          if (!moreAvailable) {
+            moreAvailable = handleNoMoreResults()
+          } else {
+            setHasMoreResults(true)
+          }
 
           persistCacheSnapshot({
             recommendations: merged,
             meta: nextMeta,
             queryState: queryStateRef.current,
             paginationOffset: paginationRef.current.offset,
-            hasMore: moreAvailable,
+            hasMore: Boolean(moreAvailable),
             egoFollowing: [],
             egoAccountId: null
           })
@@ -1097,7 +1226,6 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
         }
       }
     } catch (error) {
-      const duration = performance.now() - startTime
       console.error('[DISCOVERY] Error fetching recommendations:', error)
       setError(`Failed to load recommendations: ${error.message}`)
       if (append) {
@@ -1118,7 +1246,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
         setLoading(false)
       }
     }
-  }, [validatedAccount, seeds, weights, serverFilters, batchSize])
+  }, [validatedAccount, seeds, weights, serverFilters, batchSize, advanceQueryState, persistCacheSnapshot])
 
   // Fetch autocomplete suggestions
   const fetchAutocomplete = useCallback(async (query) => {

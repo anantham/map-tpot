@@ -16,5 +16,17 @@
       "tasshinfogleman"
     ]
   },
+  "settings": {
+    "alpha": 0.85,
+    "discovery_weights": {
+      "neighbor_overlap": 0.4,
+      "pagerank": 0.3,
+      "community": 0.2,
+      "path_distance": 0.1
+    },
+    "max_distance": 3,
+    "limit": 500,
+    "auto_include_shadow": true
+  },
   "updated_at": "2025-11-08T18:37:19.345983+00:00"
 }
