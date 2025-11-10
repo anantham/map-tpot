@@ -18,10 +18,16 @@ class _StubStore:  # minimal stub; _make_seed_account_record no longer queries s
     pass
 
 
+class _StubSelenium:  # stub for selenium to handle _save_page_snapshot calls
+    def _save_page_snapshot(self, username: str, context: str) -> None:
+        pass  # no-op for testing
+
+
 def _build_enricher() -> HybridShadowEnricher:
     enricher = object.__new__(HybridShadowEnricher)
     enricher._store = _StubStore()  # type: ignore[attr-defined]
     enricher._config = None  # type: ignore[attr-defined]
+    enricher._selenium = _StubSelenium()  # type: ignore[attr-defined]
     return enricher
 
 
