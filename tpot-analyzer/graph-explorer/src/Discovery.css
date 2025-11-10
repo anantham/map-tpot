@@ -659,3 +659,122 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Signal Feedback Buttons */
+.signal-feedback-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.feedback-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s;
+}
+
+.feedback-btn:hover {
+  background: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+.feedback-btn.active-tpot {
+  background: #22c55e;
+  color: white;
+  border-color: #16a34a;
+}
+
+.feedback-btn.active-not-tpot {
+  background: #ef4444;
+  color: white;
+  border-color: #dc2626;
+}
+
+.feedback-status {
+  font-size: 0.85em;
+  color: #22c55e;
+  margin-left: 8px;
+}
+
+/* Signal Quality Modal */
+.signal-quality-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  z-index: 1000;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.signal-quality-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.signal-quality-modal .modal-header h4 {
+  margin: 0;
+  font-size: 1.25em;
+  color: #1f2937;
+}
+
+.signal-quality-modal .modal-header button {
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.signal-quality-modal .modal-header button:hover {
+  color: #1f2937;
+}
+
+.signal-quality-modal .modal-content {
+  padding: 20px;
+}
+
+.signal-report {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.signal-report h5 {
+  margin: 0 0 12px 0;
+  color: #1f2937;
+  text-transform: capitalize;
+}
+
+.signal-stats {
+  display: grid;
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.signal-stats > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.signal-stats > div:last-child {
+  border-bottom: none;
+}

@@ -91,8 +91,8 @@ const mergeRecommendationLists = (existing = [], incoming = []) => {
   return Array.from(map.values())
 }
 
-const CACHE_STORAGE_KEY = 'tpot_discovery_cache_v2'
-const CACHE_VERSION = 2
+const CACHE_STORAGE_KEY = 'tpot_discovery_cache_v3'
+const CACHE_VERSION = 3
 const CACHE_MAX_ENTRIES = 5
 
 const readCacheStore = () => {
@@ -222,6 +222,9 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   const [hasMoreResults, setHasMoreResults] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadMoreCountdown, setLoadMoreCountdown] = useState(null)
+  const [signalFeedback, setSignalFeedback] = useState({})  // Track feedback per account
+  const [showSignalQuality, setShowSignalQuality] = useState(false)
+  const [signalQualityReport, setSignalQualityReport] = useState(null)
   const [modelSettings, setModelSettings] = useState({
     alpha: 0.85,
     discovery_weights: { ...DEFAULT_WEIGHTS },
@@ -479,11 +482,18 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   const fetchAnalysisStatus = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/analysis/status`)
-      if (!response.ok) return
+      if (!response.ok) {
+        // Suppress 404 errors - endpoint not implemented yet
+        if (response.status !== 404) {
+          console.error(`Analysis status error: ${response.status}`)
+        }
+        return
+      }
       const data = await response.json()
       setAnalysisStatus(data)
     } catch (err) {
-      console.error('Failed to fetch analysis status:', err)
+      // Suppress network errors for analysis status
+      // console.error('Failed to fetch analysis status:', err)
     }
   }, [])
 
@@ -959,16 +969,8 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     console.log('[DISCOVERY] Applying client-side filters')
     let filtered = [...allRecommendations]
 
-    // Filter: exclude_following
-    if (filters.exclude_following && egoFollowing.size > 0) {
-      filtered = filtered.filter(rec => {
-        const normalized = normalizeHandle(rec.username) ||
-          normalizeHandle(rec.metadata?.username) ||
-          normalizeHandle(rec.handle)
-        if (!normalized) return true
-        return !egoFollowing.has(normalized)
-      })
-    }
+    // Note: exclude_following filter is not supported in subgraph mode yet
+    // It requires server-side filtering since we don't have the ego's following list
 
     // Filter: include_shadow
     if (!filters.include_shadow) {
@@ -977,7 +979,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
 
     setRecommendations(filtered)
     console.log(`[DISCOVERY] Filtered: ${filtered.length} / ${allRecommendations.length} candidates`)
-  }, [allRecommendations, filters.exclude_following, filters.include_shadow, egoFollowing])
+  }, [allRecommendations, filters.include_shadow])
 
   // Fetch recommendations with pagination
   const fetchRecommendations = useCallback(async ({ append = false } = {}) => {
@@ -1022,134 +1024,11 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
       max_followers: maxFollowers
     })
 
-    const handleNoMoreResults = () => {
-      const relaxed = advanceQueryState()
-      setHasMoreResults(relaxed)
-      return relaxed
-    }
+    // Always use subgraph discovery mode - searches the entire graph
+    setEgoAccountId(null)
+    setEgoFollowing(new Set())
 
     try {
-      if (activeAccount) {
-        console.log(`[DISCOVERY] Using ego-network endpoint for '${activeAccount}' (depth=${depth}, limit=${requestLimit}, offset=${offset})`)
-        const response = await fetch(`${API_BASE_URL}/api/ego-network`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: activeAccount,
-            depth,
-            limit: requestLimit,
-            offset,
-            weights,
-            filters: buildFilterPayload()
-          })
-        })
-
-        const data = await response.json()
-
-        if (response.ok) {
-          if (data.error) {
-            setError(data.error)
-            if (!append) {
-              setAllRecommendations([])
-              setMeta(null)
-              setHasMoreResults(false)
-            }
-            setEgoFollowing(new Set())
-            setEgoAccountId(null)
-          } else {
-            const incoming = data.recommendations || []
-            const merged = append
-              ? mergeRecommendationLists(allRecommendationsRef.current, incoming)
-              : incoming
-            setAllRecommendations(merged)
-
-            const network = data.network || {}
-            const nodesById = network.nodes || {}
-            const edges = network.edges || []
-            const normalizedAccount = normalizeHandle(activeAccount)
-
-            const resolvedAccountId =
-              data.ego?.account_id ||
-              Object.keys(nodesById).find((id) => normalizeHandle(nodesById[id]?.username) === normalizedAccount) ||
-              null
-
-            setEgoAccountId(resolvedAccountId)
-
-            const following = new Set()
-            if (resolvedAccountId) {
-              edges
-                .filter(edge => edge.source === resolvedAccountId)
-                .forEach(edge => {
-                  const node = nodesById[edge.target]
-                  const normalizedTarget = normalizeHandle(node?.username) || normalizeHandle(edge.target)
-                  if (normalizedTarget) {
-                    following.add(normalizedTarget)
-                  }
-                })
-            }
-            setEgoFollowing(following)
-
-            const metaPayload = data.meta
-              ? {
-                  ...data.meta,
-                  network_nodes: data.stats?.network_nodes,
-                  recommendation_nodes: data.stats?.recommendation_nodes,
-                  total_nodes: data.stats?.total_nodes
-                }
-              : null
-
-            const nextMeta = (() => {
-              if (!metaPayload) {
-                return append ? meta : null
-              }
-              if (!append || !meta) {
-                return metaPayload
-              }
-              return {
-                ...meta,
-                ...metaPayload,
-                pagination: metaPayload.pagination || meta.pagination
-              }
-            })()
-            setMeta(nextMeta)
-
-            const added = incoming.length
-            paginationRef.current.offset = offset + added
-            let moreAvailable = Boolean(data.meta?.pagination?.has_more)
-            if (!moreAvailable) {
-              moreAvailable = handleNoMoreResults()
-            } else {
-              setHasMoreResults(true)
-            }
-
-            persistCacheSnapshot({
-              recommendations: merged,
-              meta: nextMeta,
-              queryState: queryStateRef.current,
-              paginationOffset: paginationRef.current.offset,
-              hasMore: Boolean(moreAvailable),
-              egoFollowing: Array.from(following),
-              egoAccountId: resolvedAccountId
-            })
-            console.log(`[DISCOVERY] Ego-network page loaded (${added} candidates, next offset ${paginationRef.current.offset}, depth=${depth})`)
-          }
-        } else {
-          setError(`API Error: ${response.status} - ${data.error || 'Unknown error'}`)
-          setEgoFollowing(new Set())
-          setEgoAccountId(null)
-          if (!append) {
-            setAllRecommendations([])
-            setMeta(null)
-            setHasMoreResults(false)
-          }
-        }
-        return
-      }
-
-      setEgoAccountId(null)
-      setEgoFollowing(new Set())
       console.log(`[DISCOVERY] Using subgraph/discover endpoint with ${allSeeds.length} seeds (limit=${requestLimit}, offset=${offset})`)
 
       const response = await fetch(`${API_BASE_URL}/api/subgraph/discover`, {
@@ -1203,12 +1082,8 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
           }
           const added = incoming.length
           paginationRef.current.offset = offset + added
-          let moreAvailable = Boolean(data.meta?.pagination?.has_more)
-          if (!moreAvailable) {
-            moreAvailable = handleNoMoreResults()
-          } else {
-            setHasMoreResults(true)
-          }
+          const moreAvailable = Boolean(data.meta?.pagination?.has_more)
+          setHasMoreResults(moreAvailable)
 
           persistCacheSnapshot({
             recommendations: merged,
@@ -1415,6 +1290,58 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   const getCommunityName = (id) => {
     if (id === null || id === undefined) return 'Unknown'
     return COMMUNITY_NAMES[id] || `Community ${id}`
+  }
+
+  // Submit feedback for a signal
+  const submitSignalFeedback = async (accountId, userLabel, rec) => {
+    try {
+      // Submit feedback for each signal
+      const signals = ['neighbor_overlap', 'pagerank', 'community', 'path_distance']
+
+      for (const signalName of signals) {
+        const score = rec.scores?.[signalName] || 0
+
+        await fetch(`${API_BASE_URL}/api/signals/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            account_id: accountId,
+            signal_name: signalName,
+            score: score,
+            user_label: userLabel,
+            context: {
+              composite_score: rec.composite_score,
+              seeds: seeds
+            }
+          })
+        })
+      }
+
+      // Update local state
+      setSignalFeedback(prev => ({
+        ...prev,
+        [accountId]: userLabel
+      }))
+
+      // Show confirmation
+      console.log(`Feedback submitted: ${accountId} is ${userLabel}`)
+    } catch (err) {
+      console.error('Failed to submit feedback:', err)
+    }
+  }
+
+  // Fetch signal quality report
+  const fetchSignalQualityReport = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/signals/quality`)
+      if (response.ok) {
+        const report = await response.json()
+        setSignalQualityReport(report)
+        setShowSignalQuality(true)
+      }
+    } catch (err) {
+      console.error('Failed to fetch signal quality report:', err)
+    }
   }
 
   return (
@@ -1901,6 +1828,12 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
             >
               {analysisStatus?.status === 'running' || analysisPolling ? 'Rebuilding…' : 'Rebuild graph snapshot'}
             </button>
+            <button
+              onClick={fetchSignalQualityReport}
+              title="View signal quality metrics based on user feedback"
+            >
+              View Signal Quality
+            </button>
           </div>
           {analysisStatus && (
             <div className="analysis-status">
@@ -1921,6 +1854,32 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
                   {analysisStatus.log.slice(-5).join('\n')}
                 </pre>
               )}
+            </div>
+          )}
+
+          {/* Signal Quality Report Modal */}
+          {showSignalQuality && signalQualityReport && (
+            <div className="signal-quality-modal">
+              <div className="modal-header">
+                <h4>Signal Quality Report</h4>
+                <button onClick={() => setShowSignalQuality(false)}>✕</button>
+              </div>
+              <div className="modal-content">
+                {Object.entries(signalQualityReport).map(([signalName, stats]) => (
+                  <div key={signalName} className="signal-report">
+                    <h5>{signalName.replace(/_/g, ' ')}</h5>
+                    <div className="signal-stats">
+                      <div>Total feedback: {stats.total_feedback || 0}</div>
+                      <div>Quality: {stats.quality || 'unknown'}</div>
+                      <div>TPOT ratio: {((stats.tpot_ratio || 0) * 100).toFixed(1)}%</div>
+                      <div>Score separation: {(stats.score_separation || 0).toFixed(3)}</div>
+                      {stats.recommended_weight_change && (
+                        <div>Recommended weight adjustment: {(stats.recommended_weight_change * 100).toFixed(0)}%</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -2112,6 +2071,27 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
                       >
                         View on Twitter →
                       </a>
+
+                      {/* Feedback buttons */}
+                      <div className="signal-feedback-buttons">
+                        <button
+                          className={`feedback-btn ${signalFeedback[rec.handle] === 'tpot' ? 'active-tpot' : ''}`}
+                          onClick={() => submitSignalFeedback(rec.handle || rec.account_id, 'tpot', rec)}
+                          title="This is TPOT"
+                        >
+                          👍 TPOT
+                        </button>
+                        <button
+                          className={`feedback-btn ${signalFeedback[rec.handle] === 'not_tpot' ? 'active-not-tpot' : ''}`}
+                          onClick={() => submitSignalFeedback(rec.handle || rec.account_id, 'not_tpot', rec)}
+                          title="This is not TPOT"
+                        >
+                          👎 Not TPOT
+                        </button>
+                        {signalFeedback[rec.handle] && (
+                          <span className="feedback-status">✓ Feedback saved</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}

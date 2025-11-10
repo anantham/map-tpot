@@ -17,6 +17,7 @@ from flask import Flask, jsonify, request, g, Response
 from flask_cors import CORS
 
 from src.api.discovery import (
+    DiscoveryRequest,
     discover_subgraph,
     validate_request,
 )
@@ -37,6 +38,12 @@ from src.graph import (
     save_seed_list,
     set_active_seed_list,
     update_graph_settings,
+)
+from src.graph.signal_events import get_event_store
+from src.graph.signal_pipeline import get_pipeline
+from src.graph.scoring import (
+    DEFAULT_WEIGHTS as DEFAULT_DISCOVERY_WEIGHTS,
+    process_weights as process_discovery_weights,
 )
 from src.performance_profiler import profile_operation, profile_phase, get_profiler
 
@@ -533,6 +540,78 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
 
                 communities = compute_louvain_communities(undirected, resolution=resolution)
 
+                # Compute discovery-style scores so Graph Explorer and Discovery share logic
+                discovery_section: Dict[str, Any] = {}
+                try:
+                    graph_state = get_graph_settings()
+                    settings = (graph_state or {}).get("settings", {}) or {}
+                    discovery_weights = settings.get("discovery_weights") or DEFAULT_DISCOVERY_WEIGHTS
+                    limit_setting = int(settings.get("limit", 200) or 200)
+                    max_distance_setting = int(settings.get("max_distance", 3) or 3)
+
+                    normalized_weights = process_discovery_weights(discovery_weights)
+                    discovery_filters = {
+                        "max_distance": max(1, min(6, max_distance_setting)),
+                        "include_shadow": include_shadow,
+                    }
+                    discovery_request = DiscoveryRequest(
+                        seeds=resolved_seeds,
+                        weights=normalized_weights,
+                        filters=discovery_filters,
+                        limit=max(10, min(limit_setting, 500)),
+                        offset=0,
+                        use_cache=False,
+                        debug=False,
+                    )
+
+                    with profile_phase(
+                        "discovery_metrics",
+                        "api_compute_metrics",
+                        {"limit": discovery_request.limit, "max_distance": discovery_filters["max_distance"]},
+                    ):
+                        discovery_payload = discover_subgraph(
+                            directed,
+                            discovery_request,
+                            pagerank,
+                        )
+
+                    scores_map: Dict[str, float] = {}
+                    components_map: Dict[str, Dict[str, float]] = {}
+                    ranks_map: Dict[str, int] = {}
+                    for idx, rec in enumerate(discovery_payload.get("recommendations", []), start=1):
+                        identifiers = [
+                            rec.get("account_id"),
+                            rec.get("handle"),
+                            rec.get("username"),
+                            (rec.get("metadata") or {}).get("username"),
+                        ]
+                        for ident in identifiers:
+                            if not ident:
+                                continue
+                            key = str(ident).lower()
+                            scores_map[key] = rec.get("composite_score", 0.0)
+                            components_map[key] = rec.get("scores", {})
+                            ranks_map[key] = idx
+
+                    discovery_section = {
+                        "config": {
+                            "weights": normalized_weights,
+                            "filters": discovery_request.filters,
+                            "limit": discovery_request.limit,
+                        },
+                        "scores": scores_map,
+                        "components": components_map,
+                        "ranks": ranks_map,
+                        "recommendations": discovery_payload.get("recommendations", []),
+                        "meta": discovery_payload.get("meta"),
+                        "warnings": discovery_payload.get("warnings"),
+                    }
+                except Exception as exc:
+                    logger.exception("Failed to compute discovery metrics inside /api/metrics/compute")
+                    discovery_section = {
+                        "error": str(exc),
+                    }
+
                 # Get top accounts
                 with profile_phase("sort_top_accounts", "api_compute_metrics"):
                     top_pagerank = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[:20]
@@ -548,6 +627,7 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                         "engagement": engagement,
                         "composite": composite,
                         "communities": communities,
+                        "discovery": discovery_section,
                     },
                     "top": {
                         "pagerank": top_pagerank,
@@ -1090,6 +1170,166 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                     "message": str(e)
                 }
             }), 500
+
+    @app.route("/api/signals/feedback", methods=["POST"])
+    def submit_signal_feedback():
+        """Submit user feedback on signal quality.
+
+        Request body:
+        {
+            "account_id": "username",
+            "signal_name": "neighbor_overlap",
+            "score": 0.75,
+            "user_label": "tpot" | "not_tpot",
+            "context": {...}  // optional
+        }
+        """
+        try:
+            data = request.json or {}
+
+            # Validate required fields
+            account_id = data.get('account_id')
+            signal_name = data.get('signal_name')
+            score = data.get('score')
+            user_label = data.get('user_label')
+
+            if not all([account_id, signal_name, score is not None, user_label]):
+                return safe_jsonify({
+                    "error": "Missing required fields: account_id, signal_name, score, user_label"
+                }), 400
+
+            if user_label not in ['tpot', 'not_tpot']:
+                return safe_jsonify({
+                    "error": "user_label must be 'tpot' or 'not_tpot'"
+                }), 400
+
+            # Store feedback
+            event_store = get_event_store()
+            event_store.store_feedback(
+                account_id=account_id,
+                signal_name=signal_name,
+                score=float(score),
+                user_label=user_label,
+                context=data.get('context')
+            )
+
+            return safe_jsonify({"ok": True})
+
+        except Exception as e:
+            logger.exception("Error storing signal feedback")
+            return safe_jsonify({"error": str(e)}), 500
+
+    @app.route("/api/signals/quality", methods=["GET"])
+    def get_signal_quality():
+        """Get signal quality report based on user feedback.
+
+        Query params:
+        - signal: specific signal name (optional)
+
+        Returns quality metrics and recommended weight adjustments.
+        """
+        try:
+            signal_name = request.args.get('signal')
+
+            pipeline = get_pipeline()
+            report = pipeline.get_signal_quality_report(signal_name)
+
+            return safe_jsonify(report)
+
+        except Exception as e:
+            logger.exception("Error generating signal quality report")
+            return safe_jsonify({"error": str(e)}), 500
+
+    @app.route("/api/signals/events", methods=["GET"])
+    def get_signal_events():
+        """Get recent signal computation events.
+
+        Query params:
+        - signal: filter by signal name
+        - candidate: filter by candidate ID
+        - phase: filter by event phase
+        - limit: max events to return (default 100)
+
+        Returns list of signal events with metadata.
+        """
+        try:
+            signal_name = request.args.get('signal')
+            candidate_id = request.args.get('candidate')
+            phase = request.args.get('phase')
+            limit = min(int(request.args.get('limit', 100)), 1000)
+
+            event_store = get_event_store()
+            events = event_store.get_events(
+                signal_name=signal_name,
+                candidate_id=candidate_id,
+                phase=phase,
+                limit=limit
+            )
+
+            # Convert to JSON-serializable format
+            events_data = [event.to_dict() for event in events]
+
+            return safe_jsonify({
+                "events": events_data,
+                "count": len(events_data)
+            })
+
+        except Exception as e:
+            logger.exception("Error fetching signal events")
+            return safe_jsonify({"error": str(e)}), 500
+
+    @app.route("/api/signals/explain", methods=["POST"])
+    def explain_signal_score():
+        """Explain why a candidate got a specific score.
+
+        Request body:
+        {
+            "candidate_id": "username",
+            "seeds": ["seed1", "seed2"],
+            "signal_name": "neighbor_overlap"
+        }
+
+        Returns detailed explanation of the score computation.
+        """
+        try:
+            data = request.json or {}
+
+            candidate_id = data.get('candidate_id')
+            seeds = data.get('seeds', [])
+            signal_name = data.get('signal_name')
+
+            if not all([candidate_id, signal_name]):
+                return safe_jsonify({
+                    "error": "Missing required fields: candidate_id, signal_name"
+                }), 400
+
+            # Look up recent events for this computation
+            event_store = get_event_store()
+            events = event_store.get_events(
+                signal_name=signal_name,
+                candidate_id=candidate_id,
+                limit=1
+            )
+
+            if events:
+                event = events[0]
+                explanations = event.metadata.get('explanations', [])
+                return safe_jsonify({
+                    "candidate_id": candidate_id,
+                    "signal_name": signal_name,
+                    "score": event.score,
+                    "explanations": explanations,
+                    "metadata": event.metadata,
+                    "warnings": event.warnings
+                })
+            else:
+                return safe_jsonify({
+                    "error": "No recent computation found for this candidate and signal"
+                }), 404
+
+        except Exception as e:
+            logger.exception("Error explaining signal score")
+            return safe_jsonify({"error": str(e)}), 500
 
     return app
 
