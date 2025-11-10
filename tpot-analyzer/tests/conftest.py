@@ -90,6 +90,12 @@ def mock_shadow_store():
     store.upsert_discoveries = Mock(return_value=0)
     store.record_scrape_metrics = Mock(return_value=1)
     store.get_last_scrape_metrics = Mock(return_value=None)  # No previous scrape by default
+    store.get_shadow_account = Mock(return_value=None)  # No account by default
+    store.get_following_usernames = Mock(return_value=[])  # No following by default
+    store.get_all_recent_scrape_metrics = Mock(return_value=[])  # No metrics by default
+    store.get_shadow_list = Mock(return_value=None)
+    store.get_shadow_list_members = Mock(return_value=[])
+    store.get_account_id_by_username = Mock(return_value=None)
     return store
 
 

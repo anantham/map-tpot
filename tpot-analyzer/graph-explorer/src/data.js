@@ -66,12 +66,131 @@ if (typeof window !== 'undefined') {
 }
 
 /**
+ * IndexedDB cache for graph data with TTL.
+ * Uses stale-while-revalidate pattern.
+ * Much larger quota than localStorage (~50MB+ vs 5-10MB).
+ */
+const graphCache = {
+  dbName: 'tpot-graph-cache',
+  storeName: 'graph-data',
+  db: null,
+
+  async init() {
+    if (this.db) return this.db;
+
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+    });
+  },
+
+  getCacheKey(options) {
+    const { includeShadow, mutualOnly, minFollowers } = options;
+    return `graph_data_${includeShadow}_${mutualOnly}_${minFollowers}`;
+  },
+
+  async get(options) {
+    try {
+      await this.init();
+      const key = this.getCacheKey(options);
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction([this.storeName], 'readonly');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.get(key);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const cached = request.result;
+          if (!cached) {
+            resolve(null);
+            return;
+          }
+
+          const { data, timestamp } = cached;
+          const age = Date.now() - timestamp;
+          const maxAge = 5 * 60 * 1000; // 5 minutes
+
+          resolve({
+            data,
+            isStale: age > maxAge,
+            age: Math.floor(age / 1000)
+          });
+        };
+      });
+    } catch (error) {
+      console.warn('[Cache] Failed to read cache:', error);
+      return null;
+    }
+  },
+
+  async set(options, data) {
+    try {
+      await this.init();
+      const key = this.getCacheKey(options);
+      const cached = {
+        data,
+        timestamp: Date.now()
+      };
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.put(cached, key);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          console.log(`[Cache] Saved graph data to IndexedDB: ${key}`);
+          resolve();
+        };
+      });
+    } catch (error) {
+      console.warn('[Cache] Failed to write cache:', error);
+      await this.clear();
+    }
+  },
+
+  async clear() {
+    try {
+      await this.init();
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.clear();
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          console.log('[Cache] Cleared IndexedDB graph cache');
+          resolve();
+        };
+      });
+    } catch (error) {
+      console.warn('[Cache] Failed to clear cache:', error);
+    }
+  }
+};
+
+/**
  * Fetch raw graph structure (nodes and edges) from backend.
+ * Uses IndexedDB cache with stale-while-revalidate pattern.
  *
  * @param {Object} options - Graph options
  * @param {boolean} options.includeShadow - Include shadow nodes (default: true)
  * @param {boolean} options.mutualOnly - Only mutual edges (default: false)
  * @param {number} options.minFollowers - Min followers filter (default: 0)
+ * @param {boolean} options.skipCache - Skip cache and force fresh fetch (default: false)
  * @returns {Promise<Object>} Graph data with nodes and edges
  */
 export const fetchGraphData = async (options = {}) => {
@@ -81,8 +200,33 @@ export const fetchGraphData = async (options = {}) => {
     includeShadow = true,
     mutualOnly = false,
     minFollowers = 0,
+    skipCache = false,
   } = options;
 
+  // Check cache first (unless skipCache is true)
+  if (!skipCache) {
+    const cached = await graphCache.get({ includeShadow, mutualOnly, minFollowers });
+    if (cached) {
+      console.log(
+        `[Cache] ${cached.isStale ? 'Stale' : 'Fresh'} cache hit (age: ${cached.age}s) - returning immediately`
+      );
+
+      // Return cached data immediately
+      // If stale, refresh in background (don't await)
+      if (cached.isStale) {
+        console.log('[Cache] Refreshing stale cache in background...');
+        fetchGraphData({ ...options, skipCache: true }).then(() => {
+          console.log('[Cache] Background refresh complete');
+        }).catch(err => {
+          console.warn('[Cache] Background refresh failed:', err);
+        });
+      }
+
+      return cached.data;
+    }
+  }
+
+  // No cache or skipCache=true - fetch from backend
   const params = new URLSearchParams({
     include_shadow: includeShadow.toString(),
     mutual_only: mutualOnly.toString(),
@@ -106,6 +250,12 @@ export const fetchGraphData = async (options = {}) => {
       nodeCount: data.directed_nodes,
       edgeCount: data.directed_edges,
       includeShadow,
+      fromCache: false,
+    });
+
+    // Save to cache (don't await - let it happen in background)
+    graphCache.set({ includeShadow, mutualOnly, minFollowers }, data).catch(err => {
+      console.warn('[Cache] Failed to save to cache:', err);
     });
 
     return data;
@@ -239,6 +389,103 @@ export const fetchPerformanceMetrics = async () => {
   }
 };
 
+export const fetchGraphSettings = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/seeds`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch graph settings: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+/**
+ * Persist a seed list to the backend so Discovery + Graph Explorer stay in sync.
+ *
+ * @param {Object} options
+ * @param {string} options.name - Seed list identifier
+ * @param {string[]} options.seeds - Handles to store
+ * @param {boolean} [options.setActive=true] - Whether to mark the list active
+ * @returns {Promise<Object|null>} Updated seed state (if returned by backend)
+ */
+export const saveSeedList = async ({ name, seeds = [], setActive = true } = {}) => {
+  const targetName = (name || '').trim();
+  if (!targetName) {
+    throw new Error('A seed list name is required');
+  }
+
+  const payload = {
+    name: targetName,
+    set_active: Boolean(setActive)
+  };
+
+  if (Array.isArray(seeds)) {
+    payload.seeds = seeds;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/seeds`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || `Failed to persist seed list (${response.status})`);
+  }
+  return data?.state || null;
+};
+
+/**
+ * Fetch discovery ranking (shared scoring) for a given seed configuration.
+ *
+ * @param {Object} options
+ * @param {string[]} options.seeds
+ * @param {Object} options.weights - discovery weights (neighbor_overlap, pagerank, community, path_distance)
+ * @param {Object} options.filters - discovery filters
+ * @param {number} options.limit
+ * @param {number} options.offset
+ * @returns {Promise<Object>}
+ */
+export const fetchDiscoveryRanking = async ({
+  seeds = [],
+  weights = {},
+  filters = {},
+  limit = 200,
+  offset = 0,
+} = {}) => {
+  const startTime = performance.now();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/subgraph/discover`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seeds,
+        weights,
+        filters,
+        limit,
+        offset,
+        debug: false,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch discovery ranking: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchDiscoveryRanking', duration, {
+      seedCount: seeds.length,
+      limit,
+      offset,
+    });
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchDiscoveryRanking [ERROR]', duration, { error: error.message });
+    throw error;
+  }
+};
+
 /**
  * Get client-side performance statistics.
  *
@@ -254,3 +501,16 @@ export const getClientPerformanceStats = () => {
 export const clearClientPerformanceLogs = () => {
   performanceLog.clear();
 };
+
+/**
+ * Clear graph data cache.
+ * Useful for debugging or forcing fresh data.
+ */
+export const clearGraphCache = () => {
+  graphCache.clear();
+};
+
+// Expose cache to window for debugging
+if (typeof window !== 'undefined') {
+  window.graphCache = graphCache;
+}

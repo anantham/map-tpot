@@ -16,6 +16,8 @@ from src.data.shadow_store import (
     ShadowAccount,
     ShadowDiscovery,
     ShadowEdge,
+    ShadowList,
+    ShadowListMember,
     ShadowStore,
 )
 
@@ -281,6 +283,7 @@ class TestCoveragePercentageConversion:
             following_captured=0,
             followers_captured=0,
             followers_you_follow_captured=0,
+            list_members_captured=0,
             following_claimed_total=100,
             followers_claimed_total=100,
             followers_you_follow_claimed_total=100,
@@ -310,6 +313,7 @@ class TestCoveragePercentageConversion:
             following_captured=50,
             followers_captured=75,
             followers_you_follow_captured=25,
+            list_members_captured=0,
             following_claimed_total=100,
             followers_claimed_total=100,
             followers_you_follow_claimed_total=100,
@@ -339,6 +343,7 @@ class TestCoveragePercentageConversion:
             following_captured=100,
             followers_captured=100,
             followers_you_follow_captured=100,
+            list_members_captured=0,
             following_claimed_total=100,
             followers_claimed_total=100,
             followers_you_follow_claimed_total=100,
@@ -368,6 +373,7 @@ class TestCoveragePercentageConversion:
             following_captured=10,
             followers_captured=20,
             followers_you_follow_captured=5,
+            list_members_captured=0,
             following_claimed_total=None,
             followers_claimed_total=None,
             followers_you_follow_claimed_total=None,
@@ -389,8 +395,93 @@ class TestCoveragePercentageConversion:
 
 
 # ==============================================================================
-# Retry Logic Tests
+# List Snapshot Persistence Tests
 # ==============================================================================
+class TestListSnapshotPersistence:
+    def test_upsert_and_fetch_list_metadata(self, shadow_store: ShadowStore):
+        list_record = ShadowList(
+            list_id="list123",
+            name="Curated Accounts",
+            description="List of interesting accounts",
+            owner_account_id="shadow:owner",
+            owner_username="owner",
+            owner_display_name="Owner",
+            member_count=5,
+            claimed_member_total=6,
+            followers_count=10,
+            fetched_at=datetime(2025, 1, 1, 12, 0, 0),
+            source_channel="selenium_list_members",
+            metadata={"owner_profile_url": "https://x.com/owner"},
+        )
+
+        shadow_store.upsert_lists([list_record])
+
+        fetched = shadow_store.get_shadow_list("list123")
+        assert fetched is not None
+        assert fetched.list_id == "list123"
+        assert fetched.member_count == 5
+        assert fetched.claimed_member_total == 6
+        assert fetched.followers_count == 10
+        assert fetched.owner_username == "owner"
+        assert fetched.metadata == {"owner_profile_url": "https://x.com/owner"}
+
+    def test_replace_list_members_round_trip(self, shadow_store: ShadowStore):
+        shadow_store.upsert_lists([
+            ShadowList(
+                list_id="list123",
+                name="Curated Accounts",
+                description=None,
+                owner_account_id="shadow:owner",
+                owner_username="owner",
+                owner_display_name="Owner",
+                member_count=0,
+                claimed_member_total=0,
+                followers_count=None,
+                fetched_at=datetime(2025, 1, 1, 12, 0, 0),
+                source_channel="selenium_list_members",
+                metadata=None,
+            )
+        ])
+
+        members = [
+            ShadowListMember(
+                list_id="list123",
+                member_account_id="shadow:user1",
+                member_username="user1",
+                member_display_name="User 1",
+                bio="Bio 1",
+                website=None,
+                profile_image_url=None,
+                fetched_at=datetime(2025, 1, 1, 12, 0, 0),
+                source_channel="hybrid_selenium",
+                metadata={"list_types": ["list_members"]},
+            ),
+            ShadowListMember(
+                list_id="list123",
+                member_account_id="shadow:user2",
+                member_username="user2",
+                member_display_name="User 2",
+                bio=None,
+                website="https://example.com",
+                profile_image_url=None,
+                fetched_at=datetime(2025, 1, 1, 12, 0, 0),
+                source_channel="hybrid_selenium",
+                metadata={"list_types": ["list_members"], "profile_url": "https://x.com/user2"},
+            ),
+        ]
+
+        inserted = shadow_store.replace_list_members("list123", members)
+        assert inserted == 2
+
+        cached = shadow_store.get_shadow_list_members("list123")
+        assert len(cached) == 2
+        assert cached[0].member_username in {"user1", "user2"}
+        assert cached[0].metadata is not None
+
+
+# ============================================================================== 
+# Retry Logic Tests
+# ============================================================================== 
 class TestRetryLogic:
     """Test _execute_with_retry handles transient SQLite errors."""
 

@@ -9,6 +9,7 @@ import networkx as nx
 import pandas as pd
 
 from src.data.shadow_store import ShadowStore
+from src.performance_profiler import profile_phase, profile_operation
 
 
 @dataclass
@@ -54,36 +55,50 @@ def build_graph_from_frames(
 ) -> GraphBuildResult:
     """Construct graphs from pre-loaded DataFrames."""
 
-    account_cols = [col for col in _DEFAULT_ACCOUNT_COLUMNS if col in accounts.columns]
-    profile_cols = [col for col in _DEFAULT_PROFILE_COLUMNS if col in profiles.columns]
+    with profile_operation("build_graph_from_frames", {
+        "accounts": len(accounts),
+        "profiles": len(profiles),
+        "followers": len(followers),
+        "following": len(following),
+        "include_shadow": include_shadow
+    }, verbose=False) as report:
 
-    accounts_clean = accounts[account_cols].drop_duplicates("account_id")
-    profiles_clean = profiles[profile_cols].drop_duplicates("account_id")
+        with profile_phase("prepare_dataframes", "build_graph_from_frames"):
+            account_cols = [col for col in _DEFAULT_ACCOUNT_COLUMNS if col in accounts.columns]
+            profile_cols = [col for col in _DEFAULT_PROFILE_COLUMNS if col in profiles.columns]
 
-    account_lookup = accounts_clean.set_index("account_id").to_dict("index")
-    profile_lookup = profiles_clean.set_index("account_id").to_dict("index")
+            accounts_clean = accounts[account_cols].drop_duplicates("account_id")
+            profiles_clean = profiles[profile_cols].drop_duplicates("account_id")
 
-    directed = nx.DiGraph()
-    for account_id, attrs in account_lookup.items():
-        profile_attrs = profile_lookup.get(account_id, {})
-        directed.add_node(account_id, **attrs, **profile_attrs)
+            account_lookup = accounts_clean.set_index("account_id").to_dict("index")
+            profile_lookup = profiles_clean.set_index("account_id").to_dict("index")
 
-    directed = _add_edges(
-        directed,
-        followers=followers,
-        following=following,
-        mutual_only=mutual_only,
-    )
+        with profile_phase("create_nodes", "build_graph_from_frames", {"node_count": len(account_lookup)}):
+            directed = nx.DiGraph()
+            for account_id, attrs in account_lookup.items():
+                profile_attrs = profile_lookup.get(account_id, {})
+                directed.add_node(account_id, **attrs, **profile_attrs)
 
-    if min_followers > 0:
-        directed = _filter_min_followers(directed, threshold=min_followers)
+        with profile_phase("add_edges", "build_graph_from_frames", {"mutual_only": mutual_only}):
+            directed = _add_edges(
+                directed,
+                followers=followers,
+                following=following,
+                mutual_only=mutual_only,
+            )
 
-    if include_shadow and shadow_store:
-        _inject_shadow_data(directed, shadow_store)
+        if min_followers > 0:
+            with profile_phase("filter_min_followers", "build_graph_from_frames", {"threshold": min_followers}):
+                directed = _filter_min_followers(directed, threshold=min_followers)
 
-    undirected = _build_undirected_view(directed, mutual_only=mutual_only)
+        if include_shadow and shadow_store:
+            with profile_phase("inject_shadow_data", "build_graph_from_frames"):
+                _inject_shadow_data(directed, shadow_store)
 
-    return GraphBuildResult(directed=directed, undirected=undirected)
+        with profile_phase("build_undirected_view", "build_graph_from_frames"):
+            undirected = _build_undirected_view(directed, mutual_only=mutual_only)
+
+        return GraphBuildResult(directed=directed, undirected=undirected)
 
 
 def build_graph(
@@ -94,25 +109,40 @@ def build_graph(
     mutual_only: bool = True,
     min_followers: int = 0,
     include_shadow: bool = False,
+    include_archive: bool = True,
     shadow_store: Optional[ShadowStore] = None,
 ) -> GraphBuildResult:
     """Fetch necessary tables via the fetcher and build graphs."""
 
-    accounts = fetcher.fetch_accounts(use_cache=use_cache, force_refresh=force_refresh)
-    profiles = fetcher.fetch_profiles(use_cache=use_cache, force_refresh=force_refresh)
-    followers = fetcher.fetch_followers(use_cache=use_cache, force_refresh=force_refresh)
-    following = fetcher.fetch_following(use_cache=use_cache, force_refresh=force_refresh)
+    with profile_operation("build_graph", {"include_shadow": include_shadow, "include_archive": include_archive}, verbose=False):
+        with profile_phase("fetch_data", "build_graph"):
+            accounts = fetcher.fetch_accounts(use_cache=use_cache, force_refresh=force_refresh)
+            profiles = fetcher.fetch_profiles(use_cache=use_cache, force_refresh=force_refresh)
+            followers = fetcher.fetch_followers(use_cache=use_cache, force_refresh=force_refresh)
+            following = fetcher.fetch_following(use_cache=use_cache, force_refresh=force_refresh)
 
-    return build_graph_from_frames(
-        accounts=accounts,
-        profiles=profiles,
-        followers=followers,
-        following=following,
-        mutual_only=mutual_only,
-        min_followers=min_followers,
-        include_shadow=include_shadow,
-        shadow_store=shadow_store,
-    )
+            # Fetch archive data if enabled
+            if include_archive:
+                archive_followers = fetcher.fetch_archive_followers()
+                archive_following = fetcher.fetch_archive_following()
+
+                # Merge archive data with REST data
+                # NetworkX will handle duplicate edges naturally (last write wins for attributes)
+                if not archive_followers.empty:
+                    followers = pd.concat([followers, archive_followers], ignore_index=True)
+                if not archive_following.empty:
+                    following = pd.concat([following, archive_following], ignore_index=True)
+
+        return build_graph_from_frames(
+            accounts=accounts,
+            profiles=profiles,
+            followers=followers,
+            following=following,
+            mutual_only=mutual_only,
+            min_followers=min_followers,
+            include_shadow=include_shadow,
+            shadow_store=shadow_store,
+        )
 
 
 def _build_undirected_view(directed: nx.DiGraph, *, mutual_only: bool) -> nx.Graph:

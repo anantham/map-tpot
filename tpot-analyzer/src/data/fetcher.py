@@ -104,6 +104,32 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
             force_refresh=force_refresh,
         )
 
+    def fetch_archive_following(self) -> pd.DataFrame:
+        """Return archive following edges from local staging table.
+
+        Note: This reads from archive_following table which is populated
+        from blob storage imports, not from Supabase REST API.
+        """
+        try:
+            df = pd.read_sql_table("archive_following", self.engine)
+        except ValueError:
+            # Table doesn't exist or is empty
+            return pd.DataFrame(columns=["account_id", "following_account_id", "uploaded_at", "imported_at"])
+        return df
+
+    def fetch_archive_followers(self) -> pd.DataFrame:
+        """Return archive follower edges from local staging table.
+
+        Note: This reads from archive_followers table which is populated
+        from blob storage imports, not from Supabase REST API.
+        """
+        try:
+            df = pd.read_sql_table("archive_followers", self.engine)
+        except ValueError:
+            # Table doesn't exist or is empty
+            return pd.DataFrame(columns=["account_id", "follower_account_id", "uploaded_at", "imported_at"])
+        return df
+
     def fetch_tweets(self, *, use_cache: bool = True, force_refresh: bool = False) -> pd.DataFrame:
         """Return a dataframe of tweets."""
 

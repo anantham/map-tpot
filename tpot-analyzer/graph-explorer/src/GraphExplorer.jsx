@@ -6,7 +6,7 @@ import React, {
   useCallback
 } from "react";
 import ForceGraph2D from "react-force-graph-2d";
-import { fetchGraphData, computeMetrics, checkHealth } from "./data";
+import { fetchGraphData, fetchGraphSettings, checkHealth, computeMetrics, saveSeedList } from "./data";
 const DEFAULT_PRESETS = {
   "Adi's Seeds": [
     "prerationalist",
@@ -30,32 +30,47 @@ const DEFAULT_PRESETS = {
   ]
 };
 
+const DEFAULT_DISCOVERY_WEIGHTS = {
+  neighbor_overlap: 0.4,
+  pagerank: 0.3,
+  community: 0.2,
+  path_distance: 0.1,
+};
+
 const COLORS = {
   baseNode: "#a5b4fc",
   seedNode: "#fde68a",
   selectedNode: "#f472b6",
   neighborNode: "#5eead4",
   shadowNode: "#94a3b8",
-  mutualEdge: "rgba(224, 242, 254, 0.92)",
-  oneWayEdge: "rgba(125, 211, 252, 0.7)",
+  bridgeNode: "#fb923c",
+  orphanNode: "#f87171",
+  mutualEdge: "rgba(224, 242, 254, 0.25)", // More transparent
+  oneWayEdge: "rgba(125, 211, 252, 0.15)", // More transparent
   selectedEdge: "#fb923c",
   neighborEdge: "#facc15"
 };
 
 const EMPTY_METRICS = Object.freeze({});
 
-const normalizeScores = (scores = {}) => {
-  const entries = Object.entries(scores).map(([key, value]) => [key, value ?? 0]);
-  if (!entries.length) return {};
-  const values = entries.map(([, value]) => value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  if (max === min) {
-    return Object.fromEntries(entries.map(([key]) => [key, 0]));
-  }
-  return Object.fromEntries(
-    entries.map(([key, value]) => [key, (value - min) / (max - min)])
-  );
+const normalizeHandle = (value) => {
+  if (!value && value !== 0) return null;
+  const cleaned = String(value).trim().replace(/^@/, "");
+  if (!cleaned) return null;
+  return cleaned.toLowerCase();
+};
+
+const dedupeHandles = (handles = []) => {
+  const seen = new Set();
+  const result = [];
+  handles.forEach((handle) => {
+    const normalized = normalizeHandle(handle);
+    if (normalized && !seen.has(normalized)) {
+      seen.add(normalized);
+      result.push(normalized);
+    }
+  });
+  return result;
 };
 
 const toLowerSet = (items = []) => {
@@ -67,13 +82,24 @@ const toLowerSet = (items = []) => {
   return set;
 };
 
-export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
+const sanitizeSeedList = (handles = []) => dedupeHandles(handles);
+
+const BRIDGE_CONFIG = {
+  maxBridgeNodesPerPath: 5,
+  maxBridgeHops: 8,
+  maxTotalBridgeNodes: 50
+};
+
+export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.json" }) {
   const [graphStructure, setGraphStructure] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [computing, setComputing] = useState(false);
   const [backendAvailable, setBackendAvailable] = useState(null);
+
+  // Placeholder for future fallback mode using a static analysis JSON blob.
+  void _dataUrl;
 
   // Check backend health on mount
   useEffect(() => {
@@ -86,19 +112,136 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     };
     checkBackend();
   }, []);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const state = await fetchGraphSettings();
+        setGraphSettings(state);
+        const autoShadow = state?.settings?.auto_include_shadow;
+        if (typeof autoShadow === "boolean") {
+          setIncludeShadows(autoShadow);
+        }
+      } catch (err) {
+        console.error("Failed to load graph settings:", err);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    if (!graphSettings || customSeeds.length > 0) return;
+    const active = graphSettings.active_list;
+    if (!active || !availablePresets[active]) return;
+    if (presetName !== active) {
+      setPresetName(active);
+    }
+    setSeedTextarea((availablePresets[active] || []).join("\n"));
+  }, [graphSettings, availablePresets, customSeeds.length, presetName]);
+
   const [panelOpen, setPanelOpen] = useState(true);
   const [mutualOnly, setMutualOnly] = useState(false);
-  const [weights, setWeights] = useState({ pr: 0.4, bt: 0.3, eng: 0.3 });
+  const [graphSettings, setGraphSettings] = useState(null);
   const [linkDistance, setLinkDistance] = useState(140);
   const [chargeStrength, setChargeStrength] = useState(-220);
+  const [edgeOpacity, setEdgeOpacity] = useState(0.25); // Default opacity for edges
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [seedTextarea, setSeedTextarea] = useState("");
   const [customSeeds, setCustomSeeds] = useState([]);
   const [presetName, setPresetName] = useState("Adi's Seeds");
   const [includeShadows, setIncludeShadows] = useState(true);
   const [subgraphSize, setSubgraphSize] = useState(50);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [myAccount, setMyAccount] = useState(''); // User's own account for filtering
+  const [excludeFollowing, setExcludeFollowing] = useState(false); // Filter out accounts I follow
+  const [weights, setWeights] = useState({ pr: 0.4, bt: 0.3, eng: 0.3 });
+
+  const availablePresets = useMemo(() => {
+    const lists = graphSettings?.lists;
+    if (lists && Object.keys(lists).length > 0) {
+      return lists;
+    }
+    return DEFAULT_PRESETS;
+  }, [graphSettings]);
+
+  const determineEditableSeedListName = useCallback(() => {
+    const presetNames = new Set(graphSettings?.preset_names || []);
+    const userListNames = new Set(graphSettings?.user_list_names || []);
+    const existingLists = new Set(Object.keys(graphSettings?.lists || {}));
+
+    let active = graphSettings?.active_list || presetName || "graph_explorer";
+    if (!presetNames.has(active) || userListNames.has(active)) {
+      return active;
+    }
+
+    let candidate = `${active}_custom`;
+    let counter = 1;
+    while (existingLists.has(candidate)) {
+      candidate = `${active}_custom_${counter++}`;
+    }
+    return candidate;
+  }, [graphSettings, presetName]);
+
+  const persistSeedsToServer = useCallback(async (nextSeeds) => {
+    if (!Array.isArray(nextSeeds) || nextSeeds.length === 0) {
+      throw new Error("Add at least one account before saving seeds.");
+    }
+    const sanitized = sanitizeSeedList(nextSeeds);
+    if (!sanitized.length) {
+      throw new Error("None of the handles were valid.");
+    }
+    const targetName = determineEditableSeedListName();
+    const state = await saveSeedList({
+      name: targetName,
+      seeds: sanitized,
+      setActive: true
+    });
+    if (state) {
+      setGraphSettings(state);
+      setPresetName(state.active_list || targetName);
+    }
+    return state;
+  }, [determineEditableSeedListName]);
 
   const graphRef = useRef(null);
+
+  const applyCustomSeedList = useCallback((nextSeeds, { keepPresetName = false } = {}) => {
+    const sanitized = sanitizeSeedList(Array.isArray(nextSeeds) ? nextSeeds : []);
+    setCustomSeeds(sanitized);
+    setSeedTextarea(sanitized.join("\n"));
+    if (!keepPresetName) {
+      setPresetName("Custom");
+    }
+  }, []);
+
+  // Dismiss context menu on outside click or ESC key
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const handleClick = () => setContextMenu(null);
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+
+    // Small delay to prevent immediate dismissal from the right-click event
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleClick);
+      document.addEventListener('keydown', handleEscape);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [contextMenu]);
+
+  const activeSeedList = useMemo(() => {
+    if (customSeeds.length > 0) {
+      return customSeeds;
+    }
+    return availablePresets[presetName] || [];
+  }, [customSeeds, presetName, availablePresets]);
 
   // Load initial graph structure
   useEffect(() => {
@@ -106,6 +249,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       if (!backendAvailable) return;
 
       try {
+        console.log('[GraphExplorer] Loading graph structure...');
         setLoading(true);
         const structure = await fetchGraphData({
           includeShadow: includeShadows,
@@ -113,6 +257,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           minFollowers: 0,
         });
         setGraphStructure(structure);
+        console.log('[GraphExplorer] Graph structure loaded - graph can now display!');
       } catch (err) {
         console.error("Failed to load graph structure:", err);
         setError(err);
@@ -129,13 +274,11 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
 
     try {
       setComputing(true);
-      const seedList = customSeeds.length > 0
-        ? customSeeds
-        : DEFAULT_PRESETS[presetName] || [];
-
+      console.log(`[GraphExplorer] Computing base metrics with ${activeSeedList.length} seeds...`);
+      const weightVector = [weights.pr, weights.bt, weights.eng];
       const result = await computeMetrics({
-        seeds: seedList,
-        weights: [weights.pr, weights.bt, weights.eng],
+        seeds: activeSeedList,
+        weights: weightVector,
         alpha: 0.85,
         resolution: 1.0,
         includeShadow: includeShadows,
@@ -144,22 +287,25 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       });
 
       setMetrics(result);
+      console.log('[GraphExplorer] Metrics computed! Tooltips and node sizing updated.');
     } catch (err) {
       console.error("Failed to compute metrics:", err);
       setError(err);
     } finally {
       setComputing(false);
     }
-  }, [backendAvailable, graphStructure, customSeeds, presetName, weights, includeShadows]);
+  }, [backendAvailable, graphStructure, activeSeedList, includeShadows, weights]);
 
   // Trigger metric recomputation when dependencies change
   useEffect(() => {
     recomputeMetrics();
   }, [recomputeMetrics]);
 
-  // Merged data for backwards compatibility
+  // Discovery ranking now piggybacks on computeMetrics; no separate fetch needed.
+
+  // Merged data - metrics are optional, graph can display without them
   const data = useMemo(() => {
-    if (!graphStructure || !metrics) return null;
+    if (!graphStructure) return null;  // Only require structure
 
     return {
       graph: {
@@ -169,9 +315,9 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         directed_edges: graphStructure.directed_edges,
         undirected_edges: graphStructure.undirected_edges,
       },
-      metrics: metrics.metrics,
-      seeds: metrics.seeds || [],
-      resolved_seeds: metrics.resolved_seeds || [],
+      metrics: metrics?.metrics || {},  // Optional - defaults to empty
+      seeds: metrics?.seeds || [],
+      resolved_seeds: metrics?.resolved_seeds || [],
     };
   }, [graphStructure, metrics]);
 
@@ -186,17 +332,54 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     return combined;
   }, [data]);
 
-  const customSeedSet = useMemo(() => toLowerSet(customSeeds), [customSeeds]);
-  const effectiveSeedSet = useMemo(() => new Set([...resolvedSeeds, ...customSeedSet]), [resolvedSeeds, customSeedSet]);
+  const activeSeedHandleSet = useMemo(() => toLowerSet(activeSeedList), [activeSeedList]);
+  const customSeedHandleSet = useMemo(() => toLowerSet(customSeeds), [customSeeds]);
+  const effectiveSeedSet = useMemo(() => new Set([...resolvedSeeds, ...activeSeedHandleSet]), [resolvedSeeds, activeSeedHandleSet]);
 
   const metricsData = data?.metrics ?? EMPTY_METRICS;
 
-  // Use composite score from backend (already computed with all three weights)
-  const tpotnessScores = useMemo(() => {
-    return metricsData?.composite ?? {};
-  }, [metricsData]);
+  const discoveryMetrics = useMemo(() => metricsData?.discovery || {}, [metricsData]);
 
-  const { graphData, graphStats } = useMemo(() => {
+  const tpotnessScores = useMemo(() => {
+    const map = {};
+    const rawScores = discoveryMetrics.scores || {};
+    Object.entries(rawScores).forEach(([key, score]) => {
+      const normalized = normalizeHandle(key);
+      if (normalized) {
+        map[normalized] = score ?? 0;
+        map[String(key).toLowerCase()] = score ?? 0;
+      }
+    });
+    activeSeedList.forEach((seed) => {
+      const key = normalizeHandle(seed);
+      if (key) {
+        map[key] = 1;
+      }
+    });
+    if (Object.keys(map).length > 0) {
+      return map;
+    }
+    return metricsData?.composite ?? {};
+  }, [discoveryMetrics, metricsData, activeSeedList]);
+
+  const getTpotnessFor = useCallback((id, username) => {
+    const idValue = id ? String(id) : "";
+    if (idValue && Object.prototype.hasOwnProperty.call(tpotnessScores, idValue)) {
+      return tpotnessScores[idValue];
+    }
+    const idLower = idValue.toLowerCase();
+    if (idLower && Object.prototype.hasOwnProperty.call(tpotnessScores, idLower)) {
+      return tpotnessScores[idLower];
+    }
+    const usernameKey = username ? normalizeHandle(username) : null;
+    if (usernameKey && Object.prototype.hasOwnProperty.call(tpotnessScores, usernameKey)) {
+      return tpotnessScores[usernameKey];
+    }
+    return 0;
+  }, [tpotnessScores]);
+  const metricsReady = useMemo(() => Object.keys(tpotnessScores).length > 0, [tpotnessScores]);
+
+  const { graphData, graphStats, bridgeDiagnostics } = useMemo(() => {
     if (!data) {
       return {
         graphData: { nodes: [], links: [] },
@@ -208,7 +391,15 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
           visibleEdges: 0,
           visibleMutualEdges: 0,
           visibleShadowNodes: 0,
-          visibleShadowEdges: 0
+          visibleShadowEdges: 0,
+          usingStructuralFallback: false,
+          bridgeNodeCount: 0,
+          orphanCount: 0
+        },
+        bridgeDiagnostics: {
+          connectors: new Map(),
+          targets: new Map(),
+          orphans: new Map()
         }
       };
     }
@@ -311,13 +502,19 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       if (value > maxSeedTouch) maxSeedTouch = value;
     });
 
-    const topNIds = Object.entries(tpotnessScores)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, subgraphSize)
-      .map(([id]) => id);
+    const fallbackIds = !metricsReady
+      ? Object.keys(nodesMeta).slice(0, Math.max(subgraphSize, 50))
+      : [];
+    const topNIds = metricsReady
+      ? Object.entries(tpotnessScores)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, subgraphSize)
+          .map(([id]) => id)
+      : [];
 
     // Build allowed set with both account IDs and usernames for matching
-    const allowedNodeSet = new Set(topNIds);
+    const allowedNodeSet = new Set(metricsReady ? topNIds : fallbackIds);
+    const seedNodeSet = new Set();
 
     // Add seed nodes to the allowed set (they should always be visible)
     nodeIds.forEach((rawId) => {
@@ -326,12 +523,199 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       const usernameLower = meta.username ? String(meta.username).toLowerCase() : null;
       const idLower = id.toLowerCase();
 
-      // Check if this node is a seed by any of its identifiers
-      if (effectiveSeedSet.has(idLower) ||
-          (usernameLower && effectiveSeedSet.has(usernameLower))) {
-        allowedNodeSet.add(id);  // Add the actual account ID
+      if (
+        effectiveSeedSet.has(idLower) ||
+        (usernameLower && effectiveSeedSet.has(usernameLower))
+      ) {
+        allowedNodeSet.add(id);
+        seedNodeSet.add(id);
       }
     });
+
+    const bridgeConnectorMap = new Map();
+    const bridgeTargetMap = new Map();
+    const orphanInfoMap = new Map();
+
+    const computeReachableWithinAllowed = () => {
+      const reachable = new Set();
+      const queue = [];
+
+      seedNodeSet.forEach((seedId) => {
+        if (allowedNodeSet.has(seedId)) {
+          reachable.add(seedId);
+          queue.push(seedId);
+        }
+      });
+
+      while (queue.length) {
+        const current = queue.shift();
+        const neighbors = mutualAdjacency.get(current);
+        if (!neighbors) continue;
+        neighbors.forEach((neighbor) => {
+          if (!allowedNodeSet.has(neighbor) || reachable.has(neighbor)) return;
+          reachable.add(neighbor);
+          queue.push(neighbor);
+        });
+      }
+      return reachable;
+    };
+
+    const findBridgePath = (targetId) => {
+      const queue = [
+        {
+          node: targetId,
+          path: [targetId],
+          hops: 0,
+          bridges: 0,
+          score: 0
+        }
+      ];
+      const visited = new Set([targetId]);
+
+      while (queue.length) {
+        queue.sort((a, b) => a.score - b.score);
+        const current = queue.shift();
+        if (current.hops >= BRIDGE_CONFIG.maxBridgeHops) {
+          continue;
+        }
+        const neighbors = mutualAdjacency.get(current.node);
+        if (!neighbors) continue;
+
+        for (const neighbor of neighbors) {
+          if (visited.has(neighbor)) continue;
+          const isAllowedNeighbor = allowedNodeSet.has(neighbor) || seedNodeSet.has(neighbor);
+          const nextBridgeCount = isAllowedNeighbor ? current.bridges : current.bridges + 1;
+          if (nextBridgeCount > BRIDGE_CONFIG.maxBridgeNodesPerPath) continue;
+          const nextHops = current.hops + 1;
+          const nextPath = [...current.path, neighbor];
+
+          if (seedNodeSet.has(neighbor)) {
+            const fullPath = [...nextPath].reverse();
+            const bridgeNodes = fullPath.filter(
+              (nodeId) => !allowedNodeSet.has(nodeId) && !seedNodeSet.has(nodeId)
+            );
+            return {
+              path: fullPath,
+              bridgeNodes,
+              totalHops: nextHops,
+              requiredBridgeCount: bridgeNodes.length
+            };
+          }
+
+          visited.add(neighbor);
+          const neighborScore = getTpotnessFor(neighbor, nodesMeta[neighbor]?.username);
+          const penalty = 1 - (Number.isFinite(neighborScore) ? neighborScore : 0);
+          queue.push({
+            node: neighbor,
+            path: nextPath,
+            hops: nextHops,
+            bridges: nextBridgeCount,
+            score: nextHops + penalty * 0.75
+          });
+        }
+      }
+
+      return null;
+    };
+
+    const enforceConnectivity = () => {
+      let reachable = computeReachableWithinAllowed();
+      const collectOrphans = () =>
+        [...allowedNodeSet].filter((id) => !reachable.has(id) && !seedNodeSet.has(id));
+      let orphans = collectOrphans();
+      let bridgeBudget = 0;
+      let iterations = 0;
+
+      while (
+        orphans.length > 0 &&
+        bridgeBudget < BRIDGE_CONFIG.maxTotalBridgeNodes &&
+        iterations < 100
+      ) {
+        const targetId = orphans.shift();
+        const result = findBridgePath(targetId);
+
+        if (result) {
+          if (result.bridgeNodes.length === 0) {
+            // Path found using existing nodes; treat as connected.
+            bridgeTargetMap.set(targetId, {
+              path: result.path,
+              bridgeCount: 0,
+              totalHops: result.totalHops
+            });
+            reachable = computeReachableWithinAllowed();
+            orphans = collectOrphans();
+            iterations += 1;
+            continue;
+          }
+
+          const addedNow = [];
+          result.bridgeNodes.forEach((connectorId) => {
+            if (!allowedNodeSet.has(connectorId)) {
+              if (bridgeBudget >= BRIDGE_CONFIG.maxTotalBridgeNodes) {
+                return;
+              }
+              allowedNodeSet.add(connectorId);
+              addedNow.push(connectorId);
+              bridgeBudget += 1;
+            }
+          });
+
+          addedNow.forEach((connectorId) => {
+            if (!bridgeConnectorMap.has(connectorId)) {
+              bridgeConnectorMap.set(connectorId, {
+                supports: new Set(),
+                samples: []
+              });
+            }
+            const entry = bridgeConnectorMap.get(connectorId);
+            entry.supports.add(targetId);
+            entry.samples.push({
+              target: targetId,
+              path: result.path,
+              bridgeCount: result.bridgeNodes.length,
+              totalHops: result.totalHops
+            });
+            if (entry.samples.length > 3) {
+              entry.samples = entry.samples.slice(-3);
+            }
+          });
+          if (bridgeBudget >= BRIDGE_CONFIG.maxTotalBridgeNodes) {
+            break;
+          }
+
+          bridgeTargetMap.set(targetId, {
+            path: result.path,
+            bridgeCount: result.bridgeNodes.length,
+            totalHops: result.totalHops
+          });
+
+          reachable = computeReachableWithinAllowed();
+          orphans = collectOrphans();
+        } else {
+          orphanInfoMap.set(targetId, {
+            requiredBridgeCount: BRIDGE_CONFIG.maxBridgeNodesPerPath + 1,
+            totalHops: null,
+            reason: "NO_PATH"
+          });
+        }
+
+        iterations += 1;
+      }
+
+      if (orphans.length > 0) {
+        orphans.forEach((id) => {
+          if (!orphanInfoMap.has(id)) {
+            orphanInfoMap.set(id, {
+              requiredBridgeCount: BRIDGE_CONFIG.maxBridgeNodesPerPath + 1,
+              totalHops: null,
+              reason: "BRIDGE_BUDGET"
+            });
+          }
+        });
+      }
+    };
+
+    enforceConnectivity();
 
     const nodes = nodeIds.map((rawId) => {
       const id = String(rawId);
@@ -356,8 +740,11 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         1,
         distanceScore * 0.6 + mutualScore * 0.25 + seedTouchScore * 0.15 + (isSeed ? 0.1 : 0)
       );
-      const tpotnessScore = tpotnessScores[id] ?? 0;
+      const tpotnessScore = getTpotnessFor(id, meta.username);
       const val = 10 + inGroupScore * 26 + (isSeed ? 6 : 0) + (isShadow ? 2 : 0);
+      const connectorInfo = bridgeConnectorMap.get(id);
+      const targetBridgeInfo = bridgeTargetMap.get(id);
+      const orphanInfo = orphanInfoMap.get(id);
 
       return {
         id,
@@ -375,12 +762,27 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         engagement: metricsData.engagement?.[id],
         tpotnessScore: tpotnessScore,
         isSeed,
+        isBridge: Boolean(connectorInfo),
+        bridgeConnectorInfo: connectorInfo
+          ? {
+              supports: Array.from(connectorInfo.supports),
+              samples: connectorInfo.samples
+            }
+          : null,
+        bridgeTargetInfo: targetBridgeInfo || null,
+        orphanInfo: orphanInfo || null,
         neighbors: [],
         ...meta
       };
     }).filter(Boolean);
 
 
+
+    const bridgeDiagnostics = {
+      connectors: bridgeConnectorMap,
+      targets: bridgeTargetMap,
+      orphans: orphanInfoMap
+    };
 
     const filteredLinks = edges
       .filter((edge) => (mutualOnly ? edge.mutual : true))
@@ -391,7 +793,8 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         return {
           source,
           target,
-          mutual: !!edge.mutual
+          mutual: !!edge.mutual,
+          shadow: !!edge.shadow
         };
       });
 
@@ -413,10 +816,14 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         visibleEdges: filteredLinks.length,
         visibleMutualEdges,
         visibleShadowNodes: nodes.filter((node) => node.shadow).length,
-        visibleShadowEdges: filteredLinks.filter((edge) => edge.shadow).length
-      }
+        visibleShadowEdges: filteredLinks.filter((edge) => edge.shadow).length,
+        usingStructuralFallback: !metricsReady,
+        bridgeNodeCount: bridgeConnectorMap.size,
+        orphanCount: orphanInfoMap.size
+      },
+      bridgeDiagnostics
     };
-  }, [data, tpotnessScores, effectiveSeedSet, includeShadows, metricsData, mutualOnly]);
+  }, [data, tpotnessScores, effectiveSeedSet, includeShadows, metricsData, mutualOnly, metricsReady, getTpotnessFor, subgraphSize]);
 
   useEffect(() => {
     if (!graphData.nodes.length) return;
@@ -445,6 +852,19 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     return map;
   }, [graphData.nodes]);
 
+  const describePath = useCallback((path = []) => {
+    if (!Array.isArray(path) || path.length === 0) return "";
+    return path
+      .map((nodeId) => {
+        const node = nodeLookup.get(nodeId);
+        if (!node) return nodeId;
+        if (node.username) return `@${node.username}`;
+        if (node.display_name) return node.display_name;
+        return node.id || nodeId;
+      })
+      .join(" → ");
+  }, [nodeLookup]);
+
   const neighborMap = useMemo(() => {
     const map = new Map();
     graphData.links.forEach((edge) => {
@@ -458,11 +878,83 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     return map;
   }, [graphData.links]);
 
+  // Get following list for myAccount (if specified)
+  const myFollowingSet = useMemo(() => {
+    if (!myAccount || !graphStructure) return new Set();
+
+    const myAccountLower = normalizeHandle(myAccount);
+    if (!myAccountLower) return new Set();
+
+    // Find my account node in the graph
+    const edges = graphStructure.graph?.edges || [];
+    const following = new Set();
+
+    edges.forEach(edge => {
+      const sourceLower = normalizeHandle(edge.source);
+      if (sourceLower === myAccountLower) {
+        const targetLower = normalizeHandle(edge.target);
+        if (targetLower) {
+          following.add(targetLower);
+        }
+      }
+    });
+
+    return following;
+  }, [myAccount, graphStructure]);
+
   const topEntries = useMemo(() => {
-    return Object.entries(tpotnessScores)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 12);
-  }, [tpotnessScores]);
+    let entries = Object.entries(tpotnessScores)
+      .sort((a, b) => b[1] - a[1]);
+
+    // Filter out accounts I'm already following
+    if (excludeFollowing && myFollowingSet.size > 0) {
+      entries = entries.filter(([id]) => {
+        const idLower = normalizeHandle(id);
+        return !myFollowingSet.has(idLower);
+      });
+    }
+
+    return entries.slice(0, 12);
+  }, [tpotnessScores, excludeFollowing, myFollowingSet]);
+
+  const bridgeSummary = useMemo(() => {
+    if (!bridgeDiagnostics) {
+      return { connectors: [], orphans: [] };
+    }
+    const connectors = [];
+    if (bridgeDiagnostics.connectors && bridgeDiagnostics.connectors.forEach) {
+      bridgeDiagnostics.connectors.forEach((value, key) => {
+        const supports = Array.from(value.supports || []);
+        connectors.push({
+          id: key,
+          supports,
+          supportsCount: supports.length,
+          samples: value.samples || []
+        });
+      });
+    }
+    connectors.sort((a, b) => (b.supportsCount || 0) - (a.supportsCount || 0));
+
+    const orphans = [];
+    if (bridgeDiagnostics.orphans && bridgeDiagnostics.orphans.forEach) {
+      bridgeDiagnostics.orphans.forEach((value, key) => {
+        orphans.push({
+          id: key,
+          requiredBridgeCount: value?.requiredBridgeCount ?? null,
+          totalHops: value?.totalHops ?? null,
+          reason: value?.reason
+        });
+      });
+    }
+    orphans.sort((a, b) => (b.requiredBridgeCount || 0) - (a.requiredBridgeCount || 0));
+    return { connectors, orphans };
+  }, [bridgeDiagnostics]);
+
+  const contextHandle = contextMenu?.node
+    ? normalizeHandle(contextMenu.node.username || contextMenu.node.id)
+    : null;
+  const contextIsCustomSeed = contextHandle ? customSeedHandleSet.has(contextHandle) : false;
+  const contextIsSeed = contextHandle ? effectiveSeedSet.has(contextHandle) : false;
 
   const seedList = useMemo(() => {
     const unique = new Map();
@@ -471,16 +963,28 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         unique.set(node.idLower, node);
       }
     });
-    customSeedSet.forEach((seed) => {
+    customSeedHandleSet.forEach((seed) => {
       if (!unique.has(seed)) {
         unique.set(seed, { id: seed, username: seed, display_name: seed, idLower: seed });
       }
     });
     return Array.from(unique.values());
-  }, [graphData.nodes, effectiveSeedSet, customSeedSet]);
+  }, [graphData.nodes, effectiveSeedSet, customSeedHandleSet]);
 
-  const totalWeight = weights.pr + weights.bt + weights.eng;
-  const selectedNeighbors = selectedNodeId ? neighborMap.get(selectedNodeId) || new Set() : new Set();
+  const selectedNeighbors = useMemo(() => {
+    if (!selectedNodeId) return new Set();
+    return neighborMap.get(selectedNodeId) || new Set();
+  }, [neighborMap, selectedNodeId]);
+
+  const getNodeColor = useCallback((node) => {
+    if (node.id === selectedNodeId) return COLORS.selectedNode;
+    if (node.orphanInfo) return COLORS.orphanNode;
+    if (node.isBridge) return COLORS.bridgeNode;
+    if (selectedNeighbors.has(node.id)) return COLORS.neighborNode;
+    if (node.isSeed) return COLORS.seedNode;
+    if (node.shadow) return COLORS.shadowNode;
+    return COLORS.baseNode;
+  }, [selectedNodeId, selectedNeighbors]);
 
   const getLinkStyle = (link) => {
     const sourceId = typeof link.source === "object" ? link.source.id : link.source;
@@ -488,24 +992,24 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     const isSelectedEdge =
       selectedNodeId && (sourceId === selectedNodeId || targetId === selectedNodeId);
     if (isSelectedEdge) {
-      return { color: COLORS.selectedEdge, width: 2.6, dash: [] };
+      return { color: COLORS.selectedEdge, width: 1.5, dash: [] };
     }
 
     const connectsNeighbors =
       selectedNodeId && selectedNeighbors.has(sourceId) && selectedNeighbors.has(targetId);
     if (connectsNeighbors) {
-      return { color: COLORS.neighborEdge, width: 2.2, dash: [] };
+      return { color: COLORS.neighborEdge, width: 1.2, dash: [] };
     }
 
     if (link.shadow) {
-      return { color: "rgba(203, 213, 225, 0.7)", width: 1.2, dash: [3, 5] };
+      return { color: `rgba(203, 213, 225, ${edgeOpacity})`, width: 0.6, dash: [3, 5] };
     }
 
     if (link.mutual) {
-      return { color: COLORS.mutualEdge, width: 1.7, dash: [] };
+      return { color: `rgba(224, 242, 254, ${edgeOpacity})`, width: 0.8, dash: [] };
     }
 
-    return { color: COLORS.oneWayEdge, width: 1.3, dash: [6, 4] };
+    return { color: `rgba(125, 211, 252, ${edgeOpacity * 0.6})`, width: 0.7, dash: [6, 4] };
   };
 
   useEffect(() => {
@@ -526,6 +1030,71 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
     }
   }, [linkDistance, graphData]);
 
+  const focusOnNode = useCallback((node) => {
+    if (!graphRef.current || !node) return;
+    const duration = 800;
+    graphRef.current.centerAt(node.x, node.y, duration);
+    graphRef.current.zoom(2.2, duration);
+  }, []);
+
+  const addNodeToCustomSeeds = useCallback(async (node) => {
+    if (!node) return;
+    const normalized = normalizeHandle(node.username || node.id);
+    if (!normalized) return;
+
+    const baseSeeds = activeSeedList;
+    if (baseSeeds.some((seed) => normalizeHandle(seed) === normalized)) {
+      setContextMenu(null);
+      return;
+    }
+
+    const updated = sanitizeSeedList([...baseSeeds, normalized]);
+    applyCustomSeedList(updated, { keepPresetName: true });
+    try {
+      await persistSeedsToServer(updated);
+    } catch (err) {
+      console.error("Failed to persist seed addition:", err);
+      if (typeof window !== "undefined" && window.alert) {
+        window.alert(err.message || "Failed to save seeds. They remain local only.");
+      }
+    } finally {
+      setContextMenu(null);
+    }
+  }, [activeSeedList, applyCustomSeedList, persistSeedsToServer]);
+
+  const removeNodeFromCustomSeeds = useCallback(async (node) => {
+    if (!node) return;
+    const normalized = normalizeHandle(node.username || node.id);
+    if (!normalized) return;
+
+    const baseSeeds = activeSeedList;
+    if (!baseSeeds.some((seed) => normalizeHandle(seed) === normalized)) {
+      setContextMenu(null);
+      return;
+    }
+
+    if (baseSeeds.length <= 1) {
+      if (typeof window !== "undefined" && window.alert) {
+        window.alert("Keep at least one seed in your Part of Twitter.");
+      }
+      setContextMenu(null);
+      return;
+    }
+
+    const updated = sanitizeSeedList(baseSeeds.filter((seed) => normalizeHandle(seed) !== normalized));
+    applyCustomSeedList(updated, { keepPresetName: true });
+    try {
+      await persistSeedsToServer(updated);
+    } catch (err) {
+      console.error("Failed to persist seed removal:", err);
+      if (typeof window !== "undefined" && window.alert) {
+        window.alert(err.message || "Failed to save seeds. They remain local only.");
+      }
+    } finally {
+      setContextMenu(null);
+    }
+  }, [activeSeedList, applyCustomSeedList, persistSeedsToServer]);
+
   const handleWeightChange = (key) => (event) => {
     const value = Number(event.target.value);
     setWeights((prev) => ({ ...prev, [key]: value }));
@@ -534,9 +1103,12 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
   const handlePresetChange = (event) => {
     const name = event.target.value;
     setPresetName(name);
-    const presetSeeds = DEFAULT_PRESETS[name] || [];
-    setCustomSeeds(presetSeeds);
-    setSeedTextarea(presetSeeds.join("\n"));
+    if (name === "Custom") {
+      applyCustomSeedList(customSeeds, { keepPresetName: true });
+      return;
+    }
+    const presetSeeds = availablePresets[name] || [];
+    applyCustomSeedList(presetSeeds, { keepPresetName: true });
   };
 
   const handleApplyCustomSeeds = () => {
@@ -544,7 +1116,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       .split(/[,\n]/)
       .map((line) => line.trim())
       .filter(Boolean);
-    setCustomSeeds(lines);
+    applyCustomSeedList(lines);
   };
 
   const handleDownloadCsv = () => {
@@ -563,7 +1135,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
       "\n" +
       graphData.nodes
         .map((node) => {
-          const tpotness = tpotnessScores[node.id] ?? 0;
+          const tpotness = getTpotnessFor(node.id, node.username);
           return [
             node.id,
             JSON.stringify(node.display_name || ""),
@@ -629,12 +1201,12 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             </div>
 
             <section>
-              <h2>Graph summary</h2>
-              <div className="summary-grid">
-                <div>
-                  <span className="summary-label">Nodes</span>
-                  <span className="summary-value">{graphStats.totalNodes}</span>
-                </div>
+            <h2>Graph summary</h2>
+            <div className="summary-grid">
+              <div>
+                <span className="summary-label">Nodes</span>
+                <span className="summary-value">{graphStats.totalNodes}</span>
+              </div>
                 <div>
                   <span className="summary-label">Visible edges</span>
                   <span className="summary-value">{graphStats.visibleEdges}</span>
@@ -658,9 +1230,14 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
                 <div>
                   <span className="summary-label">Shadow edges visible</span>
                   <span className="summary-value">{graphStats.visibleShadowEdges}</span>
-                </div>
               </div>
-            </section>
+            </div>
+            {graphStats.usingStructuralFallback && (
+              <p style={{ marginTop: 8, fontSize: '0.85em', color: '#94a3b8' }}>
+                Structural view is visible while personalized metrics finish computing.
+              </p>
+            )}
+          </section>
 
             <section>
               <h2>Legend</h2>
@@ -682,6 +1259,22 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
                 />
                 Show mutual-only edges
               </label>
+            </section>
+
+            <section>
+              <h2>Edge opacity</h2>
+              <div className="slider">
+                <label>Transparency {edgeOpacity.toFixed(2)}</label>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="1.0"
+                  step="0.05"
+                  value={edgeOpacity}
+                  onChange={(e) => setEdgeOpacity(parseFloat(e.target.value))}
+                />
+              </div>
+              <small>Adjust edge transparency (lower = more transparent)</small>
             </section>
 
             <section>
@@ -745,6 +1338,52 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             </section>
 
             <section>
+              <h2>Connectivity</h2>
+              <div className="summary-grid">
+                <div>
+                  <span className="summary-label">Bridge nodes</span>
+                  <span className="summary-value">{graphStats.bridgeNodeCount || 0}</span>
+                </div>
+                <div>
+                  <span className="summary-label">Unresolved orphans</span>
+                  <span className="summary-value">{graphStats.orphanCount || 0}</span>
+                </div>
+              </div>
+              {bridgeSummary.connectors.length > 0 && (
+                <div style={{ marginTop: '8px', fontSize: '0.9em' }}>
+                  <strong>Key connectors</strong>
+                  <ul>
+                    {bridgeSummary.connectors.slice(0, 3).map((item) => {
+                      const labelNode = nodeLookup.get(item.id) || {};
+                      const label = labelNode.display_name || labelNode.username || item.id;
+                      return (
+                        <li key={`connector-${item.id}`}>
+                          {label} · supports {item.supportsCount} node{item.supportsCount === 1 ? '' : 's'}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {bridgeSummary.orphans.length > 0 && (
+                <div style={{ marginTop: '8px', fontSize: '0.9em' }}>
+                  <strong style={{ color: '#f87171' }}>Still disconnected</strong>
+                  <ul>
+                    {bridgeSummary.orphans.slice(0, 3).map((item) => {
+                      const labelNode = nodeLookup.get(item.id) || {};
+                      const label = labelNode.display_name || labelNode.username || item.id;
+                      return (
+                        <li key={`orphan-${item.id}`}>
+                          {label} · needs {item.requiredBridgeCount}+ bridge nodes
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </section>
+
+            <section>
               <h2>Layout</h2>
               <div className="slider">
                 <label>Subgraph Size (N) {subgraphSize}</label>
@@ -781,7 +1420,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             <section>
               <h2>Seed presets</h2>
               <select value={presetName} onChange={handlePresetChange}>
-                {Object.keys(DEFAULT_PRESETS).map((name) => (
+                {Object.keys(availablePresets).map((name) => (
                   <option key={name} value={name}>
                     {name}
                   </option>
@@ -798,26 +1437,64 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             </section>
 
             <section>
-              <h2>Top accounts</h2>
-              <ol className="top-list">
-                {topEntries.map(([id, score]) => {
-                  const node = nodeLookup.get(id) || {};
-                  const label = node.display_name || node.username || id;
-                  return (
-                    <li
-                      key={`${id}`}
-                      onMouseEnter={() => setSelectedNodeId(node.id)}
-                      onMouseLeave={() => setSelectedNodeId(null)}
-                      onClick={() => setSelectedNodeId(node.id)}
-                    >
-                      <strong>{label}</strong>
-                      <div className="top-metrics">
-                        {(score * 100).toFixed(1)} · PR {(node.pagerank ?? 0).toFixed(3)} · BT {(node.betweenness ?? 0).toFixed(3)} · EN {(node.engagement ?? 0).toFixed(3)}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+              <h2>My Account (optional)</h2>
+              <input
+                type="text"
+                value={myAccount}
+                onChange={(e) => setMyAccount(e.target.value)}
+                placeholder="Your username (e.g., adityaarpitha)"
+                style={{ width: '100%', padding: '8px', marginBottom: '8px' }}
+              />
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={excludeFollowing}
+                  onChange={(e) => setExcludeFollowing(e.target.checked)}
+                  disabled={!myAccount || myFollowingSet.size === 0}
+                />
+                Exclude accounts I follow from Top Accounts
+              </label>
+              {myAccount && myFollowingSet.size > 0 && (
+                <small style={{ display: 'block', marginTop: '4px', color: '#94a3b8' }}>
+                  Found {myFollowingSet.size} accounts you follow
+                </small>
+              )}
+            </section>
+
+            <section>
+              <h2>Top accounts (by TPOT-ness score)</h2>
+              <small style={{ display: 'block', marginBottom: '8px', color: '#94a3b8' }}>
+                Ranked by discovery weights:&nbsp;
+                {Object.entries(discoveryMetrics.config?.weights || DEFAULT_DISCOVERY_WEIGHTS)
+                  .map(([metric, weight]) => `${metric} ${(weight * 100).toFixed(0)}%`)
+                  .join(' · ')}
+                {excludeFollowing && myFollowingSet.size > 0 && ' · Excluding accounts you follow'}
+              </small>
+              {topEntries.length === 0 ? (
+                <p className="top-list-empty">
+                  Metrics still loading. Run a computation or adjust your seeds to populate this list.
+                </p>
+              ) : (
+                <ol className="top-list">
+                  {topEntries.map(([id, score]) => {
+                    const node = nodeLookup.get(id) || {};
+                    const label = node.display_name || node.username || id;
+                    return (
+                      <li
+                        key={`${id}`}
+                        onMouseEnter={() => setSelectedNodeId(node.id)}
+                        onMouseLeave={() => setSelectedNodeId(null)}
+                        onClick={() => setSelectedNodeId(node.id)}
+                      >
+                        <strong>{label}</strong>
+                        <div className="top-metrics">
+                          {(score * 100).toFixed(1)} · PR {(node.pagerank ?? 0).toFixed(3)} · BT {(node.betweenness ?? 0).toFixed(3)} · EN {(node.engagement ?? 0).toFixed(3)}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
             </section>
 
             <section>
@@ -838,7 +1515,7 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
                 <div className="selected-card">
                   {(() => {
                     const node = nodeLookup.get(selectedNodeId) || {};
-                    const tpotness = tpotnessScores[node.id] ?? 0;
+                    const tpotness = getTpotnessFor(node.id, node.username);
                     return (
                       <>
                         <h3>{node.display_name || node.username || node.id}</h3>
@@ -852,6 +1529,19 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
                         <p>Following: {node.num_following ?? "?"}</p>
                         <p>Location: {node.location || "—"}</p>
                         <p>Bio: {node.bio || "—"}</p>
+                        {node.bridgeConnectorInfo && (
+                          <p>Bridge connector for {node.bridgeConnectorInfo.supports.length} node{node.bridgeConnectorInfo.supports.length === 1 ? '' : 's'}</p>
+                        )}
+                        {node.bridgeTargetInfo && (
+                          <p>
+                            Connected via {node.bridgeTargetInfo.bridgeCount} bridge node{node.bridgeTargetInfo.bridgeCount === 1 ? '' : 's'} · Path: {describePath(node.bridgeTargetInfo.path)}
+                          </p>
+                        )}
+                        {node.orphanInfo && (
+                          <p style={{ color: '#f87171' }}>
+                            Unresolved: needs {node.orphanInfo.requiredBridgeCount}+ bridge nodes (reason: {node.orphanInfo.reason || 'limit'})
+                          </p>
+                        )}
                         {node.shadow && node.shadow_scrape_stats && (
                           <p>Shadow stats: {JSON.stringify(node.shadow_scrape_stats)}</p>
                         )}
@@ -869,20 +1559,16 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
         <ForceGraph2D
           ref={graphRef}
           graphData={graphData}
-          nodeRelSize={6}
-          enableNodeDrag={false}
-          nodeColor={(node) => {
-            if (node.id === selectedNodeId) return COLORS.selectedNode;
-            if (selectedNeighbors.has(node.id)) return COLORS.neighborNode;
-            if (node.isSeed) return COLORS.seedNode;
-            if (node.shadow) return COLORS.shadowNode;
-            return COLORS.baseNode;
-          }}
+          enableNodeDrag={true}
+          nodeColor={getNodeColor}
           linkColor={(link) => getLinkStyle(link).color}
           linkWidth={(link) => getLinkStyle(link).width}
           linkDirectionalParticles={(link) => (link.mutual ? 0 : 2)}
           linkDirectionalParticleWidth={1.6}
           linkDirectionalParticleColor={(link) => getLinkStyle(link).color}
+          linkDirectionalArrowLength={(link) => (link.mutual ? 0 : 8)}
+          linkDirectionalArrowRelPos={(link) => (link.mutual ? 0.5 : 0.92)}
+          linkDirectionalArrowColor={(link) => getLinkStyle(link).color}
           linkCanvasObjectMode={() => "replace"}
           linkCanvasObject={(link, ctx) => {
             if (!link.source || !link.target) return;
@@ -902,27 +1588,142 @@ export default function GraphExplorer({ dataUrl = "/analysis_output.json" }) {
             ctx.restore();
           }}
           nodeLabel={(node) => {
-            const tpotness = tpotnessScores[node.id] ?? 0;
+            const tpotness = getTpotnessFor(node.id, node.username);
             const name = node.display_name || node.username || node.id;
             const distanceLabel = Number.isFinite(node.hopDistance)
               ? node.hopDistance
               : "∞";
             const provenanceLabel = node.provenance || (node.shadow ? "shadow" : "archive");
-            return `${name}\nProvenance: ${provenanceLabel}\nTPOT-ness: ${(tpotness * 100).toFixed(1)}\nMutual edges: ${node.mutualCount}\nSeed touches: ${node.seedTouchCount}\nHop distance: ${distanceLabel}\nPageRank: ${(node.pagerank ?? 0).toFixed(3)}\nBetweenness: ${(node.betweenness ?? 0).toFixed(3)}\nEngagement: ${(node.engagement ?? 0).toFixed(3)}`;
+            const statusLabel = node.orphanInfo
+              ? `🚧 needs ${node.orphanInfo.requiredBridgeCount}+ bridge nodes`
+              : node.isBridge
+                ? "Bridge connector"
+                : "";
+            return `${name}\nProvenance: ${provenanceLabel}\nTPOT-ness: ${(tpotness * 100).toFixed(1)}\nMutual edges: ${node.mutualCount}\nSeed touches: ${node.seedTouchCount}\nHop distance: ${distanceLabel}\nPageRank: ${(node.pagerank ?? 0).toFixed(3)}\nBetweenness: ${(node.betweenness ?? 0).toFixed(3)}\nEngagement: ${(node.engagement ?? 0).toFixed(3)}${statusLabel ? `\nStatus: ${statusLabel}` : ""}`;
           }}
-          nodeCanvasObjectMode={() => "after"}
+          nodeCanvasObjectMode={() => "replace"}
           nodeCanvasObject={(node, ctx, globalScale) => {
-            const label = node.display_name || node.username || node.id;
+            // Calculate zoom-responsive radius - size based on betweenness centrality
+            const betweenness = node.betweenness ?? 0;
+            const baseRadius = 4 + (betweenness * 20); // Scale 4-8 based on betweenness
+            const radius = baseRadius / Math.sqrt(globalScale);
+
+            // Get node color
+            const color = getNodeColor(node);
+
+            // Draw circle
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // Optional: Add border for selected nodes
+            if (node.id === selectedNodeId) {
+              ctx.strokeStyle = COLORS.selectedNode;
+              ctx.lineWidth = 2 / globalScale;
+              ctx.stroke();
+            } else if (node.orphanInfo) {
+              ctx.strokeStyle = COLORS.orphanNode;
+              ctx.lineWidth = 2 / globalScale;
+              ctx.stroke();
+            } else if (node.isBridge) {
+              ctx.strokeStyle = COLORS.bridgeNode;
+              ctx.lineWidth = 1.5 / globalScale;
+              ctx.stroke();
+            }
+
+            // Draw label - black text for better readability
+            const label = node.username || node.id;
             const fontSize = 12 / globalScale;
             ctx.font = `${fontSize}px sans-serif`;
-            ctx.fillStyle = "rgba(248, 250, 252, 0.92)";
-            ctx.fillText(label, node.x + 8, node.y + fontSize / 2);
+            ctx.fillStyle = "#0284c7";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+            ctx.fillText(label, node.x + radius + 2, node.y);
           }}
           onNodeClick={(node) => {
             setSelectedNodeId(node.id === selectedNodeId ? null : node.id);
           }}
+          onNodeRightClick={(node, event) => {
+            event.preventDefault();
+            setContextMenu({
+              node,
+              x: event.clientX,
+              y: event.clientY
+            });
+          }}
         />
       </div>
+
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            zIndex: 1000
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="context-menu-item"
+            onClick={() => {
+              const username = contextMenu.node.username || contextMenu.node.id;
+              navigator.clipboard.writeText(username);
+              setContextMenu(null);
+            }}
+          >
+            Copy @{contextMenu.node.username || contextMenu.node.id}
+          </button>
+          <button
+            className="context-menu-item"
+            onClick={() => {
+              if (contextIsCustomSeed) {
+                removeNodeFromCustomSeeds(contextMenu.node);
+              } else {
+                addNodeToCustomSeeds(contextMenu.node);
+              }
+            }}
+          >
+            {contextIsCustomSeed ? 'Remove from custom seeds' : 'Add as custom seed'}
+          </button>
+          {!contextIsCustomSeed && contextIsSeed && (
+            <div className="context-menu-hint">
+              Already part of the active preset
+            </div>
+          )}
+          {contextMenu.node.bridgeConnectorInfo && (
+            <div className="context-menu-hint">
+              Bridge connector for {contextMenu.node.bridgeConnectorInfo.supports.length} node{contextMenu.node.bridgeConnectorInfo.supports.length === 1 ? '' : 's'}
+            </div>
+          )}
+          {contextMenu.node.orphanInfo && (
+            <div className="context-menu-hint" style={{ color: '#f87171' }}>
+              Needs {contextMenu.node.orphanInfo.requiredBridgeCount}+ bridge nodes
+            </div>
+          )}
+          <button
+            className="context-menu-item"
+            onClick={() => {
+              const username = contextMenu.node.username || contextMenu.node.id;
+              window.open(`https://twitter.com/${username}`, '_blank');
+              setContextMenu(null);
+            }}
+          >
+            Open on Twitter
+          </button>
+          <button
+            className="context-menu-item"
+            onClick={() => {
+              focusOnNode(contextMenu.node);
+              setContextMenu(null);
+            }}
+          >
+            Center & zoom here
+          </button>
+        </div>
+      )}
     </div>
   );
 }
