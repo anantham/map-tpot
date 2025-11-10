@@ -9,6 +9,13 @@ enrichment_summary.json
 .coverage.*
 htmlcov/
 
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
 # Local data and state
 *.db
 *.sqlite
