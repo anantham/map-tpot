@@ -101,14 +101,15 @@ class BlobStorageImporter:
         logger.info(f"Found {len(usernames)} usernames in account table (will attempt import for each)")
         return usernames
 
-    def fetch_archive(self, username: str) -> Optional[Dict]:
+    def fetch_archive(self, username: str) -> Optional[tuple[Dict, Optional[datetime]]]:
         """Fetch archive JSON from blob storage.
 
         Args:
             username: Twitter handle (will be lowercased)
 
         Returns:
-            Archive dict or None if not found
+            Tuple of (archive_dict, upload_timestamp) or None if not found
+            upload_timestamp is extracted from Last-Modified header if available
         """
         username_lower = username.lower()
         url = f"{self.base_url}/storage/v1/object/public/archives/{username_lower}/archive.json"
@@ -124,7 +125,19 @@ class BlobStorageImporter:
                 logger.warning(f"Archive not found for '{username}' at {url}")
                 return None
             response.raise_for_status()
-            return response.json()
+
+            # Extract upload timestamp from Last-Modified header
+            upload_timestamp = None
+            last_modified = response.headers.get("Last-Modified")
+            if last_modified:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    upload_timestamp = parsedate_to_datetime(last_modified)
+                    logger.debug(f"Archive for '{username}' last modified: {upload_timestamp}")
+                except Exception as e:
+                    logger.warning(f"Failed to parse Last-Modified header: {e}")
+
+            return response.json(), upload_timestamp
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch archive for '{username}': {e}")
             return None
@@ -146,9 +159,11 @@ class BlobStorageImporter:
         Returns:
             Metadata about the import, or None if archive not found
         """
-        archive = self.fetch_archive(username)
-        if not archive:
+        result = self.fetch_archive(username)
+        if not result:
             return None
+
+        archive, upload_timestamp = result
 
         # Extract account info
         account_data = archive.get("account", [])
@@ -210,7 +225,8 @@ class BlobStorageImporter:
             source_account_id=account_id,
             target_account_ids=following_ids,
             edge_type="following",
-            merge_strategy=merge_strategy
+            merge_strategy=merge_strategy,
+            upload_timestamp=upload_timestamp
         )
 
         # Import follower edges
@@ -218,7 +234,8 @@ class BlobStorageImporter:
             source_account_id=account_id,
             target_account_ids=follower_ids,
             edge_type="follower",
-            merge_strategy=merge_strategy
+            merge_strategy=merge_strategy,
+            upload_timestamp=upload_timestamp
         )
 
         return ArchiveMetadata(
@@ -237,7 +254,8 @@ class BlobStorageImporter:
         source_account_id: str,
         target_account_ids: List[str],
         edge_type: str,  # "following" or "follower"
-        merge_strategy: str
+        merge_strategy: str,
+        upload_timestamp: Optional[datetime] = None
     ):
         """Import edges into archive staging tables.
 
@@ -246,6 +264,7 @@ class BlobStorageImporter:
             target_account_ids: List of account IDs in the relationship
             edge_type: "following" (accounts source follows) or "follower" (accounts following source)
             merge_strategy: Reserved for future use (currently always imports to staging)
+            upload_timestamp: Actual upload/modification time from archive metadata (HTTP Last-Modified header)
 
         Directionality:
             - "following": source_account → target_account (source follows target)
@@ -255,6 +274,8 @@ class BlobStorageImporter:
             logger.debug(f"Skipping {edge_type} import (shadow_only mode)")
             return
 
+        # Use actual upload timestamp if available, otherwise fall back to current time
+        uploaded_at = (upload_timestamp or datetime.utcnow()).isoformat()
         now = datetime.utcnow().isoformat()
 
         # Choose target table based on edge type
@@ -286,7 +307,7 @@ class BlobStorageImporter:
                 """), {
                     "account_id": account_id,
                     "related_id": related_id,
-                    "uploaded_at": now,  # TODO: Get actual upload timestamp from archive metadata
+                    "uploaded_at": uploaded_at,  # Actual upload timestamp from HTTP Last-Modified header
                     "imported_at": now
                 })
 
