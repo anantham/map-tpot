@@ -11,13 +11,15 @@ are better covered by end-to-end tests.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import Mock
 
 import pytest
 
+from src.data.shadow_store import ScrapeRunMetrics, ShadowList, ShadowListMember
+from src.shadow import SeedAccount
 from src.shadow.enricher import HybridShadowEnricher
-from src.shadow.selenium_worker import CapturedUser, UserListCapture, ProfileOverview
+from src.shadow.selenium_worker import CapturedUser, UserListCapture, ProfileOverview, ListOverview
 
 
 # ==============================================================================
@@ -28,6 +30,7 @@ from src.shadow.selenium_worker import CapturedUser, UserListCapture, ProfileOve
 def mock_store():
     """Create a minimal mock ShadowStore."""
     store = Mock()
+    store.get_account_id_by_username = Mock(return_value=None)
     return store
 
 
@@ -396,6 +399,258 @@ class TestProfileOverviewFromCaptures:
 
 
 # ==============================================================================
+# _should_refresh_list Profile Total Tests
+# ==============================================================================
+
+@pytest.mark.unit
+class TestShouldRefreshListProfileTotals:
+    """Ensure small-account profile totals gate skip decisions."""
+
+    @staticmethod
+    def _make_metrics(
+        *,
+        following_captured: int,
+        followers_captured: int,
+    ) -> ScrapeRunMetrics:
+        return ScrapeRunMetrics(
+            seed_account_id="seed123",
+            seed_username="seeduser",
+            run_at=datetime.utcnow(),
+            duration_seconds=1.0,
+            following_captured=following_captured,
+            followers_captured=followers_captured,
+            followers_you_follow_captured=0,
+            list_members_captured=0,
+            following_claimed_total=None,
+            followers_claimed_total=None,
+            followers_you_follow_claimed_total=None,
+            following_coverage=None,
+            followers_coverage=None,
+            followers_you_follow_coverage=None,
+            accounts_upserted=0,
+            edges_upserted=0,
+            discoveries_upserted=0,
+            skipped=False,
+            skip_reason=None,
+            error_type=None,
+            error_details=None,
+        )
+
+    def test_small_account_counts_considered_complete(self, mock_store, mock_config):
+        """Should skip when captured edges match the observed small profile total."""
+        enricher = HybridShadowEnricher(mock_store, mock_config)
+        seed = SeedAccount(account_id="seed123", username="seeduser")
+        mock_store.get_last_scrape_metrics.return_value = self._make_metrics(
+            following_captured=8,
+            followers_captured=0,
+        )
+        mock_store.edge_summary_for_seed.return_value = {
+            "following": 8,
+            "followers": 0,
+            "followers_you_follow": 0,
+        }
+
+        should_refresh, reason = enricher._should_refresh_list(seed, "following", current_total=8)
+
+        assert should_refresh is False
+        assert reason == "following_fresh_sufficient_capture"
+
+    def test_small_account_needing_additional_edges(self, mock_store, mock_config):
+        """Should refresh when captured edges fall short of the observed profile total."""
+        enricher = HybridShadowEnricher(mock_store, mock_config)
+        seed = SeedAccount(account_id="seed123", username="seeduser")
+        mock_store.get_last_scrape_metrics.return_value = self._make_metrics(
+            following_captured=7,
+            followers_captured=0,
+        )
+        mock_store.edge_summary_for_seed.return_value = {
+            "following": 7,
+            "followers": 0,
+            "followers_you_follow": 0,
+        }
+
+        should_refresh, reason = enricher._should_refresh_list(seed, "following", current_total=8)
+
+        assert should_refresh is True
+        assert reason == "profile_total_not_met"
+
+    def test_small_account_db_mismatch_triggers_rescrape(self, mock_store, mock_config):
+        """Should refresh when DB edges drop below the observed total despite metrics."""
+        enricher = HybridShadowEnricher(mock_store, mock_config)
+        seed = SeedAccount(account_id="seed123", username="seeduser")
+        mock_store.get_last_scrape_metrics.return_value = self._make_metrics(
+            following_captured=8,
+            followers_captured=0,
+        )
+        mock_store.edge_summary_for_seed.return_value = {
+            "following": 5,
+            "followers": 0,
+            "followers_you_follow": 0,
+        }
+
+        should_refresh, reason = enricher._should_refresh_list(seed, "following", current_total=8)
+
+        assert should_refresh is True
+        assert reason == "metrics_db_mismatch_corruption_detected"
+
+    def test_missing_profile_total_falls_back_to_min_raw_threshold(self, mock_store, mock_config):
+        """Fallback to legacy threshold when profile total is unavailable."""
+        enricher = HybridShadowEnricher(mock_store, mock_config)
+        seed = SeedAccount(account_id="seed123", username="seeduser")
+        mock_store.get_last_scrape_metrics.return_value = self._make_metrics(
+            following_captured=8,
+            followers_captured=0,
+        )
+        mock_store.edge_summary_for_seed.return_value = {
+            "following": 8,
+            "followers": 0,
+            "followers_you_follow": 0,
+        }
+
+        should_refresh, reason = enricher._should_refresh_list(seed, "following", current_total=None)
+
+        assert should_refresh is True
+        assert reason == "low_captured_count_in_metrics"
+
+
+# ==============================================================================
+# List caching Tests
+# ==============================================================================
+
+
+@pytest.mark.unit
+class TestListCaching:
+    def test_fetch_list_members_uses_cache_when_fresh(self, mock_store, mock_config):
+        enricher = HybridShadowEnricher(mock_store, mock_config)
+        enricher._selenium = Mock()
+
+        fresh_list = ShadowList(
+            list_id="list123",
+            name="Test List",
+            description="Curated",
+            owner_account_id="shadow:owner",
+            owner_username="owner",
+            owner_display_name="Owner",
+            member_count=2,
+            claimed_member_total=2,
+            followers_count=5,
+            fetched_at=datetime.utcnow() - timedelta(days=1),
+            source_channel="selenium_list_members",
+            metadata={"owner_profile_url": "https://x.com/owner"},
+        )
+        cached_members = [
+            ShadowListMember(
+                list_id="list123",
+                member_account_id="shadow:user1",
+                member_username="user1",
+                member_display_name="User 1",
+                bio=None,
+                website=None,
+                profile_image_url=None,
+                fetched_at=datetime.utcnow() - timedelta(days=1),
+                source_channel="hybrid_selenium",
+                metadata={"list_types": ["list_members"]},
+            ),
+            ShadowListMember(
+                list_id="list123",
+                member_account_id="shadow:user2",
+                member_username="user2",
+                member_display_name="User 2",
+                bio=None,
+                website=None,
+                profile_image_url=None,
+                fetched_at=datetime.utcnow() - timedelta(days=1),
+                source_channel="hybrid_selenium",
+                metadata={"list_types": ["list_members"]},
+            ),
+        ]
+
+        mock_store.get_shadow_list.return_value = fresh_list
+        mock_store.get_shadow_list_members.return_value = cached_members
+
+        capture = enricher.fetch_list_members_with_cache("list123")
+
+        mock_store.get_shadow_list.assert_called_once_with("list123")
+        mock_store.get_shadow_list_members.assert_called_once_with("list123")
+        enricher._selenium.fetch_list_members.assert_not_called()
+        assert len(capture.entries) == 2
+        assert capture.claimed_total == fresh_list.claimed_member_total
+        assert capture.list_overview is not None
+        assert capture.list_overview.owner_username == "owner"
+
+    def test_fetch_list_members_refreshes_when_stale(self, mock_store, mock_config):
+        enricher = HybridShadowEnricher(mock_store, mock_config)
+        enricher._selenium = Mock()
+
+        stale_list = ShadowList(
+            list_id="list123",
+            name="Old List",
+            description=None,
+            owner_account_id=None,
+            owner_username=None,
+            owner_display_name=None,
+            member_count=2,
+            claimed_member_total=2,
+            followers_count=None,
+            fetched_at=datetime.utcnow() - timedelta(days=365),
+            source_channel="selenium_list_members",
+            metadata=None,
+        )
+
+        mock_store.get_shadow_list.return_value = stale_list
+        mock_store.get_shadow_list_members.return_value = []
+        mock_store.upsert_lists = Mock()
+        mock_store.replace_list_members = Mock()
+        mock_store.record_scrape_metrics = Mock()
+
+        list_overview = ListOverview(
+            list_id="list123",
+            name="Refreshed",
+            description=None,
+            owner_username="owner",
+            owner_display_name="Owner",
+            owner_profile_url="https://x.com/owner",
+            members_total=1,
+            followers_total=7,
+        )
+
+        captured_entries = UserListCapture(
+            list_type="list_members",
+            entries=[
+                CapturedUser(
+                    username="user1",
+                    display_name="User 1",
+                    bio=None,
+                    profile_url="https://x.com/user1",
+                    website=None,
+                    profile_image_url=None,
+                    list_types={"list_members"},
+                )
+            ],
+            claimed_total=1,
+            page_url="https://twitter.com/i/lists/list123/members",
+            profile_overview=None,
+            list_overview=list_overview,
+        )
+
+        enricher._selenium.fetch_list_members.return_value = captured_entries
+        enricher._resolve_username = lambda captured: {
+            "account_id": f"shadow:{captured.username}",
+            "username": captured.username,
+            "display_name": captured.display_name,
+            "source_channel": "hybrid_selenium",
+        }
+
+        capture = enricher.fetch_list_members_with_cache("list123")
+
+        enricher._selenium.fetch_list_members.assert_called_once_with("list123")
+        mock_store.upsert_lists.assert_called_once()
+        mock_store.replace_list_members.assert_called_once()
+        mock_store.record_scrape_metrics.assert_called_once()
+        mock_store.get_account_id_by_username.assert_called_with("owner")
+        assert len(capture.entries) == 1
+        assert capture.entries[0].username == "user1"
+        assert capture.list_overview == list_overview
 # _check_list_freshness_across_runs Tests (Account ID Migration)
 # ==============================================================================
 

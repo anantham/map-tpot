@@ -8,6 +8,7 @@ import select
 import signal
 import sys
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -20,10 +21,13 @@ from ..data.shadow_store import (
     ShadowAccount,
     ShadowDiscovery,
     ShadowEdge,
+    ShadowList,
+    ShadowListMember,
     ShadowStore,
 )
 from .selenium_worker import (
     CapturedUser,
+    ListOverview,
     ProfileOverview,
     SeleniumConfig,
     SeleniumWorker,
@@ -149,6 +153,7 @@ class HybridShadowEnricher:
             self._api = XAPIClient(api_config)
         self._resolution_cache: Dict[str, Dict[str, object]] = {}
         self._first_scrape_confirmed = not config.confirm_first_scrape
+        self._current_phase_timings: dict[str, dict[str, float]] = {}
 
         # Pause/resume state
         self._pause_requested = False
@@ -177,6 +182,31 @@ class HybridShadowEnricher:
         edge_summary = self._store.edge_summary_for_seed(seed.account_id)
         logger.info(f"  Edge counts: following={edge_summary['following']}, followers={edge_summary['followers']}")
         logger.info("-------------------------------------------------")
+
+    @contextmanager
+    def _time_phase(self, group: str, name: str):
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            duration = time.perf_counter() - start
+            bucket = self._current_phase_timings.setdefault(group, {})
+            bucket[name] = bucket.get(name, 0.0) + duration
+            LOGGER.debug("[timing] %-15s %-24s %.3fs", group, name, duration)
+
+    def _phase_snapshot(self) -> Optional[dict[str, dict[str, float]]]:
+        if not self._current_phase_timings:
+            return None
+        return {
+            group: {phase: round(duration, 4) for phase, duration in phases.items()}
+            for group, phases in self._current_phase_timings.items()
+        }
+
+    def _log_phase_summary(self, identifier: str) -> None:
+        snapshot = self._phase_snapshot()
+        if not snapshot:
+            return
+        LOGGER.debug("[timing] summary for %s: %s", identifier, snapshot)
 
     # ------------------------------------------------------------------
     # Pause/Resume Helpers
@@ -364,7 +394,8 @@ class HybridShadowEnricher:
 
         # Fetch profile overview from Selenium
         start = time.perf_counter()
-        overview = self._selenium.fetch_profile_overview(seed.username)
+        with self._time_phase("profile", "fetch_overview"):
+            overview = self._selenium.fetch_profile_overview(seed.username)
         if not overview:
             LOGGER.error(
                 "Profile-only update failed for @%s (%s); could not load profile page",
@@ -380,6 +411,7 @@ class HybridShadowEnricher:
                 following_captured=0,
                 followers_captured=0,
                 followers_you_follow_captured=0,
+                list_members_captured=0,
                 following_claimed_total=None,
                 followers_claimed_total=None,
                 followers_you_follow_claimed_total=None,
@@ -389,12 +421,14 @@ class HybridShadowEnricher:
                 accounts_upserted=0,
                 edges_upserted=0,
                 discoveries_upserted=0,
+                phase_timings=self._phase_snapshot(),
                 skipped=False,
                 skip_reason=None,
                 error_type="profile_overview_missing",
                 error_details=f"Profile-only mode: Failed to fetch profile overview for @{seed.username}",
             )
             self._store.record_scrape_metrics(error_metrics)
+            self._log_phase_summary(f"@{seed.username}")
             return {
                 "username": seed.username,
                 "profile_only": True,
@@ -555,32 +589,66 @@ class HybridShadowEnricher:
         actual_edge_count = edge_summary.get(list_type, 0)
 
         MIN_RAW_TO_RETRY = 13
+        observed_total = (
+            current_total if current_total is not None and current_total >= 0 else None
+        )
+        small_account_total = (
+            observed_total if observed_total is not None and observed_total <= MIN_RAW_TO_RETRY else None
+        )
 
-        # Rule 1: If metrics show low captured count, retry
-        if last_captured is None or last_captured <= MIN_RAW_TO_RETRY:
-            LOGGER.info(
-                "@%s %s list has low captured count in metrics (%s <= %d); refresh needed.",
-                seed.username,
-                list_type,
-                last_captured,
-                MIN_RAW_TO_RETRY,
-            )
-            return (True, "low_captured_count_in_metrics")
+        # Rule 1: If profile totals indicate a small list, require full coverage
+        if small_account_total is not None:
+            if last_captured is None or last_captured < small_account_total:
+                LOGGER.info(
+                    "@%s %s list captured %s but profile reports %s accounts; refresh needed to match observed total (<= %d threshold).",
+                    seed.username,
+                    list_type,
+                    last_captured,
+                    small_account_total,
+                    MIN_RAW_TO_RETRY,
+                )
+                return (True, "profile_total_not_met")
+        else:
+            # Rule 1 (legacy): If metrics show low captured count, retry
+            if last_captured is None or last_captured <= MIN_RAW_TO_RETRY:
+                LOGGER.info(
+                    "@%s %s list has low captured count in metrics (%s <= %d); refresh needed.",
+                    seed.username,
+                    list_type,
+                    last_captured,
+                    MIN_RAW_TO_RETRY,
+                )
+                return (True, "low_captured_count_in_metrics")
 
         # Rule 2: CRITICAL - Verify DB actually has edges matching the metrics
         # If metrics say we captured data but DB is empty/sparse, that's corruption!
-        if actual_edge_count <= MIN_RAW_TO_RETRY:
-            LOGGER.warning(
-                "⚠️  DATA INTEGRITY CHECK: @%s %s metrics show %d captured, but DB only has %d edges!",
-                seed.username,
-                list_type,
-                last_captured,
-                actual_edge_count,
-            )
-            LOGGER.warning(
-                "   └─ Likely data corruption or partial write - forcing re-scrape to repair data"
-            )
-            return (True, "metrics_db_mismatch_corruption_detected")
+        if small_account_total is not None:
+            if actual_edge_count < small_account_total:
+                LOGGER.warning(
+                    "⚠️  DATA INTEGRITY CHECK: @%s %s profile total=%d but DB only has %d edges (metrics recorded %s).",
+                    seed.username,
+                    list_type,
+                    small_account_total,
+                    actual_edge_count,
+                    last_captured,
+                )
+                LOGGER.warning(
+                    "   └─ Small-account data mismatch detected - forcing re-scrape to repair data"
+                )
+                return (True, "metrics_db_mismatch_corruption_detected")
+        else:
+            if actual_edge_count <= MIN_RAW_TO_RETRY:
+                LOGGER.warning(
+                    "⚠️  DATA INTEGRITY CHECK: @%s %s metrics show %d captured, but DB only has %d edges!",
+                    seed.username,
+                    list_type,
+                    last_captured,
+                    actual_edge_count,
+                )
+                LOGGER.warning(
+                    "   └─ Likely data corruption or partial write - forcing re-scrape to repair data"
+                )
+                return (True, "metrics_db_mismatch_corruption_detected")
 
         # Rule 3: If we have sufficient edges, only refresh if data is very old
         age_days = (datetime.utcnow() - last_metrics.run_at).days
@@ -598,12 +666,13 @@ class HybridShadowEnricher:
 
         # Otherwise, the data is considered fresh enough.
         LOGGER.info(
-            "@%s %s list is considered fresh (age: %d days, metrics: %d captured, DB: %d edges) - skipping",
+            "@%s %s list is considered fresh (age: %d days, metrics: %d captured, DB: %d edges, profile_total=%s) - skipping",
             seed.username,
             list_type,
             age_days,
             last_captured,
             actual_edge_count,
+            observed_total if observed_total is not None else "-",
         )
         return (False, f"{list_type}_fresh_sufficient_capture")
 
@@ -692,7 +761,8 @@ class HybridShadowEnricher:
 
         # Scrape the list
         LOGGER.info("Scraping @%s following list (reason: %s)...", seed.username, reason)
-        capture = self._selenium.fetch_following(seed.username)
+        with self._time_phase("list_following", "selenium_fetch"):
+            capture = self._selenium.fetch_following(seed.username)
         if capture:
             LOGGER.info(
                 "✓ Scraped @%s following: captured %d/%s accounts",
@@ -737,7 +807,8 @@ class HybridShadowEnricher:
 
         # Scrape followers
         LOGGER.info("Scraping @%s followers list (reason: %s)...", seed.username, reason)
-        followers_capture = self._selenium.fetch_followers(seed.username)
+        with self._time_phase("list_followers", "selenium_fetch"):
+            followers_capture = self._selenium.fetch_followers(seed.username)
         if followers_capture:
             LOGGER.info(
                 "✓ Scraped @%s followers: captured %d/%s accounts",
@@ -750,7 +821,8 @@ class HybridShadowEnricher:
 
         # Scrape verified_followers
         LOGGER.info("Scraping @%s verified-followers list...", seed.username)
-        verified_followers_capture = self._selenium.fetch_verified_followers(seed.username)
+        with self._time_phase("list_verified_followers", "selenium_fetch"):
+            verified_followers_capture = self._selenium.fetch_verified_followers(seed.username)
         if verified_followers_capture:
             LOGGER.info(
                 "✓ Scraped @%s verified-followers: captured %d/%s accounts",
@@ -765,9 +837,10 @@ class HybridShadowEnricher:
         followers_you_follow_capture = None
         if self._config.include_followers_you_follow:
             LOGGER.info("Scraping @%s followers-you-follow list...", seed.username)
-            followers_you_follow_capture = self._selenium.fetch_followers_you_follow(
-                seed.username
-            )
+            with self._time_phase("list_followers_you_follow", "selenium_fetch"):
+                followers_you_follow_capture = self._selenium.fetch_followers_you_follow(
+                    seed.username
+                )
             if followers_you_follow_capture:
                 LOGGER.info(
                     "✓ Scraped @%s followers-you-follow: captured %d/%s accounts",
@@ -788,6 +861,99 @@ class HybridShadowEnricher:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+    def fetch_list_members_with_cache(
+        self,
+        list_id: str,
+        *,
+        force_refresh: bool = False,
+    ) -> UserListCapture:
+        """Fetch list members, using cached snapshots when fresh."""
+        list_meta = None if force_refresh else self._store.get_shadow_list(list_id)
+        if list_meta and not force_refresh:
+            age_days = (datetime.utcnow() - list_meta.fetched_at).days
+            if age_days <= self._policy.list_refresh_days:
+                members = self._store.get_shadow_list_members(list_id)
+                if members:
+                    LOGGER.info(
+                        "Using cached snapshot for list %s — %d members captured %d days ago",
+                        list_id,
+                        len(members),
+                        age_days,
+                    )
+                    return self._list_capture_from_cache(
+                        list_id=list_id,
+                        list_meta=list_meta,
+                        members=members,
+                    )
+                LOGGER.warning(
+                    "Cached list %s metadata found but no members persisted; forcing refresh.",
+                    list_id,
+                )
+
+        LOGGER.info("Refreshing list members for list %s via Selenium…", list_id)
+        start = time.perf_counter()
+        capture = self._selenium.fetch_list_members(list_id)
+        duration = time.perf_counter() - start
+
+        entries = capture.entries if capture else []
+        member_records = self._make_list_member_records(list_id=list_id, captures=entries)
+        now = datetime.utcnow()
+
+        overview: Optional[ListOverview] = capture.list_overview if capture else None
+        owner_account_id = None
+        if overview and overview.owner_username:
+            owner_account_id = self._store.get_account_id_by_username(overview.owner_username) or None
+        metadata: dict = {}
+        if overview and overview.owner_profile_url:
+            metadata["owner_profile_url"] = overview.owner_profile_url
+        if overview and overview.members_total is not None:
+            metadata["claimed_total"] = overview.members_total
+        elif capture and capture.claimed_total is not None:
+            metadata["claimed_total"] = capture.claimed_total
+
+        list_record = ShadowList(
+            list_id=list_id,
+            name=overview.name if overview else None,
+            description=overview.description if overview else None,
+            owner_account_id=owner_account_id,
+            owner_username=overview.owner_username if overview else None,
+            owner_display_name=overview.owner_display_name if overview else None,
+            member_count=len(entries),
+            claimed_member_total=overview.members_total if overview else (capture.claimed_total if capture else None),
+            followers_count=overview.followers_total if overview else None,
+            fetched_at=now,
+            source_channel="selenium_list_members",
+            metadata=metadata or None,
+        )
+        self._store.upsert_lists([list_record])
+        self._store.replace_list_members(list_id, member_records)
+
+        list_metrics = ScrapeRunMetrics(
+            seed_account_id=f"list:{list_id}",
+            seed_username=f"list:{list_id}",
+            run_at=now,
+            duration_seconds=duration,
+            following_captured=0,
+            followers_captured=0,
+            followers_you_follow_captured=0,
+            list_members_captured=len(entries),
+            following_claimed_total=None,
+            followers_claimed_total=overview.followers_total if overview else None,
+            followers_you_follow_claimed_total=None,
+            following_coverage=None,
+            followers_coverage=None,
+            followers_you_follow_coverage=None,
+            accounts_upserted=0,
+            edges_upserted=0,
+            discoveries_upserted=0,
+            phase_timings=self._phase_snapshot(),
+            skipped=False,
+            skip_reason=None,
+        )
+        self._store.record_scrape_metrics(list_metrics)
+
+        return capture
+
     def enrich(self, seeds: Sequence[SeedAccount]) -> Dict[str, Dict[str, object]]:
         """Enrich the graph starting from provided seed accounts."""
 
@@ -804,6 +970,8 @@ class HybridShadowEnricher:
             if not seed.username:
                 LOGGER.warning("Seed %s missing username; skipping", seed.account_id)
                 continue
+
+            self._current_phase_timings = {}
 
             LOGGER.info("\n" + "━" * 80)
             LOGGER.info("🔹 SEED #%d/%d: @%s", seed_idx, total_seeds, seed.username)
@@ -915,6 +1083,7 @@ class HybridShadowEnricher:
                     "edge_summary": edge_summary,
                 }
                 # Record skip metrics
+                phase_snapshot = self._phase_snapshot()
                 skip_metrics = ScrapeRunMetrics(
                     seed_account_id=seed.account_id,
                     seed_username=seed.username or "",
@@ -923,6 +1092,7 @@ class HybridShadowEnricher:
                     following_captured=0,
                     followers_captured=0,
                     followers_you_follow_captured=0,
+                    list_members_captured=0,
                     following_claimed_total=None,
                     followers_claimed_total=None,
                     followers_you_follow_claimed_total=None,
@@ -932,10 +1102,12 @@ class HybridShadowEnricher:
                     accounts_upserted=0,
                     edges_upserted=0,
                     discoveries_upserted=0,
+                    phase_timings=phase_snapshot,
                     skipped=True,
                     skip_reason=skip_reason,
                 )
                 self._store.record_scrape_metrics(skip_metrics)
+                self._log_phase_summary(f"@{seed.username}")
                 continue
 
             # Compute edge/profile status for profile-only mode check
@@ -963,6 +1135,7 @@ class HybridShadowEnricher:
                         LOGGER.info("⏭️  SKIPPED — both edge lists are fresh (no profile visit needed)")
                         LOGGER.info("   └─ Following: %s accounts captured %d days ago", following_captured, following_days_ago)
                         LOGGER.info("   └─ Followers: %s accounts captured %d days ago", followers_captured, followers_days_ago)
+                        phase_snapshot = self._phase_snapshot()
                         skip_metrics = ScrapeRunMetrics(
                             seed_account_id=seed.account_id,
                             seed_username=seed.username or "",
@@ -971,6 +1144,7 @@ class HybridShadowEnricher:
                             following_captured=0,
                             followers_captured=0,
                             followers_you_follow_captured=0,
+                            list_members_captured=0,
                             following_claimed_total=None,
                             followers_claimed_total=None,
                             followers_you_follow_claimed_total=None,
@@ -980,12 +1154,14 @@ class HybridShadowEnricher:
                             accounts_upserted=0,
                             edges_upserted=0,
                             discoveries_upserted=0,
+                            phase_timings=phase_snapshot,
                             skipped=True,
                             skip_reason="both_lists_fresh_and_skip_if_ever_scraped_enabled",
                             error_type=None,
                             error_details=None,
                         )
                         self._store.record_scrape_metrics(skip_metrics)
+                        self._log_phase_summary(f"@{seed.username}")
                         summary[seed.account_id] = {
                             "username": seed.username,
                             "skipped": True,
@@ -996,7 +1172,11 @@ class HybridShadowEnricher:
             # Fetch profile overview first to check counts for policy
             if not cached_overview:
                 LOGGER.info("📍 Visiting profile page for @%s...", seed.username)
-            overview = cached_overview or self._selenium.fetch_profile_overview(seed.username)
+            if cached_overview:
+                overview = cached_overview
+            else:
+                with self._time_phase("profile", "fetch_overview"):
+                    overview = self._selenium.fetch_profile_overview(seed.username)
             if not overview:
                 LOGGER.error("Failed to fetch profile overview for @%s - skipping", seed.username)
                 error_metrics = ScrapeRunMetrics(
@@ -1007,6 +1187,7 @@ class HybridShadowEnricher:
                     following_captured=0,
                     followers_captured=0,
                     followers_you_follow_captured=0,
+                    list_members_captured=0,
                     following_claimed_total=None,
                     followers_claimed_total=None,
                     followers_you_follow_claimed_total=None,
@@ -1016,6 +1197,7 @@ class HybridShadowEnricher:
                     accounts_upserted=0,
                     edges_upserted=0,
                     discoveries_upserted=0,
+                    phase_timings=self._phase_snapshot(),
                     skipped=True,
                     skip_reason="profile_overview_missing",
                     error_type="profile_overview_missing",
@@ -1063,6 +1245,7 @@ class HybridShadowEnricher:
                     following_captured=0,
                     followers_captured=0,
                     followers_you_follow_captured=0,
+                    list_members_captured=0,
                     following_claimed_total=0,
                     followers_claimed_total=0,
                     followers_you_follow_claimed_total=0,
@@ -1072,6 +1255,7 @@ class HybridShadowEnricher:
                     accounts_upserted=1,  # We upserted the deleted account marker
                     edges_upserted=0,
                     discoveries_upserted=0,
+                    phase_timings=self._phase_snapshot(),
                     skipped=True,
                     skip_reason="account_deleted_or_suspended",
                     error_type=None,
@@ -1099,35 +1283,37 @@ class HybridShadowEnricher:
                         "Skipping @%s — policy skipped all edge lists and --skip-if-ever-scraped is enabled (metadata update skipped)",
                         seed.username,
                     )
-                    skip_metrics = ScrapeRunMetrics(
-                        seed_account_id=seed.account_id,
-                        seed_username=seed.username or "",
-                        run_at=datetime.utcnow(),
-                        duration_seconds=0.0,
-                        following_captured=0,
-                        followers_captured=0,
-                        followers_you_follow_captured=0,
-                        following_claimed_total=None,
-                        followers_claimed_total=None,
-                        followers_you_follow_claimed_total=None,
-                        following_coverage=None,
-                        followers_coverage=None,
-                        followers_you_follow_coverage=None,
-                        accounts_upserted=0,
-                        edges_upserted=0,
-                        discoveries_upserted=0,
-                        skipped=True,
-                        skip_reason="policy_skipped_all_lists_and_skip_if_ever_scraped_enabled",
-                        error_type=None,
-                        error_details=None,
-                    )
-                    self._store.record_scrape_metrics(skip_metrics)
-                    summary[seed.account_id] = {
-                        "username": seed.username,
-                        "skipped": True,
-                        "reason": "policy_skipped_all_lists_and_skip_if_ever_scraped_enabled",
-                    }
-                    continue
+                skip_metrics = ScrapeRunMetrics(
+                    seed_account_id=seed.account_id,
+                    seed_username=seed.username or "",
+                    run_at=datetime.utcnow(),
+                    duration_seconds=0.0,
+                    following_captured=0,
+                    followers_captured=0,
+                    followers_you_follow_captured=0,
+                    list_members_captured=0,
+                    following_claimed_total=None,
+                    followers_claimed_total=None,
+                    followers_you_follow_claimed_total=None,
+                    following_coverage=None,
+                    followers_coverage=None,
+                    followers_you_follow_coverage=None,
+                    accounts_upserted=0,
+                    edges_upserted=0,
+                    discoveries_upserted=0,
+                    phase_timings=self._phase_snapshot(),
+                    skipped=True,
+                    skip_reason="policy_skipped_all_lists_and_skip_if_ever_scraped_enabled",
+                    error_type=None,
+                    error_details=None,
+                )
+                self._store.record_scrape_metrics(skip_metrics)
+                summary[seed.account_id] = {
+                    "username": seed.username,
+                    "skipped": True,
+                    "reason": "policy_skipped_all_lists_and_skip_if_ever_scraped_enabled",
+                }
+                continue
 
                 # Even if lists are fresh, refresh seed profile metadata for canonical counts
                 account_record = self._make_seed_account_record(seed, overview)
@@ -1148,6 +1334,7 @@ class HybridShadowEnricher:
                     following_captured=0,
                     followers_captured=0,
                     followers_you_follow_captured=0,
+                    list_members_captured=0,
                     following_claimed_total=None,
                     followers_claimed_total=None,
                     followers_you_follow_claimed_total=None,
@@ -1157,6 +1344,7 @@ class HybridShadowEnricher:
                     accounts_upserted=0,
                     edges_upserted=0,
                     discoveries_upserted=0,
+                    phase_timings=self._phase_snapshot(),
                     skipped=True,
                     skip_reason="policy_fresh_data",
                 )
@@ -1343,6 +1531,7 @@ class HybridShadowEnricher:
                     following_captured=len(following_entries),
                     followers_captured=len(followers_entries),
                     followers_you_follow_captured=len(followers_you_follow_entries),
+                    list_members_captured=0,
                     following_claimed_total=following_capture.claimed_total if following_capture else None,
                     followers_claimed_total=followers_capture.claimed_total if followers_capture else None,
                     followers_you_follow_claimed_total=(
@@ -1356,6 +1545,7 @@ class HybridShadowEnricher:
                     accounts_upserted=inserted_accounts,
                     edges_upserted=inserted_edges,
                     discoveries_upserted=inserted_discoveries,
+                    phase_timings=self._phase_snapshot(),
                     skipped=False,
                     skip_reason=None,
                 )
@@ -1399,6 +1589,7 @@ class HybridShadowEnricher:
                     following_captured=len(following_entries),
                     followers_captured=len(followers_entries),
                     followers_you_follow_captured=len(followers_you_follow_entries),
+                    list_members_captured=0,
                     following_claimed_total=following_capture.claimed_total if following_capture else None,
                     followers_claimed_total=followers_capture.claimed_total if followers_capture else None,
                     followers_you_follow_claimed_total=(
@@ -1412,6 +1603,7 @@ class HybridShadowEnricher:
                     accounts_upserted=0,
                     edges_upserted=0,
                     discoveries_upserted=0,
+                    phase_timings=self._phase_snapshot(),
                     skipped=False,
                     skip_reason=None,
                     error_type="persistence_failure",
@@ -1696,6 +1888,103 @@ class HybridShadowEnricher:
             )
 
         return discoveries
+
+    def _make_list_member_records(
+        self,
+        *,
+        list_id: str,
+        captures: Sequence[CapturedUser],
+    ) -> List[ShadowListMember]:
+        """Convert captured list members into persistent list member records."""
+        records: List[ShadowListMember] = []
+        now = datetime.utcnow()
+
+        for captured in captures:
+            resolved = self._resolve_username(captured)
+            account_id = resolved.get("account_id")
+            if not account_id:
+                continue
+
+            username = (captured.username or resolved.get("username") or "").strip("@")
+            list_types = captured.list_types or {"list_members"}
+            metadata: dict = {"list_types": sorted(list_types)}
+            if captured.profile_url:
+                metadata["profile_url"] = captured.profile_url
+
+            records.append(
+                ShadowListMember(
+                    list_id=list_id,
+                    member_account_id=account_id,
+                    member_username=username or None,
+                    member_display_name=captured.display_name or resolved.get("display_name"),
+                    bio=captured.bio or resolved.get("bio"),
+                    website=captured.website or resolved.get("website"),
+                    profile_image_url=captured.profile_image_url or resolved.get("profile_image_url"),
+                    fetched_at=now,
+                    source_channel=resolved.get("source_channel", "hybrid_selenium"),
+                    metadata=metadata if metadata else None,
+                )
+            )
+
+        return records
+
+    def _list_capture_from_cache(
+        self,
+        *,
+        list_id: str,
+        list_meta: ShadowList,
+        members: Sequence[ShadowListMember],
+    ) -> UserListCapture:
+        """Convert cached list members into a UserListCapture."""
+        entries: List[CapturedUser] = []
+        for member in members:
+            list_types = {"list_members"}
+            if member.metadata:
+                meta_types = member.metadata.get("list_types")
+                if isinstance(meta_types, (list, tuple, set)):
+                    list_types = set(meta_types)
+
+            profile_url = None
+            if member.metadata and member.metadata.get("profile_url"):
+                profile_url = member.metadata["profile_url"]
+            elif member.member_username:
+                profile_url = f"https://x.com/{member.member_username}"
+
+            entries.append(
+                CapturedUser(
+                    username=member.member_username,
+                    display_name=member.member_display_name,
+                    bio=member.bio,
+                    profile_url=profile_url,
+                    website=member.website,
+                    profile_image_url=member.profile_image_url,
+                    list_types=set(list_types),
+                )
+            )
+
+        claimed_total = list_meta.claimed_member_total if list_meta.claimed_member_total is not None else list_meta.member_count if list_meta.member_count is not None else len(entries)
+        overview = ListOverview(
+            list_id=list_id,
+            name=list_meta.name,
+            description=list_meta.description,
+            owner_username=list_meta.owner_username,
+            owner_display_name=list_meta.owner_display_name,
+            owner_profile_url=(
+                list_meta.metadata.get("owner_profile_url")
+                if list_meta.metadata and isinstance(list_meta.metadata, dict)
+                else (f"https://x.com/{list_meta.owner_username}" if list_meta.owner_username else None)
+            ),
+            members_total=list_meta.claimed_member_total,
+            followers_total=list_meta.followers_count,
+        )
+        return UserListCapture(
+            list_type="list_members",
+            entries=entries,
+            claimed_total=claimed_total,
+            page_url=f"https://twitter.com/i/lists/{list_id}/members",
+            profile_overview=None,
+            list_overview=overview,
+        )
 
     # ------------------------------------------------------------------
     # Resolution helpers

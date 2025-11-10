@@ -223,19 +223,193 @@ This ensures accounts with <10% coverage get re-scraped to improve edge density.
 
 ---
 
-## Other Tables
+## Community Archive Tables
+
+The analyzer supports **three data sources** that are merged when building the graph:
+
+1. **REST API** (`account`, `following`, `followers`, `profile`) - Fresh but paginated (1000 row limit)
+2. **Blob Storage** (`archive_*` tables) - Complete but stale (user upload date)
+3. **Shadow Enrichment** (`shadow_*` tables) - Expanded network via scraping
+
+### `archive_following`
+
+**NEW** - Stores complete following relationships from Community Archive blob storage imports.
+
+**Schema:**
+```sql
+account_id           TEXT   PRIMARY KEY (1/2)  -- Account who uploaded archive
+following_account_id TEXT   PRIMARY KEY (2/2)  -- Account they follow
+uploaded_at          TEXT                      -- When archive was uploaded to blob storage
+imported_at          TEXT                      -- When we imported from blob storage
+```
+
+**Purpose:**
+- Bypass REST API pagination limits (1000 rows)
+- Access complete following lists from user archives
+- Preserve upload timestamp for data freshness tracking
+
+**Data Source:** `https://fabxmporizzqflnftavs.supabase.co/storage/v1/object/public/archives/{username}/archive.json`
+
+---
+
+### `archive_followers`
+
+**NEW** - Stores complete follower relationships from Community Archive blob storage imports.
+
+**Schema:**
+```sql
+account_id          TEXT   PRIMARY KEY (1/2)  -- Account who uploaded archive
+follower_account_id TEXT   PRIMARY KEY (2/2)  -- Account following them
+uploaded_at         TEXT                      -- When archive was uploaded to blob storage
+imported_at         TEXT                      -- When we imported from blob storage
+```
+
+**Purpose:**
+- Complete follower data (REST API limited to 1000)
+- Bidirectional validation with `archive_following`
+
+---
+
+### `archive_profiles` *(Planned)*
+
+Profile metadata from Community Archive blob imports.
+
+**Status:** Implementation exists in `src/data/blob_importer.py` but not yet deployed.
+
+**Planned Schema:**
+```sql
+account_id        TEXT   PRIMARY KEY  -- Account ID
+bio               TEXT                -- Profile bio/description
+website           TEXT                -- Website URL
+location          TEXT                -- Location string
+avatar_media_url  TEXT                -- Profile image URL
+header_media_url  TEXT                -- Header banner URL
+uploaded_at       TEXT                -- Archive upload timestamp
+imported_at       TEXT                -- Import timestamp
+```
+
+**Purpose:**
+- Richer profile data than REST API provides
+- Bio text for semantic matching in recommendations
+
+---
+
+### `archive_tweets` *(Planned)*
+
+Top liked + recent tweets from archive imports.
+
+**Status:** Implementation exists in `src/data/blob_importer.py` but not yet deployed.
+
+**Planned Schema:**
+```sql
+account_id      TEXT    PRIMARY KEY (1/2)  -- Tweet author
+tweet_id        TEXT    PRIMARY KEY (2/2)  -- Tweet ID
+full_text       TEXT                       -- Complete tweet text
+created_at      TEXT                       -- Tweet timestamp
+favorite_count  INTEGER                    -- Like count
+retweet_count   INTEGER                    -- Retweet count
+lang            TEXT                       -- Language code
+uploaded_at     TEXT                       -- Archive upload timestamp
+imported_at     TEXT                       -- Import timestamp
+```
+
+**Planned Import Strategy:**
+- Top 20 most liked tweets (for understanding user preferences)
+- 10 most recent tweets (for current interests)
+- Deduplicates automatically (UNIQUE constraint on account_id, tweet_id)
+
+---
+
+### `archive_likes` *(Planned)*
+
+Liked tweets from archive imports.
+
+**Status:** Implementation exists in `src/data/blob_importer.py` but not yet deployed.
+
+**Planned Schema:**
+```sql
+account_id   TEXT   PRIMARY KEY (1/2)  -- Account who liked
+tweet_id     TEXT   PRIMARY KEY (2/2)  -- Tweet that was liked
+full_text    TEXT                      -- Full tweet text
+expanded_url TEXT                      -- Tweet URL
+uploaded_at  TEXT                      -- Archive upload timestamp
+imported_at  TEXT                      -- Import timestamp
+```
+
+**Purpose:**
+- Interest mapping for recommendations
+- Content preference analysis
+
+---
+
+### Data Merge Strategy
+
+When building the graph (`src/graph/builder.py`):
+
+1. **Load REST API data** (fresh, limited to 1000 rows each)
+2. **Load archive blob data** (`fetch_archive_following()`, `fetch_archive_followers()`)
+3. **Concatenate DataFrames** (pandas handles deduplication naturally)
+4. **Inject shadow enrichment** (if `include_shadow=True`)
+
+**Result:** Complete graph with maximum coverage from all sources.
+
+**Tradeoffs:**
+- Archive data may be stale (months old)
+- REST data is fresh but incomplete
+- Shadow data expands network but is scraped (may have gaps)
+
+---
+
+## Legacy/REST API Tables
 
 ### `account`
-Legacy table for main Twitter archive data (kept for backwards compatibility).
+Core account metadata from Community Archive REST API.
 
-### `following`, `followers`, `likes`, `tweets`
-Legacy tables from Twitter archive imports.
+**Schema:**
+```sql
+account_id           TEXT   PRIMARY KEY
+username             TEXT
+account_display_name TEXT
+created_at           TEXT
+created_via          TEXT
+num_followers        BIGINT
+num_following        BIGINT
+num_tweets           BIGINT
+num_likes            BIGINT
+```
+
+### `following`
+Following edges from REST API (limited to ~1000 rows due to Supabase pagination).
+
+### `followers`
+Follower edges from REST API (limited to ~1000 rows).
 
 ### `profile`
-Stores enriched profile data (may overlap with `shadow_account`).
+Profile metadata from REST API.
+
+**Schema:**
+```sql
+account_id        TEXT   PRIMARY KEY
+bio               TEXT
+website           TEXT
+location          TEXT
+avatar_media_url  TEXT
+header_media_url  TEXT
+archive_upload_id FLOAT
+```
+
+### `tweets`, `likes`
+Tweet and like data from REST API.
 
 ### `cache_metadata`
 Tracks cache freshness for API responses and web scrapes.
+
+**Schema:**
+```sql
+table_name  VARCHAR   PRIMARY KEY
+fetched_at  DATETIME
+row_count   INTEGER
+```
 
 ---
 

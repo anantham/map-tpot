@@ -25,6 +25,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.dialects.sqlite import insert
+from sqlalchemy.sql import text
 
 
 LOGGER = logging.getLogger(__name__)
@@ -76,6 +77,40 @@ class ShadowDiscovery:
 
 
 @dataclass(frozen=True)
+class ShadowList:
+    """Metadata for a Twitter list snapshot."""
+
+    list_id: str
+    name: Optional[str]
+    description: Optional[str]
+    owner_account_id: Optional[str]
+    owner_username: Optional[str]
+    owner_display_name: Optional[str]
+    member_count: int  # captured count
+    claimed_member_total: Optional[int]
+    followers_count: Optional[int]
+    fetched_at: datetime
+    source_channel: str
+    metadata: Optional[dict] = None
+
+
+@dataclass(frozen=True)
+class ShadowListMember:
+    """Represents a captured member of a Twitter list."""
+
+    list_id: str
+    member_account_id: str
+    member_username: Optional[str]
+    member_display_name: Optional[str]
+    bio: Optional[str]
+    website: Optional[str]
+    profile_image_url: Optional[str]
+    fetched_at: datetime
+    source_channel: str
+    metadata: Optional[dict] = None
+
+
+@dataclass(frozen=True)
 class ScrapeRunMetrics:
     """Metrics for a single seed enrichment run."""
 
@@ -86,6 +121,7 @@ class ScrapeRunMetrics:
     following_captured: int
     followers_captured: int
     followers_you_follow_captured: int
+    list_members_captured: int
     following_claimed_total: Optional[int]
     followers_claimed_total: Optional[int]
     followers_you_follow_claimed_total: Optional[int]
@@ -95,6 +131,7 @@ class ScrapeRunMetrics:
     accounts_upserted: int
     edges_upserted: int
     discoveries_upserted: int
+    phase_timings: Optional[dict] = None
     skipped: bool = False
     skip_reason: Optional[str] = None
     error_type: Optional[str] = None  # "404", "timeout", "rate_limit", "private", "suspended"
@@ -153,6 +190,37 @@ class ShadowStore:
             Column("discovery_method", String, nullable=False),
             PrimaryKeyConstraint("shadow_account_id", "seed_account_id", name="pk_shadow_discovery"),
         )
+        self._list_table = Table(
+            "shadow_list",
+            self._metadata,
+            Column("list_id", String, primary_key=True),
+            Column("name", String, nullable=True),
+            Column("description", String, nullable=True),
+            Column("owner_account_id", String, nullable=True),
+            Column("owner_username", String, nullable=True),
+            Column("owner_display_name", String, nullable=True),
+            Column("member_count", Integer, nullable=False),
+            Column("claimed_member_total", Integer, nullable=True),
+            Column("followers_count", Integer, nullable=True),
+            Column("fetched_at", DateTime(timezone=False), nullable=False),
+            Column("source_channel", String, nullable=False),
+            Column("metadata", JSON, nullable=True),
+        )
+        self._list_member_table = Table(
+            "shadow_list_member",
+            self._metadata,
+            Column("list_id", String, nullable=False),
+            Column("member_account_id", String, nullable=False),
+            Column("member_username", String, nullable=True),
+            Column("member_display_name", String, nullable=True),
+            Column("bio", String, nullable=True),
+            Column("website", String, nullable=True),
+            Column("profile_image_url", String, nullable=True),
+            Column("fetched_at", DateTime(timezone=False), nullable=False),
+            Column("source_channel", String, nullable=False),
+            Column("metadata", JSON, nullable=True),
+            PrimaryKeyConstraint("list_id", "member_account_id", name="pk_shadow_list_member"),
+        )
         self._metrics_table = Table(
             self.METRICS_TABLE,
             self._metadata,
@@ -164,6 +232,7 @@ class ShadowStore:
             Column("following_captured", Integer, nullable=False),
             Column("followers_captured", Integer, nullable=False),
             Column("followers_you_follow_captured", Integer, nullable=False),
+            Column("list_members_captured", Integer, nullable=False, default=0),
             Column("following_claimed_total", Integer, nullable=True),
             Column("followers_claimed_total", Integer, nullable=True),
             Column("followers_you_follow_claimed_total", Integer, nullable=True),
@@ -173,16 +242,59 @@ class ShadowStore:
             Column("accounts_upserted", Integer, nullable=False),
             Column("edges_upserted", Integer, nullable=False),
             Column("discoveries_upserted", Integer, nullable=False),
+            Column("phase_timings", JSON, nullable=True),
             Column("skipped", Boolean, nullable=False, default=False),
             Column("skip_reason", String, nullable=True),
             Column("error_type", String, nullable=True),
             Column("error_details", String, nullable=True),
         )
         self._metadata.create_all(self._engine, checkfirst=True)
+        self._ensure_schema()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    def _ensure_schema(self) -> None:
+        """Apply lightweight migrations for new columns."""
+        def _migrate(engine: Engine) -> None:
+            with engine.begin() as conn:
+                result = conn.execute(text("PRAGMA table_info(scrape_run_metrics)"))
+                columns = {row[1] for row in result}
+                if "list_members_captured" not in columns:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE scrape_run_metrics "
+                            "ADD COLUMN list_members_captured INTEGER DEFAULT 0"
+                        )
+                    )
+                if "phase_timings" not in columns:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE scrape_run_metrics "
+                            "ADD COLUMN phase_timings JSON"
+                        )
+                    )
+
+                # Ensure shadow_list table has latest columns
+                result = conn.execute(text("PRAGMA table_info(shadow_list)"))
+                list_columns = {row[1] for row in result}
+                migrations: list[tuple[str, str]] = [
+                    ("description", "TEXT"),
+                    ("owner_username", "TEXT"),
+                    ("owner_display_name", "TEXT"),
+                    ("claimed_member_total", "INTEGER"),
+                    ("followers_count", "INTEGER"),
+                ]
+                for column_name, column_type in migrations:
+                    if column_name not in list_columns:
+                        conn.execute(
+                            text(
+                                f"ALTER TABLE shadow_list ADD COLUMN {column_name} {column_type}"
+                            )
+                        )
+
+        self._execute_with_retry("ensure_schema", _migrate)
+
     def _execute_with_retry(
         self,
         op_name: str,
@@ -279,15 +391,18 @@ class ShadowStore:
         return self._execute_with_retry("upsert_accounts", _op)
 
     def fetch_accounts(self, account_ids: Optional[Iterable[str]] = None) -> List[dict]:
-        with self._engine.connect() as conn:
-            if account_ids is None:
-                stmt = select(self._account_table)
-            else:
-                stmt = select(self._account_table).where(
-                    self._account_table.c.account_id.in_(list(account_ids))
-                )
-            result = conn.execute(stmt)
-            rows = [dict(row._mapping) for row in result]
+        def _op(engine: Engine) -> List[dict]:
+            with engine.connect() as conn:
+                if account_ids is None:
+                    stmt = select(self._account_table)
+                else:
+                    stmt = select(self._account_table).where(
+                        self._account_table.c.account_id.in_(list(account_ids))
+                    )
+                result = conn.execute(stmt)
+                return [dict(row._mapping) for row in result]
+
+        rows = self._execute_with_retry("fetch_accounts", _op)
         for row in rows:
             if isinstance(row.get("scrape_stats"), str):
                 try:
@@ -300,23 +415,32 @@ class ShadowStore:
         ids = list(set(account_ids))
         if not ids:
             return []
-        with self._engine.connect() as conn:
-            stmt = select(self._account_table.c.account_id).where(self._account_table.c.account_id.in_(ids))
-            resolved = {row.account_id for row in conn.execute(stmt)}
+
+        def _op(engine: Engine) -> set[str]:
+            with engine.connect() as conn:
+                stmt = select(self._account_table.c.account_id).where(
+                    self._account_table.c.account_id.in_(ids)
+                )
+                return {row.account_id for row in conn.execute(stmt)}
+
+        resolved = self._execute_with_retry("unresolved_accounts", _op)
         return [account_id for account_id in ids if account_id not in resolved]
 
     def is_seed_profile_complete(self, account_id: str) -> bool:
         """Check if a seed account already has complete profile data (location, website, joined_date)."""
-        with self._engine.connect() as conn:
-            stmt = select(
-                self._account_table.c.location,
-                self._account_table.c.website,
-                self._account_table.c.profile_image_url,
-                self._account_table.c.followers_count,
-                self._account_table.c.following_count,
-                self._account_table.c.scrape_stats,
-            ).where(self._account_table.c.account_id == account_id)
-            result = conn.execute(stmt).fetchone()
+        def _op(engine: Engine):
+            with engine.connect() as conn:
+                stmt = select(
+                    self._account_table.c.location,
+                    self._account_table.c.website,
+                    self._account_table.c.profile_image_url,
+                    self._account_table.c.followers_count,
+                    self._account_table.c.following_count,
+                    self._account_table.c.scrape_stats,
+                ).where(self._account_table.c.account_id == account_id)
+                return conn.execute(stmt).fetchone()
+
+        result = self._execute_with_retry("is_seed_profile_complete", _op)
         if not result:
             return False
         location, website, avatar_url, followers_count, following_count, scrape_stats = result
@@ -401,12 +525,15 @@ class ShadowStore:
         return self._execute_with_retry("upsert_edges", _op)
 
     def fetch_edges(self, *, direction: Optional[str] = None) -> List[dict]:
-        with self._engine.connect() as conn:
-            stmt = select(self._edge_table)
-            if direction:
-                stmt = stmt.where(self._edge_table.c.direction == direction)
-            result = conn.execute(stmt)
-            rows = [dict(row._mapping) for row in result]
+        def _op(engine: Engine) -> List[dict]:
+            with engine.connect() as conn:
+                stmt = select(self._edge_table)
+                if direction:
+                    stmt = stmt.where(self._edge_table.c.direction == direction)
+                result = conn.execute(stmt)
+                return [dict(row._mapping) for row in result]
+
+        rows = self._execute_with_retry("fetch_edges", _op)
         for row in rows:
             metadata = row.get("metadata")
             if isinstance(metadata, str):
@@ -417,13 +544,16 @@ class ShadowStore:
         return rows
 
     def edge_summary_for_seed(self, account_id: str) -> Dict[str, int]:
-        with self._engine.connect() as conn:
-            stmt = select(self._edge_table).where(
-                (self._edge_table.c.source_id == account_id)
-                | (self._edge_table.c.target_id == account_id)
-            )
-            result = conn.execute(stmt)
-            rows = [dict(row._mapping) for row in result]
+        def _op(engine: Engine) -> List[dict]:
+            with engine.connect() as conn:
+                stmt = select(self._edge_table).where(
+                    (self._edge_table.c.source_id == account_id)
+                    | (self._edge_table.c.target_id == account_id)
+                )
+                result = conn.execute(stmt)
+                return [dict(row._mapping) for row in result]
+
+        rows = self._execute_with_retry("edge_summary_for_seed", _op)
         summary = {"following": 0, "followers": 0, "total": len(rows)}
         for row in rows:
             metadata = row.get("metadata")
@@ -480,14 +610,17 @@ class ShadowStore:
     def fetch_discoveries(
         self, *, shadow_account_id: Optional[str] = None, seed_account_id: Optional[str] = None
     ) -> List[dict]:
-        with self._engine.connect() as conn:
-            stmt = select(self._discovery_table)
-            if shadow_account_id:
-                stmt = stmt.where(self._discovery_table.c.shadow_account_id == shadow_account_id)
-            if seed_account_id:
-                stmt = stmt.where(self._discovery_table.c.seed_account_id == seed_account_id)
-            result = conn.execute(stmt)
-            return [dict(row._mapping) for row in result]
+        def _op(engine: Engine) -> List[dict]:
+            with engine.connect() as conn:
+                stmt = select(self._discovery_table)
+                if shadow_account_id:
+                    stmt = stmt.where(self._discovery_table.c.shadow_account_id == shadow_account_id)
+                if seed_account_id:
+                    stmt = stmt.where(self._discovery_table.c.seed_account_id == seed_account_id)
+                result = conn.execute(stmt)
+                return [dict(row._mapping) for row in result]
+
+        return self._execute_with_retry("fetch_discoveries", _op)
 
     # ------------------------------------------------------------------
     # Metrics operations
@@ -504,111 +637,131 @@ class ShadowStore:
         from datetime import timedelta
 
         cutoff = datetime.utcnow() - timedelta(days=days)
-        with self._engine.begin() as conn:
-            stmt = (
-                select(self._metrics_table)
-                .where(self._metrics_table.c.run_at >= cutoff)
-                .order_by(self._metrics_table.c.run_at.desc())
-            )
-            result = conn.execute(stmt)
-            metrics = []
-            for row in result:
-                metrics.append(ScrapeRunMetrics(
-                    seed_account_id=row.seed_account_id,
-                    seed_username=row.seed_username,
-                    run_at=row.run_at,
-                    duration_seconds=row.duration_seconds,
-                    following_captured=row.following_captured,
-                    followers_captured=row.followers_captured,
-                    followers_you_follow_captured=row.followers_you_follow_captured,
-                    following_claimed_total=row.following_claimed_total,
-                    followers_claimed_total=row.followers_claimed_total,
-                    followers_you_follow_claimed_total=row.followers_you_follow_claimed_total,
-                    following_coverage=(
-                        row.following_coverage / 10000.0
-                        if row.following_coverage is not None
-                        else None
-                    ),
-                    followers_coverage=(
-                        row.followers_coverage / 10000.0
-                        if row.followers_coverage is not None
-                        else None
-                    ),
-                    followers_you_follow_coverage=(
-                        row.followers_you_follow_coverage / 10000.0
-                        if row.followers_you_follow_coverage is not None
-                        else None
-                    ),
-                    accounts_upserted=row.accounts_upserted,
-                    edges_upserted=row.edges_upserted,
-                    discoveries_upserted=row.discoveries_upserted,
-                    skipped=row.skipped,
-                    skip_reason=row.skip_reason,
-                    error_type=row.error_type,
-                    error_details=row.error_details,
-                ))
-            return metrics
+
+        def _op(engine: Engine) -> List[ScrapeRunMetrics]:
+            with engine.begin() as conn:
+                stmt = (
+                    select(self._metrics_table)
+                    .where(self._metrics_table.c.run_at >= cutoff)
+                    .order_by(self._metrics_table.c.run_at.desc())
+                )
+                result = conn.execute(stmt)
+                metrics: List[ScrapeRunMetrics] = []
+                for row in result:
+                    metrics.append(ScrapeRunMetrics(
+                        seed_account_id=row.seed_account_id,
+                        seed_username=row.seed_username,
+                        run_at=row.run_at,
+                        duration_seconds=row.duration_seconds,
+                        following_captured=row.following_captured,
+                        followers_captured=row.followers_captured,
+                        followers_you_follow_captured=row.followers_you_follow_captured,
+                        list_members_captured=row.list_members_captured or 0,
+                        following_claimed_total=row.following_claimed_total,
+                        followers_claimed_total=row.followers_claimed_total,
+                        followers_you_follow_claimed_total=row.followers_you_follow_claimed_total,
+                        following_coverage=(
+                            row.following_coverage / 10000.0
+                            if row.following_coverage is not None
+                            else None
+                        ),
+                        followers_coverage=(
+                            row.followers_coverage / 10000.0
+                            if row.followers_coverage is not None
+                            else None
+                        ),
+                        followers_you_follow_coverage=(
+                            row.followers_you_follow_coverage / 10000.0
+                            if row.followers_you_follow_coverage is not None
+                            else None
+                        ),
+                        accounts_upserted=row.accounts_upserted,
+                        edges_upserted=row.edges_upserted,
+                        discoveries_upserted=row.discoveries_upserted,
+                        skipped=row.skipped,
+                        skip_reason=row.skip_reason,
+                        error_type=row.error_type,
+                        error_details=row.error_details,
+                    ))
+                return metrics
+
+        return self._execute_with_retry("get_recent_scrape_runs", _op)
 
     def get_last_scrape_metrics(self, seed_account_id: str) -> Optional[ScrapeRunMetrics]:
         """Get the most recent scrape metrics for a seed account.
 
         Returns None if no scrape has been recorded for this seed.
         """
-        with self._engine.begin() as conn:
-            stmt = (
-                select(self._metrics_table)
-                .where(self._metrics_table.c.seed_account_id == seed_account_id)
-                .where(self._metrics_table.c.skipped == False)
-                .order_by(self._metrics_table.c.run_at.desc())
-                .limit(1)
-            )
-            row = conn.execute(stmt).fetchone()
-            if not row:
-                return None
 
-            return ScrapeRunMetrics(
-                seed_account_id=row.seed_account_id,
-                seed_username=row.seed_username,
-                run_at=row.run_at,
-                duration_seconds=row.duration_seconds,
-                following_captured=row.following_captured,
-                followers_captured=row.followers_captured,
-                followers_you_follow_captured=row.followers_you_follow_captured,
-                following_claimed_total=row.following_claimed_total,
-                followers_claimed_total=row.followers_claimed_total,
-                followers_you_follow_claimed_total=row.followers_you_follow_claimed_total,
-                following_coverage=(
-                    row.following_coverage / 10000.0
-                    if row.following_coverage is not None
-                    else None
-                ),
-                followers_coverage=(
-                    row.followers_coverage / 10000.0
-                    if row.followers_coverage is not None
-                    else None
-                ),
-                followers_you_follow_coverage=(
-                    row.followers_you_follow_coverage / 10000.0
-                    if row.followers_you_follow_coverage is not None
-                    else None
-                ),
-                accounts_upserted=row.accounts_upserted,
-                edges_upserted=row.edges_upserted,
-                discoveries_upserted=row.discoveries_upserted,
-                skipped=row.skipped,
-                skip_reason=row.skip_reason,
-                error_type=row.error_type,
-                error_details=row.error_details,
-            )
+        def _op(engine: Engine):
+            with engine.begin() as conn:
+                stmt = (
+                    select(self._metrics_table)
+                    .where(self._metrics_table.c.seed_account_id == seed_account_id)
+                    .where(self._metrics_table.c.skipped == False)
+                    .order_by(self._metrics_table.c.run_at.desc())
+                    .limit(1)
+                )
+                return conn.execute(stmt).fetchone()
+
+        row = self._execute_with_retry("get_last_scrape_metrics", _op)
+        if not row:
+            return None
+
+        phase_timings = row.phase_timings
+        if phase_timings and not isinstance(phase_timings, dict):
+            try:
+                phase_timings = json.loads(phase_timings)
+            except json.JSONDecodeError:
+                phase_timings = None
+        return ScrapeRunMetrics(
+            seed_account_id=row.seed_account_id,
+            seed_username=row.seed_username,
+            run_at=row.run_at,
+            duration_seconds=row.duration_seconds,
+            following_captured=row.following_captured,
+            followers_captured=row.followers_captured,
+            followers_you_follow_captured=row.followers_you_follow_captured,
+            list_members_captured=row.list_members_captured or 0,
+            following_claimed_total=row.following_claimed_total,
+            followers_claimed_total=row.followers_claimed_total,
+            followers_you_follow_claimed_total=row.followers_you_follow_claimed_total,
+            following_coverage=(
+                row.following_coverage / 10000.0
+                if row.following_coverage is not None
+                else None
+            ),
+            followers_coverage=(
+                row.followers_coverage / 10000.0
+                if row.followers_coverage is not None
+                else None
+            ),
+            followers_you_follow_coverage=(
+                row.followers_you_follow_coverage / 10000.0
+                if row.followers_you_follow_coverage is not None
+                else None
+            ),
+            accounts_upserted=row.accounts_upserted,
+            edges_upserted=row.edges_upserted,
+            discoveries_upserted=row.discoveries_upserted,
+            phase_timings=phase_timings,
+            skipped=row.skipped,
+            skip_reason=row.skip_reason,
+            error_type=row.error_type,
+            error_details=row.error_details,
+        )
 
     def get_account_id_by_username(self, username: str) -> Optional[str]:
         """Find an account ID for a given username."""
-        with self._engine.connect() as conn:
-            stmt = select(self._account_table.c.account_id).where(
-                func.lower(self._account_table.c.username) == username.lower()
-            ).limit(1)
-            result = conn.execute(stmt).fetchone()
-            return result.account_id if result else None
+        def _op(engine: Engine):
+            with engine.connect() as conn:
+                stmt = select(self._account_table.c.account_id).where(
+                    func.lower(self._account_table.c.username) == username.lower()
+                ).limit(1)
+                return conn.execute(stmt).fetchone()
+
+        result = self._execute_with_retry("get_account_id_by_username", _op)
+        return result.account_id if result else None
 
     def get_following_usernames(self, username: str) -> List[str]:
         """Get the usernames of accounts followed by a given username from the cache."""
@@ -616,49 +769,214 @@ class ShadowStore:
         if not account_id:
             return []
 
-        with self._engine.connect() as conn:
-            j = self._edge_table.join(
-                self._account_table,
-                self._edge_table.c.target_id == self._account_table.c.account_id
-            )
-            stmt = select(self._account_table.c.username).select_from(j).where(
-                self._edge_table.c.source_id == account_id,
-                self._edge_table.c.direction == 'outbound',
-                self._account_table.c.username.isnot(None)
-            )
-            result = conn.execute(stmt)
-            return [row.username for row in result]
+        def _op(engine: Engine) -> List[str]:
+            with engine.connect() as conn:
+                j = self._edge_table.join(
+                    self._account_table,
+                    self._edge_table.c.target_id == self._account_table.c.account_id
+                )
+                stmt = select(self._account_table.c.username).select_from(j).where(
+                    self._edge_table.c.source_id == account_id,
+                    self._edge_table.c.direction == 'outbound',
+                    self._account_table.c.username.isnot(None)
+                )
+                result = conn.execute(stmt)
+                return [row.username for row in result]
+
+        return self._execute_with_retry("get_following_usernames", _op)
 
     def get_shadow_account(self, account_id: str) -> Optional[ShadowAccount]:
         """Get a shadow account by account_id.
 
         Returns None if the account doesn't exist.
         """
-        with self._engine.begin() as conn:
-            stmt = (
-                select(self._account_table)
-                .where(self._account_table.c.account_id == account_id)
-                .limit(1)
-            )
-            row = conn.execute(stmt).fetchone()
-            if not row:
-                return None
+        def _op(engine: Engine):
+            with engine.begin() as conn:
+                stmt = (
+                    select(self._account_table)
+                    .where(self._account_table.c.account_id == account_id)
+                    .limit(1)
+                )
+                return conn.execute(stmt).fetchone()
 
-            return ShadowAccount(
-                account_id=row.account_id,
-                username=row.username,
-                display_name=row.display_name,
-                bio=row.bio,
-                location=row.location,
-                website=row.website,
-                profile_image_url=row.profile_image_url,
-                followers_count=row.followers_count,
-                following_count=row.following_count,
-                source_channel=row.source_channel,
-                fetched_at=row.fetched_at,
-                checked_at=row.checked_at,
-                scrape_stats=row.scrape_stats if isinstance(row.scrape_stats, dict) else (json.loads(row.scrape_stats) if row.scrape_stats else None),
+        row = self._execute_with_retry("get_shadow_account", _op)
+        if not row:
+            return None
+
+        scrape_stats = (
+            row.scrape_stats
+            if isinstance(row.scrape_stats, dict)
+            else (json.loads(row.scrape_stats) if row.scrape_stats else None)
+        )
+
+        return ShadowAccount(
+            account_id=row.account_id,
+            username=row.username,
+            display_name=row.display_name,
+            bio=row.bio,
+            location=row.location,
+            website=row.website,
+            profile_image_url=row.profile_image_url,
+            followers_count=row.followers_count,
+            following_count=row.following_count,
+            source_channel=row.source_channel,
+            fetched_at=row.fetched_at,
+            checked_at=row.checked_at,
+            scrape_stats=scrape_stats,
+        )
+
+    # ------------------------------------------------------------------
+    # List snapshot helpers
+    # ------------------------------------------------------------------
+
+    def get_shadow_list(self, list_id: str) -> Optional[ShadowList]:
+        """Fetch metadata for a previously captured list."""
+        def _op(engine: Engine) -> Optional[ShadowList]:
+            with engine.begin() as conn:
+                stmt = (
+                    select(self._list_table)
+                    .where(self._list_table.c.list_id == list_id)
+                    .limit(1)
+                )
+                row = conn.execute(stmt).fetchone()
+                if not row:
+                    return None
+                metadata = row.metadata
+                if metadata and not isinstance(metadata, dict):
+                    metadata = json.loads(metadata)
+                return ShadowList(
+                    list_id=row.list_id,
+                    name=row.name,
+                    description=row.description,
+                    owner_account_id=row.owner_account_id,
+                    owner_username=row.owner_username,
+                    owner_display_name=row.owner_display_name,
+                    member_count=row.member_count,
+                    claimed_member_total=row.claimed_member_total,
+                    followers_count=row.followers_count,
+                    fetched_at=row.fetched_at,
+                    source_channel=row.source_channel,
+                    metadata=metadata,
+                )
+
+        return self._execute_with_retry("get_shadow_list", _op)
+
+    def get_shadow_list_members(self, list_id: str) -> List[ShadowListMember]:
+        """Return cached members for a list (empty if none cached)."""
+        def _op(engine: Engine) -> List[ShadowListMember]:
+            with engine.begin() as conn:
+                stmt = (
+                    select(self._list_member_table)
+                    .where(self._list_member_table.c.list_id == list_id)
+                    .order_by(self._list_member_table.c.member_username)
+                )
+                rows = conn.execute(stmt).fetchall()
+
+                members: List[ShadowListMember] = []
+                for row in rows:
+                    metadata = row.metadata
+                    if metadata and not isinstance(metadata, dict):
+                        metadata = json.loads(metadata)
+                    members.append(
+                        ShadowListMember(
+                            list_id=row.list_id,
+                            member_account_id=row.member_account_id,
+                            member_username=row.member_username,
+                            member_display_name=row.member_display_name,
+                            bio=row.bio,
+                            website=row.website,
+                            profile_image_url=row.profile_image_url,
+                            fetched_at=row.fetched_at,
+                            source_channel=row.source_channel,
+                            metadata=metadata,
+                        )
+                    )
+                return members
+
+        return self._execute_with_retry("get_shadow_list_members", _op)
+
+    def upsert_lists(self, lists: Sequence[ShadowList]) -> int:
+        """Upsert list metadata entries."""
+        if not lists:
+            return 0
+
+        rows = []
+        for item in lists:
+            rows.append(
+                {
+                    "list_id": item.list_id,
+                    "name": item.name,
+                    "description": item.description,
+                    "owner_account_id": item.owner_account_id,
+                    "owner_username": item.owner_username,
+                    "owner_display_name": item.owner_display_name,
+                    "member_count": item.member_count,
+                    "claimed_member_total": item.claimed_member_total,
+                    "followers_count": item.followers_count,
+                    "fetched_at": item.fetched_at,
+                    "source_channel": item.source_channel,
+                    "metadata": json.dumps(item.metadata) if item.metadata else None,
+                }
             )
+
+        def _op(engine: Engine) -> int:
+            with engine.begin() as conn:
+                stmt = insert(self._list_table).values(rows)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["list_id"],
+                    set_={
+                        "name": stmt.excluded.name,
+                        "owner_account_id": stmt.excluded.owner_account_id,
+                        "description": stmt.excluded.description,
+                        "owner_username": stmt.excluded.owner_username,
+                        "owner_display_name": stmt.excluded.owner_display_name,
+                        "member_count": stmt.excluded.member_count,
+                        "claimed_member_total": stmt.excluded.claimed_member_total,
+                        "followers_count": stmt.excluded.followers_count,
+                        "fetched_at": stmt.excluded.fetched_at,
+                        "source_channel": stmt.excluded.source_channel,
+                        "metadata": stmt.excluded.metadata,
+                    },
+                )
+                conn.execute(stmt)
+                return len(rows)
+
+        return self._execute_with_retry("upsert_lists", _op)
+
+    def replace_list_members(
+        self,
+        list_id: str,
+        members: Sequence[ShadowListMember],
+    ) -> int:
+        """Replace cached members for a list with a new snapshot."""
+        rows = [
+            {
+                "list_id": member.list_id,
+                "member_account_id": member.member_account_id,
+                "member_username": member.member_username,
+                "member_display_name": member.member_display_name,
+                "bio": member.bio,
+                "website": member.website,
+                "profile_image_url": member.profile_image_url,
+                "fetched_at": member.fetched_at,
+                "source_channel": member.source_channel,
+                "metadata": json.dumps(member.metadata) if member.metadata else None,
+            }
+            for member in members
+        ]
+
+        def _op(engine: Engine) -> int:
+            with engine.begin() as conn:
+                conn.execute(
+                    self._list_member_table.delete().where(
+                        self._list_member_table.c.list_id == list_id
+                    )
+                )
+                if rows:
+                    conn.execute(insert(self._list_member_table).values(rows))
+                return len(rows)
+
+        return self._execute_with_retry("replace_list_members", _op)
 
     def record_scrape_metrics(self, metrics: ScrapeRunMetrics) -> int:
         """Record metrics for a single scrape run."""
@@ -670,6 +988,7 @@ class ShadowStore:
             "following_captured": metrics.following_captured,
             "followers_captured": metrics.followers_captured,
             "followers_you_follow_captured": metrics.followers_you_follow_captured,
+            "list_members_captured": metrics.list_members_captured,
             "following_claimed_total": metrics.following_claimed_total,
             "followers_claimed_total": metrics.followers_claimed_total,
             "followers_you_follow_claimed_total": metrics.followers_you_follow_claimed_total,
@@ -691,6 +1010,7 @@ class ShadowStore:
             "accounts_upserted": metrics.accounts_upserted,
             "edges_upserted": metrics.edges_upserted,
             "discoveries_upserted": metrics.discoveries_upserted,
+            "phase_timings": json.dumps(metrics.phase_timings) if metrics.phase_timings else None,
             "skipped": metrics.skipped,
             "skip_reason": metrics.skip_reason,
             "error_type": metrics.error_type,

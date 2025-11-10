@@ -3,6 +3,12 @@
 
 # Generated analysis files
 enrichment_summary.json
+analysis_output.json
+
+# Graph snapshots (precomputed for fast API startup)
+data/graph_snapshot.nodes.parquet
+data/graph_snapshot.edges.parquet
+data/graph_snapshot.meta.json
 
 # Test coverage
 .coverage
@@ -11,9 +17,19 @@ htmlcov/
 
 # Local data and state
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 *.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
 data/x_api_rate_state.json
+
+# Temporary files
+tmpfile
+*.tmp
 
 # ccusage tracking
 ccusage/

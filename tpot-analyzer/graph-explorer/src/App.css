@@ -5,6 +5,19 @@
   color: #e2e8f0;
 }
 
+/* Ensure all text elements are light colored */
+.layout *, .control-panel *, .graph-container * {
+  color: inherit;
+}
+
+h1, h2, h3, h4, h5, h6, p, li, label, span, div, strong {
+  color: #e2e8f0;
+}
+
+small {
+  color: #94a3b8;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -32,6 +45,9 @@ body {
 
 .control-panel.collapsed {
   width: 0;
+  min-width: 0;
+  /* Ensure button remains clickable by maintaining container in layout */
+  flex-shrink: 0;
 }
 
 .panel-handle {
@@ -39,6 +55,7 @@ body {
   top: 50%;
   right: -22px;
   transform: translateY(-50%);
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -55,6 +72,7 @@ body {
   writing-mode: vertical-rl;
   text-transform: uppercase;
   box-shadow: 0 20px 45px rgba(14, 165, 233, 0.45);
+  pointer-events: auto;
 }
 
 .panel-handle:hover {
@@ -252,4 +270,48 @@ select {
   height: 100vh;
   font-size: 1.1rem;
   color: #bfdbfe;
+}
+
+.context-menu {
+  background: #1e293b;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: 4px;
+  min-width: 180px;
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.context-menu-item:hover {
+  background: #334155;
+}
+
+.context-menu-item:active {
+  background: #475569;
+}
+
+.context-menu-hint {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #cbd5f5;
+  opacity: 0.8;
+}
+
+.top-list-empty {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  margin: 0;
 }

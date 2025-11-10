@@ -16,6 +16,7 @@ from src.data.fetcher import CachedDataFetcher
 from src.data.shadow_store import get_shadow_store
 from src.graph import (
     GraphBuildResult,
+    get_graph_settings,
     compute_betweenness,
     compute_composite_score,
     compute_engagement_scores,
@@ -75,8 +76,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--alpha",
         type=float,
-        default=0.85,
-        help="PageRank damping factor (alpha).",
+        default=None,
+        help="PageRank damping factor (alpha). Defaults to UI setting if omitted.",
     )
     parser.add_argument(
         "--weights",
@@ -93,10 +94,23 @@ def parse_args() -> argparse.Namespace:
         help="Louvain resolution parameter.",
     )
     parser.add_argument(
+        "--global-pagerank",
+        action="store_true",
+        help="Also compute global (non-personalized) PageRank for comparison.",
+    )
+    parser.add_argument(
         "--include-shadow",
+        dest="include_shadow",
         action="store_true",
         help="Include shadow accounts/edges from enrichment cache.",
     )
+    parser.add_argument(
+        "--no-include-shadow",
+        dest="include_shadow",
+        action="store_false",
+        help="Exclude shadow accounts (override UI setting).",
+    )
+    parser.set_defaults(include_shadow=None)
     parser.add_argument(
         "--summary-only",
         action="store_true",
@@ -107,11 +121,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Update README data snapshot (will prompt if marker is missing).",
     )
+    parser.add_argument(
+        "--seed-list",
+        type=str,
+        default=None,
+        help="Name of a saved seed list (defaults to the active list synced from the UI).",
+    )
     return parser.parse_args()
 
 
 def load_seeds(args: argparse.Namespace) -> List[str]:
-    seeds = load_seed_candidates(additional=args.seeds)
+    seeds = load_seed_candidates(additional=args.seeds, preset=args.seed_list)
     if args.seed_html and args.seed_html.exists():
         seeds.update(extract_usernames_from_html(args.seed_html.read_text()))
     return sorted(seeds)
@@ -139,6 +159,9 @@ def run_metrics(graph: GraphBuildResult, seeds: List[str], args: argparse.Namesp
     resolved_seeds = _resolve_seeds(graph, seeds)
 
     pagerank = compute_personalized_pagerank(directed, seeds=resolved_seeds, alpha=args.alpha)
+    global_pagerank = None
+    if args.global_pagerank:
+        global_pagerank = compute_personalized_pagerank(directed, seeds=[], alpha=args.alpha)
     betweenness = compute_betweenness(undirected)
     engagement = compute_engagement_scores(undirected)
     composite = compute_composite_score(
@@ -187,6 +210,7 @@ def run_metrics(graph: GraphBuildResult, seeds: List[str], args: argparse.Namesp
         "resolved_seeds": resolved_seeds,
         "metrics": {
             "pagerank": pagerank,
+            **({"global_pagerank": global_pagerank} if global_pagerank is not None else {}),
             "betweenness": betweenness,
             "engagement": engagement,
             "composite": composite,
@@ -328,6 +352,13 @@ def update_readme_snapshot(
 
 def main() -> None:
     args = parse_args()
+    graph_state = get_graph_settings()
+    ui_settings = graph_state.get("settings", {})
+    include_shadow = ui_settings.get("auto_include_shadow", True) if args.include_shadow is None else args.include_shadow
+    alpha_value = args.alpha if args.alpha is not None else ui_settings.get("alpha", 0.85)
+    args.include_shadow = include_shadow
+    args.alpha = alpha_value
+
     seeds = load_seeds(args)
 
     cache_settings = get_cache_settings()
