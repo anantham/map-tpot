@@ -215,7 +215,7 @@ export const fetchGraphData = async (options = {}) => {
       // If stale, refresh in background (don't await)
       if (cached.isStale) {
         console.log('[Cache] Refreshing stale cache in background...');
-        fetchGraphData({ ...options, skipCache: true }).then(freshData => {
+        fetchGraphData({ ...options, skipCache: true }).then(() => {
           console.log('[Cache] Background refresh complete');
         }).catch(err => {
           console.warn('[Cache] Background refresh failed:', err);
@@ -385,6 +385,103 @@ export const fetchPerformanceMetrics = async () => {
   } catch (error) {
     const duration = performance.now() - startTime;
     performanceLog.log('fetchPerformanceMetrics [ERROR]', duration, { error: error.message });
+    throw error;
+  }
+};
+
+export const fetchGraphSettings = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/seeds`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch graph settings: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+/**
+ * Persist a seed list to the backend so Discovery + Graph Explorer stay in sync.
+ *
+ * @param {Object} options
+ * @param {string} options.name - Seed list identifier
+ * @param {string[]} options.seeds - Handles to store
+ * @param {boolean} [options.setActive=true] - Whether to mark the list active
+ * @returns {Promise<Object|null>} Updated seed state (if returned by backend)
+ */
+export const saveSeedList = async ({ name, seeds = [], setActive = true } = {}) => {
+  const targetName = (name || '').trim();
+  if (!targetName) {
+    throw new Error('A seed list name is required');
+  }
+
+  const payload = {
+    name: targetName,
+    set_active: Boolean(setActive)
+  };
+
+  if (Array.isArray(seeds)) {
+    payload.seeds = seeds;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/seeds`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error || `Failed to persist seed list (${response.status})`);
+  }
+  return data?.state || null;
+};
+
+/**
+ * Fetch discovery ranking (shared scoring) for a given seed configuration.
+ *
+ * @param {Object} options
+ * @param {string[]} options.seeds
+ * @param {Object} options.weights - discovery weights (neighbor_overlap, pagerank, community, path_distance)
+ * @param {Object} options.filters - discovery filters
+ * @param {number} options.limit
+ * @param {number} options.offset
+ * @returns {Promise<Object>}
+ */
+export const fetchDiscoveryRanking = async ({
+  seeds = [],
+  weights = {},
+  filters = {},
+  limit = 200,
+  offset = 0,
+} = {}) => {
+  const startTime = performance.now();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/subgraph/discover`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seeds,
+        weights,
+        filters,
+        limit,
+        offset,
+        debug: false,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch discovery ranking: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchDiscoveryRanking', duration, {
+      seedCount: seeds.length,
+      limit,
+      offset,
+    });
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchDiscoveryRanking [ERROR]', duration, { error: error.message });
     throw error;
   }
 };
