@@ -17,9 +17,19 @@ htmlcov/
 
 # Local data and state
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 *.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
 data/x_api_rate_state.json
+
+# Temporary files
+tmpfile
+*.tmp
 
 # ccusage tracking
 ccusage/
