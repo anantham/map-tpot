@@ -377,9 +377,9 @@ class BlobStorageImporter:
             logger.info(f"[{i}/{len(usernames)}] Processing '{username}'...")
 
             # Get account_id first to check if already imported
-            archive = None
+            result = None
             try:
-                archive = self.fetch_archive(username)
+                result = self.fetch_archive(username)
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 400:
                     logger.warning(f"Archive not found for '{username}' (400 Bad Request)")
@@ -392,9 +392,12 @@ class BlobStorageImporter:
                 logger.error(f"Failed to fetch '{username}': {e}")
                 continue
 
-            if not archive:
+            if not result:
                 logger.warning(f"No archive data for '{username}'")
                 continue
+
+            # Unpack tuple (archive_dict, upload_timestamp)
+            archive, upload_timestamp = result
 
             # Extract account_id for skip check
             account_data = archive.get("account", [])
