@@ -21,6 +21,7 @@ from src.api.discovery import (
     discover_subgraph,
     validate_request,
 )
+from src.api.metrics_cache import MetricsCache, cached_response
 from src.api.snapshot_loader import get_snapshot_loader
 from src.config import get_cache_settings
 from src.data.fetcher import CachedDataFetcher
@@ -70,7 +71,7 @@ def _append_analysis_log(line: str) -> None:
             analysis_status["log"] = analysis_status["log"][-200:]
 
 
-def _analysis_worker(active_list: str, include_shadow: bool, alpha: float) -> None:
+def _analysis_worker(active_list: str, include_shadow: bool, alpha: float, metrics_cache: MetricsCache) -> None:
     global analysis_thread
     cmd = [
         sys.executable or "python3",
@@ -105,7 +106,10 @@ def _analysis_worker(active_list: str, include_shadow: bool, alpha: float) -> No
                 analysis_status["finished_at"] = datetime.utcnow().isoformat() + "Z"
                 analysis_status["status"] = "succeeded"
                 analysis_status["error"] = None
+            # Clear metrics cache after successful graph rebuild
+            metrics_cache.clear()
             _append_analysis_log("Analysis completed successfully.")
+            _append_analysis_log("Metrics cache cleared.")
         else:
             with analysis_lock:
                 analysis_status["finished_at"] = datetime.utcnow().isoformat() + "Z"
@@ -206,6 +210,13 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
     # Initialize snapshot loader
     snapshot_loader = get_snapshot_loader()
     app.config["SNAPSHOT_LOADER"] = snapshot_loader
+
+    # Initialize metrics response cache
+    # TTL: 5 minutes (rapid slider adjustments cached, but not stale after graph rebuild)
+    # Max size: 100 entries (reasonable for typical usage patterns)
+    metrics_cache = MetricsCache(max_size=100, ttl_seconds=300)
+    app.config["METRICS_CACHE"] = metrics_cache
+    logger.info("Initialized metrics cache (max_size=100, ttl=300s)")
 
     # Try to load snapshot on startup
     logger.info("Checking for graph snapshot...")
@@ -330,6 +341,26 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             logger.exception("Error getting performance metrics")
             return jsonify({"error": str(e)}), 500
 
+    @app.route("/api/metrics/cache/stats", methods=["GET"])
+    def get_cache_stats():
+        """Get metrics cache statistics."""
+        try:
+            stats = metrics_cache.stats()
+            return jsonify(stats)
+        except Exception as e:
+            logger.exception("Error getting cache stats")
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/api/metrics/cache/clear", methods=["POST"])
+    def clear_cache():
+        """Clear metrics cache. Useful after graph rebuild or data updates."""
+        try:
+            metrics_cache.clear()
+            return jsonify({"status": "cleared", "message": "Metrics cache cleared successfully"})
+        except Exception as e:
+            logger.exception("Error clearing cache")
+            return jsonify({"error": str(e)}), 500
+
     @app.route("/api/graph-data", methods=["GET"])
     def get_graph_data():
         """
@@ -445,6 +476,7 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/metrics/compute", methods=["POST"])
+    @cached_response(metrics_cache)
     def compute_metrics():
         """
         Compute graph metrics with custom seeds and weights.
@@ -459,6 +491,9 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             "mutual_only": false,
             "min_followers": 0
         }
+
+        Responses are cached for 5 minutes to improve UI responsiveness
+        during rapid slider adjustments.
         """
         try:
             data = request.json or {}
@@ -779,7 +814,7 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
 
             analysis_thread = threading.Thread(
                 target=_analysis_worker,
-                args=(active_list, include_shadow, alpha),
+                args=(active_list, include_shadow, alpha, metrics_cache),
                 daemon=True,
             )
             analysis_thread.start()
