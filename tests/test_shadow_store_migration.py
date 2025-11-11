@@ -135,9 +135,18 @@ def test_shadow_store_upsert_is_idempotent() -> None:
     # Build mapping from user_id to canonical account_id
     id_mapping = {user["user_id"]: _canonical_account_id(user) for user in legacy_users}
 
-    # Calculate expected unique accounts/edges (after deduplication)
+    # Calculate expected unique accounts (after deduplication)
     unique_account_ids = set(id_mapping.values())
     expected_account_count = len(unique_account_ids)
+
+    # Calculate expected unique edges (after deduplication by source_id, target_id, direction)
+    unique_edges = set()
+    for edge in legacy_edges:
+        source_id = id_mapping.get(edge["source_user_id"], edge["source_user_id"])
+        target_id = id_mapping.get(edge["target_user_id"], edge["target_user_id"])
+        direction = edge.get("edge_type", "follows")
+        unique_edges.add((source_id, target_id, direction))
+    expected_edge_count = len(unique_edges)
 
     with TemporaryDirectory() as tmp_dir:
         engine = create_engine(f"sqlite:///{tmp_dir}/shadow.db", future=True)
@@ -185,6 +194,12 @@ def test_shadow_store_upsert_is_idempotent() -> None:
         store.upsert_edges(edge_records)
         accounts_after_second = store.fetch_accounts()
         edges_after_second = store.fetch_edges()
+
+        # Deduplication check: first upsert should only insert unique edges
+        assert len(edges_after_first) == expected_edge_count, (
+            f"Expected {expected_edge_count} unique edges after first upsert, "
+            f"but got {len(edges_after_first)} (possible duplicates)"
+        )
 
         # Idempotency check: second upsert should not change counts
         assert len(accounts_after_first) == expected_account_count
