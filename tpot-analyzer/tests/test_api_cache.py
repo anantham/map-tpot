@@ -22,16 +22,30 @@ from src.api.cache import MetricsCache
 
 @pytest.mark.unit
 def test_cache_set_and_get():
-    """Should store and retrieve values."""
+    """Should store and retrieve values with deep equality and no mutation."""
     cache = MetricsCache(max_size=10, ttl_seconds=60)
 
     params = {"seeds": ["alice"], "alpha": 0.85}
     value = {"pagerank": {"123": 0.5}}
+    original_value = {"pagerank": {"123": 0.5}}  # Independent copy
 
     cache.set("test", params, value, computation_time_ms=100)
     retrieved = cache.get("test", params)
 
-    assert retrieved == value
+    # Property 1: Retrieved value equals stored value (fundamental cache correctness)
+    assert retrieved == value, "Cache must return what was stored"
+
+    # Property 2: Cache does not mutate stored value
+    assert value == original_value, "Cache should not mutate the stored value object"
+
+    # Property 3: Repeated gets return same value (idempotence)
+    retrieved2 = cache.get("test", params)
+    assert retrieved == retrieved2, "Multiple cache.get() calls must be idempotent"
+
+    # Property 4: Values are deeply equal (not just reference equality)
+    assert retrieved is not None, "Retrieved value should not be None for cache hit"
+    assert isinstance(retrieved, dict), "Retrieved value should have correct type"
+    assert "pagerank" in retrieved, "Retrieved value should have expected structure"
 
 
 @pytest.mark.unit

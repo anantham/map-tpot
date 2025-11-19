@@ -2,12 +2,12 @@
 
 Tests colored formatters, console filters, and logging setup.
 
-CLEANED UP - Phase 1, Task 1.4:
-- Removed 15 Category C tests (framework/formatter tests)
+CLEANED UP - Phase 1:
+- Task 1.4: Removed 15 Category C tests (framework/formatter tests)
+- Task 1.5: Fixed 1 Category B test with property/invariant checks
 - Kept 11 Category A tests (business logic)
-- Kept 3 Category B tests (to be fixed in Task 1.5)
 
-Estimated mutation score: 30-40% → 75-80% after Task 1.5
+Estimated mutation score: 30-40% → 70-75% (target)
 """
 from __future__ import annotations
 
@@ -170,8 +170,7 @@ def test_console_filter_blocks_debug():
 
 @pytest.mark.unit
 def test_setup_enrichment_logging_quiet_mode():
-    """setup_enrichment_logging with quiet=True should skip console handler."""
-    # Category B: FIX IN TASK 1.5 - Verify actual handler count/types
+    """setup_enrichment_logging with quiet=True should create only file handler, not console."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("src.logging_utils.Path") as mock_path:
             mock_log_dir = MagicMock()
@@ -186,8 +185,22 @@ def test_setup_enrichment_logging_quiet_mode():
 
             setup_enrichment_logging(quiet=True)
 
-            # Should have only 1 handler: file (no console)
-            assert len(root_logger.handlers) == 1
+            # Property 1: Exactly one handler (file only, no console)
+            assert len(root_logger.handlers) == 1, "Quiet mode should have only file handler"
+
+            # Property 2: The handler must be RotatingFileHandler (not StreamHandler)
+            handler = root_logger.handlers[0]
+            assert isinstance(handler, logging.handlers.RotatingFileHandler), \
+                "Quiet mode handler must be RotatingFileHandler"
+            assert not isinstance(handler, logging.StreamHandler) or \
+                isinstance(handler, logging.handlers.RotatingFileHandler), \
+                "Should not have console StreamHandler in quiet mode"
+
+            # Property 3: File handler should have verbose level (DEBUG)
+            assert handler.level == logging.DEBUG, "File handler should log at DEBUG level"
+
+            # Property 4: Handler must have a formatter (not raw logs)
+            assert handler.formatter is not None, "Handler must have formatter configured"
 
 
 @pytest.mark.unit

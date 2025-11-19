@@ -204,17 +204,33 @@ def test_workflow_produces_consistent_metrics():
 
 @pytest.mark.integration
 def test_workflow_with_empty_graph():
-    """Test workflow handles empty graph gracefully."""
+    """Test workflow handles empty graph gracefully without crashing."""
     # Empty dataframes
     accounts_df = pd.DataFrame(columns=["username", "follower_count", "is_shadow"])
-    edges_df = pd.DataFrame(columns=["source", "target", "is_shadow", "is_mutual"])
+    edges_df = pd.DataFrame(columns=["source", "target", "is_mutual"])
 
     # Build graph
     graph = build_graph_from_data(accounts_df, edges_df)
 
-    # Should create empty graph
+    # Property 1: Empty input creates empty graph (not null, not broken)
+    assert isinstance(graph, nx.DiGraph), "Empty input should still create valid DiGraph"
     assert graph.number_of_nodes() == 0
     assert graph.number_of_edges() == 0
+
+    # Property 2: Metrics on empty graph should handle gracefully (not crash)
+    # Test PageRank with empty seeds
+    try:
+        pagerank = compute_personalized_pagerank(graph, seeds=[], alpha=0.85)
+        # If no error, result should be empty dict
+        assert pagerank == {}, "PageRank on empty graph should return empty dict"
+    except ValueError as e:
+        # Also acceptable to raise informative error
+        assert "empty" in str(e).lower() or "no" in str(e).lower(), \
+            "Error message should mention empty graph or missing nodes"
+
+    # Property 3: Seed resolution on empty graph should return empty list
+    resolved = resolve_seeds(graph, ["nonexistent"])
+    assert resolved == [], "Seed resolution on empty graph should return empty list"
 
 
 @pytest.mark.integration
@@ -331,7 +347,7 @@ def test_api_workflow_with_caching():
 
 @pytest.mark.integration
 def test_data_pipeline_dataframe_to_graph():
-    """Test data pipeline from DataFrame to NetworkX graph."""
+    """Test data pipeline from DataFrame to NetworkX graph with invariant checks."""
     # Create test data
     accounts = pd.DataFrame({
         "username": ["user1", "user2", "user3"],
@@ -349,12 +365,35 @@ def test_data_pipeline_dataframe_to_graph():
     # Convert to graph
     graph = build_graph_from_data(accounts, edges)
 
-    # Verify graph structure
+    # Property 1: Node count cannot exceed account count (no phantom nodes)
+    assert graph.number_of_nodes() <= len(accounts), \
+        "Graph should not have more nodes than accounts in input"
+
+    # Property 2: Edge count cannot exceed input edge count (no phantom edges)
+    assert graph.number_of_edges() <= len(edges), \
+        "Graph should not have more edges than in input (may have fewer due to filtering)"
+
+    # Property 3: All nodes in graph must have been in accounts DataFrame
+    account_usernames = set(accounts["username"])
+    for node in graph.nodes():
+        assert node in account_usernames, \
+            f"Node {node} in graph but not in accounts DataFrame"
+
+    # Property 4: All edges in graph must reference existing nodes
+    for source, target in graph.edges():
+        assert source in graph.nodes(), f"Edge source {source} not in nodes"
+        assert target in graph.nodes(), f"Edge target {target} not in nodes"
+
+    # Property 5: Node attributes must be preserved from DataFrame
+    for username in graph.nodes():
+        account_row = accounts[accounts["username"] == username].iloc[0]
+        assert graph.nodes[username]["follower_count"] == account_row["follower_count"], \
+            "Node attributes must match DataFrame values"
+
+    # Regression test: Verify specific graph structure
     assert set(graph.nodes()) == {"user1", "user2", "user3"}
     assert graph.has_edge("user1", "user2")
     assert graph.has_edge("user2", "user3")
-
-    # Verify node attributes
     assert graph.nodes["user1"]["follower_count"] == 100
     assert graph.nodes["user2"]["follower_count"] == 200
 

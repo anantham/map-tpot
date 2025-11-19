@@ -2,12 +2,12 @@
 
 Tests configuration loading, environment variable handling, and validation logic.
 
-CLEANED UP - Phase 1, Task 1.4:
-- Removed 10 Category C tests (framework/constant tests)
+CLEANED UP - Phase 1:
+- Task 1.4: Removed 10 Category C tests (framework/constant tests)
+- Task 1.5: Fixed 2 Category B tests with property/invariant checks
 - Kept 12 Category A tests (business logic)
-- Kept 3 Category B tests (to be fixed in Task 1.5)
 
-Estimated mutation score: 35-45% → 80-85% after Task 1.5
+Estimated mutation score: 35-45% → 80-85% (target)
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from src.config import (
     DEFAULT_CACHE_DB,
     DEFAULT_CACHE_MAX_AGE_DAYS,
     DEFAULT_SUPABASE_URL,
+    PROJECT_ROOT,
     SUPABASE_KEY_KEY,
     SUPABASE_URL_KEY,
     get_cache_settings,
@@ -104,8 +105,7 @@ def test_get_supabase_config_empty_url_raises():
 
 @pytest.mark.unit
 def test_get_cache_settings_from_env():
-    """Should read cache settings from environment variables."""
-    # Category B: FIX IN TASK 1.5 - Add property checks
+    """Should read cache settings from environment variables and maintain invariants."""
     with patch.dict(
         os.environ,
         {CACHE_DB_ENV: "/custom/path/cache.db", CACHE_MAX_AGE_ENV: "30"},
@@ -113,17 +113,41 @@ def test_get_cache_settings_from_env():
     ):
         settings = get_cache_settings()
 
+        # Property 1: Path is always absolute (critical for file operations)
+        assert settings.path.is_absolute(), "Cache path must be absolute to avoid working directory issues"
+
+        # Property 2: Path parent directories are valid Path objects
+        assert isinstance(settings.path.parent, Path), "Path parent must be valid"
+
+        # Property 3: max_age_days is an integer (type safety)
+        assert isinstance(settings.max_age_days, int), "max_age_days must be int type"
+
+        # Regression test: Values match environment input
         assert settings.path == Path("/custom/path/cache.db")
         assert settings.max_age_days == 30
 
 
 @pytest.mark.unit
 def test_get_cache_settings_uses_defaults():
-    """Should use default cache settings if env vars not set."""
-    # Category B: FIX IN TASK 1.5 - Verify defaults are reasonable
+    """Should use default cache settings if env vars not set, and defaults must be reasonable."""
     with patch.dict(os.environ, {}, clear=True):
         settings = get_cache_settings()
 
+        # Property 1: Default path is always absolute (critical for reliability)
+        assert settings.path.is_absolute(), "Default cache path must be absolute"
+
+        # Property 2: Default path is under project root (predictable location)
+        assert PROJECT_ROOT in settings.path.parents or settings.path == PROJECT_ROOT, \
+            "Default cache should be under project root for portability"
+
+        # Property 3: Default max_age is positive (negative cache age makes no sense)
+        assert settings.max_age_days > 0, "Default cache max age must be positive"
+
+        # Property 4: Default max_age is reasonable (not too short, not too long)
+        assert 1 <= settings.max_age_days <= 365, \
+            "Default cache max age should be reasonable (1-365 days)"
+
+        # Regression test: Values match declared constants
         assert settings.path == DEFAULT_CACHE_DB
         assert settings.max_age_days == DEFAULT_CACHE_MAX_AGE_DAYS
 
