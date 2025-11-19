@@ -9,6 +9,11 @@ enrichment_summary.json
 .coverage.*
 htmlcov/
 
+# Mutation testing
+.mutmut-cache/
+.mutmut-results/
+mutmut-results.html
+
 # Python cache
 __pycache__/
 *.py[cod]

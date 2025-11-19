@@ -1,0 +1,39 @@
+# Mutation Testing Configuration
+# See: https://mutmut.readthedocs.io/
+
+[mutmut]
+# Paths to mutate
+paths_to_mutate = "src/"
+
+# Test directory
+tests_dir = "tests/"
+
+# Test runner command
+runner = "pytest -x --assert=plain -q"
+
+# Backup directory for mutated files
+backup_dir = ".mutmut-cache"
+
+[mutmut.python]
+# Files/patterns to ignore
+ignore_patterns = [
+    "__init__.py",
+    "test_*.py",
+    "*_test.py",
+]
+
+# Don't mutate these specific patterns
+dict_synonyms = [
+    "Struct",
+    "NamedTuple",
+]
+
+[mutmut.coverage]
+# Only mutate code that is covered by tests
+# This speeds up mutation testing significantly
+use_coverage = true
+coverage_data = ".coverage"
+
+# Minimum coverage threshold (only mutate lines with coverage)
+# Set to 0 to mutate all code
+min_coverage = 50
