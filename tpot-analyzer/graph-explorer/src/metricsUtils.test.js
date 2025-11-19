@@ -459,57 +459,12 @@ describe('BaseMetricsCache', () => {
     baseMetricsCache.clear();
   });
 
-  it('should store and retrieve values', () => {
-    const key = 'test:key';
-    const value = { data: 'test' };
-
-    baseMetricsCache.set(key, value);
-    const retrieved = baseMetricsCache.get(key);
-
-    expect(retrieved).toEqual(value);
-  });
-
-  it('should return null for cache miss', () => {
-    const retrieved = baseMetricsCache.get('nonexistent:key');
-    expect(retrieved).toBeNull();
-  });
-
-  it('should track cache hits and misses', () => {
-    const key = 'test:key';
-    const value = { data: 'test' };
-
-    // Miss
-    baseMetricsCache.get(key);
-    let stats = baseMetricsCache.getStats();
-    expect(stats.misses).toBe(1);
-    expect(stats.hits).toBe(0);
-
-    // Set
-    baseMetricsCache.set(key, value);
-
-    // Hit
-    baseMetricsCache.get(key);
-    stats = baseMetricsCache.getStats();
-    expect(stats.hits).toBe(1);
-    expect(stats.misses).toBe(1);
-  });
-
-  it('should calculate hit rate correctly', () => {
-    const key = 'test:key';
-    const value = { data: 'test' };
-
-    baseMetricsCache.set(key, value);
-
-    // 1 hit, 0 misses = 100%
-    baseMetricsCache.get(key);
-    let stats = baseMetricsCache.getStats();
-    expect(stats.hitRate).toBe('100.0%');
-
-    // 1 hit, 1 miss = 50%
-    baseMetricsCache.get('nonexistent');
-    stats = baseMetricsCache.getStats();
-    expect(stats.hitRate).toBe('50.0%');
-  });
+  // Category C tests deleted (Phase 1, Task 1.4):
+  // - should store and retrieve values (tests Map.set/get)
+  // - should return null for cache miss (tests Map.has() === false)
+  // - should track cache hits and misses (tests counter++)
+  // - should calculate hit rate correctly (tests division)
+  // - should provide accurate stats (tests hasOwnProperty())
 
   it('should evict oldest entry when at capacity', () => {
     // Cache max size is 10 by default
@@ -557,22 +512,6 @@ describe('BaseMetricsCache', () => {
     expect(baseMetricsCache.getStats().size).toBe(0);
     expect(baseMetricsCache.getStats().hits).toBe(0);
     expect(baseMetricsCache.getStats().misses).toBe(0);
-  });
-
-  it('should provide accurate stats', () => {
-    const stats = baseMetricsCache.getStats();
-
-    expect(stats).toHaveProperty('size');
-    expect(stats).toHaveProperty('maxSize');
-    expect(stats).toHaveProperty('hits');
-    expect(stats).toHaveProperty('misses');
-    expect(stats).toHaveProperty('hitRate');
-
-    expect(typeof stats.size).toBe('number');
-    expect(typeof stats.maxSize).toBe('number');
-    expect(typeof stats.hits).toBe('number');
-    expect(typeof stats.misses).toBe('number');
-    expect(typeof stats.hitRate).toBe('string');
   });
 
   it('should not evict when updating existing key', () => {

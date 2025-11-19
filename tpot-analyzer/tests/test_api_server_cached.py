@@ -587,20 +587,8 @@ def test_cache_with_invalid_seeds(client):
     assert response.status_code in [200, 400, 404]
 
 
-@pytest.mark.integration
-def test_cache_stats_endpoint_always_available(client):
-    """Cache stats endpoint should work even if cache is empty."""
-    response = client.get('/api/cache/stats')
-
-    assert response.status_code == 200
-    data = response.get_json()
-
-    # Should have expected fields
-    assert 'size' in data
-    assert 'max_size' in data
-    assert 'ttl_seconds' in data
-    assert 'hit_rate' in data
-
+# Category C test deleted (Phase 1, Task 1.4):
+# - test_cache_stats_endpoint_always_available (too generic: just checks 200 + fields exist)
 
 @pytest.mark.integration
 def test_base_metrics_response_structure(client, sample_request_payload):

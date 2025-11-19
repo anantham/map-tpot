@@ -431,53 +431,12 @@ def test_metrics_pipeline_multiple_algorithms():
     assert all(score >= 0 for score in betweenness.values())
 
 
-@pytest.mark.integration
-def test_metrics_pipeline_community_detection():
-    """Test community detection in metrics pipeline."""
-    # Create graph with clear communities
-    graph = nx.DiGraph()
-    # Community 1: a, b
-    graph.add_edges_from([("a", "b"), ("b", "a")])
-    # Community 2: c, d
-    graph.add_edges_from([("c", "d"), ("d", "c")])
-    # Weak connection between communities
-    graph.add_edge("b", "c")
-
-    # Convert to undirected for community detection
-    undirected = graph.to_undirected()
-
-    # Community detection should find 2 communities
-    from networkx.algorithms import community
-    communities = list(community.greedy_modularity_communities(undirected))
-
-    assert len(communities) >= 2
-
-
 # ==============================================================================
 # Error Handling and Edge Cases
 # ==============================================================================
-
-@pytest.mark.integration
-def test_workflow_handles_missing_columns():
-    """Test workflow handles DataFrames with missing required columns."""
-    # Missing is_shadow column
-    accounts_df = pd.DataFrame({
-        "username": ["a", "b"],
-        "follower_count": [100, 200],
-    })
-    edges_df = pd.DataFrame({
-        "source": ["a"],
-        "target": ["b"],
-    })
-
-    # Should handle gracefully or raise appropriate error
-    try:
-        graph = build_graph_from_data(accounts_df, edges_df)
-        # If it doesn't raise, verify basic structure
-        assert graph.number_of_nodes() <= 2
-    except (KeyError, ValueError):
-        # Expected if strict validation is in place
-        pass
+# Category C tests deleted (Phase 1, Task 1.4):
+# - test_metrics_pipeline_community_detection (weak: just len() >= 2)
+# - test_workflow_handles_missing_columns (weak: try/except pass)
 
 
 @pytest.mark.integration
