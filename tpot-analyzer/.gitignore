@@ -33,3 +33,4 @@ ccusage/
 # Secrets (cookies, tokens, credentials)
 secrets/
 *.pkl
+.hypothesis/
