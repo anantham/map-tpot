@@ -2,14 +2,14 @@
 # See: https://mutmut.readthedocs.io/
 
 [mutmut]
-# Paths to mutate
-paths_to_mutate = "src/"
+# Paths to mutate - use relative paths from project root
+paths_to_mutate = "src/config.py,src/api/cache.py,src/logging_utils.py"
 
 # Test directory
 tests_dir = "tests/"
 
-# Test runner command
-runner = "pytest -x --assert=plain -q"
+# Test runner command (use python -m pytest to ensure correct environment)
+runner = "python -m pytest -x --assert=plain -q"
 
 # Backup directory for mutated files
 backup_dir = ".mutmut-cache"
