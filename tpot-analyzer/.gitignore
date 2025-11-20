@@ -13,6 +13,8 @@ htmlcov/
 .mutmut-cache/
 .mutmut-results/
 mutmut-results.html
+mutants/
+mutmut_run.log
 
 # Python cache
 __pycache__/
