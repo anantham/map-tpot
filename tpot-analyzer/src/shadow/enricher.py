@@ -39,6 +39,14 @@ from .x_api_client import XAPIClient, XAPIClientConfig
 LOGGER = logging.getLogger(__name__)
 
 
+# Account status retry periods (in days)
+ACCOUNT_STATUS_RETRY_DAYS = {
+    "protected": 90,    # Protected accounts may become public
+    "deleted": 365,     # Usernames rarely recycled, but check yearly
+    "suspended": 365,   # Suspended accounts may be reinstated
+}
+
+
 def _shorten_text(value: Optional[str], limit: int = 160) -> str:
     """Return a condensed representation for log output."""
 
@@ -983,18 +991,78 @@ class HybridShadowEnricher:
             if self._policy.skip_if_ever_scraped:
                 last_scrape = self._store.get_last_scrape_metrics(seed.account_id)
 
-                # CRITICAL: Skip immediately if account was previously detected as deleted/suspended
-                # This prevents wasting time trying to visit non-existent profiles
-                if last_scrape and last_scrape.skipped and last_scrape.skip_reason == "account_deleted_or_suspended":
-                    days_since = (datetime.utcnow() - last_scrape.run_at).days
-                    LOGGER.info("⏭️  SKIPPED — account previously detected as deleted/suspended")
-                    LOGGER.info("   └─ Last detected: %d days ago", days_since)
-                    summary[seed.account_id] = {
-                        "username": seed.username,
-                        "skipped": True,
-                        "reason": "previously_detected_as_deleted",
-                    }
-                    continue
+                # Check account status from database with time-based retry
+                if last_scrape and last_scrape.skipped:
+                    account = self._store.get_shadow_account(seed.account_id)
+
+                    if account and account.scrape_stats:
+                        status = account.scrape_stats.get("account_status")
+                        status_detected_at = account.scrape_stats.get("status_detected_at")
+
+                        # Backward compatibility for old deleted accounts
+                        if not status and account.scrape_stats.get("deleted"):
+                            status = "deleted"
+                            status_detected_at = status_detected_at or (last_scrape.run_at.isoformat() if last_scrape.run_at else None)
+
+                        if status and status != "active" and status_detected_at:
+                            # Calculate age of status
+                            try:
+                                detected_date = datetime.fromisoformat(status_detected_at)
+                                days_since = (datetime.utcnow() - detected_date).days
+                                retry_after = ACCOUNT_STATUS_RETRY_DAYS.get(status, 0)
+
+                                # Skip if status is still within retry period
+                                if days_since < retry_after:
+                                    LOGGER.info(
+                                        "⏭️  SKIPPED — account status: %s (detected %d days ago, retry after %d days)",
+                                        status, days_since, retry_after
+                                    )
+                                    summary[seed.account_id] = {
+                                        "username": seed.username,
+                                        "skipped": True,
+                                        "reason": f"account_status_{status}_within_retry_period",
+                                        "status": status,
+                                        "days_since_detected": days_since,
+                                        "retry_after_days": retry_after,
+                                    }
+                                    # Record skip metrics
+                                    skip_metrics = ScrapeRunMetrics(
+                                        seed_account_id=seed.account_id,
+                                        seed_username=seed.username or "",
+                                        run_at=datetime.utcnow(),
+                                        duration_seconds=0.0,
+                                        following_captured=0,
+                                        followers_captured=0,
+                                        followers_you_follow_captured=0,
+                                        list_members_captured=0,
+                                        following_claimed_total=None,
+                                        followers_claimed_total=None,
+                                        followers_you_follow_claimed_total=None,
+                                        following_coverage=None,
+                                        followers_coverage=None,
+                                        followers_you_follow_coverage=None,
+                                        accounts_upserted=0,
+                                        edges_upserted=0,
+                                        discoveries_upserted=0,
+                                        phase_timings=self._phase_snapshot(),
+                                        skipped=True,
+                                        skip_reason=f"account_status_{status}_retry_pending",
+                                    )
+                                    self._store.record_scrape_metrics(skip_metrics)
+                                    continue  # Skip to next seed
+                                else:
+                                    LOGGER.info(
+                                        "♻️  RETRY — account status: %s is %d days old (>%d days), will re-check",
+                                        status, days_since, retry_after
+                                    )
+                                    # Continue with scraping to re-check status
+
+                            except (ValueError, TypeError) as e:
+                                LOGGER.warning(
+                                    "Could not parse status_detected_at for @%s: %s",
+                                    seed.username, e
+                                )
+                                # Continue with scraping (treat as new check)
 
                 if last_scrape and not last_scrape.skipped:
                     # Check if we have complete metadata AND sufficient edge coverage
@@ -1210,18 +1278,22 @@ class HybridShadowEnricher:
                 }
                 continue
 
-            # Check if account is deleted/suspended (special marker from selenium_worker)
-            if overview.bio == "[ACCOUNT DELETED OR SUSPENDED]":
-                LOGGER.warning("⏭️  SKIPPED — account deleted or suspended")
-                LOGGER.info("   └─ Saving account record with deleted marker")
-                # Save the deleted account record to DB
+            # Check if account has status marker (deleted/suspended/protected)
+            if overview.bio and overview.bio.startswith("[ACCOUNT"):
+                # Extract status from marker: "[ACCOUNT DELETED]" -> "deleted"
+                status = overview.bio.replace("[ACCOUNT ", "").replace("]", "").lower()
+
+                LOGGER.warning("⏭️  SKIPPED — account status: %s", status)
+                LOGGER.info("   └─ Saving account record with status marker")
+
+                # Save the account record to DB
                 # Ensure display_name isn't also the marker (defensive)
                 display_name = (
                     None
-                    if overview.display_name == "[ACCOUNT DELETED OR SUSPENDED]"
+                    if overview.display_name and overview.display_name.startswith("[")
                     else overview.display_name
                 )
-                deleted_account = ShadowAccount(
+                status_account = ShadowAccount(
                     account_id=seed.account_id,
                     username=seed.username,
                     display_name=display_name,
@@ -1234,10 +1306,16 @@ class HybridShadowEnricher:
                     source_channel="selenium",
                     fetched_at=datetime.utcnow(),
                     checked_at=None,
-                    scrape_stats={"deleted": True},
+                    scrape_stats={
+                        "account_status": status,
+                        "status_detected_at": datetime.utcnow().isoformat(),
+                        "status_checked_at": datetime.utcnow().isoformat(),
+                        # Keep existing deleted flag for backward compatibility
+                        "deleted": (status in ["deleted", "suspended"]),
+                    },
                 )
-                self._store.upsert_accounts([deleted_account])
-                deleted_metrics = ScrapeRunMetrics(
+                self._store.upsert_accounts([status_account])
+                status_metrics = ScrapeRunMetrics(
                     seed_account_id=seed.account_id,
                     seed_username=seed.username or "",
                     run_at=datetime.utcnow(),
@@ -1257,15 +1335,16 @@ class HybridShadowEnricher:
                     discoveries_upserted=0,
                     phase_timings=self._phase_snapshot(),
                     skipped=True,
-                    skip_reason="account_deleted_or_suspended",
+                    skip_reason=f"account_{status}",
                     error_type=None,
                     error_details=None,
                 )
-                self._store.record_scrape_metrics(deleted_metrics)
+                self._store.record_scrape_metrics(status_metrics)
                 summary[seed.account_id] = {
                     "username": seed.username,
                     "skipped": True,
-                    "reason": "account_deleted_or_suspended",
+                    "reason": f"account_{status}",
+                    "status": status,
                 }
                 continue
 

@@ -10,6 +10,7 @@ import select
 import signal
 import sys
 import time
+from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set
@@ -90,7 +91,24 @@ class ListOverview:
     members_total: Optional[int]
     followers_total: Optional[int]
 
+    headless: bool = False
+
+
 @dataclass
+class AccountStatusInfo:
+    """Result of account existence check.
+
+    Attributes:
+        status: One of "active", "deleted", "suspended", "protected"
+        detected_at: Timestamp when status was detected
+        message: Optional error message (e.g., "These posts are protected")
+    """
+    status: str
+    detected_at: datetime
+    message: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class ProfileOverview:
     username: str
     display_name: Optional[str]
@@ -803,14 +821,23 @@ class SeleniumWorker:
                 # Save snapshot BEFORE checking so we can debug
                 self._save_page_snapshot(username, "before_existence_check")
 
-                if not self._check_account_exists(username):
-                    LOGGER.error("Account @%s doesn't exist or is suspended - marking as deleted", username)
-                    self._save_page_snapshot(username, "DELETED_ACCOUNT")
-                    # Return a special ProfileOverview marking this as deleted
-                    deleted_profile = ProfileOverview(
+                # Check account status
+                status_info = self._check_account_exists(username)
+
+                if status_info.status != "active":
+                    LOGGER.error(
+                        "Account @%s status: %s - marking with status marker",
+                        username,
+                        status_info.status
+                    )
+                    self._save_page_snapshot(username, f"{status_info.status.upper()}_ACCOUNT")
+
+                    # Return ProfileOverview with status marker
+                    # This triggers special handling in enricher.py
+                    status_profile = ProfileOverview(
                         username=username,
-                        display_name="[ACCOUNT DELETED]",
-                        bio="[ACCOUNT DELETED OR SUSPENDED]",
+                        display_name=f"[{status_info.status.upper()}]",
+                        bio=f"[ACCOUNT {status_info.status.upper()}]",  # Marker for enricher
                         location=None,
                         website=None,
                         followers_total=0,
@@ -818,8 +845,8 @@ class SeleniumWorker:
                         joined_date=None,
                         profile_image_url=None,
                     )
-                    self._profile_overviews[username] = deleted_profile
-                    return deleted_profile
+                    self._profile_overviews[username] = status_profile
+                    return status_profile
 
                 profile_overview = self._extract_profile_overview(username)
                 if profile_overview and profile_overview.followers_total is not None and profile_overview.following_total is not None:
@@ -1469,16 +1496,17 @@ class SeleniumWorker:
             LOGGER.debug("Cell became stale while extracting profile image")
         return None
 
-    def _check_account_exists(self, username: str) -> bool:
-        """Check if the account exists or shows a 'doesn't exist' message.
+    def _check_account_exists(self, username: str) -> AccountStatusInfo:
+        """Check account status and return detailed info.
 
         Args:
             username: The username being checked (for logging/snapshots)
 
         Returns:
-            True if account exists, False if deleted/suspended/doesn't exist
+            AccountStatusInfo with status: active/deleted/suspended/protected
         """
         assert self._driver is not None
+        now = datetime.utcnow()
 
         LOGGER.warning("🔍 CHECKING EXISTENCE for @%s", username)
 
@@ -1505,7 +1533,11 @@ class SeleniumWorker:
 
                     if "doesn't exist" in text_normalized or "account doesn't exist" in text_normalized:
                         LOGGER.warning("  ✅ DELETED ACCOUNT DETECTED: '%s'", text)
-                        return False
+                        return AccountStatusInfo(
+                            status="deleted",
+                            detected_at=now,
+                            message=text
+                        )
                 else:
                     # Fallback: check ALL text content inside emptyState
                     LOGGER.warning("  ➜ No header_text element found, checking all text in emptyState")
@@ -1517,7 +1549,11 @@ class SeleniumWorker:
 
                     if "doesn't exist" in empty_state_normalized:
                         LOGGER.warning("  ✅ DELETED ACCOUNT DETECTED (in full text): '%s'", empty_state_text)
-                        return False
+                        return AccountStatusInfo(
+                            status="deleted",
+                            detected_at=now,
+                            message=empty_state_text
+                        )
                     else:
                         LOGGER.warning("  ⚠️ EmptyState exists but doesn't contain 'doesn't exist' - might be different error")
 
@@ -1526,7 +1562,28 @@ class SeleniumWorker:
             if suspended_elements:
                 LOGGER.warning("  ✅ SUSPENDED ACCOUNT DETECTED")
                 self._save_page_snapshot(username, "SUSPENDED")
-                return False
+                return AccountStatusInfo(
+                    status="suspended",
+                    detected_at=now,
+                    message="Account suspended"
+                )
+
+            # 3. NEW: Check for protected account
+            # Text search is robust against DOM structure changes
+            try:
+                body = self._driver.find_element(By.TAG_NAME, 'body')
+                page_text = body.text
+
+                if "These posts are protected" in page_text:
+                    LOGGER.warning("  ✅ PROTECTED ACCOUNT DETECTED")
+                    self._save_page_snapshot(username, "PROTECTED_ACCOUNT")
+                    return AccountStatusInfo(
+                        status="protected",
+                        detected_at=now,
+                        message="These posts are protected"
+                    )
+            except Exception as e:
+                LOGGER.debug("  Error checking for protected status: %s", e)
 
         except Exception as e:
             LOGGER.error("  ❌ Error checking account existence: %s (assuming account exists)", e)
@@ -1535,8 +1592,12 @@ class SeleniumWorker:
             LOGGER.error("  Traceback: %s", traceback.format_exc())
             pass
 
-        LOGGER.warning("  ➜ Account appears to exist (no deletion/suspension detected)")
-        return True
+        LOGGER.warning("  ➜ Account appears to exist and is accessible")
+        return AccountStatusInfo(
+            status="active",
+            detected_at=now,
+            message=None
+        )
 
     def _extract_profile_overview(self, username: str) -> Optional[ProfileOverview]:
         assert self._driver is not None
