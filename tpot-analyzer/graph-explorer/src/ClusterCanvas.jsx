@@ -133,10 +133,10 @@ export default function ClusterCanvas({ nodes, edges, onSelect, onGranularityCha
       const curve = Math.min(30, len * 0.15)
       const cx = mx + normX * curve
       const cy = my + normY * curve
-
-      const baseOpacity = 0.15 + Math.min(0.35, Math.log1p(edge.weight) * 0.05)
+      const op = edge.opacity ?? Math.min(1, Math.max(0.05, (edge.connectivity || 0.1)))
+      const baseOpacity = 0.1 + Math.min(0.4, op)
       ctx.strokeStyle = `rgba(100, 140, 200, ${baseOpacity})`
-      ctx.lineWidth = 0.5 + Math.min(2, Math.log1p(edge.weight) * 0.3)
+      ctx.lineWidth = 0.5 + Math.min(2, Math.log1p(edge.rawCount || 1) * 0.2)
       ctx.beginPath()
       ctx.moveTo(p1.x, p1.y)
       ctx.quadraticCurveTo(cx, cy, p2.x, p2.y)

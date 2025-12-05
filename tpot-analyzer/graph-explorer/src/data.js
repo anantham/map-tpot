@@ -455,6 +455,12 @@ export const fetchClusterView = async (options = {}) => {
   params.set('n', granularity);
   if (options.ego) params.set('ego', options.ego);
   if (options.focus) params.set('focus', options.focus);
+  if (Array.isArray(options.expanded) && options.expanded.length) {
+    params.set('expanded', options.expanded.join(','));
+  }
+  if (typeof options.budget === 'number') {
+    params.set('budget', options.budget);
+  }
   if (typeof options.wl === 'number') {
     const wl = Math.min(1, Math.max(0, options.wl));
     params.set('wl', wl.toFixed(2));
@@ -475,13 +481,16 @@ export const fetchClusterView = async (options = {}) => {
   }
 };
 
-export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, ego, focus, limit = 100, offset = 0 }) => {
+export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, ego, expanded = [], focus, limit = 100, offset = 0 }) => {
   const params = new URLSearchParams();
   params.set('n', n);
   params.set('limit', limit);
   params.set('offset', offset);
   if (ego) params.set('ego', ego);
   if (focus) params.set('focus', focus);
+  if (Array.isArray(expanded) && expanded.length) {
+    params.set('expanded', expanded.join(','));
+  }
   params.set('wl', Math.min(1, Math.max(0, wl)).toFixed(2));
 
   const response = await fetch(`${API_BASE_URL}/api/clusters/${clusterId}/members?${params.toString()}`);
