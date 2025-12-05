@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -32,6 +33,14 @@ def test_health_endpoint(client):
     assert data["status"] == "ok"
 
 
+@pytest.mark.skipif(
+    not (
+        os.environ.get("SUPABASE_URL")
+        and os.environ.get("SUPABASE_KEY")
+        and os.environ.get("ALLOW_NETWORK_TESTS") == "1"
+    ),
+    reason="Supabase/network not enabled for tests",
+)
 def test_graph_data_endpoint(client):
     """Test graph data endpoint returns valid structure."""
     response = client.get("/api/graph-data?include_shadow=true")

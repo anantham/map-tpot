@@ -1,0 +1,29 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Verify clusters (small)
+        run: |
+          PYTHONPATH=tpot-analyzer python3 tpot-analyzer/scripts/verify_clusters.py \
+            --base-path tpot-analyzer/data/graph_snapshot --granularity 25
+      - name: Verify clusters (medium fixture)
+        run: |
+          PYTHONPATH=tpot-analyzer python3 tpot-analyzer/scripts/verify_clusters.py \
+            --base-path tpot-analyzer/tests/fixtures/medium_graph/graph_snapshot --granularity 40
+      - name: Unit tests
+        run: |
+          PYTHONPATH=tpot-analyzer pytest tests/test_spectral.py tests/test_clusters.py -q
