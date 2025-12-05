@@ -18,6 +18,12 @@
 - `src/graph/hierarchy.py`: capped base granularity by budget and skipped expansions that exceed budget; uses precomputed dendrogram tree for lineage.
 - Verification: not run yet (API change pending UI wiring).
 
+## 2025-12-05T20:20:00Z — Cluster UI expand/collapse state
+- `graph-explorer/src/ClusterView.jsx`: added expanded set + budget guard (URL-synced), pane buttons for expand/collapse, and per-request budget metadata handling; fetches include expanded/budget params.
+- `graph-explorer/src/ClusterCanvas.jsx`: uses connectivity/opacity from API edges.
+- `graph-explorer/src/data.js`: cluster API calls now support expanded/budget; member fetch includes expanded state.
+- Verification: not run (UI wiring only).
+
 ## 2025-12-04T21:14:56Z — Cluster canvas, stability, tests
 - `src/graph/spectral.py`: added stability ARI metrics, tiny-graph fallback, k-safeguards; metadata now records stability; eigenvalue gap unchanged; linkage kept float64.
 - `src/graph/clusters.py`: fixed weight key scoping, Louvain fusion helper reuse, label-key bucket logic stable with weights defined once.
