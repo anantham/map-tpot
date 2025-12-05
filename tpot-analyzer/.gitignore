@@ -9,6 +9,10 @@ analysis_output.json
 data/graph_snapshot.nodes.parquet
 data/graph_snapshot.edges.parquet
 data/graph_snapshot.meta.json
+data/graph_snapshot.spectral.npz
+data/graph_snapshot.spectral_meta.json
+data/graph_snapshot.louvain.json
+data/clusters.db
 
 # Test coverage
 .coverage
