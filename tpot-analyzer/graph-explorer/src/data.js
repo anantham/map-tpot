@@ -185,13 +185,6 @@ const graphCache = {
 /**
  * Fetch raw graph structure (nodes and edges) from backend.
  * Uses IndexedDB cache with stale-while-revalidate pattern.
- *
- * @param {Object} options - Graph options
- * @param {boolean} options.includeShadow - Include shadow nodes (default: true)
- * @param {boolean} options.mutualOnly - Only mutual edges (default: false)
- * @param {number} options.minFollowers - Min followers filter (default: 0)
- * @param {boolean} options.skipCache - Skip cache and force fresh fetch (default: false)
- * @returns {Promise<Object>} Graph data with nodes and edges
  */
 export const fetchGraphData = async (options = {}) => {
   const startTime = performance.now();
@@ -211,8 +204,6 @@ export const fetchGraphData = async (options = {}) => {
         `[Cache] ${cached.isStale ? 'Stale' : 'Fresh'} cache hit (age: ${cached.age}s) - returning immediately`
       );
 
-      // Return cached data immediately
-      // If stale, refresh in background (don't await)
       if (cached.isStale) {
         console.log('[Cache] Refreshing stale cache in background...');
         fetchGraphData({ ...options, skipCache: true }).then(() => {
@@ -226,7 +217,6 @@ export const fetchGraphData = async (options = {}) => {
     }
   }
 
-  // No cache or skipCache=true - fetch from backend
   const params = new URLSearchParams({
     include_shadow: includeShadow.toString(),
     mutual_only: mutualOnly.toString(),
@@ -241,8 +231,6 @@ export const fetchGraphData = async (options = {}) => {
 
     const data = await response.json();
     const duration = performance.now() - startTime;
-
-    // Extract server timing from header
     const serverTime = response.headers.get('X-Response-Time');
 
     performanceLog.log('fetchGraphData', duration, {
@@ -253,7 +241,6 @@ export const fetchGraphData = async (options = {}) => {
       fromCache: false,
     });
 
-    // Save to cache (don't await - let it happen in background)
     graphCache.set({ includeShadow, mutualOnly, minFollowers }, data).catch(err => {
       console.warn('[Cache] Failed to save to cache:', err);
     });
@@ -268,16 +255,6 @@ export const fetchGraphData = async (options = {}) => {
 
 /**
  * Compute graph metrics with custom seeds and weights.
- *
- * @param {Object} options - Computation options
- * @param {string[]} options.seeds - Seed usernames/account_ids
- * @param {number[]} options.weights - [alpha, beta, gamma] for PageRank, Betweenness, Engagement
- * @param {number} options.alpha - PageRank damping factor (default: 0.85)
- * @param {number} options.resolution - Louvain resolution (default: 1.0)
- * @param {boolean} options.includeShadow - Include shadow nodes (default: true)
- * @param {boolean} options.mutualOnly - Only mutual edges (default: false)
- * @param {number} options.minFollowers - Min followers filter (default: 0)
- * @returns {Promise<Object>} Computed metrics
  */
 export const computeMetrics = async (options = {}) => {
   const startTime = performance.now();
@@ -295,9 +272,7 @@ export const computeMetrics = async (options = {}) => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/metrics/compute`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         seeds,
         weights,
@@ -315,8 +290,6 @@ export const computeMetrics = async (options = {}) => {
 
     const data = await response.json();
     const duration = performance.now() - startTime;
-
-    // Extract server timing from header
     const serverTime = response.headers.get('X-Response-Time');
 
     performanceLog.log('computeMetrics', duration, {
@@ -336,8 +309,6 @@ export const computeMetrics = async (options = {}) => {
 
 /**
  * Fetch available seed presets.
- *
- * @returns {Promise<Object>} Preset configurations
  */
 export const fetchPresets = async () => {
   const response = await fetch(`${API_BASE_URL}/api/metrics/presets`);
@@ -349,8 +320,6 @@ export const fetchPresets = async () => {
 
 /**
  * Check if backend is available.
- *
- * @returns {Promise<boolean>} True if backend is healthy
  */
 export const checkHealth = async () => {
   const startTime = performance.now();
@@ -368,8 +337,6 @@ export const checkHealth = async () => {
 
 /**
  * Fetch backend performance metrics.
- *
- * @returns {Promise<Object>} Performance metrics from backend
  */
 export const fetchPerformanceMetrics = async () => {
   const startTime = performance.now();
@@ -398,13 +365,7 @@ export const fetchGraphSettings = async () => {
 };
 
 /**
- * Persist a seed list to the backend so Discovery + Graph Explorer stay in sync.
- *
- * @param {Object} options
- * @param {string} options.name - Seed list identifier
- * @param {string[]} options.seeds - Handles to store
- * @param {boolean} [options.setActive=true] - Whether to mark the list active
- * @returns {Promise<Object|null>} Updated seed state (if returned by backend)
+ * Persist a seed list to the backend.
  */
 export const saveSeedList = async ({ name, seeds = [], setActive = true } = {}) => {
   const targetName = (name || '').trim();
@@ -435,15 +396,7 @@ export const saveSeedList = async ({ name, seeds = [], setActive = true } = {}) 
 };
 
 /**
- * Fetch discovery ranking (shared scoring) for a given seed configuration.
- *
- * @param {Object} options
- * @param {string[]} options.seeds
- * @param {Object} options.weights - discovery weights (neighbor_overlap, pagerank, community, path_distance)
- * @param {Object} options.filters - discovery filters
- * @param {number} options.limit
- * @param {number} options.offset
- * @returns {Promise<Object>}
+ * Fetch discovery ranking for a given seed configuration.
  */
 export const fetchDiscoveryRanking = async ({
   seeds = [],
@@ -487,9 +440,87 @@ export const fetchDiscoveryRanking = async ({
 };
 
 /**
- * Get client-side performance statistics.
+ * Fetch clustered view from /api/clusters with optional Louvain weight.
  *
- * @returns {Object} Performance statistics
+ * @param {Object} options
+ * @param {number} [options.n=25] Granularity
+ * @param {string} [options.ego] Ego node id
+ * @param {number} [options.wl=0] Louvain weight (0..1)
+ * @param {string} [options.focus] Focus cluster id
+ */
+export const fetchClusterView = async (options = {}) => {
+  const startTime = performance.now();
+  const params = new URLSearchParams();
+  const granularity = options.n ?? 25;
+  params.set('n', granularity);
+  if (options.ego) params.set('ego', options.ego);
+  if (options.focus) params.set('focus', options.focus);
+  if (typeof options.wl === 'number') {
+    const wl = Math.min(1, Math.max(0, options.wl));
+    params.set('wl', wl.toFixed(2));
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/clusters?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch clusters: ${response.statusText}`);
+    }
+    const data = await response.json();
+    performanceLog.log('fetchClusterView', performance.now() - startTime, { granularity, ego: options.ego });
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchClusterView [ERROR]', duration, { error: error.message });
+    throw error;
+  }
+};
+
+export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, ego, focus, limit = 100, offset = 0 }) => {
+  const params = new URLSearchParams();
+  params.set('n', n);
+  params.set('limit', limit);
+  params.set('offset', offset);
+  if (ego) params.set('ego', ego);
+  if (focus) params.set('focus', focus);
+  params.set('wl', Math.min(1, Math.max(0, wl)).toFixed(2));
+
+  const response = await fetch(`${API_BASE_URL}/api/clusters/${clusterId}/members?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch members: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const setClusterLabel = async ({ clusterId, n = 25, wl = 0, label }) => {
+  const params = new URLSearchParams();
+  params.set('n', n);
+  params.set('wl', Math.min(1, Math.max(0, wl)).toFixed(2));
+  const response = await fetch(`${API_BASE_URL}/api/clusters/${clusterId}/label?${params.toString()}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to set label: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const deleteClusterLabel = async ({ clusterId, n = 25, wl = 0 }) => {
+  const params = new URLSearchParams();
+  params.set('n', n);
+  params.set('wl', Math.min(1, Math.max(0, wl)).toFixed(2));
+  const response = await fetch(`${API_BASE_URL}/api/clusters/${clusterId}/label?${params.toString()}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete label: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+/**
+ * Get client-side performance statistics.
  */
 export const getClientPerformanceStats = () => {
   return performanceLog.getStats();
@@ -504,7 +535,6 @@ export const clearClientPerformanceLogs = () => {
 
 /**
  * Clear graph data cache.
- * Useful for debugging or forcing fresh data.
  */
 export const clearGraphCache = () => {
   graphCache.clear();

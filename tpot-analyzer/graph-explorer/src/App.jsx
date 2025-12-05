@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 import GraphExplorer from './GraphExplorer'
 import Discovery from './Discovery'
+import ClusterView from './ClusterView'
 
 function App() {
   const getSavedAccount = () => {
@@ -13,7 +14,14 @@ function App() {
     return { handle, valid: Boolean(handle) && valid }
   }
 
-  const [currentView, setCurrentView] = useState('discovery')
+  const getInitialView = () => {
+    if (typeof window === 'undefined') return 'discovery'
+    const params = new URLSearchParams(window.location.search)
+    const view = params.get('view')
+    if (view === 'cluster' || view === 'graph') return view
+    return 'discovery'
+  }
+  const [currentView, setCurrentView] = useState(getInitialView)
   const [preloadGraph, setPreloadGraph] = useState(false)
   const [accountStatus, setAccountStatus] = useState(getSavedAccount)
 
@@ -73,6 +81,20 @@ function App() {
         >
           Graph Explorer
         </button>
+        <button
+          onClick={() => setCurrentView('cluster')}
+          style={{
+            padding: '8px 16px',
+            background: currentView === 'cluster' ? '#1da1f2' : 'white',
+            color: currentView === 'cluster' ? 'white' : '#14171a',
+            border: '1px solid #e1e8ed',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          Cluster View
+        </button>
       </div>
 
       {/* Main Content - render both but hide inactive one */}
@@ -107,6 +129,9 @@ function App() {
             )}
           </div>
         )}
+        <div style={{ display: currentView === 'cluster' ? 'block' : 'none', height: '100%' }}>
+          <ClusterView defaultEgo={accountStatus.handle} />
+        </div>
       </div>
     </div>
   )

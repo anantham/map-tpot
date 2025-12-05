@@ -97,6 +97,30 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
   const [loading, setLoading] = useState(true);
   const [computing, setComputing] = useState(false);
   const [backendAvailable, setBackendAvailable] = useState(null);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [mutualOnly, setMutualOnly] = useState(false);
+  const [graphSettings, setGraphSettings] = useState(null);
+  const [linkDistance, setLinkDistance] = useState(140);
+  const [chargeStrength, setChargeStrength] = useState(-220);
+  const [edgeOpacity, setEdgeOpacity] = useState(0.25); // Default opacity for edges
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [seedTextarea, setSeedTextarea] = useState("");
+  const [customSeeds, setCustomSeeds] = useState([]);
+  const [presetName, setPresetName] = useState("Adi's Seeds");
+  const [includeShadows, setIncludeShadows] = useState(true);
+  const [subgraphSize, setSubgraphSize] = useState(50);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [myAccount, setMyAccount] = useState(''); // User's own account for filtering
+  const [excludeFollowing, setExcludeFollowing] = useState(false); // Filter out accounts I follow
+  const [weights, setWeights] = useState({ pr: 0.4, bt: 0.3, eng: 0.3 });
+
+  const availablePresets = useMemo(() => {
+    const lists = graphSettings?.lists;
+    if (lists && Object.keys(lists).length > 0) {
+      return lists;
+    }
+    return DEFAULT_PRESETS;
+  }, [graphSettings]);
 
   // Placeholder for future fallback mode using a static analysis JSON blob.
   void _dataUrl;
@@ -138,31 +162,6 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
     }
     setSeedTextarea((availablePresets[active] || []).join("\n"));
   }, [graphSettings, availablePresets, customSeeds.length, presetName]);
-
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [mutualOnly, setMutualOnly] = useState(false);
-  const [graphSettings, setGraphSettings] = useState(null);
-  const [linkDistance, setLinkDistance] = useState(140);
-  const [chargeStrength, setChargeStrength] = useState(-220);
-  const [edgeOpacity, setEdgeOpacity] = useState(0.25); // Default opacity for edges
-  const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [seedTextarea, setSeedTextarea] = useState("");
-  const [customSeeds, setCustomSeeds] = useState([]);
-  const [presetName, setPresetName] = useState("Adi's Seeds");
-  const [includeShadows, setIncludeShadows] = useState(true);
-  const [subgraphSize, setSubgraphSize] = useState(50);
-  const [contextMenu, setContextMenu] = useState(null);
-  const [myAccount, setMyAccount] = useState(''); // User's own account for filtering
-  const [excludeFollowing, setExcludeFollowing] = useState(false); // Filter out accounts I follow
-  const [weights, setWeights] = useState({ pr: 0.4, bt: 0.3, eng: 0.3 });
-
-  const availablePresets = useMemo(() => {
-    const lists = graphSettings?.lists;
-    if (lists && Object.keys(lists).length > 0) {
-      return lists;
-    }
-    return DEFAULT_PRESETS;
-  }, [graphSettings]);
 
   const determineEditableSeedListName = useCallback(() => {
     const presetNames = new Set(graphSettings?.preset_names || []);
