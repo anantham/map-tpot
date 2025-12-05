@@ -42,11 +42,12 @@ class GpuCapability:
             return "GPU disabled (CPU mode)"
 
 
-def _check_nvidia_smi() -> tuple[bool, Optional[str], Optional[str], Optional[str]]:
+def _check_nvidia_smi() -> tuple[bool, int, Optional[str], Optional[str], Optional[str]]:
     """Check NVIDIA GPU via nvidia-smi command.
 
     Returns:
-        (has_gpu, gpu_name, cuda_version, driver_version)
+        (has_gpu, gpu_count, gpu_name, cuda_version, driver_version)
+        gpu_name is from the first GPU if multiple are detected
     """
     try:
         result = subprocess.run(
@@ -59,16 +60,18 @@ def _check_nvidia_smi() -> tuple[bool, Optional[str], Optional[str], Optional[st
         if result.returncode == 0 and result.stdout.strip():
             lines = result.stdout.strip().split('\n')
             if lines:
+                gpu_count = len(lines)
+                # Use first GPU's info for reporting
                 parts = lines[0].split(',')
                 gpu_name = parts[0].strip() if len(parts) > 0 else None
                 driver_version = parts[1].strip() if len(parts) > 1 else None
                 cuda_version = parts[2].strip() if len(parts) > 2 else None
-                return True, gpu_name, cuda_version, driver_version
+                return True, gpu_count, gpu_name, cuda_version, driver_version
 
     except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as e:
         logger.debug(f"nvidia-smi check failed: {e}")
 
-    return False, None, None, None
+    return False, 0, None, None, None
 
 
 def _check_numba_cuda() -> bool:
@@ -128,7 +131,7 @@ def detect_gpu_capability(force_cpu: bool = False) -> GpuCapability:
         )
 
     # Check CUDA availability
-    cuda_via_smi, gpu_name, cuda_version, driver_version = _check_nvidia_smi()
+    cuda_via_smi, gpu_count, gpu_name, cuda_version, driver_version = _check_nvidia_smi()
     cuda_via_numba = _check_numba_cuda()
 
     cuda_available = cuda_via_smi or cuda_via_numba
@@ -156,7 +159,7 @@ def detect_gpu_capability(force_cpu: bool = False) -> GpuCapability:
         return GpuCapability(
             cuda_available=True,
             cugraph_available=False,
-            gpu_count=1 if cuda_via_smi else 0,
+            gpu_count=gpu_count if cuda_via_smi else 0,
             gpu_name=gpu_name,
             cuda_version=cuda_version,
             driver_version=driver_version,
@@ -164,12 +167,15 @@ def detect_gpu_capability(force_cpu: bool = False) -> GpuCapability:
         )
 
     # Success - GPU fully available
-    logger.info(f"GPU metrics enabled: {gpu_name} (CUDA {cuda_version}, Driver {driver_version})")
+    gpu_info = f"GPU metrics enabled: {gpu_name} (CUDA {cuda_version}, Driver {driver_version})"
+    if gpu_count > 1:
+        gpu_info += f" - {gpu_count} GPUs detected"
+    logger.info(gpu_info)
 
     return GpuCapability(
         cuda_available=True,
         cugraph_available=True,
-        gpu_count=1,  # TODO: Detect multiple GPUs if needed
+        gpu_count=gpu_count,
         gpu_name=gpu_name,
         cuda_version=cuda_version,
         driver_version=driver_version,
