@@ -16,6 +16,9 @@ import argparse
 import json
 import os
 import sys
+import time
+import logging
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -37,6 +40,41 @@ from src.graph import (
     compute_personalized_pagerank,
     load_seed_candidates,
 )
+
+logger = logging.getLogger("refresh_snapshot")
+
+
+def _setup_logging() -> None:
+    """Configure console + file logging for the refresh run."""
+    logger.setLevel(logging.INFO)
+    # Clear handlers if re-run in same interpreter
+    logger.handlers.clear()
+
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    file_handler = logging.FileHandler(log_dir / "refresh_snapshot.log")
+    file_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
+    file_handler.setFormatter(formatter)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+
+@contextmanager
+def log_phase(name: str):
+    """Context manager to log duration of a phase."""
+    start = time.time()
+    logger.info("[%s] start", name)
+    try:
+        yield
+    finally:
+        elapsed = time.time() - start
+        logger.info("[%s] done in %.2fs", name, elapsed)
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,6 +116,12 @@ def parse_args() -> argparse.Namespace:
         metavar=("ALPHA", "BETA", "GAMMA"),
         help="Weights for pagerank, betweenness, engagement"
     )
+    parser.add_argument(
+        "--betweenness-sample-k",
+        type=int,
+        default=None,
+        help="If set, use sampled betweenness with k source nodes instead of exact (much faster)"
+    )
     return parser.parse_args()
 
 
@@ -113,14 +157,19 @@ def _resolve_seeds(graph_result, seeds: list[str]) -> list[str]:
 
 def main():
     args = parse_args()
+    _setup_logging()
 
-    print("=" * 60)
-    print("REFRESHING GRAPH SNAPSHOT")
-    print("=" * 60)
-    print(f"Include shadow: {args.include_shadow}")
-    print(f"Output directory: {args.output_dir}")
-    print(f"Frontend output: {args.frontend_output}")
-    print()
+    logger.info("=" * 60)
+    logger.info("REFRESHING GRAPH SNAPSHOT")
+    logger.info("=" * 60)
+    logger.info("Include shadow: %s", args.include_shadow)
+    if args.betweenness_sample_k:
+        logger.info("Betweenness: sampled (k=%d)", args.betweenness_sample_k)
+    else:
+        logger.info("Betweenness: exact")
+    logger.info("Output directory: %s", args.output_dir)
+    logger.info("Frontend output: %s", args.frontend_output)
+    logger.info("")
 
     # Ensure output directories exist
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -130,7 +179,7 @@ def main():
     cache_settings = get_cache_settings()
     cache_path = cache_settings.path
 
-    print(f"[1/6] Loading data from cache: {cache_path}")
+    logger.info("[1/6] Loading data from cache: %s", cache_path)
 
     with CachedDataFetcher(cache_db=cache_path) as fetcher:
         shadow_store = get_shadow_store(fetcher.engine) if args.include_shadow else None
@@ -141,92 +190,99 @@ def main():
             for table in ["account", "profile", "followers", "following"]:
                 result = conn.execute(text(f"SELECT COUNT(*) FROM {table}"))
                 cache_row_counts[table] = result.fetchone()[0]
+        logger.info("Cache row counts: %s", cache_row_counts)
 
-        print(f"[2/6] Building graph structure...")
-        graph = build_graph(
-            fetcher=fetcher,
-            mutual_only=False,
-            min_followers=0,
-            include_shadow=args.include_shadow,
-            shadow_store=shadow_store,
-        )
+        with log_phase("build_graph"):
+            graph = build_graph(
+                fetcher=fetcher,
+                mutual_only=False,
+                min_followers=0,
+                include_shadow=args.include_shadow,
+                shadow_store=shadow_store,
+            )
 
         directed = graph.directed
         undirected = graph.undirected
 
-        print(f"  → {directed.number_of_nodes()} nodes, {directed.number_of_edges()} directed edges")
+        logger.info("Graph built: %d nodes, %d directed edges", directed.number_of_nodes(), directed.number_of_edges())
 
         # Load seeds
-        print(f"[3/6] Loading seed candidates...")
+        logger.info("[3/6] Loading seed candidates...")
         seeds = sorted(load_seed_candidates())
         resolved_seeds = _resolve_seeds(graph, seeds)
-        print(f"  → {len(seeds)} seeds ({len(resolved_seeds)} resolved)")
+        logger.info("Seed counts: %d provided, %d resolved", len(seeds), len(resolved_seeds))
 
         # Compute metrics
-        print(f"[4/6] Computing metrics...")
-        print("  - PageRank...")
-        pagerank = compute_personalized_pagerank(
-            directed,
-            seeds=resolved_seeds,
-            alpha=args.alpha
-        )
+        logger.info("[4/6] Computing metrics...")
+        with log_phase("pagerank"):
+            pagerank = compute_personalized_pagerank(
+                directed,
+                seeds=resolved_seeds,
+                alpha=args.alpha
+            )
 
-        print("  - Betweenness centrality...")
-        betweenness = compute_betweenness(undirected)
+        with log_phase("betweenness"):
+            if args.betweenness_sample_k:
+                logger.info("Using sampled betweenness with k=%d", args.betweenness_sample_k)
+                betweenness = compute_betweenness(undirected, k=args.betweenness_sample_k, seed=42)
+            else:
+                betweenness = compute_betweenness(undirected)
 
-        print("  - Engagement scores...")
-        engagement = compute_engagement_scores(undirected)
+        with log_phase("engagement"):
+            engagement = compute_engagement_scores(undirected)
 
-        print("  - Composite scores...")
-        composite = compute_composite_score(
-            pagerank=pagerank,
-            betweenness=betweenness,
-            engagement=engagement,
-            weights=tuple(args.weights),
-        )
+        with log_phase("composite"):
+            composite = compute_composite_score(
+                pagerank=pagerank,
+                betweenness=betweenness,
+                engagement=engagement,
+                weights=tuple(args.weights),
+            )
 
-        print("  - Community detection...")
-        communities = compute_louvain_communities(undirected, resolution=args.resolution)
+        with log_phase("communities"):
+            communities = compute_louvain_communities(undirected, resolution=args.resolution)
 
         # Serialize nodes and edges
-        print(f"[5/6] Serializing graph data...")
+        logger.info("[5/6] Serializing graph data...")
 
         # Node data
         nodes_records = []
-        for node_id, data in directed.nodes(data=True):
-            nodes_records.append({
-                "node_id": node_id,
-                "username": data.get("username"),
-                "display_name": data.get("account_display_name") or data.get("display_name"),
-                "num_followers": data.get("num_followers"),
-                "num_following": data.get("num_following"),
-                "num_likes": data.get("num_likes"),
-                "num_tweets": data.get("num_tweets"),
-                "bio": data.get("bio"),
-                "location": data.get("location"),
-                "website": data.get("website"),
-                "profile_image_url": data.get("profile_image_url"),
-                "provenance": data.get("provenance", "archive"),
-                "shadow": data.get("shadow", False),
-                "fetched_at": _serialize_datetime(data.get("fetched_at")),
-            })
+        with log_phase("serialize_nodes"):
+            for node_id, data in directed.nodes(data=True):
+                nodes_records.append({
+                    "node_id": node_id,
+                    "username": data.get("username"),
+                    "display_name": data.get("account_display_name") or data.get("display_name"),
+                    "num_followers": data.get("num_followers"),
+                    "num_following": data.get("num_following"),
+                    "num_likes": data.get("num_likes"),
+                    "num_tweets": data.get("num_tweets"),
+                    "bio": data.get("bio"),
+                    "location": data.get("location"),
+                    "website": data.get("website"),
+                    "profile_image_url": data.get("profile_image_url"),
+                    "provenance": data.get("provenance", "archive"),
+                    "shadow": data.get("shadow", False),
+                    "fetched_at": _serialize_datetime(data.get("fetched_at")),
+                })
 
         nodes_df = pd.DataFrame(nodes_records)
 
         # Edge data
         edges_records = []
-        for u, v in directed.edges():
-            edge_data = directed.get_edge_data(u, v, default={})
-            edges_records.append({
-                "source": u,
-                "target": v,
-                "mutual": directed.has_edge(v, u),
-                "provenance": edge_data.get("provenance", "archive"),
-                "shadow": edge_data.get("shadow", False),
-                "metadata": json.dumps(edge_data.get("metadata")) if edge_data.get("metadata") else None,
-                "direction_label": edge_data.get("direction_label"),
-                "fetched_at": _serialize_datetime(edge_data.get("fetched_at")),
-            })
+        with log_phase("serialize_edges"):
+            for u, v in directed.edges():
+                edge_data = directed.get_edge_data(u, v, default={})
+                edges_records.append({
+                    "source": u,
+                    "target": v,
+                    "mutual": directed.has_edge(v, u),
+                    "provenance": edge_data.get("provenance", "archive"),
+                    "shadow": edge_data.get("shadow", False),
+                    "metadata": json.dumps(edge_data.get("metadata")) if edge_data.get("metadata") else None,
+                    "direction_label": edge_data.get("direction_label"),
+                    "fetched_at": _serialize_datetime(edge_data.get("fetched_at")),
+                })
 
         edges_df = pd.DataFrame(edges_records)
 
