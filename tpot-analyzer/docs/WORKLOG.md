@@ -1,5 +1,33 @@
 # WORKLOG
 
+## 2025-12-05T16:20:00Z — GraphExplorer preload fix
+- `graph-explorer/src/GraphExplorer.jsx`: moved `graphSettings`/related state initializers and `availablePresets` memo above dependent effects to resolve TDZ runtime errors (“Cannot access 'graphSettings' before initialization” / “availablePresets before initialization”) seen during background preload.
+- `graph-explorer/src/ClusterCanvas.jsx`: avoid calling `preventDefault` on non-cancelable wheel events to silence passive listener warnings during canvas zoom/granularity scroll.
+- Verification: manual UI repro fixed; no automated tests run in this step.
+
+## 2025-12-05T17:05:00Z — API log persistence
+- `src/api/server.py`: added rotating file handler (`logs/api.log`, 5MB x5) during app creation so backend 500s are captured to disk for easier debugging.
+- Verification: not run (logging config only).
+
+## 2025-12-04T21:14:56Z — Cluster canvas, stability, tests
+- `src/graph/spectral.py`: added stability ARI metrics, tiny-graph fallback, k-safeguards; metadata now records stability; eigenvalue gap unchanged; linkage kept float64.
+- `src/graph/clusters.py`: fixed weight key scoping, Louvain fusion helper reuse, label-key bucket logic stable with weights defined once.
+- `src/api/cluster_routes.py`: opacity normalized per-view max weight.
+- Frontend: new canvas renderer `graph-explorer/src/ClusterCanvas.jsx` (pan/zoom, edge gradients) and upgraded `ClusterView.jsx` with URL sync, Louvain slider, semantic wheel → granularity, member fetch/rename, and cache hints; added cluster API helpers in `graph-explorer/src/data.js`; navigation already wired in `App.jsx`.
+- Tests: added `tests/test_spectral.py` and `tests/test_clusters.py` (pass); workflow `.github/workflows/test.yml` runs verify scripts + unit tests.
+- Fixtures: medium fixture already in place; README retains cluster quickstart.
+
+## 2025-12-04T20:27:56Z — Spectral precompute scaffolding
+- Added `src/graph/spectral.py`:1-170 with spectral embedding/Laplacian helpers, eigen solve, linkage, save/load.
+- Added `src/graph/clusters.py`:1-210 covering cluster cuts, soft memberships, edge aggregation, label store, view builder with weight-bucketed label keys.
+- Added `scripts/build_spectral.py`:1-120 to generate spectral artifacts and Louvain sidecar from graph snapshots (optional node limiting for fixtures).
+- Added `scripts/verify_clusters.py`:1-90 verification script emitting ✓/✗ for spectral artifacts and cluster build sanity.
+- Added `src/api/cluster_routes.py`:1-260 blueprint for `/api/clusters` with cache, weight-bucketed fusion, PCA positions, member lookup; registered in `server.py`.
+- Updated `docs/specs/spectral-clustering-spec.md`: caching, hybrid weights, data schemas, performance scope, layout decisions.
+- Built 500-node fixture artifacts (`data/graph_snapshot.spectral.*`, `.louvain.json`) and ran `scripts/verify_clusters.py` (all ✓; granularity=25).
+- Added `graph-explorer/src/ClusterView.jsx` and navigation button in `App.jsx` to fetch/render clustered view (granularity + Louvain weight sliders, cluster/edge summaries, positions, ego input) via new `/api/clusters`.
+- Generated medium fixture (`tests/fixtures/medium_graph/graph_snapshot.*`) with 2000 nodes/61k edges; verify script ✓ at granularity 40.
+
 ## 2025-10-04T10:26:07Z — Phase 1.1 Kickoff
 - Established project scaffold for TPOT Community Graph Analyzer (docs/, src/, tests/, scripts/ directories).
 - Captured ADR 001 choosing API-first + SQLite cache architecture.
