@@ -400,3 +400,21 @@ Run `python -m scripts.setup_cookies` to capture each account's cookies. The scr
 #### Profile-only Backfill
 
 Use `python -m scripts.enrich_shadow_graph --profile-only --delay-min 5 --delay-max 40` to backfill profile metadata for seeds that already have follower/following edges. Pass `--profile-only-all` if you really want to refresh every seed regardless of status.
+
+## Cluster View quickstart
+
+- Precompute artifacts (small fixture example):
+  ```bash
+  PYTHONPATH=tpot-analyzer python3 tpot-analyzer/scripts/build_spectral.py \
+    --data-dir tpot-analyzer/data \
+    --output-prefix tpot-analyzer/data/graph_snapshot \
+    --limit-nodes 500 --n-dims 10 --maxiter 500 --tol 1e-6
+  ```
+- Verify artifacts:
+  ```bash
+  PYTHONPATH=tpot-analyzer python3 tpot-analyzer/scripts/verify_clusters.py \
+    --base-path tpot-analyzer/data/graph_snapshot --granularity 25
+  ```
+- Medium fixture (2000 nodes) lives at `tests/fixtures/medium_graph/graph_snapshot.*` and is exercised in CI.
+- Start backend after precompute: `PYTHONPATH=tpot-analyzer python3 tpot-analyzer/scripts/start_api_server.py`
+- Frontend: use the Cluster View tab (in `graph-explorer`) to hit `/api/clusters` with granularity and Louvain weight slider.
