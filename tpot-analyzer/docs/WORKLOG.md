@@ -9,6 +9,10 @@
 - `src/api/server.py`: added rotating file handler (`logs/api.log`, 5MB x5) during app creation so backend 500s are captured to disk for easier debugging.
 - Verification: not run (logging config only).
 
+## 2025-12-05T17:20:00Z — Verify script approx-mode fix
+- `scripts/verify_clusters.py`: pass `micro_labels`/`micro_centroids` when present so approximate spectral artifacts validate without mask/shape errors.
+- Verification: not run (script change only).
+
 ## 2025-12-04T21:14:56Z — Cluster canvas, stability, tests
 - `src/graph/spectral.py`: added stability ARI metrics, tiny-graph fallback, k-safeguards; metadata now records stability; eigenvalue gap unchanged; linkage kept float64.
 - `src/graph/clusters.py`: fixed weight key scoping, Louvain fusion helper reuse, label-key bucket logic stable with weights defined once.
