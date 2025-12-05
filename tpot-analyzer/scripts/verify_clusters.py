@@ -49,6 +49,9 @@ def run_checks(base_path: Path, granularity: int = 25) -> list[str]:
         granularity=granularity,
         label_store=label_store,
         signal_weights={"spectral": 1.0, "louvain": 0.0},
+        # Pass micro-cluster artifacts when present (approximate mode)
+        micro_labels=getattr(spec, "micro_labels", None),
+        micro_centroids=getattr(spec, "micro_centroids", None),
     )
     build_time = time.time() - start
     lines.append(status_line(True, f"Cluster view built (granularity={granularity}) in {build_time:.3f}s"))
