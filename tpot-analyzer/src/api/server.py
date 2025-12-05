@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import logging.handlers
 import math
 import subprocess
 import sys
@@ -16,6 +17,7 @@ from typing import Any, Dict, List
 from flask import Flask, jsonify, request, g, Response
 from flask_cors import CORS
 
+from src.api.cluster_routes import init_cluster_routes
 from src.api.discovery import (
     DiscoveryRequest,
     discover_subgraph,
@@ -50,6 +52,31 @@ from src.performance_profiler import profile_operation, profile_phase, get_profi
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _configure_api_logging(log_dir: Path = REPO_ROOT / "logs") -> None:
+    """Attach a rotating file handler for API diagnostics."""
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / "api.log"
+    root = logging.getLogger()
+    already_configured = any(
+        isinstance(h, logging.handlers.RotatingFileHandler)
+        and getattr(h, "baseFilename", "") == str(log_path)
+        for h in root.handlers
+    )
+    if already_configured:
+        return
+
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_path, maxBytes=5 * 1024 * 1024, backupCount=5
+    )
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d: %(message)s"
+        )
+    )
+    root.addHandler(file_handler)
 
 analysis_status = {
     "status": "idle",
@@ -194,6 +221,7 @@ def _resolve_seeds(graph_result, seeds: List[str]) -> List[str]:
 
 def create_app(cache_db_path: Path | None = None) -> Flask:
     """Create and configure Flask app."""
+    _configure_api_logging()
     app = Flask(__name__)
     # Enable CORS for frontend and expose custom headers
     CORS(app, expose_headers=['X-Response-Time'])
@@ -220,6 +248,12 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
     else:
         logger.warning(f"Snapshot not available: {reason}")
         logger.info("Graph will be rebuilt from cache on first request")
+
+    # Initialize cluster routes (non-fatal if data missing)
+    try:
+        init_cluster_routes(app, data_dir=REPO_ROOT / "data")
+    except Exception as exc:
+        logger.warning("Cluster routes not initialized: %s", exc)
 
     # Performance tracking middleware
     @app.before_request

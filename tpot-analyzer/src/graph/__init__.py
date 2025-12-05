@@ -19,6 +19,14 @@ from .seeds import (
     set_active_seed_list,
     update_graph_settings,
 )
+from .spectral import (
+    SpectralConfig,
+    SpectralResult,
+    compute_normalized_laplacian,
+    compute_spectral_embedding,
+    load_spectral_result,
+    save_spectral_result,
+)
 
 __all__ = [
     "GraphBuildResult",
@@ -38,4 +46,10 @@ __all__ = [
     "load_seed_candidates",
     "save_seed_list",
     "set_active_seed_list",
+    "SpectralConfig",
+    "SpectralResult",
+    "compute_normalized_laplacian",
+    "compute_spectral_embedding",
+    "load_spectral_result",
+    "save_spectral_result",
 ]

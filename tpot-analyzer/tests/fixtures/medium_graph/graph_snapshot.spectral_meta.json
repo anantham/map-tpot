@@ -1,0 +1,20 @@
+{
+  "generated_at": "2025-12-04T20:40:06.687172Z",
+  "n_nodes": 2000,
+  "n_dims": 15,
+  "method": "normalized_laplacian",
+  "eigensolver": "arpack",
+  "eigensolver_params": {
+    "tol": 1e-06,
+    "maxiter": 800
+  },
+  "linkage_method": "ward",
+  "computation_metrics": {
+    "laplacian_time_seconds": 0.003142118453979492,
+    "eigensolver_time_seconds": 0.07333111763000488,
+    "eigensolver_converged": true,
+    "eigenvalue_gap": 0.004459644151477482,
+    "linkage_time_seconds": 0.035875797271728516,
+    "total_time_seconds": 0.11544394493103027
+  }
+}
