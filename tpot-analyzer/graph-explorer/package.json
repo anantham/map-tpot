@@ -9,7 +9,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "refresh-data": "node scripts/refresh-data.mjs",
-    "enrich-shadow": "cd .. && python -m scripts.enrich_shadow_graph --cookies ./secrets/twitter_cookies.pkl --include-following"
+    "enrich-shadow": "cd .. && python -m scripts.enrich_shadow_graph --cookies ./secrets/twitter_cookies.pkl --include-following",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
     "d3-force": "^3.0.0",
@@ -23,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@playwright/test": "^1.49.0",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.4",
