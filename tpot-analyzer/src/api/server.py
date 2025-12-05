@@ -486,12 +486,13 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
         Request body:
         {
             "seeds": ["username1", "account_id2"],
-            "weights": [0.4, 0.3, 0.3],  // [alpha, beta, gamma] for PR, BT, ENG
-            "alpha": 0.85,  // PageRank damping factor
-            "resolution": 1.0,  // Louvain resolution
+            "weights": [0.4, 0.3, 0.3],
+            "alpha": 0.85,
+            "resolution": 1.0,
             "include_shadow": true,
             "mutual_only": false,
-            "min_followers": 0
+            "min_followers": 0,
+            "fast": false  // reuse snapshot graph if compatible
         }
         """
         try:
@@ -505,24 +506,28 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             include_shadow = data.get("include_shadow", True)
             mutual_only = data.get("mutual_only", False)
             min_followers = data.get("min_followers", 0)
+            fast = bool(data.get("fast", False))
 
             with profile_operation("api_compute_metrics", {
                 "seed_count": len(seeds),
-                "include_shadow": include_shadow
+                "include_shadow": include_shadow,
+                "fast": fast,
             }, verbose=False) as report:
 
-                # Load default seeds if none provided
                 if not seeds:
                     with profile_phase("load_default_seeds", "api_compute_metrics"):
                         seeds = sorted(load_seed_candidates())
 
-                # Try snapshot first
                 graph = None
                 snapshot_loader = app.config["SNAPSHOT_LOADER"]
+                snapshot_meta = snapshot_loader.snapshot_info if snapshot_loader else {}
+                snapshot_stale = snapshot_loader.is_stale() if snapshot_loader else True
 
-                # Check if snapshot parameters match request
                 can_use_snapshot = (
-                    include_shadow
+                    fast
+                    and snapshot_loader
+                    and not snapshot_stale
+                    and include_shadow == bool(snapshot_meta.get("include_shadow", False))
                     and not mutual_only
                     and min_followers == 0
                 )
@@ -530,10 +535,14 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                 if can_use_snapshot:
                     with profile_phase("load_graph", "api_compute_metrics"):
                         graph = snapshot_loader.load_graph()
+                        report["fast_used"] = True
+                        report["snapshot_generated_at"] = snapshot_meta.get("generated_at")
+                else:
+                    report["fast_used"] = False
+                    report["snapshot_generated_at"] = snapshot_meta.get("generated_at")
 
-                # Fall back to live build if snapshot unavailable or incompatible
                 if graph is None:
-                    logger.info("Building graph from cache for metrics (snapshot unavailable)")
+                    logger.info("Building graph from cache for metrics (fast=%s, snapshot usable=%s)", fast, can_use_snapshot)
                     cache_path = app.config["CACHE_DB_PATH"]
 
                     with CachedDataFetcher(cache_db=cache_path) as fetcher:
@@ -549,11 +558,9 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                 directed = graph.directed
                 undirected = graph.undirected
 
-                # Resolve seeds (usernames -> account IDs)
                 with profile_phase("resolve_seeds", "api_compute_metrics"):
                     resolved_seeds = _resolve_seeds(graph, seeds)
 
-                # Compute metrics
                 pagerank = compute_personalized_pagerank(
                     directed,
                     seeds=resolved_seeds,
@@ -574,7 +581,6 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
 
                 communities = compute_louvain_communities(undirected, resolution=resolution)
 
-                # Compute discovery-style scores so Graph Explorer and Discovery share logic
                 discovery_section: Dict[str, Any] = {}
                 try:
                     graph_state = get_graph_settings()
@@ -646,7 +652,6 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                         "error": str(exc),
                     }
 
-                # Get top accounts
                 with profile_phase("sort_top_accounts", "api_compute_metrics"):
                     top_pagerank = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[:20]
                     top_betweenness = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:20]
@@ -668,6 +673,10 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                         "betweenness": top_betweenness,
                         "composite": top_composite,
                     },
+                    "meta": {
+                        "fast_used": report.get("fast_used", False),
+                        "snapshot_generated_at": report.get("snapshot_generated_at"),
+                    }
                 })
 
         except Exception as e:

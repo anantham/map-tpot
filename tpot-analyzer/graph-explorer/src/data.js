@@ -267,6 +267,7 @@ export const computeMetrics = async (options = {}) => {
     includeShadow = true,
     mutualOnly = false,
     minFollowers = 0,
+    fast = false,
   } = options;
 
   try {
@@ -281,6 +282,7 @@ export const computeMetrics = async (options = {}) => {
         include_shadow: includeShadow,
         mutual_only: mutualOnly,
         min_followers: minFollowers,
+        fast,
       }),
     });
 

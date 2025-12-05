@@ -97,6 +97,22 @@ def _get_subtree_leaves(linkage_matrix: np.ndarray, node_idx: int, n_leaves: int
            _get_subtree_leaves(linkage_matrix, right, n_leaves)
 
 
+def _subtree_size(linkage_matrix: np.ndarray, node_idx: int, n_leaves: int, memo: Dict[int, int]) -> int:
+    """Compute number of leaves under a dendrogram node (cached)."""
+    if node_idx in memo:
+        return memo[node_idx]
+    if node_idx < n_leaves:
+        memo[node_idx] = 1
+        return 1
+    children = _get_children(linkage_matrix, node_idx, n_leaves)
+    if not children:
+        memo[node_idx] = 1
+        return 1
+    size = _subtree_size(linkage_matrix, children[0], n_leaves, memo) + _subtree_size(linkage_matrix, children[1], n_leaves, memo)
+    memo[node_idx] = size
+    return size
+
+
 def _get_siblings(linkage_matrix: np.ndarray, node_idx: int, n_leaves: int) -> Optional[int]:
     """Get sibling of a dendrogram node."""
     parent = _get_parent(linkage_matrix, node_idx, n_leaves)
@@ -164,23 +180,39 @@ def build_hierarchical_view(
     
     # Step 3: Build visible set by starting with base clusters, then expanding
     visible_nodes: Set[int] = set(label_to_leader.values())
+    subtree_cache: Dict[int, int] = {}
     
     for exp_id in expanded_ids:
         node_idx = _get_node_idx(exp_id)
-        if node_idx in visible_nodes:
-            # Replace this node with its children
-            children = _get_children(linkage_matrix, node_idx, n_micro)
-            if children:
-                # Expanding replaces 1 with 2 => net +1; enforce budget
-                if len(visible_nodes) + 1 > budget:
-                    logger.warning(
-                        "Skipping expansion of %s (budget %d would be exceeded by +1)",
-                        exp_id, budget
-                    )
-                    continue
-                visible_nodes.discard(node_idx)
-                visible_nodes.add(children[0])
-                visible_nodes.add(children[1])
+        if node_idx not in visible_nodes:
+            continue
+        # Target child count grows with size but bounded by budget
+        subtree_sz = _subtree_size(linkage_matrix, node_idx, n_micro, subtree_cache)
+        target_children = max(3, int(np.sqrt(subtree_sz)))
+        budget_remaining = budget - len(visible_nodes) + 1  # removing 1 node
+        target_children = min(target_children, budget_remaining + 1)  # cannot exceed budget
+        # Greedy split: replace node with its children iteratively
+        current = {node_idx}
+        while len(current) < target_children:
+            # pick largest splittable node
+            splittable = [(n, _subtree_size(linkage_matrix, n, n_micro, subtree_cache)) for n in current if _get_children(linkage_matrix, n, n_micro)]
+            if not splittable:
+                break
+            splittable.sort(key=lambda x: x[1], reverse=True)
+            node_to_split = splittable[0][0]
+            children = _get_children(linkage_matrix, node_to_split, n_micro)
+            if not children:
+                break
+            # check budget impact: replacing 1 with 2 => +1
+            if len(visible_nodes) - len(current) + (len(current) - 1 + 2) > budget:
+                logger.warning("Budget cap hit while expanding %s; stopping at %d visible", exp_id, len(visible_nodes))
+                break
+            current.remove(node_to_split)
+            current.add(children[0])
+            current.add(children[1])
+        # apply expansion
+        visible_nodes.discard(node_idx)
+        visible_nodes.update(current)
     
     logger.info("Visible nodes after expansion: %d", len(visible_nodes))
     
