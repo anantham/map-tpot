@@ -180,8 +180,13 @@ def get_clusters():
     cache_key = _make_cache_key(granularity, ego, expanded_ids)
     cached = _cache.get(cache_key)
     if cached:
+        logger.info(
+            "clusters cache hit: n=%d budget=%d expanded=%d",
+            granularity, budget, len(expanded_ids)
+        )
         return jsonify(cached | {"cache_hit": True})
 
+    start_build = time.time()
     view = build_hierarchical_view(
         linkage_matrix=_spectral_result.linkage_matrix,
         micro_labels=_spectral_result.micro_labels if _spectral_result.micro_labels is not None else np.arange(len(_spectral_result.node_ids)),
@@ -197,6 +202,14 @@ def get_clusters():
     )
 
     payload = _serialize_hierarchical_view(view)
+    logger.info(
+        "clusters built: n=%d expanded=%d visible=%d budget_rem=%d took=%.3fs",
+        granularity,
+        len(expanded_ids),
+        len(payload.get("clusters", [])),
+        payload.get("meta", {}).get("budget_remaining"),
+        time.time() - start_build,
+    )
     _cache.set(cache_key, payload)
     return jsonify(payload)
 
@@ -218,6 +231,7 @@ def get_cluster_members(cluster_id: str):
     cache_key = _make_cache_key(granularity, ego, expanded_ids)
     view = _cache.get(cache_key)
     if not view:
+        start_build = time.time()
         view_obj = build_hierarchical_view(
             linkage_matrix=_spectral_result.linkage_matrix,
             micro_labels=_spectral_result.micro_labels if _spectral_result.micro_labels is not None else np.arange(len(_spectral_result.node_ids)),
@@ -232,6 +246,13 @@ def get_cluster_members(cluster_id: str):
             label_store=_label_store,
         )
         view = _serialize_hierarchical_view(view_obj)
+        logger.info(
+            "member view built: n=%d expanded=%d visible=%d took=%.3fs",
+            granularity,
+            len(expanded_ids),
+            len(view.get("clusters", [])),
+            time.time() - start_build,
+        )
         _cache.set(cache_key, view)
 
     limit = request.args.get("limit", 100, type=int)

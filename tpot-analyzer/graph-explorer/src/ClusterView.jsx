@@ -19,6 +19,7 @@ export default function ClusterView({ defaultEgo = '' }) {
   const [ego, setEgo] = useState(defaultEgo || '')
   const [budget, setBudget] = useState(25)
   const [expanded, setExpanded] = useState(new Set())
+  const [collapseSelection, setCollapseSelection] = useState(new Set())
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -60,6 +61,7 @@ export default function ClusterView({ defaultEgo = '' }) {
   useEffect(() => {
     let cancelled = false
     const run = async () => {
+      const t0 = performance.now()
       setLoading(true)
       setError(null)
       try {
@@ -73,6 +75,13 @@ export default function ClusterView({ defaultEgo = '' }) {
         if (!cancelled) {
           setData(payload)
           setSelectedCluster(null)
+          const t1 = performance.now()
+          console.info('[ClusterView] fetched view in', Math.round(t1 - t0), 'ms', {
+            expanded: expanded.size,
+            visible: payload?.clusters?.length,
+            budget: payload?.meta?.budget,
+            budget_remaining: payload?.meta?.budget_remaining
+          })
         }
       } catch (err) {
         if (!cancelled) setError(err.message || 'Failed to load clusters')
@@ -154,6 +163,8 @@ export default function ClusterView({ defaultEgo = '' }) {
       return
     }
     setExpanded(prev => new Set(prev).add(cluster.id))
+    // Optimistic: clear collapse selection to avoid stale selections
+    setCollapseSelection(new Set())
   }
 
   const handleCollapse = (cluster) => {
@@ -163,6 +174,36 @@ export default function ClusterView({ defaultEgo = '' }) {
       next.delete(cluster.parentId)
       return next
     })
+    setCollapseSelection(new Set())
+  }
+
+  const toggleCollapseSelection = (cluster) => {
+    if (!cluster) return
+    setCollapseSelection(prev => {
+      const next = new Set(prev)
+      if (next.has(cluster.id)) {
+        next.delete(cluster.id)
+      } else {
+        next.add(cluster.id)
+      }
+      return next
+    })
+  }
+
+  const handleCollapseSelected = () => {
+    if (!collapseSelection.size) return
+    const parentMap = new Map((data?.clusters || []).map(c => [c.id, c.parentId]))
+    setExpanded(prev => {
+      const next = new Set(prev)
+      collapseSelection.forEach(id => {
+        const parentId = parentMap.get(id)
+        if (parentId) {
+          next.delete(parentId)
+        }
+      })
+      return next
+    })
+    setCollapseSelection(new Set())
   }
 
   const budgetRemaining = data?.meta?.budget_remaining ?? (budget - (data?.clusters?.length || 0))
@@ -216,6 +257,14 @@ export default function ClusterView({ defaultEgo = '' }) {
         {data?.cache_hit && <span style={{ color: '#10b981' }}>Cache hit</span>}
         {error && <span style={{ color: '#b91c1c' }}>{error}</span>}
         <span style={{ color: '#475569' }}>Visible {visibleCount}/{budget}</span>
+        {collapseSelection.size > 0 && (
+          <button
+            onClick={handleCollapseSelected}
+            style={{ padding: '6px 10px', borderRadius: 6, background: '#475569', color: 'white', border: 'none' }}
+          >
+            Collapse selected ({collapseSelection.size})
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -234,6 +283,14 @@ export default function ClusterView({ defaultEgo = '' }) {
               <div style={{ color: '#475569' }}>
                 Size {selectedCluster.size} • Reps {(selectedCluster.representativeHandles || []).join(', ')}
               </div>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: '#475569' }}>
+                <input
+                  type="checkbox"
+                  checked={collapseSelection.has(selectedCluster.id)}
+                  onChange={() => toggleCollapseSelection(selectedCluster)}
+                />
+                Select for collapse
+              </label>
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button
                   onClick={() => handleExpand(selectedCluster)}
