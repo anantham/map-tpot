@@ -17,6 +17,8 @@ export default function ClusterView({ defaultEgo = '' }) {
   const [granularity, setGranularity] = useState(25)
   const [wl, setWl] = useState(0)
   const [ego, setEgo] = useState(defaultEgo || '')
+  const [budget, setBudget] = useState(25)
+  const [expanded, setExpanded] = useState(new Set())
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -32,6 +34,10 @@ export default function ClusterView({ defaultEgo = '' }) {
     setGranularity(toNumber(params.get('n'), 25))
     setWl(clamp(toNumber(params.get('wl'), 0), 0, 1))
     setEgo(params.get('ego') || defaultEgo || '')
+    const expandedParam = params.get('expanded')
+    if (expandedParam) {
+      setExpanded(new Set(expandedParam.split(',').filter(Boolean)))
+    }
   }, [defaultEgo])
 
   // Update URL when controls change
@@ -41,13 +47,14 @@ export default function ClusterView({ defaultEgo = '' }) {
     url.searchParams.set('view', 'cluster')
     url.searchParams.set('n', granularity)
     url.searchParams.set('wl', wl.toFixed(2))
+    url.searchParams.set('expanded', Array.from(expanded).join(','))
     if (ego) {
       url.searchParams.set('ego', ego)
     } else {
       url.searchParams.delete('ego')
     }
     window.history.replaceState({}, '', url.toString())
-  }, [granularity, wl, ego])
+  }, [granularity, wl, ego, expanded])
 
   // Fetch cluster view
   useEffect(() => {
@@ -60,6 +67,8 @@ export default function ClusterView({ defaultEgo = '' }) {
           n: granularity,
           ego: ego.trim() || undefined,
           wl,
+          budget,
+          expanded: Array.from(expanded),
         })
         if (!cancelled) {
           setData(payload)
@@ -73,7 +82,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     }
     run()
     return () => { cancelled = true }
-  }, [granularity, wl, ego])
+  }, [granularity, wl, ego, expanded, budget])
 
   const nodes = useMemo(() => {
     if (!data?.clusters) return []
@@ -89,7 +98,7 @@ export default function ClusterView({ defaultEgo = '' }) {
 
   const loadMembers = async (clusterId) => {
     try {
-      const res = await fetchClusterMembers({ clusterId, n: granularity, wl, ego: ego || undefined })
+      const res = await fetchClusterMembers({ clusterId, n: granularity, wl, ego: ego || undefined, expanded: Array.from(expanded) })
       setMembers(res.members || [])
       setMembersTotal(res.total || 0)
     } catch (err) {
@@ -135,6 +144,29 @@ export default function ClusterView({ defaultEgo = '' }) {
   const handleGranularityDelta = (delta) => {
     setGranularity(g => clamp(g + delta, 5, 200))
   }
+
+  const handleExpand = (cluster) => {
+    if (!cluster || !cluster.childrenIds?.length) return
+    const nextVisible = (data?.clusters?.length || 0) + (cluster.childrenIds.length - 1)
+    const budgetRemaining = (data?.meta?.budget_remaining ?? (budget - (data?.clusters?.length || 0)))
+    if (budgetRemaining <= 0 || nextVisible > budget) {
+      alert('Budget exceeded. Collapse some clusters before expanding.')
+      return
+    }
+    setExpanded(prev => new Set(prev).add(cluster.id))
+  }
+
+  const handleCollapse = (cluster) => {
+    if (!cluster?.parentId) return
+    setExpanded(prev => {
+      const next = new Set(prev)
+      next.delete(cluster.parentId)
+      return next
+    })
+  }
+
+  const budgetRemaining = data?.meta?.budget_remaining ?? (budget - (data?.clusters?.length || 0))
+  const visibleCount = data?.clusters?.length || 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -183,6 +215,7 @@ export default function ClusterView({ defaultEgo = '' }) {
         {loading && <span style={{ color: '#475569' }}>Loading…</span>}
         {data?.cache_hit && <span style={{ color: '#10b981' }}>Cache hit</span>}
         {error && <span style={{ color: '#b91c1c' }}>{error}</span>}
+        <span style={{ color: '#475569' }}>Visible {visibleCount}/{budget}</span>
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -200,6 +233,22 @@ export default function ClusterView({ defaultEgo = '' }) {
               <div style={{ fontWeight: 700 }}>{selectedCluster.label}</div>
               <div style={{ color: '#475569' }}>
                 Size {selectedCluster.size} • Reps {(selectedCluster.representativeHandles || []).join(', ')}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button
+                  onClick={() => handleExpand(selectedCluster)}
+                  disabled={!selectedCluster.childrenIds?.length || budgetRemaining <= 0}
+                  style={{ padding: '8px 12px', borderRadius: 6, background: '#0ea5e9', color: 'white', border: 'none', opacity: (!selectedCluster.childrenIds?.length || budgetRemaining <= 0) ? 0.6 : 1 }}
+                >
+                  Expand {selectedCluster.childrenIds?.length ? `(adds +${selectedCluster.childrenIds.length - 1})` : ''}
+                </button>
+                <button
+                  onClick={() => handleCollapse(selectedCluster)}
+                  disabled={!selectedCluster.parentId}
+                  style={{ padding: '8px 12px', borderRadius: 6, background: '#334155', color: 'white', border: 'none', opacity: selectedCluster.parentId ? 1 : 0.6 }}
+                >
+                  Collapse to parent
+                </button>
               </div>
               <label style={{ fontWeight: 600, marginTop: 8 }}>Rename</label>
               <input
