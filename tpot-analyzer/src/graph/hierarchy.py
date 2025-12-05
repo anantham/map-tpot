@@ -156,7 +156,7 @@ def build_hierarchical_view(
     )
     
     # Step 1: Get base cut
-    base_granularity = min(base_granularity, n_micro)
+    base_granularity = min(base_granularity, n_micro, budget)
     base_labels = fcluster(linkage_matrix, t=base_granularity, criterion="maxclust")
     
     # Step 2: Find dendrogram nodes for each base cluster
@@ -171,6 +171,13 @@ def build_hierarchical_view(
             # Replace this node with its children
             children = _get_children(linkage_matrix, node_idx, n_micro)
             if children:
+                # Expanding replaces 1 with 2 => net +1; enforce budget
+                if len(visible_nodes) + 1 > budget:
+                    logger.warning(
+                        "Skipping expansion of %s (budget %d would be exceeded by +1)",
+                        exp_id, budget
+                    )
+                    continue
                 visible_nodes.discard(node_idx)
                 visible_nodes.add(children[0])
                 visible_nodes.add(children[1])
