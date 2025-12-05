@@ -13,6 +13,11 @@
 - `scripts/verify_clusters.py`: pass `micro_labels`/`micro_centroids` when present so approximate spectral artifacts validate without mask/shape errors.
 - Verification: not run (script change only).
 
+## 2025-12-05T20:10:00Z — Hierarchical cluster API scaffold
+- `src/api/cluster_routes.py`: switched to hierarchical view with expand/collapse params (`expanded`, `budget`), returning parent/child lineage, connectivity metrics, and budget fields; caching now keys on expanded set.
+- `src/graph/hierarchy.py`: capped base granularity by budget and skipped expansions that exceed budget; uses precomputed dendrogram tree for lineage.
+- Verification: not run yet (API change pending UI wiring).
+
 ## 2025-12-04T21:14:56Z — Cluster canvas, stability, tests
 - `src/graph/spectral.py`: added stability ARI metrics, tiny-graph fallback, k-safeguards; metadata now records stability; eigenvalue gap unchanged; linkage kept float64.
 - `src/graph/clusters.py`: fixed weight key scoping, Louvain fusion helper reuse, label-key bucket logic stable with weights defined once.
