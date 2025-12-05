@@ -13,3 +13,9 @@ requests==2.31.0
 selenium==4.21.0
 Flask
 Flask-Cors
+
+# Mutation testing
+mutmut==2.4.4
+
+# Property-based testing (for Phase 2)
+hypothesis==6.92.1

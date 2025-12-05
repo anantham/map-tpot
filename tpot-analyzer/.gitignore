@@ -15,6 +15,20 @@ data/graph_snapshot.meta.json
 .coverage.*
 htmlcov/
 
+# Mutation testing
+.mutmut-cache/
+.mutmut-results/
+mutmut-results.html
+mutants/
+mutmut_run.log
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
 # Local data and state
 *.db
 *.db-shm
@@ -37,3 +51,4 @@ ccusage/
 # Secrets (cookies, tokens, credentials)
 secrets/
 *.pkl
+.hypothesis/
