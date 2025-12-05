@@ -514,3 +514,127 @@ export const clearGraphCache = () => {
 if (typeof window !== 'undefined') {
   window.graphCache = graphCache;
 }
+
+/**
+ * Fetch base metrics WITHOUT composite scores for client-side reweighting.
+ *
+ * This is the optimized endpoint - it caches PageRank, betweenness, and engagement.
+ * Composite scores can be computed client-side in <1ms when weights change.
+ *
+ * @param {Object} options - Computation options (same as computeMetrics, minus weights)
+ * @param {string[]} options.seeds - Seed usernames/account_ids
+ * @param {number} options.alpha - PageRank damping factor (default: 0.85)
+ * @param {number} options.resolution - Louvain resolution (default: 1.0)
+ * @param {boolean} options.includeShadow - Include shadow nodes (default: true)
+ * @param {boolean} options.mutualOnly - Only mutual edges (default: false)
+ * @param {number} options.minFollowers - Min followers filter (default: 0)
+ * @returns {Promise<Object>} Base metrics (without composite)
+ */
+export const fetchBaseMetrics = async (options = {}) => {
+  const startTime = performance.now();
+
+  const {
+    seeds = [],
+    alpha = 0.85,
+    resolution = 1.0,
+    includeShadow = true,
+    mutualOnly = false,
+    minFollowers = 0,
+  } = options;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/metrics/base`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        seeds,
+        alpha,
+        resolution,
+        include_shadow: includeShadow,
+        mutual_only: mutualOnly,
+        min_followers: minFollowers,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch base metrics: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const duration = performance.now() - startTime;
+
+    // Extract server timing and cache status
+    const serverTime = response.headers.get('X-Response-Time');
+    const cacheStatus = response.headers.get('X-Cache-Status') || 'UNKNOWN';
+
+    performanceLog.log('fetchBaseMetrics', duration, {
+      serverTime,
+      cacheStatus,
+      seedCount: seeds.length,
+      resolvedSeeds: data.resolved_seeds?.length || 0,
+    });
+
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchBaseMetrics [ERROR]', duration, { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Fetch cache statistics from backend.
+ *
+ * @returns {Promise<Object>} Cache stats (hit rate, size, entries)
+ */
+export const fetchCacheStats = async () => {
+  const startTime = performance.now();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cache/stats`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch cache stats: ${response.statusText}`);
+    }
+    const data = await response.json();
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchCacheStats', duration);
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceLog.log('fetchCacheStats [ERROR]', duration, { error: error.message });
+    throw error;
+  }
+};
+
+/**
+ * Invalidate backend cache.
+ *
+ * @param {string|null} prefix - Cache prefix to invalidate ('graph', 'pagerank', etc) or null for all
+ * @returns {Promise<Object>} Invalidation result
+ */
+export const invalidateCache = async (prefix = null) => {
+  const startTime = performance.now();
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/cache/invalidate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prefix }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to invalidate cache: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const duration = performance.now() - startTime;
+    performanceLog.log('invalidateCache', duration, { prefix: prefix || 'all', invalidated: data.invalidated });
+    return data;
+  } catch (error) {
+    const duration = performance.now() - startTime;
+    performanceLog.log('invalidateCache [ERROR]', duration, { error: error.message });
+    throw error;
+  }
+};
