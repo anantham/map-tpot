@@ -49,3 +49,7 @@ tpot-analyzer/secrets/
 secrets/
 tpot-analyzer/analysis_output.json
 tpot-analyzer/data/test_write
+# Generated graph snapshots / exports
+data/graph_snapshot*
+graph-explorer/
+graph-explorer/public/analysis_output.json
