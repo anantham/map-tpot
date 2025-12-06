@@ -147,6 +147,9 @@ def build_hierarchical_view(
     ego_node_id: Optional[str] = None,
     budget: int = 25,
     label_store = None,
+    louvain_communities: Optional[Dict[str, int]] = None,
+    louvain_weight: float = 0.0,
+    expand_depth: float = 0.5,  # 0.0 = conservative (size^0.4), 1.0 = aggressive (size^0.7)
 ) -> HierarchicalViewData:
     """Build hierarchical cluster view with expand/collapse support.
     
@@ -162,6 +165,9 @@ def build_hierarchical_view(
         ego_node_id: Ego node for highlighting
         budget: Maximum clusters allowed on screen
         label_store: Optional label store for user labels
+        louvain_communities: Optional dict mapping node_id -> Louvain community ID
+        louvain_weight: Weight for Louvain fusion (0.0 = pure spectral, 1.0 = heavily favor Louvain)
+        expand_depth: Controls expansion aggressiveness (0.0 = size^0.4, 1.0 = size^0.7)
     """
     expanded_ids = expanded_ids or set()
     n_micro = len(micro_centroids)  # Number of micro-clusters (leaves in dendrogram)
@@ -186,9 +192,12 @@ def build_hierarchical_view(
         node_idx = _get_node_idx(exp_id)
         if node_idx not in visible_nodes:
             continue
-        # Target child count grows with size but bounded by budget
+        # Target child count grows with size, controlled by expand_depth
+        # expand_depth 0.0 = exponent 0.4 (conservative, ~4 children for size 50)
+        # expand_depth 1.0 = exponent 0.7 (aggressive, ~14 children for size 50)
         subtree_sz = _subtree_size(linkage_matrix, node_idx, n_micro, subtree_cache)
-        target_children = max(3, int(np.sqrt(subtree_sz)))
+        exponent = 0.4 + expand_depth * 0.3
+        target_children = max(3, int(subtree_sz ** exponent))
         budget_remaining = budget - len(visible_nodes) + 1  # removing 1 node
         target_children = min(target_children, budget_remaining + 1)  # cannot exceed budget
         # Greedy split: replace node with its children iteratively
@@ -231,6 +240,9 @@ def build_hierarchical_view(
         if len(ego_indices):
             ego_micro = micro_labels[ego_indices[0]]
     
+    # Create node_id -> index mapping for in-degree lookups
+    node_id_to_idx = {str(nid): i for i, nid in enumerate(node_ids)}
+    
     clusters: List[HierarchicalCluster] = []
     user_labels = label_store.get_all_labels() if label_store else {}
     
@@ -257,8 +269,13 @@ def build_hierarchical_view(
         # Check if contains ego
         contains_ego = ego_micro is not None and ego_micro in micro_leaves
         
-        # Representative handles
-        reps = _get_representative_handles(member_node_ids_list, node_metadata)
+        # Representative handles (uses in-degree as fallback for missing follower counts)
+        reps = _get_representative_handles(
+            member_node_ids_list, 
+            node_metadata,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
         
         # Label
         dend_id = _get_dendrogram_id(dend_node)
@@ -283,8 +300,15 @@ def build_hierarchical_view(
             is_leaf=is_leaf,
         ))
     
-    # Step 5: Compute edges with connectivity metric
-    edges = _compute_hierarchical_edges(clusters, micro_labels, adjacency)
+    # Step 5: Compute edges with connectivity metric (with optional Louvain fusion)
+    edges = _compute_hierarchical_edges(
+        clusters, 
+        micro_labels, 
+        adjacency, 
+        node_ids,
+        louvain_communities,
+        louvain_weight,
+    )
     
     # Step 6: Compute positions via PCA on centroids
     positions = _compute_positions(clusters)
@@ -359,13 +383,16 @@ def get_expand_preview(
     cluster_id: str,
     current_count: int,
     budget: int,
+    expand_depth: float = 0.5,
 ) -> Dict:
     """Get preview of what would happen if we expand this cluster.
     
     Returns dict with:
-        - children_ids: The two child cluster IDs
         - can_expand: Whether expansion is possible
         - reason: If can't expand, why not
+        - predicted_children: Number of clusters after greedy split
+        - predicted_new_total: New total visible count
+        - budget_impact: How many slots this will consume (predicted_children - 1)
     """
     node_idx = _get_node_idx(cluster_id)
     children = _get_children(linkage_matrix, node_idx, n_micro)
@@ -373,8 +400,37 @@ def get_expand_preview(
     if children is None:
         return {"can_expand": False, "reason": "Already at maximum detail (micro-cluster level)"}
     
-    # Expanding removes 1 and adds 2, net +1
-    if current_count + 1 > budget:
+    # Simulate greedy split to predict actual child count
+    subtree_cache: Dict[int, int] = {}
+    subtree_sz = _subtree_size(linkage_matrix, node_idx, n_micro, subtree_cache)
+    exponent = 0.4 + expand_depth * 0.3
+    target_children = max(3, int(subtree_sz ** exponent))
+    budget_remaining = budget - current_count + 1  # removing 1 node
+    target_children = min(target_children, budget_remaining + 1)
+    
+    # Simulate greedy split
+    current = {node_idx}
+    while len(current) < target_children:
+        splittable = [
+            (n, _subtree_size(linkage_matrix, n, n_micro, subtree_cache))
+            for n in current if _get_children(linkage_matrix, n, n_micro)
+        ]
+        if not splittable:
+            break
+        splittable.sort(key=lambda x: x[1], reverse=True)
+        node_to_split = splittable[0][0]
+        split_children = _get_children(linkage_matrix, node_to_split, n_micro)
+        if not split_children:
+            break
+        current.remove(node_to_split)
+        current.add(split_children[0])
+        current.add(split_children[1])
+    
+    predicted_children = len(current)
+    budget_impact = predicted_children - 1  # Net change in visible count
+    new_total = current_count + budget_impact
+    
+    if new_total > budget:
         return {
             "can_expand": False, 
             "reason": f"Budget exceeded. Collapse some clusters first. ({current_count}/{budget})"
@@ -382,22 +438,37 @@ def get_expand_preview(
     
     return {
         "can_expand": True,
-        "children_ids": [_get_dendrogram_id(children[0]), _get_dendrogram_id(children[1])],
-        "new_count": current_count + 1,
+        "predicted_children": predicted_children,
+        "predicted_new_total": new_total,
+        "budget_impact": budget_impact,
+        "budget_remaining_after": budget - new_total,
     }
 
 
 def _get_representative_handles(
     member_ids: List[str],
     node_metadata: Dict[str, Dict],
+    adjacency=None,
+    node_id_to_idx: Optional[Dict[str, int]] = None,
     n: int = 3,
 ) -> List[str]:
-    """Pick top-N handles by follower count."""
+    """Pick top-N handles by follower count, with in-degree fallback.
+    
+    When num_followers is 0/None, uses adjacency in-degree as proxy.
+    """
     rows = []
     for node_id in member_ids:
         meta = node_metadata.get(node_id, {})
         handle = meta.get("username") or meta.get("handle") or node_id
         followers = meta.get("num_followers") or 0
+        
+        # Fallback to in-degree if followers is 0 and we have adjacency
+        if followers == 0 and adjacency is not None and node_id_to_idx is not None:
+            idx = node_id_to_idx.get(node_id)
+            if idx is not None:
+                # in-degree = sum of column idx (who points to this node)
+                followers = int(adjacency[:, idx].sum())
+        
         rows.append((handle, followers))
     rows.sort(key=lambda x: x[1], reverse=True)
     return [h for h, _ in rows[:n]]
@@ -407,16 +478,31 @@ def _compute_hierarchical_edges(
     clusters: List[HierarchicalCluster],
     micro_labels: np.ndarray,
     adjacency,
+    node_ids: np.ndarray,
+    louvain_communities: Optional[Dict[str, int]] = None,
+    louvain_weight: float = 0.0,
 ) -> List[HierarchicalEdge]:
-    """Compute edges between clusters with connectivity metric."""
+    """Compute edges between clusters with connectivity metric and optional Louvain fusion.
+    
+    When louvain_weight > 0, edges between nodes in the same Louvain community
+    are boosted, while edges between different communities are reduced.
+    """
     # Build mapping: micro_cluster -> cluster_id
     micro_to_cluster: Dict[int, str] = {}
     for c in clusters:
         for micro_idx in c.member_micro_indices:
             micro_to_cluster[micro_idx] = c.id
     
-    # Count edges between clusters
-    edge_counts: Dict[Tuple[str, str], int] = {}
+    # Build Louvain labels array if available
+    louvain_labels: Optional[np.ndarray] = None
+    if louvain_communities and louvain_weight > 0:
+        louvain_labels = np.array([
+            louvain_communities.get(str(nid), -1) 
+            for nid in node_ids
+        ])
+    
+    # Count edges between clusters (with optional Louvain weighting)
+    edge_counts: Dict[Tuple[str, str], float] = {}
     
     if hasattr(adjacency, "tocoo"):
         coo = adjacency.tocoo()
@@ -431,7 +517,17 @@ def _compute_hierarchical_edges(
         cluster_j = micro_to_cluster.get(micro_j)
         if cluster_i and cluster_j and cluster_i != cluster_j:
             key = (cluster_i, cluster_j) if cluster_i < cluster_j else (cluster_j, cluster_i)
-            edge_counts[key] = edge_counts.get(key, 0) + 1
+            
+            # Apply Louvain fusion factor
+            weight = 1.0
+            if louvain_labels is not None:
+                same_community = louvain_labels[i] == louvain_labels[j] and louvain_labels[i] != -1
+                if same_community:
+                    weight = 1.0 + louvain_weight  # Boost same-community edges
+                else:
+                    weight = max(0.0, 1.0 - louvain_weight)  # Reduce cross-community edges
+            
+            edge_counts[key] = edge_counts.get(key, 0) + weight
     
     # Get cluster sizes
     sizes = {c.id: c.size for c in clusters}
@@ -444,7 +540,7 @@ def _compute_hierarchical_edges(
         edges.append(HierarchicalEdge(
             source_id=src,
             target_id=tgt,
-            raw_count=count,
+            raw_count=int(round(count)),  # Raw count may be fractional with fusion
             connectivity=connectivity,
         ))
     

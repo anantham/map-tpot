@@ -65,6 +65,8 @@ class ClusterCache:
 _spectral_result = None
 _adjacency = None
 _node_metadata: Dict[str, Dict] = {}
+_node_id_to_idx: Dict[str, int] = {}  # For in-degree lookups
+_louvain_communities: Dict[str, int] = {}  # Louvain community mapping
 _label_store: Optional[ClusterLabelStore] = None
 _cache = ClusterCache()
 
@@ -79,6 +81,20 @@ def _safe_int(val, default=0) -> int:
         return int(val)
     except (ValueError, TypeError):
         return default
+
+
+def _get_follower_count(node_id: str) -> int:
+    """Get follower count with in-degree fallback."""
+    meta = _node_metadata.get(str(node_id), {})
+    followers = _safe_int(meta.get("num_followers"))
+    
+    # Fallback to in-degree if followers is 0
+    if followers == 0 and _adjacency is not None and _node_id_to_idx:
+        idx = _node_id_to_idx.get(str(node_id))
+        if idx is not None:
+            followers = int(_adjacency[:, idx].sum())
+    
+    return followers
 
 
 def _load_metadata(nodes_df: pd.DataFrame) -> Dict[str, Dict]:
@@ -127,13 +143,13 @@ def _build_adjacency(edges_df: pd.DataFrame, node_ids: np.ndarray) -> sp.csr_mat
     return adjacency
 
 
-def _make_cache_key(granularity: int, ego: Optional[str], expanded: Set[str]) -> Tuple:
-    return (granularity, ego or "", ",".join(sorted(expanded)))
+def _make_cache_key(granularity: int, ego: Optional[str], expanded: Set[str], louvain_weight: float = 0.0, expand_depth: float = 0.5) -> Tuple:
+    return (granularity, ego or "", ",".join(sorted(expanded)), round(louvain_weight, 2), round(expand_depth, 2))
 
 
 def init_cluster_routes(app, data_dir: Path = Path("data")) -> None:
     """Initialize and register cluster routes."""
-    global _spectral_result, _adjacency, _node_metadata, _label_store
+    global _spectral_result, _adjacency, _node_metadata, _node_id_to_idx, _louvain_communities, _label_store
 
     try:
         base = data_dir / "graph_snapshot"
@@ -144,6 +160,12 @@ def init_cluster_routes(app, data_dir: Path = Path("data")) -> None:
         node_ids = _spectral_result.node_ids
         _adjacency = _build_adjacency(edges_df, node_ids)
         _label_store = ClusterLabelStore(data_dir / "clusters.db")
+        
+        # Build node_id -> index mapping for in-degree lookups
+        _node_id_to_idx = {str(nid): i for i, nid in enumerate(node_ids)}
+        
+        # Load Louvain communities
+        _louvain_communities = _load_louvain(data_dir)
 
         if _spectral_result.micro_labels is not None:
             n_micro = len(np.unique(_spectral_result.micro_labels))
@@ -176,13 +198,23 @@ def get_clusters():
     expanded_ids: Set[str] = set([e for e in expanded_arg.split(",") if e])
     budget = request.args.get("budget", 25, type=int)
     budget = max(5, budget)
+    louvain_weight = request.args.get("wl", 0.0, type=float)
+    louvain_weight = max(0.0, min(1.0, louvain_weight))
+    expand_depth = request.args.get("expand_depth", 0.5, type=float)
+    expand_depth = max(0.0, min(1.0, expand_depth))
 
-    cache_key = _make_cache_key(granularity, ego, expanded_ids)
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, louvain_weight, expand_depth)
     cached = _cache.get(cache_key)
     if cached:
         logger.info(
-            "clusters cache hit: n=%d budget=%d expanded=%d",
-            granularity, budget, len(expanded_ids)
+            "clusters cache hit: n=%d budget=%d expanded=%d wl=%.2f depth=%.2f visible=%d budget_rem=%s",
+            granularity,
+            budget,
+            len(expanded_ids),
+            louvain_weight,
+            expand_depth,
+            len((cached or {}).get("clusters", [])),
+            (cached or {}).get("meta", {}).get("budget_remaining"),
         )
         return jsonify(cached | {"cache_hit": True})
 
@@ -199,15 +231,20 @@ def get_clusters():
         ego_node_id=ego,
         budget=budget,
         label_store=_label_store,
+        louvain_communities=_louvain_communities,
+        louvain_weight=louvain_weight,
+        expand_depth=expand_depth,
     )
 
     payload = _serialize_hierarchical_view(view)
     logger.info(
-        "clusters built: n=%d expanded=%d visible=%d budget_rem=%d took=%.3fs",
+        "clusters built: n=%d expanded=%d visible=%d budget_rem=%s wl=%.2f depth=%.2f took=%.3fs",
         granularity,
         len(expanded_ids),
         len(payload.get("clusters", [])),
         payload.get("meta", {}).get("budget_remaining"),
+        louvain_weight,
+        expand_depth,
         time.time() - start_build,
     )
     _cache.set(cache_key, payload)
@@ -227,8 +264,12 @@ def get_cluster_members(cluster_id: str):
     expanded_ids: Set[str] = set([e for e in expanded_arg.split(",") if e])
     budget = request.args.get("budget", 25, type=int)
     budget = max(5, budget)
+    louvain_weight = request.args.get("wl", 0.0, type=float)
+    louvain_weight = max(0.0, min(1.0, louvain_weight))
+    expand_depth = request.args.get("expand_depth", 0.5, type=float)
+    expand_depth = max(0.0, min(1.0, expand_depth))
 
-    cache_key = _make_cache_key(granularity, ego, expanded_ids)
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, louvain_weight, expand_depth)
     view = _cache.get(cache_key)
     if not view:
         start_build = time.time()
@@ -244,13 +285,18 @@ def get_cluster_members(cluster_id: str):
             ego_node_id=ego,
             budget=budget,
             label_store=_label_store,
+            louvain_communities=_louvain_communities,
+            louvain_weight=louvain_weight,
+            expand_depth=expand_depth,
         )
         view = _serialize_hierarchical_view(view_obj)
         logger.info(
-            "member view built: n=%d expanded=%d visible=%d took=%.3fs",
+            "member view built: n=%d expanded=%d visible=%d wl=%.2f depth=%.2f took=%.3fs",
             granularity,
             len(expanded_ids),
             len(view.get("clusters", [])),
+            louvain_weight,
+            expand_depth,
             time.time() - start_build,
         )
         _cache.set(cache_key, view)
@@ -260,6 +306,7 @@ def get_cluster_members(cluster_id: str):
 
     members = []
     total = 0
+    found_cluster = None
     for cluster in view["clusters"]:
         if cluster["id"] == cluster_id:
             total = len(cluster.get("memberIds", []))
@@ -271,10 +318,23 @@ def get_cluster_members(cluster_id: str):
                         "id": str(nid),
                         "username": meta.get("username"),
                         "displayName": meta.get("display_name"),
-                        "numFollowers": _safe_int(meta.get("num_followers")),
+                        "numFollowers": _get_follower_count(nid),
                     }
                 )
+            found_cluster = {"size": cluster.get("size"), "memberIds_len": len(cluster.get("memberIds", []))}
             break
+    logger.info(
+        "members fetched: cluster=%s found=%s total=%d slice=%d offset=%d limit=%d expanded=%d n=%d budget=%d",
+        cluster_id,
+        bool(found_cluster),
+        total,
+        len(members),
+        offset,
+        limit,
+        len(expanded_ids),
+        granularity,
+        budget,
+    )
 
     return jsonify(
         {
@@ -320,26 +380,48 @@ def preview_cluster(cluster_id: str):
     granularity = max(5, min(500, granularity))
     expanded_arg = request.args.get("expanded", "")
     expanded_ids: Set[str] = set([e for e in expanded_arg.split(",") if e])
+    visible_arg = request.args.get("visible", "")
+    visible_ids: Set[str] = set([v for v in visible_arg.split(",") if v])
     budget = request.args.get("budget", 25, type=int)
     budget = max(5, budget)
+    expand_depth = request.args.get("expand_depth", 0.5, type=float)
+    expand_depth = max(0.0, min(1.0, expand_depth))
+    cache_key = _make_cache_key(granularity, None, expanded_ids, 0.0, expand_depth)
+
+    # Try to reuse cached view to avoid recompute during preview
+    cached_view = _cache.get(cache_key)
+    if cached_view:
+        current_visible = len(visible_ids) if visible_ids else len(cached_view.get("clusters", []))
+        logger.info(
+            "preview cache hit: cluster=%s n=%d expanded=%d visible=%d budget=%d",
+            cluster_id, granularity, len(expanded_ids), current_visible, budget
+        )
+        view_clusters = cached_view.get("clusters", [])
+    else:
+        current_visible = len(visible_ids) if visible_ids else (len(expanded_ids) + granularity)
+        view_clusters = None
 
     n_micro = _spectral_result.micro_centroids.shape[0] if _spectral_result.micro_centroids is not None else len(_spectral_result.node_ids)
 
-    current_visible = len(expanded_ids) + granularity  # rough upper bound, refined client-side
+    current_visible = current_visible if cached_view else (len(visible_ids) if visible_ids else (len(expanded_ids) + granularity))
     expand_preview = get_expand_preview(
         _spectral_result.linkage_matrix,
         n_micro,
         cluster_id,
         current_visible,
         budget,
+        expand_depth=expand_depth,
     )
     collapse_preview = get_collapse_preview(
         _spectral_result.linkage_matrix,
         n_micro,
         cluster_id,
-        expanded_ids,
+        visible_ids if visible_ids else expanded_ids,
     )
-    return jsonify({"expand": expand_preview, "collapse": collapse_preview})
+    # Optionally enrich collapse with cached visible set (if available)
+    if cached_view and not visible_ids:
+        collapse_preview["visible_count"] = current_visible
+    return jsonify({"expand": expand_preview, "collapse": collapse_preview, "cache_hit": bool(cached_view)})
 
 
 def _serialize_hierarchical_view(view) -> dict:
