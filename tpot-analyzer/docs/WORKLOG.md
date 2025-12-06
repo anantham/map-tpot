@@ -1,5 +1,26 @@
 # WORKLOG
 
+## 2025-12-06T00:10:00Z — Cluster canvas marquee selection
+- `graph-explorer/src/ClusterCanvas.jsx`: added selection-mode box drag with overlay, shared selected set highlighting, and click-to-toggle selection so multiple clusters can be marked at once.
+- `graph-explorer/src/ClusterView.jsx`: added selection mode toggle, synced collapse selection to marquee picks, and passed selection state into the canvas; collapse button now works with drag-selected clusters.
+- Verification: not run (UI-only changes).
+
+## 2025-12-06T12:20:00Z — Snapshot dir config unification
+- `src/config.py`: added SNAPSHOT_DIR env + resolver (defaults to `tpot-analyzer/data`).
+- `src/api/snapshot_loader.py`: loader now uses shared snapshot dir, logs path, and exposes `snapshot_info` to fix metrics access.
+- `src/api/server.py`: logs resolved snapshot dir on startup and wires cluster routes/loader to it.
+- `scripts/refresh_graph_snapshot.py`: default output dir now uses SNAPSHOT_DIR; logs reflect resolved path.
+- Verification: not run (config only).
+
+## 2025-12-06T13:45:00Z — Playwright browser normalization
+- `graph-explorer/playwright.config.ts`: force bundled `chromium` (no Chrome channel) to avoid repeated Chrome-for-Testing installs; keeps disk usage down and removes the need for system Chrome.
+- Verification: not run (config only).
+
+## 2025-12-06T14:45:00Z — Metrics timing instrumentation
+- `src/api/server.py`: added request_id for metrics compute, per-phase timing (pagerank/betweenness/engagement/composite/communities), CSV timing output (`logs/metrics_timing.csv`), and structured metadata in responses.
+- Logging: snapshot dir and usage already emitted; metrics timing now recorded with `fast_used` and snapshot generation time.
+- Verification: pending API restart to exercise new logging.
+
 ## 2025-12-05T16:20:00Z — GraphExplorer preload fix
 - `graph-explorer/src/GraphExplorer.jsx`: moved `graphSettings`/related state initializers and `availablePresets` memo above dependent effects to resolve TDZ runtime errors (“Cannot access 'graphSettings' before initialization” / “availablePresets before initialization”) seen during background preload.
 - `graph-explorer/src/ClusterCanvas.jsx`: avoid calling `preventDefault` on non-cancelable wheel events to silence passive listener warnings during canvas zoom/granularity scroll.
