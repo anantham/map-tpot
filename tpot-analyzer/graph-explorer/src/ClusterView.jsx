@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   fetchClusterMembers,
   fetchClusterView,
+  fetchClusterPreview,
   setClusterLabel,
   deleteClusterLabel
 } from './data'
@@ -16,17 +17,22 @@ const toNumber = (value, fallback) => {
 export default function ClusterView({ defaultEgo = '' }) {
   const [granularity, setGranularity] = useState(25)
   const [wl, setWl] = useState(0)
+  const [expandDepth, setExpandDepth] = useState(0.5)
   const [ego, setEgo] = useState(defaultEgo || '')
   const [budget, setBudget] = useState(25)
   const [expanded, setExpanded] = useState(new Set())
   const [collapseSelection, setCollapseSelection] = useState(new Set())
+  const [selectionMode, setSelectionMode] = useState(false)
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [selectedCluster, setSelectedCluster] = useState(null)
+  const [expandPreview, setExpandPreview] = useState(null)
+  const [collapsePreview, setCollapsePreview] = useState(null)
   const [members, setMembers] = useState([])
   const [membersTotal, setMembersTotal] = useState(0)
   const [labelDraft, setLabelDraft] = useState('')
+  const [pendingAction, setPendingAction] = useState(null) // { type: 'expand' | 'collapse', clusterId: string }
 
   // Parse URL on mount
   useEffect(() => {
@@ -34,6 +40,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     const params = new URLSearchParams(window.location.search)
     setGranularity(toNumber(params.get('n'), 25))
     setWl(clamp(toNumber(params.get('wl'), 0), 0, 1))
+    setExpandDepth(clamp(toNumber(params.get('expand_depth'), 0.5), 0, 1))
     setEgo(params.get('ego') || defaultEgo || '')
     const expandedParam = params.get('expanded')
     if (expandedParam) {
@@ -48,6 +55,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     url.searchParams.set('view', 'cluster')
     url.searchParams.set('n', granularity)
     url.searchParams.set('wl', wl.toFixed(2))
+    url.searchParams.set('expand_depth', expandDepth.toFixed(2))
     url.searchParams.set('expanded', Array.from(expanded).join(','))
     if (ego) {
       url.searchParams.set('ego', ego)
@@ -55,7 +63,7 @@ export default function ClusterView({ defaultEgo = '' }) {
       url.searchParams.delete('ego')
     }
     window.history.replaceState({}, '', url.toString())
-  }, [granularity, wl, ego, expanded])
+  }, [granularity, wl, expandDepth, ego, expanded])
 
   // Fetch cluster view
   useEffect(() => {
@@ -71,16 +79,19 @@ export default function ClusterView({ defaultEgo = '' }) {
           wl,
           budget,
           expanded: Array.from(expanded),
+          expand_depth: expandDepth,
         })
         if (!cancelled) {
           setData(payload)
           setSelectedCluster(null)
+          setPendingAction(null) // Clear pending state on success
           const t1 = performance.now()
           console.info('[ClusterView] fetched view in', Math.round(t1 - t0), 'ms', {
             expanded: expanded.size,
             visible: payload?.clusters?.length,
             budget: payload?.meta?.budget,
-            budget_remaining: payload?.meta?.budget_remaining
+            budget_remaining: payload?.meta?.budget_remaining,
+            expand_depth: expandDepth,
           })
         }
       } catch (err) {
@@ -91,7 +102,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     }
     run()
     return () => { cancelled = true }
-  }, [granularity, wl, ego, expanded, budget])
+  }, [granularity, wl, ego, expanded, budget, expandDepth])
 
   const nodes = useMemo(() => {
     if (!data?.clusters) return []
@@ -107,11 +118,38 @@ export default function ClusterView({ defaultEgo = '' }) {
 
   const loadMembers = async (clusterId) => {
     try {
-      const res = await fetchClusterMembers({ clusterId, n: granularity, wl, ego: ego || undefined, expanded: Array.from(expanded) })
+      const res = await fetchClusterMembers({ 
+        clusterId, 
+        n: granularity, 
+        wl, 
+        expand_depth: expandDepth,
+        ego: ego || undefined, 
+        expanded: Array.from(expanded) 
+      })
       setMembers(res.members || [])
       setMembersTotal(res.total || 0)
     } catch (err) {
       console.error('Failed to load members', err)
+    }
+  }
+
+  const loadPreview = async (clusterId) => {
+    try {
+      const visibleIds = (data?.clusters || []).map(c => c.id)
+      const res = await fetchClusterPreview({
+        clusterId,
+        n: granularity,
+        expand_depth: expandDepth,
+        budget,
+        expanded: Array.from(expanded),
+        visible: visibleIds,
+      })
+      setExpandPreview(res.expand || null)
+      setCollapsePreview(res.collapse || null)
+    } catch (err) {
+      console.error('Failed to load preview', err)
+      setExpandPreview(null)
+      setCollapsePreview(null)
     }
   }
 
@@ -143,11 +181,14 @@ export default function ClusterView({ defaultEgo = '' }) {
       setSelectedCluster(null)
       setMembers([])
       setMembersTotal(0)
+      setExpandPreview(null)
+      setCollapsePreview(null)
       return
     }
     setSelectedCluster(cluster)
     setLabelDraft(cluster.label)
     loadMembers(cluster.id)
+    loadPreview(cluster.id)
   }
 
   const handleGranularityDelta = (delta) => {
@@ -155,26 +196,49 @@ export default function ClusterView({ defaultEgo = '' }) {
   }
 
   const handleExpand = (cluster) => {
-    if (!cluster || !cluster.childrenIds?.length) return
-    const nextVisible = (data?.clusters?.length || 0) + (cluster.childrenIds.length - 1)
-    const budgetRemaining = (data?.meta?.budget_remaining ?? (budget - (data?.clusters?.length || 0)))
-    if (budgetRemaining <= 0 || nextVisible > budget) {
-      alert('Budget exceeded. Collapse some clusters before expanding.')
+    if (!cluster) return
+    if (!expandPreview?.can_expand) {
+      console.info('[ClusterView] Expand blocked: no children or preview denies expand', {
+        clusterId: cluster.id,
+        childrenIds: cluster.childrenIds,
+        expandPreview,
+        budgetMeta: data?.meta,
+      })
       return
     }
+    const budgetRemaining = data?.meta?.budget_remaining ?? (budget - (data?.clusters?.length || 0))
+    const nextVisible = (data?.clusters?.length || 0) + ((cluster.childrenIds?.length || 0) - 1)
+    if (budgetRemaining <= 0 || nextVisible > budget) {
+      console.info('[ClusterView] Expand blocked: budget', {
+        clusterId: cluster.id,
+        children: cluster.childrenIds?.length,
+        budget,
+        visible: data?.clusters?.length,
+        budgetRemaining,
+        nextVisible,
+      })
+      return
+    }
+    setPendingAction({ type: 'expand', clusterId: cluster.id })
     setExpanded(prev => new Set(prev).add(cluster.id))
-    // Optimistic: clear collapse selection to avoid stale selections
+    // Optimistic: clear collapse selection and previews to avoid stale data
     setCollapseSelection(new Set())
+    setExpandPreview(null)
+    setCollapsePreview(null)
   }
 
   const handleCollapse = (cluster) => {
-    if (!cluster?.parentId) return
+    if (!cluster || !collapsePreview?.can_collapse) return
+    setPendingAction({ type: 'collapse', clusterId: collapsePreview.parent_id })
+    // Remove the parent from expanded set, which will re-merge children
     setExpanded(prev => {
       const next = new Set(prev)
-      next.delete(cluster.parentId)
+      next.delete(collapsePreview.parent_id)
       return next
     })
     setCollapseSelection(new Set())
+    setExpandPreview(null)
+    setCollapsePreview(null)
   }
 
   const toggleCollapseSelection = (cluster) => {
@@ -193,17 +257,31 @@ export default function ClusterView({ defaultEgo = '' }) {
   const handleCollapseSelected = () => {
     if (!collapseSelection.size) return
     const parentMap = new Map((data?.clusters || []).map(c => [c.id, c.parentId]))
+    console.info('[ClusterView] Collapse selected requested', {
+      selectedIds: Array.from(collapseSelection),
+      visible: data?.clusters?.length,
+      budget: data?.meta?.budget,
+      budgetRemaining: data?.meta?.budget_remaining,
+    })
     setExpanded(prev => {
       const next = new Set(prev)
       collapseSelection.forEach(id => {
         const parentId = parentMap.get(id)
         if (parentId) {
           next.delete(parentId)
+          console.info('[ClusterView] Collapsing via selection', { childId: id, parentId })
+        } else {
+          console.info('[ClusterView] No parent found for collapse selection', { childId: id })
         }
       })
+      console.info('[ClusterView] Expanded set after collapse selection', { expandedCount: next.size, expandedIds: Array.from(next) })
       return next
     })
     setCollapseSelection(new Set())
+  }
+
+  const handleSelectionChange = (ids) => {
+    setCollapseSelection(new Set(ids))
   }
 
   const budgetRemaining = data?.meta?.budget_remaining ?? (budget - (data?.clusters?.length || 0))
@@ -244,6 +322,20 @@ export default function ClusterView({ defaultEgo = '' }) {
           <span style={{ minWidth: 32 }}>{wl.toFixed(1)}</span>
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <label style={{ fontWeight: 600 }} title="Controls how many children appear when expanding a cluster. Low = conservative (sqrt), High = aggressive (more children)">
+            Expand depth
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.1}
+            value={expandDepth}
+            onChange={e => setExpandDepth(clamp(Number(e.target.value), 0, 1))}
+          />
+          <span style={{ minWidth: 32 }}>{expandDepth.toFixed(1)}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           <label style={{ fontWeight: 600 }}>Ego</label>
           <input
             type="text"
@@ -265,6 +357,20 @@ export default function ClusterView({ defaultEgo = '' }) {
             Collapse selected ({collapseSelection.size})
           </button>
         )}
+        <button
+          onClick={() => setSelectionMode(m => !m)}
+          style={{
+            padding: '6px 10px',
+            borderRadius: 6,
+            border: selectionMode ? '1px solid #0ea5e9' : '1px solid #cbd5e1',
+            background: selectionMode ? 'rgba(14,165,233,0.12)' : 'white',
+            color: selectionMode ? '#0ea5e9' : '#475569',
+          }}
+          title="Toggle drag-to-select mode for collapsing multiple clusters"
+        >
+          {selectionMode ? 'Selection mode on' : 'Selection mode off'}
+        </button>
+        {selectionMode && <span style={{ color: '#0ea5e9' }}>Drag to select clusters</span>}
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -273,6 +379,11 @@ export default function ClusterView({ defaultEgo = '' }) {
           edges={data?.edges || []}
           onSelect={handleSelect}
           onGranularityChange={handleGranularityDelta}
+          selectionMode={selectionMode}
+          selectedIds={collapseSelection}
+          onSelectionChange={handleSelectionChange}
+          highlightedIds={collapsePreview?.sibling_ids || []}
+          pendingClusterId={pendingAction?.clusterId}
         />
 
         <div style={{ width: 360, borderLeft: '1px solid #e2e8f0', padding: 16, overflow: 'auto' }}>
@@ -294,17 +405,19 @@ export default function ClusterView({ defaultEgo = '' }) {
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button
                   onClick={() => handleExpand(selectedCluster)}
-                  disabled={!selectedCluster.childrenIds?.length || budgetRemaining <= 0}
-                  style={{ padding: '8px 12px', borderRadius: 6, background: '#0ea5e9', color: 'white', border: 'none', opacity: (!selectedCluster.childrenIds?.length || budgetRemaining <= 0) ? 0.6 : 1 }}
+                  disabled={!expandPreview?.can_expand || selectedCluster.isLeaf}
+                  style={{ padding: '8px 12px', borderRadius: 6, background: '#0ea5e9', color: 'white', border: 'none', opacity: (!expandPreview?.can_expand || selectedCluster.isLeaf) ? 0.6 : 1 }}
+                  title={expandPreview?.reason || ''}
                 >
-                  Expand {selectedCluster.childrenIds?.length ? `(adds +${selectedCluster.childrenIds.length - 1})` : ''}
+                  Expand {expandPreview?.can_expand ? `(+${expandPreview.budget_impact} → ${expandPreview.predicted_children} clusters)` : (selectedCluster.isLeaf ? '(leaf)' : '')}
                 </button>
                 <button
                   onClick={() => handleCollapse(selectedCluster)}
-                  disabled={!selectedCluster.parentId}
-                  style={{ padding: '8px 12px', borderRadius: 6, background: '#334155', color: 'white', border: 'none', opacity: selectedCluster.parentId ? 1 : 0.6 }}
+                  disabled={!collapsePreview?.can_collapse}
+                  style={{ padding: '8px 12px', borderRadius: 6, background: '#334155', color: 'white', border: 'none', opacity: collapsePreview?.can_collapse ? 1 : 0.6 }}
+                  title={collapsePreview?.can_collapse ? `Merges ${collapsePreview.sibling_ids?.length || 0} clusters` : (collapsePreview?.reason || '')}
                 >
-                  Collapse to parent
+                  Collapse {collapsePreview?.can_collapse ? `(frees ${collapsePreview.nodes_freed})` : ''}
                 </button>
               </div>
               <label style={{ fontWeight: 600, marginTop: 8 }}>Rename</label>

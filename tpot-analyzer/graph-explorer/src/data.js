@@ -267,7 +267,7 @@ export const computeMetrics = async (options = {}) => {
     includeShadow = true,
     mutualOnly = false,
     minFollowers = 0,
-    fast = false,
+    fast = true,  // Default to fast mode - reuses snapshot when possible
   } = options;
 
   try {
@@ -467,6 +467,10 @@ export const fetchClusterView = async (options = {}) => {
     const wl = Math.min(1, Math.max(0, options.wl));
     params.set('wl', wl.toFixed(2));
   }
+  if (typeof options.expand_depth === 'number') {
+    const ed = Math.min(1, Math.max(0, options.expand_depth));
+    params.set('expand_depth', ed.toFixed(2));
+  }
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/clusters?${params.toString()}`);
@@ -483,7 +487,7 @@ export const fetchClusterView = async (options = {}) => {
   }
 };
 
-export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, ego, expanded = [], focus, limit = 100, offset = 0 }) => {
+export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_depth = 0.5, ego, expanded = [], focus, limit = 100, offset = 0 }) => {
   const params = new URLSearchParams();
   params.set('n', n);
   params.set('limit', limit);
@@ -494,6 +498,7 @@ export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, ego, expa
     params.set('expanded', expanded.join(','));
   }
   params.set('wl', Math.min(1, Math.max(0, wl)).toFixed(2));
+  params.set('expand_depth', Math.min(1, Math.max(0, expand_depth)).toFixed(2));
 
   const response = await fetch(`${API_BASE_URL}/api/clusters/${clusterId}/members?${params.toString()}`);
   if (!response.ok) {
@@ -526,6 +531,24 @@ export const deleteClusterLabel = async ({ clusterId, n = 25, wl = 0 }) => {
   });
   if (!response.ok) {
     throw new Error(`Failed to delete label: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const fetchClusterPreview = async ({ clusterId, n = 25, expand_depth = 0.5, budget = 25, expanded = [], visible = [] }) => {
+  const params = new URLSearchParams();
+  params.set('n', n);
+  params.set('budget', budget);
+  params.set('expand_depth', Math.min(1, Math.max(0, expand_depth)).toFixed(2));
+  if (Array.isArray(expanded) && expanded.length) {
+    params.set('expanded', expanded.join(','));
+  }
+  if (Array.isArray(visible) && visible.length) {
+    params.set('visible', visible.join(','));
+  }
+  const response = await fetch(`${API_BASE_URL}/api/clusters/${clusterId}/preview?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch preview: ${response.statusText}`);
   }
   return response.json();
 };
