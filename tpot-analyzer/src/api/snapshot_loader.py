@@ -17,6 +17,7 @@ import networkx as nx
 import pandas as pd
 
 from src.graph import GraphBuildResult
+from src.config import get_snapshot_dir
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,23 @@ class SnapshotManifest:
             cache_row_counts=data.get("cache_row_counts"),
         )
 
-    def is_stale(self, max_age_seconds: int = 86400) -> bool:
+    def to_dict(self) -> dict:
+        """Serialize manifest to a JSON-friendly dict."""
+        return {
+            "generated_at": self.generated_at.isoformat(),
+            "cache_db_path": self.cache_db_path,
+            "cache_db_modified": self.cache_db_modified.isoformat() if self.cache_db_modified else None,
+            "node_count": self.node_count,
+            "edge_count": self.edge_count,
+            "include_shadow": self.include_shadow,
+            "seed_count": self.seed_count,
+            "resolved_seed_count": self.resolved_seed_count,
+            "metrics_computed": self.metrics_computed,
+            "parameters": self.parameters,
+            "cache_row_counts": self.cache_row_counts,
+        }
+
+    def is_stale(self, max_age_seconds: int = 10_368_000) -> bool:  # ~120 days
         """Check if snapshot is stale based on age."""
         age = datetime.utcnow() - self.generated_at
         return age.total_seconds() > max_age_seconds
@@ -137,7 +154,9 @@ class SnapshotManifest:
 class SnapshotLoader:
     """Loads precomputed graph snapshots from disk."""
 
-    def __init__(self, snapshot_dir: Path = Path("data")):
+    def __init__(self, snapshot_dir: Path | None = None):
+        if snapshot_dir is None:
+            snapshot_dir = get_snapshot_dir()
         self.snapshot_dir = Path(snapshot_dir)
         self.nodes_path = self.snapshot_dir / "graph_snapshot.nodes.parquet"
         self.edges_path = self.snapshot_dir / "graph_snapshot.edges.parquet"
@@ -171,7 +190,7 @@ class SnapshotLoader:
 
     def should_use_snapshot(
         self,
-        max_age_seconds: int = 86400,
+        max_age_seconds: int = 10_368_000,  # ~120 days
         min_account_diff: int = 100
     ) -> tuple[bool, str]:
         """Determine if snapshot should be used.
@@ -206,7 +225,7 @@ class SnapshotLoader:
     def load_graph(
         self,
         force_reload: bool = False,
-        max_age_seconds: int = 86400,
+        max_age_seconds: int = 10_368_000,  # ~120 days
         min_account_diff: int = 100,
         load_communities: bool = True
     ) -> Optional[GraphBuildResult]:
@@ -332,6 +351,19 @@ class SnapshotLoader:
             return self.load_manifest()
         return self._cached_manifest
 
+    @property
+    def snapshot_info(self) -> dict:
+        """Return manifest as a dict (or empty dict if unavailable)."""
+        manifest = self.get_manifest()
+        return manifest.to_dict() if manifest else {}
+
+    def is_stale(self, max_age_seconds: int = 10_368_000) -> bool:  # ~120 days
+        """Public helper used by API to check snapshot staleness."""
+        manifest = self.get_manifest()
+        if not manifest:
+            return True
+        return manifest.is_stale(max_age_seconds)
+
     def clear_cache(self):
         """Clear in-memory cache."""
         self._cached_graph = None
@@ -343,9 +375,10 @@ class SnapshotLoader:
 _snapshot_loader: Optional[SnapshotLoader] = None
 
 
-def get_snapshot_loader(snapshot_dir: Path = Path("data")) -> SnapshotLoader:
+def get_snapshot_loader(snapshot_dir: Path | None = None) -> SnapshotLoader:
     """Get or create the global snapshot loader."""
     global _snapshot_loader
     if _snapshot_loader is None:
         _snapshot_loader = SnapshotLoader(snapshot_dir)
+        logger.info("Snapshot loader initialized with dir: %s", _snapshot_loader.snapshot_dir)
     return _snapshot_loader
