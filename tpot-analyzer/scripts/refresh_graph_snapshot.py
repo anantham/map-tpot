@@ -28,7 +28,7 @@ from sqlalchemy import text
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.config import get_cache_settings
+from src.config import get_cache_settings, get_snapshot_dir
 from src.data.fetcher import CachedDataFetcher
 from src.data.shadow_store import get_shadow_store
 from src.graph import (
@@ -87,8 +87,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("data"),
-        help="Directory for snapshot files (default: data/)"
+        default=get_snapshot_dir(),
+        help="Directory for snapshot files (default: SNAPSHOT_DIR or data/)"
     )
     parser.add_argument(
         "--frontend-output",

@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
@@ -24,7 +25,7 @@ from src.api.discovery import (
     validate_request,
 )
 from src.api.snapshot_loader import get_snapshot_loader
-from src.config import get_cache_settings
+from src.config import get_cache_settings, get_snapshot_dir
 from src.data.fetcher import CachedDataFetcher
 from src.data.shadow_store import get_shadow_store
 from src.graph import (
@@ -47,7 +48,9 @@ from src.graph.scoring import (
     DEFAULT_WEIGHTS as DEFAULT_DISCOVERY_WEIGHTS,
     process_weights as process_discovery_weights,
 )
-from src.performance_profiler import profile_operation, profile_phase, get_profiler
+from src.performance_profiler import profile_operation, profile_phase, get_profiler, PerformanceProfiler
+import uuid
+import csv
 
 logger = logging.getLogger(__name__)
 
@@ -231,9 +234,12 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
         cache_db_path = get_cache_settings().path
     app.config["CACHE_DB_PATH"] = cache_db_path
 
-    # Initialize snapshot loader
-    snapshot_loader = get_snapshot_loader()
+    # Resolve snapshot directory and initialize loader
+    snapshot_dir = get_snapshot_dir()
+    logger.info("Snapshot directory resolved to: %s", snapshot_dir)
+    snapshot_loader = get_snapshot_loader(snapshot_dir)
     app.config["SNAPSHOT_LOADER"] = snapshot_loader
+    app.config["METRICS_TIMING_CSV"] = REPO_ROOT / "logs" / "metrics_timing.csv"
 
     # Try to load snapshot on startup
     logger.info("Checking for graph snapshot...")
@@ -251,7 +257,7 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
 
     # Initialize cluster routes (non-fatal if data missing)
     try:
-        init_cluster_routes(app, data_dir=REPO_ROOT / "data")
+        init_cluster_routes(app, data_dir=snapshot_dir)
     except Exception as exc:
         logger.warning("Cluster routes not initialized: %s", exc)
 
@@ -508,11 +514,20 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             min_followers = data.get("min_followers", 0)
             fast = bool(data.get("fast", False))
 
-            with profile_operation("api_compute_metrics", {
+            try:
+                request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+            except Exception:
+                # Defensive in case uuid import fails in a stale interpreter; re-import locally.
+                import uuid as _uuid
+                request_id = request.headers.get("X-Request-ID") or str(_uuid.uuid4())
+            base_metadata = {
+                "request_id": request_id,
                 "seed_count": len(seeds),
                 "include_shadow": include_shadow,
                 "fast": fast,
-            }, verbose=False) as report:
+            }
+
+            with profile_operation("api_compute_metrics", base_metadata, verbose=False) as report:
 
                 if not seeds:
                     with profile_phase("load_default_seeds", "api_compute_metrics"):
@@ -535,11 +550,11 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                 if can_use_snapshot:
                     with profile_phase("load_graph", "api_compute_metrics"):
                         graph = snapshot_loader.load_graph()
-                        report["fast_used"] = True
-                        report["snapshot_generated_at"] = snapshot_meta.get("generated_at")
+                        report.metadata["fast_used"] = True
+                        report.metadata["snapshot_generated_at"] = snapshot_meta.get("generated_at")
                 else:
-                    report["fast_used"] = False
-                    report["snapshot_generated_at"] = snapshot_meta.get("generated_at")
+                    report.metadata["fast_used"] = False
+                    report.metadata["snapshot_generated_at"] = snapshot_meta.get("generated_at")
 
                 if graph is None:
                     logger.info("Building graph from cache for metrics (fast=%s, snapshot usable=%s)", fast, can_use_snapshot)
@@ -561,12 +576,14 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                 with profile_phase("resolve_seeds", "api_compute_metrics"):
                     resolved_seeds = _resolve_seeds(graph, seeds)
 
-                pagerank = compute_personalized_pagerank(
-                    directed,
-                    seeds=resolved_seeds,
-                    alpha=alpha
-                )
-                betweenness = compute_betweenness(undirected)
+                with profile_phase("compute_pagerank", "api_compute_metrics"):
+                    pagerank = compute_personalized_pagerank(
+                        directed,
+                        seeds=resolved_seeds,
+                        alpha=alpha
+                    )
+                with profile_phase("compute_betweenness", "api_compute_metrics"):
+                    betweenness = compute_betweenness(undirected)
 
                 with profile_phase("compute_engagement", "api_compute_metrics"):
                     engagement = compute_engagement_scores(undirected)
@@ -579,7 +596,8 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                         weights=weights,
                     )
 
-                communities = compute_louvain_communities(undirected, resolution=resolution)
+                with profile_phase("compute_communities", "api_compute_metrics"):
+                    communities = compute_louvain_communities(undirected, resolution=resolution)
 
                 discovery_section: Dict[str, Any] = {}
                 try:
@@ -657,7 +675,7 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                     top_betweenness = sorted(betweenness.items(), key=lambda x: x[1], reverse=True)[:20]
                     top_composite = sorted(composite.items(), key=lambda x: x[1], reverse=True)[:20]
 
-                return safe_jsonify({
+                response_payload = {
                     "seeds": seeds,
                     "resolved_seeds": resolved_seeds,
                     "metrics": {
@@ -674,10 +692,40 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                         "composite": top_composite,
                     },
                     "meta": {
-                        "fast_used": report.get("fast_used", False),
-                        "snapshot_generated_at": report.get("snapshot_generated_at"),
+                        "fast_used": report.metadata.get("fast_used", False) if report else False,
+                        "snapshot_generated_at": report.metadata.get("snapshot_generated_at") if report else None,
+                        "request_id": request_id,
                     }
-                })
+                }
+
+                if PerformanceProfiler.is_enabled() and report:
+                    logger.info(report.format_report(verbose=True))
+
+                # Write CSV timing
+                try:
+                    timing_csv = app.config.get("METRICS_TIMING_CSV")
+                    timing_csv.parent.mkdir(parents=True, exist_ok=True)
+                    total_ms = report.total_duration_ms if report else None
+                    snapshot_gen = report.metadata.get("snapshot_generated_at") if report else None
+                    fast_used = report.metadata.get("fast_used") if report else None
+                    with open(timing_csv, "a", newline="") as f:
+                        writer = csv.writer(f)
+                        writer.writerow(
+                            [
+                                request_id,
+                                total_ms,
+                                fast_used,
+                                snapshot_gen,
+                                len(seeds),
+                                include_shadow,
+                                mutual_only,
+                                min_followers,
+                            ]
+                        )
+                except Exception:
+                    logger.exception("Failed to write metrics timing CSV")
+
+                return safe_jsonify(response_payload)
 
         except Exception as e:
             logger.exception("Error computing metrics")

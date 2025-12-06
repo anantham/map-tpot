@@ -18,10 +18,12 @@ SUPABASE_URL_KEY = "SUPABASE_URL"
 SUPABASE_KEY_KEY = "SUPABASE_KEY"
 CACHE_DB_ENV = "CACHE_DB_PATH"
 CACHE_MAX_AGE_ENV = "CACHE_MAX_AGE_DAYS"
+SNAPSHOT_DIR_ENV = "SNAPSHOT_DIR"
 
 DEFAULT_SUPABASE_URL = "https://fabxmporizzqflnftavs.supabase.co"
 DEFAULT_CACHE_DB = PROJECT_ROOT / "data" / "cache.db"
 DEFAULT_CACHE_MAX_AGE_DAYS = 7
+DEFAULT_SNAPSHOT_DIR = PROJECT_ROOT / "data"
 
 
 @dataclass(frozen=True)
@@ -84,3 +86,11 @@ def get_cache_settings() -> CacheSettings:
             f"CACHE_MAX_AGE_DAYS must be an integer; received '{raw_max_age}'."
         ) from exc
     return CacheSettings(path=cache_path, max_age_days=max_age)
+
+
+def get_snapshot_dir() -> Path:
+    """Resolve the snapshot directory (shared by refresh scripts and API)."""
+
+    raw_path = _get_env(SNAPSHOT_DIR_ENV, str(DEFAULT_SNAPSHOT_DIR))
+    snapshot_dir = Path(raw_path).expanduser().resolve()
+    return snapshot_dir
