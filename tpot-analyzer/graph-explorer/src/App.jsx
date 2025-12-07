@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 import GraphExplorer from './GraphExplorer'
 import Discovery from './Discovery'
@@ -26,6 +26,22 @@ function App() {
 
   useEffect(() => {
     setAccountStatus(getSavedAccount())
+  }, [])
+
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'light'
+    return localStorage.getItem('ge_theme') || 'light'
+  })
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme)
+      localStorage.setItem('ge_theme', theme)
+    }
+  }, [theme])
+
+  const toggleTheme = useCallback(() => {
+    setTheme(t => (t === 'dark' ? 'light' : 'dark'))
   }, [])
 
   const handleAccountStatusChange = useCallback(({ handle, valid }) => {
@@ -87,6 +103,21 @@ function App() {
           }}
         >
           Cluster View
+        </button>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={toggleTheme}
+          style={{
+            padding: '8px 12px',
+            background: 'white',
+            color: '#14171a',
+            border: '1px solid #e1e8ed',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          Theme: {theme === 'dark' ? 'Dark' : 'Light'}
         </button>
       </div>
 
