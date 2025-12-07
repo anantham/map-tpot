@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
 import GraphExplorer from './GraphExplorer'
 import Discovery from './Discovery'
@@ -22,7 +22,6 @@ function App() {
     return 'discovery'
   }
   const [currentView, setCurrentView] = useState(getInitialView)
-  const [preloadGraph, setPreloadGraph] = useState(false)
   const [accountStatus, setAccountStatus] = useState(getSavedAccount)
 
   useEffect(() => {
@@ -34,12 +33,6 @@ function App() {
       handle: handle || '',
       valid: Boolean(handle) && Boolean(valid),
     })
-  }, [])
-
-  // Preload Graph Explorer in background immediately
-  useEffect(() => {
-    console.log('[APP] Starting background preload of Graph Explorer')
-    setPreloadGraph(true)
   }, [])
 
   return (
@@ -99,14 +92,16 @@ function App() {
 
       {/* Main Content - render both but hide inactive one */}
       <div style={{ flex: 1, overflow: 'auto' }}>
-        <div style={{ display: currentView === 'discovery' ? 'block' : 'none', height: '100%' }}>
-          <Discovery
-            initialAccount={accountStatus.handle}
-            onAccountStatusChange={handleAccountStatusChange}
-          />
-        </div>
-        {preloadGraph && (
-          <div style={{ display: currentView === 'graph' ? 'block' : 'none', height: '100%' }}>
+        {currentView === 'discovery' && (
+          <div style={{ height: '100%' }}>
+            <Discovery
+              initialAccount={accountStatus.handle}
+              onAccountStatusChange={handleAccountStatusChange}
+            />
+          </div>
+        )}
+        {currentView === 'graph' && (
+          <div style={{ height: '100%' }}>
             {accountStatus.valid ? (
               <GraphExplorer dataUrl="/analysis_output.json" />
             ) : (
@@ -129,9 +124,11 @@ function App() {
             )}
           </div>
         )}
-        <div style={{ display: currentView === 'cluster' ? 'block' : 'none', height: '100%' }}>
-          <ClusterView defaultEgo={accountStatus.handle} />
-        </div>
+        {currentView === 'cluster' && (
+          <div style={{ height: '100%' }}>
+            <ClusterView defaultEgo={accountStatus.handle} />
+          </div>
+        )}
       </div>
     </div>
   )
