@@ -33,6 +33,7 @@ export default function ClusterView({ defaultEgo = '' }) {
   const [membersTotal, setMembersTotal] = useState(0)
   const [labelDraft, setLabelDraft] = useState('')
   const [pendingAction, setPendingAction] = useState(null) // { type: 'expand' | 'collapse', clusterId: string }
+  const [lastPayloadKey, setLastPayloadKey] = useState(null)
 
   // Parse URL on mount
   useEffect(() => {
@@ -68,11 +69,35 @@ export default function ClusterView({ defaultEgo = '' }) {
   // Fetch cluster view
   useEffect(() => {
     let cancelled = false
+    const expandedKey = Array.from(expanded).sort().join(',')
+    const payloadKey = JSON.stringify({
+      n: granularity,
+      wl,
+      expandDepth,
+      ego: ego.trim() || '',
+      expanded: expandedKey,
+      budget,
+    })
+
+    // If we already have data for this key, skip fetch
+    if (lastPayloadKey === payloadKey && data) {
+      return undefined
+    }
+
     const run = async () => {
+      const timings = {}
       const t0 = performance.now()
+      timings.start = t0
+
+      console.log('[ClusterView] 🚀 Stage 1: Starting cluster view fetch...')
       setLoading(true)
       setError(null)
+
       try {
+        const t1 = performance.now()
+        timings.beforeFetch = t1
+        console.log(`[ClusterView] ⏱️  Stage 2: Initiating API call (prep: ${Math.round(t1 - t0)}ms)`)
+
         const payload = await fetchClusterView({
           n: granularity,
           ego: ego.trim() || undefined,
@@ -81,12 +106,30 @@ export default function ClusterView({ defaultEgo = '' }) {
           expanded: Array.from(expanded),
           expand_depth: expandDepth,
         })
+
+        const t2 = performance.now()
+        timings.afterFetch = t2
+        console.log(`[ClusterView] 📦 Stage 3: API response received (fetch: ${Math.round(t2 - t1)}ms)`)
+
         if (!cancelled) {
           setData(payload)
           setSelectedCluster(null)
-          setPendingAction(null) // Clear pending state on success
-          const t1 = performance.now()
-          console.info('[ClusterView] fetched view in', Math.round(t1 - t0), 'ms', {
+          setPendingAction(null)
+          setLastPayloadKey(payloadKey)
+
+          const t3 = performance.now()
+          timings.afterStateUpdate = t3
+          console.log(`[ClusterView] 🎨 Stage 4: State updated (setState: ${Math.round(t3 - t2)}ms)`)
+
+          const t4 = performance.now()
+          timings.end = t4
+
+          console.info('[ClusterView] ✅ COMPLETE - Total time breakdown:', {
+            '1_prep': `${Math.round(t1 - t0)}ms`,
+            '2_api_fetch': `${Math.round(t2 - t1)}ms`,
+            '3_state_update': `${Math.round(t3 - t2)}ms`,
+            '4_render': `${Math.round(t4 - t3)}ms`,
+            'TOTAL': `${Math.round(t4 - t0)}ms`,
             expanded: expanded.size,
             visible: payload?.clusters?.length,
             budget: payload?.meta?.budget,
@@ -95,6 +138,8 @@ export default function ClusterView({ defaultEgo = '' }) {
           })
         }
       } catch (err) {
+        const t_error = performance.now()
+        console.error(`[ClusterView] ❌ Error after ${Math.round(t_error - t0)}ms:`, err.message)
         if (!cancelled) setError(err.message || 'Failed to load clusters')
       } finally {
         if (!cancelled) setLoading(false)
@@ -102,7 +147,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     }
     run()
     return () => { cancelled = true }
-  }, [granularity, wl, ego, expanded, budget, expandDepth])
+  }, [granularity, wl, ego, budget, expandDepth, expanded, lastPayloadKey, data])
 
   const nodes = useMemo(() => {
     if (!data?.clusters) return []

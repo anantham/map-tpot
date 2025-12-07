@@ -6,6 +6,8 @@
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const API_TIMEOUT_MS = 8000; // Default timeout for fast endpoints
+const API_TIMEOUT_SLOW_MS = 30000; // Timeout for slow endpoints (health, clusters, seeds during init)
 
 /**
  * Performance tracking utility.
@@ -64,6 +66,34 @@ const performanceLog = {
 if (typeof window !== 'undefined') {
   window.apiPerformance = performanceLog;
 }
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const fetchWithRetry = async (url, options = {}, { retries = 2, backoffMs = 400, timeoutMs = API_TIMEOUT_MS } = {}) => {
+  let attempt = 0;
+  let lastError;
+  while (attempt <= retries) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      }
+      return res;
+    } catch (err) {
+      clearTimeout(timeout);
+      lastError = err;
+      if (attempt === retries) break;
+      const delay = backoffMs * Math.pow(2, attempt);
+      console.warn('[API] retrying', url, 'attempt', attempt + 1, 'error', err.message);
+      await sleep(delay);
+    }
+    attempt += 1;
+  }
+  throw lastError;
+};
 
 /**
  * IndexedDB cache for graph data with TTL.
@@ -224,7 +254,7 @@ export const fetchGraphData = async (options = {}) => {
   });
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/graph-data?${params}`);
+    const response = await fetchWithRetry(`${API_BASE_URL}/api/graph-data?${params}`, {}, { timeoutMs: API_TIMEOUT_SLOW_MS });
     if (!response.ok) {
       throw new Error(`Failed to fetch graph data: ${response.statusText}`);
     }
@@ -254,7 +284,126 @@ export const fetchGraphData = async (options = {}) => {
 };
 
 /**
+ * IndexedDB cache for metrics with TTL and request deduplication.
+ */
+const metricsCache = {
+  dbName: 'tpot-metrics-cache',
+  storeName: 'metrics-data',
+  db: null,
+  inFlightRequests: new Map(), // Request deduplication
+
+  async init() {
+    if (this.db) return this.db;
+
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, 1);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+      };
+    });
+  },
+
+  getCacheKey(options) {
+    const { seeds, weights, alpha, resolution, includeShadow, mutualOnly, minFollowers } = options;
+    // Sort seeds to ensure consistent cache key
+    const sortedSeeds = [...seeds].sort().join(',');
+    const weightsStr = weights.join(',');
+    return `metrics_${sortedSeeds}_${weightsStr}_${alpha}_${resolution}_${includeShadow}_${mutualOnly}_${minFollowers}`;
+  },
+
+  async get(options) {
+    try {
+      await this.init();
+      const key = this.getCacheKey(options);
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction([this.storeName], 'readonly');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.get(key);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const cached = request.result;
+          if (!cached) {
+            resolve(null);
+            return;
+          }
+
+          const { data, timestamp } = cached;
+          const age = Date.now() - timestamp;
+          const maxAge = 60 * 60 * 1000; // 1 hour - metrics are stable for same seeds
+
+          resolve({
+            data,
+            isStale: age > maxAge,
+            age: Math.floor(age / 1000)
+          });
+        };
+      });
+    } catch (error) {
+      console.warn('[MetricsCache] Failed to read cache:', error);
+      return null;
+    }
+  },
+
+  async set(options, data) {
+    try {
+      await this.init();
+      const key = this.getCacheKey(options);
+      const cached = {
+        data,
+        timestamp: Date.now()
+      };
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.put(cached, key);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          console.log(`[MetricsCache] Saved metrics to IndexedDB: ${key.substring(0, 80)}...`);
+          resolve();
+        };
+      });
+    } catch (error) {
+      console.warn('[MetricsCache] Failed to write cache:', error);
+    }
+  },
+
+  async clear() {
+    try {
+      await this.init();
+      return new Promise((resolve, reject) => {
+        const transaction = this.db.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.clear();
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          console.log('[MetricsCache] Cleared IndexedDB metrics cache');
+          resolve();
+        };
+      });
+    } catch (error) {
+      console.warn('[MetricsCache] Failed to clear cache:', error);
+    }
+  }
+};
+
+/**
  * Compute graph metrics with custom seeds and weights.
+ * Uses caching and request deduplication to avoid redundant computations.
  */
 export const computeMetrics = async (options = {}) => {
   const startTime = performance.now();
@@ -267,53 +416,112 @@ export const computeMetrics = async (options = {}) => {
     includeShadow = true,
     mutualOnly = false,
     minFollowers = 0,
-    fast = true,  // Default to fast mode - reuses snapshot when possible
+    fast = true,
+    skipCache = false,
   } = options;
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/metrics/compute`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        seeds,
-        weights,
-        alpha,
-        resolution,
-        include_shadow: includeShadow,
-        mutual_only: mutualOnly,
-        min_followers: minFollowers,
-        fast,
-      }),
-    });
+  const cacheKey = metricsCache.getCacheKey({
+    seeds,
+    weights,
+    alpha,
+    resolution,
+    includeShadow,
+    mutualOnly,
+    minFollowers
+  });
 
-    if (!response.ok) {
-      throw new Error(`Failed to compute metrics: ${response.statusText}`);
+  // Request deduplication: If identical request is in-flight, wait for it
+  if (metricsCache.inFlightRequests.has(cacheKey)) {
+    console.log('[MetricsCache] Deduplicating concurrent request, waiting for in-flight request...');
+    try {
+      return await metricsCache.inFlightRequests.get(cacheKey);
+    } catch (error) {
+      // If in-flight request failed, fall through to retry
+      console.warn('[MetricsCache] In-flight request failed, retrying:', error);
     }
-
-    const data = await response.json();
-    const duration = performance.now() - startTime;
-    const serverTime = response.headers.get('X-Response-Time');
-
-    performanceLog.log('computeMetrics', duration, {
-      serverTime,
-      seedCount: seeds.length,
-      resolvedSeeds: data.resolved_seeds?.length || 0,
-      weights,
-    });
-
-    return data;
-  } catch (error) {
-    const duration = performance.now() - startTime;
-    performanceLog.log('computeMetrics [ERROR]', duration, { error: error.message });
-    throw error;
   }
+
+  // Check cache first (unless skipCache is true)
+  if (!skipCache) {
+    const cached = await metricsCache.get({ seeds, weights, alpha, resolution, includeShadow, mutualOnly, minFollowers });
+    if (cached) {
+      console.log(
+        `[MetricsCache] ${cached.isStale ? 'Stale' : 'Fresh'} cache hit (age: ${cached.age}s) - returning immediately`
+      );
+
+      if (cached.isStale) {
+        console.log('[MetricsCache] Refreshing stale cache in background...');
+        computeMetrics({ ...options, skipCache: true }).then(() => {
+          console.log('[MetricsCache] Background refresh complete');
+        }).catch(err => {
+          console.warn('[MetricsCache] Background refresh failed:', err);
+        });
+      }
+
+      return cached.data;
+    }
+  }
+
+  // Create promise for request deduplication
+  const requestPromise = (async () => {
+    try {
+      const response = await fetchWithRetry(`${API_BASE_URL}/api/metrics/compute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          seeds,
+          weights,
+          alpha,
+          resolution,
+          include_shadow: includeShadow,
+          mutual_only: mutualOnly,
+          min_followers: minFollowers,
+          fast,
+        }),
+      }, { timeoutMs: API_TIMEOUT_SLOW_MS });
+
+      if (!response.ok) {
+        throw new Error(`Failed to compute metrics: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const duration = performance.now() - startTime;
+      const serverTime = response.headers.get('X-Response-Time');
+
+      performanceLog.log('computeMetrics', duration, {
+        serverTime,
+        seedCount: seeds.length,
+        resolvedSeeds: data.resolved_seeds?.length || 0,
+        weights,
+      });
+
+      // Cache the result
+      metricsCache.set({ seeds, weights, alpha, resolution, includeShadow, mutualOnly, minFollowers }, data).catch(err => {
+        console.warn('[MetricsCache] Failed to save to cache:', err);
+      });
+
+      return data;
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      performanceLog.log('computeMetrics [ERROR]', duration, { error: error.message });
+      throw error;
+    } finally {
+      // Remove from in-flight requests
+      metricsCache.inFlightRequests.delete(cacheKey);
+    }
+  })();
+
+  // Store in-flight request
+  metricsCache.inFlightRequests.set(cacheKey, requestPromise);
+
+  return requestPromise;
 };
 
 /**
  * Fetch available seed presets.
  */
 export const fetchPresets = async () => {
-  const response = await fetch(`${API_BASE_URL}/api/metrics/presets`);
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/metrics/presets`);
   if (!response.ok) {
     throw new Error(`Failed to fetch presets: ${response.statusText}`);
   }
@@ -326,7 +534,7 @@ export const fetchPresets = async () => {
 export const checkHealth = async () => {
   const startTime = performance.now();
   try {
-    const response = await fetch(`${API_BASE_URL}/health`);
+    const response = await fetchWithRetry(`${API_BASE_URL}/health`, {}, { retries: 1, backoffMs: 300, timeoutMs: API_TIMEOUT_SLOW_MS });
     const duration = performance.now() - startTime;
     performanceLog.log('checkHealth', duration, { ok: response.ok });
     return response.ok;
@@ -343,7 +551,7 @@ export const checkHealth = async () => {
 export const fetchPerformanceMetrics = async () => {
   const startTime = performance.now();
   try {
-    const response = await fetch(`${API_BASE_URL}/api/metrics/performance`);
+    const response = await fetchWithRetry(`${API_BASE_URL}/api/metrics/performance`);
     if (!response.ok) {
       throw new Error(`Failed to fetch performance metrics: ${response.statusText}`);
     }
@@ -359,7 +567,7 @@ export const fetchPerformanceMetrics = async () => {
 };
 
 export const fetchGraphSettings = async () => {
-  const response = await fetch(`${API_BASE_URL}/api/seeds`);
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/seeds`, {}, { timeoutMs: API_TIMEOUT_SLOW_MS });
   if (!response.ok) {
     throw new Error(`Failed to fetch graph settings: ${response.statusText}`);
   }
@@ -384,7 +592,7 @@ export const saveSeedList = async ({ name, seeds = [], setActive = true } = {}) 
     payload.seeds = seeds;
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/seeds`, {
+  const response = await fetchWithRetry(`${API_BASE_URL}/api/seeds`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -409,7 +617,7 @@ export const fetchDiscoveryRanking = async ({
 } = {}) => {
   const startTime = performance.now();
   try {
-    const response = await fetch(`${API_BASE_URL}/api/subgraph/discover`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/api/subgraph/discover`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -421,10 +629,6 @@ export const fetchDiscoveryRanking = async ({
         debug: false,
       }),
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch discovery ranking: ${response.statusText}`);
-    }
 
     const data = await response.json();
     const duration = performance.now() - startTime;
@@ -452,6 +656,23 @@ export const fetchDiscoveryRanking = async ({
  */
 export const fetchClusterView = async (options = {}) => {
   const startTime = performance.now();
+  if (!fetchClusterView._inflight) {
+    fetchClusterView._inflight = new Map();
+  }
+  const cacheKey = JSON.stringify({
+    n: options.n ?? 25,
+    ego: options.ego || '',
+    expanded: Array.isArray(options.expanded) ? [...options.expanded].sort() : [],
+    budget: options.budget ?? 25,
+    wl: typeof options.wl === 'number' ? Math.min(1, Math.max(0, options.wl)).toFixed(2) : '0.00',
+    expand_depth: typeof options.expand_depth === 'number'
+      ? Math.min(1, Math.max(0, options.expand_depth)).toFixed(2)
+      : '0.50',
+  });
+  const inflight = fetchClusterView._inflight.get(cacheKey);
+  if (inflight) {
+    return inflight;
+  }
   const params = new URLSearchParams();
   const granularity = options.n ?? 25;
   params.set('n', granularity);
@@ -473,7 +694,10 @@ export const fetchClusterView = async (options = {}) => {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/clusters?${params.toString()}`);
+    const promise = fetchWithRetry(`${API_BASE_URL}/api/clusters?${params.toString()}`, {}, { timeoutMs: API_TIMEOUT_SLOW_MS });
+    fetchClusterView._inflight.set(cacheKey, promise);
+
+    const response = await promise;
     if (!response.ok) {
       throw new Error(`Failed to fetch clusters: ${response.statusText}`);
     }
@@ -484,6 +708,8 @@ export const fetchClusterView = async (options = {}) => {
     const duration = performance.now() - startTime;
     performanceLog.log('fetchClusterView [ERROR]', duration, { error: error.message });
     throw error;
+  } finally {
+    fetchClusterView._inflight.delete(cacheKey);
   }
 };
 
@@ -574,7 +800,15 @@ export const clearGraphCache = () => {
   graphCache.clear();
 };
 
-// Expose cache to window for debugging
+/**
+ * Clear metrics cache.
+ */
+export const clearMetricsCache = () => {
+  metricsCache.clear();
+};
+
+// Expose caches to window for debugging
 if (typeof window !== 'undefined') {
   window.graphCache = graphCache;
+  window.metricsCache = metricsCache;
 }
