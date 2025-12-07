@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import json
 import logging
+import pickle
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from uuid import uuid4
 from pathlib import Path
 from typing import Dict, Optional, Set, Tuple
 
@@ -40,6 +42,8 @@ class ClusterCache:
         self.max_entries = max_entries
         self.ttl_seconds = ttl_seconds
         self._entries: OrderedDict[Tuple, CacheEntry] = OrderedDict()
+        self._inflight: Dict[Tuple, "concurrent.futures.Future"] = {}
+        self._inflight: Dict[Tuple, "asyncio.Future"] = {}
 
     def get(self, key: Tuple) -> Optional[dict]:
         now = time.time()
@@ -59,6 +63,24 @@ class ClusterCache:
         self._entries[key] = CacheEntry(created_at=time.time(), view=view)
         if len(self._entries) > self.max_entries:
             self._entries.popitem(last=False)
+
+    def inflight_get(self, key: Tuple):
+        return self._inflight.get(key)
+
+    def inflight_set(self, key: Tuple, future) -> None:
+        self._inflight[key] = future
+
+    def inflight_clear(self, key: Tuple) -> None:
+        self._inflight.pop(key, None)
+
+    def inflight_get(self, key: Tuple):
+        return self._inflight.get(key)
+
+    def inflight_set(self, key: Tuple, future):
+        self._inflight[key] = future
+
+    def inflight_clear(self, key: Tuple):
+        self._inflight.pop(key, None)
 
 
 # Global state
@@ -125,21 +147,61 @@ def _load_louvain(data_dir: Path) -> Dict[str, int]:
 
 
 def _build_adjacency(edges_df: pd.DataFrame, node_ids: np.ndarray) -> sp.csr_matrix:
+    """Build adjacency matrix using vectorized pandas operations (much faster than iterrows)."""
     id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
-    rows, cols, data = [], [], []
-    for _, row in edges_df.iterrows():
-        src = id_to_idx.get(str(row["source"]))
-        tgt = id_to_idx.get(str(row["target"]))
-        if src is None or tgt is None:
-            continue
-        rows.append(src)
-        cols.append(tgt)
-        data.append(1.0)
-        if bool(row.get("mutual")):
-            rows.append(tgt)
-            cols.append(src)
-            data.append(1.0)
+
+    # Vectorized approach: map source/target to indices
+    edges_df = edges_df.copy()
+    edges_df['src_idx'] = edges_df['source'].astype(str).map(id_to_idx)
+    edges_df['tgt_idx'] = edges_df['target'].astype(str).map(id_to_idx)
+
+    # Filter out edges with unmapped nodes
+    valid_edges = edges_df.dropna(subset=['src_idx', 'tgt_idx'])
+
+    # Forward edges
+    rows = valid_edges['src_idx'].astype(int).tolist()
+    cols = valid_edges['tgt_idx'].astype(int).tolist()
+    data = [1.0] * len(rows)
+
+    # Add backward edges for mutual connections
+    mutual_edges = valid_edges[valid_edges.get('mutual', False)]
+    if len(mutual_edges) > 0:
+        rows.extend(mutual_edges['tgt_idx'].astype(int).tolist())
+        cols.extend(mutual_edges['src_idx'].astype(int).tolist())
+        data.extend([1.0] * len(mutual_edges))
+
     adjacency = sp.csr_matrix((data, (rows, cols)), shape=(len(node_ids), len(node_ids)))
+    return adjacency
+
+
+def _load_or_build_adjacency(edges_df: pd.DataFrame, node_ids: np.ndarray, cache_path: Path) -> sp.csr_matrix:
+    """Load adjacency matrix from cache or build it (with caching)."""
+    if cache_path.exists():
+        try:
+            logger.info("Loading cached adjacency matrix from %s", cache_path)
+            with open(cache_path, 'rb') as f:
+                adjacency = pickle.load(f)
+                logger.info("Cached adjacency loaded: %s edges", adjacency.count_nonzero())
+                return adjacency
+        except Exception as e:
+            logger.warning("Failed to load adjacency cache (%s), rebuilding...", e)
+
+    # Build fresh adjacency matrix
+    logger.info("Building adjacency matrix from %s edges...", len(edges_df))
+    start_time = time.time()
+    adjacency = _build_adjacency(edges_df, node_ids)
+    duration = time.time() - start_time
+    logger.info("Adjacency matrix built in %.2fs: %s edges", duration, adjacency.count_nonzero())
+
+    # Save to cache
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, 'wb') as f:
+            pickle.dump(adjacency, f)
+        logger.info("Adjacency matrix cached to %s", cache_path)
+    except Exception as e:
+        logger.warning("Failed to cache adjacency matrix: %s", e)
+
     return adjacency
 
 
@@ -158,12 +220,16 @@ def init_cluster_routes(app, data_dir: Path = Path("data")) -> None:
         edges_df = pd.read_parquet(data_dir / "graph_snapshot.edges.parquet")
         _node_metadata = _load_metadata(nodes_df)
         node_ids = _spectral_result.node_ids
-        _adjacency = _build_adjacency(edges_df, node_ids)
+
+        # Use cached adjacency matrix (saves ~12 seconds on startup)
+        adjacency_cache_path = data_dir / "adjacency_matrix_cache.pkl"
+        _adjacency = _load_or_build_adjacency(edges_df, node_ids, adjacency_cache_path)
+
         _label_store = ClusterLabelStore(data_dir / "clusters.db")
-        
+
         # Build node_id -> index mapping for in-degree lookups
         _node_id_to_idx = {str(nid): i for i, nid in enumerate(node_ids)}
-        
+
         # Load Louvain communities
         _louvain_communities = _load_louvain(data_dir)
 
@@ -190,6 +256,9 @@ def get_clusters():
     """Return hierarchical cluster view with expand/collapse support."""
     if _spectral_result is None or _adjacency is None:
         return jsonify({"error": "Cluster data not loaded"}), 503
+    req_id = uuid4().hex[:8]
+    start_total = time.time()
+    import concurrent.futures
 
     granularity = request.args.get("n", 25, type=int)
     granularity = max(5, min(500, granularity))
@@ -203,11 +272,37 @@ def get_clusters():
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
 
+    logger.info(
+        "clusters start req=%s n=%d budget=%d expanded=%d wl=%.2f depth=%.2f",
+        req_id,
+        granularity,
+        budget,
+        len(expanded_ids),
+        louvain_weight,
+        expand_depth,
+    )
+
     cache_key = _make_cache_key(granularity, ego, expanded_ids, louvain_weight, expand_depth)
+
+    # Deduplicate identical in-flight builds
+    inflight = _cache.inflight_get(cache_key)
+    if inflight:
+        logger.info(
+            "clusters inflight hit req=%s waiting_for=%s",
+            req_id,
+            getattr(inflight, "req_id", "unknown"),
+        )
+        try:
+            payload = inflight.result()
+            return jsonify(payload | {"cache_hit": True, "deduped": True})
+        except Exception as exc:  # pragma: no cover
+            logger.warning("clusters inflight failed req=%s err=%s", req_id, exc)
+            # fall through to rebuild
     cached = _cache.get(cache_key)
     if cached:
         logger.info(
-            "clusters cache hit: n=%d budget=%d expanded=%d wl=%.2f depth=%.2f visible=%d budget_rem=%s",
+            "clusters cache hit req=%s n=%d budget=%d expanded=%d wl=%.2f depth=%.2f visible=%d budget_rem=%s",
+            req_id,
             granularity,
             budget,
             len(expanded_ids),
@@ -219,33 +314,55 @@ def get_clusters():
         return jsonify(cached | {"cache_hit": True})
 
     start_build = time.time()
-    view = build_hierarchical_view(
-        linkage_matrix=_spectral_result.linkage_matrix,
-        micro_labels=_spectral_result.micro_labels if _spectral_result.micro_labels is not None else np.arange(len(_spectral_result.node_ids)),
-        micro_centroids=_spectral_result.micro_centroids if _spectral_result.micro_centroids is not None else _spectral_result.embedding,
-        node_ids=_spectral_result.node_ids,
-        adjacency=_adjacency,
-        node_metadata=_node_metadata,
-        base_granularity=granularity,
-        expanded_ids=expanded_ids,
-        ego_node_id=ego,
-        budget=budget,
-        label_store=_label_store,
-        louvain_communities=_louvain_communities,
-        louvain_weight=louvain_weight,
-        expand_depth=expand_depth,
-    )
 
+    def _compute_view():
+        return build_hierarchical_view(
+            linkage_matrix=_spectral_result.linkage_matrix,
+            micro_labels=_spectral_result.micro_labels if _spectral_result.micro_labels is not None else np.arange(len(_spectral_result.node_ids)),
+            micro_centroids=_spectral_result.micro_centroids if _spectral_result.micro_centroids is not None else _spectral_result.embedding,
+            node_ids=_spectral_result.node_ids,
+            adjacency=_adjacency,
+            node_metadata=_node_metadata,
+            base_granularity=granularity,
+            expanded_ids=expanded_ids,
+            ego_node_id=ego,
+            budget=budget,
+            label_store=_label_store,
+            louvain_communities=_louvain_communities,
+            louvain_weight=louvain_weight,
+            expand_depth=expand_depth,
+        )
+
+    future = concurrent.futures.Future()
+    future.req_id = req_id  # type: ignore[attr-defined]
+    _cache.inflight_set(cache_key, future)
+
+    try:
+        view = _compute_view()
+        future.set_result(view)
+    finally:
+        _cache.inflight_clear(cache_key)
+
+    build_duration = time.time() - start_build
+
+    start_serialize = time.time()
     payload = _serialize_hierarchical_view(view)
+    serialize_duration = time.time() - start_serialize
+    total_duration = time.time() - start_total
+
     logger.info(
-        "clusters built: n=%d expanded=%d visible=%d budget_rem=%s wl=%.2f depth=%.2f took=%.3fs",
+        "clusters built req=%s n=%d expanded=%d visible=%d budget_rem=%s wl=%.2f depth=%.2f "
+        "t_build=%.3fs t_serialize=%.3fs t_total=%.3fs",
+        req_id,
         granularity,
         len(expanded_ids),
         len(payload.get("clusters", [])),
         payload.get("meta", {}).get("budget_remaining"),
         louvain_weight,
         expand_depth,
-        time.time() - start_build,
+        build_duration,
+        serialize_duration,
+        total_duration,
     )
     _cache.set(cache_key, payload)
     return jsonify(payload)

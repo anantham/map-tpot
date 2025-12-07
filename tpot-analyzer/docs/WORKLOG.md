@@ -1,5 +1,20 @@
 # WORKLOG
 
+## 2025-12-07T01:45:00Z — Feature intent & motivations doc
+- `docs/FEATURES_INTENT.md`: captured motivations for snapshots, hierarchy/budgets, metrics/discovery flow, member counts, UI selection/error handling, and perf/logging goals; ties behavior to ADRs/specs and current UX constraints.
+- Verification: documentation only.
+
+## 2025-12-07T02:05:00Z — Reduce initial API fan-out and timeout aborts
+- `graph-explorer/src/App.jsx`: switched from hidden mounted views to conditional rendering so Discovery/Graph/Cluster mount only when selected; removes background preload and prevents 7 concurrent API calls on page load.
+- `graph-explorer/src/data.js`: set `/api/metrics/compute` to use slow timeout (30s) to match backend runtime; reduces 8s abort/retry cascades.
+- Verification: not run (frontend logic only); expect fewer AbortError logs and fewer concurrent requests on load.
+
+## 2025-12-07T03:55:00Z — Cluster view dedup + timing instrumentation
+- `src/api/cluster_routes.py`: added per-request ids and timing logs (build/serialize/total) plus in-flight deduplication so identical `/api/clusters` requests reuse the same build instead of running in parallel.
+- `graph-explorer/src/data.js`: deduplicate identical `fetchClusterView` calls to reuse the same promise.
+- `graph-explorer/src/ClusterView.jsx`: skip refetch when params unchanged (n/wl/expandDepth/ego/expanded/budget), reducing re-loads when navigating away and back.
+- Verification: `npm run test:e2e` (all 6 tests passed); cluster fetch ~48s, cache hit, no aborts.
+
 ## 2025-12-06T00:10:00Z — Cluster canvas marquee selection
 - `graph-explorer/src/ClusterCanvas.jsx`: added selection-mode box drag with overlay, shared selected set highlighting, and click-to-toggle selection so multiple clusters can be marked at once.
 - `graph-explorer/src/ClusterView.jsx`: added selection mode toggle, synced collapse selection to marquee picks, and passed selection state into the canvas; collapse button now works with drag-selected clusters.
