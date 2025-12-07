@@ -51,6 +51,7 @@ from src.graph.scoring import (
 from src.performance_profiler import profile_operation, profile_phase, get_profiler, PerformanceProfiler
 import uuid
 import csv
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,8 @@ def _configure_api_logging(log_dir: Path = REPO_ROOT / "logs") -> None:
     """Attach a rotating file handler for API diagnostics."""
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "api.log"
+    log_level_name = os.getenv("API_LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
     root = logging.getLogger()
     already_configured = any(
         isinstance(h, logging.handlers.RotatingFileHandler)
@@ -70,16 +73,22 @@ def _configure_api_logging(log_dir: Path = REPO_ROOT / "logs") -> None:
     if already_configured:
         return
 
+    root.setLevel(log_level)
+
     file_handler = logging.handlers.RotatingFileHandler(
         log_path, maxBytes=5 * 1024 * 1024, backupCount=5
     )
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(log_level)
     file_handler.setFormatter(
         logging.Formatter(
             "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d: %(message)s"
         )
     )
     root.addHandler(file_handler)
+
+# Global response cache for /api/graph-data to avoid re-serializing
+# Cache key: "{include_shadow}_{mutual_only}_{min_followers}"
+_GRAPH_DATA_RESPONSE_CACHE = {}
 
 analysis_status = {
     "status": "idle",
@@ -241,17 +250,21 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
     app.config["SNAPSHOT_LOADER"] = snapshot_loader
     app.config["METRICS_TIMING_CSV"] = REPO_ROOT / "logs" / "metrics_timing.csv"
 
-    # Try to load snapshot on startup
+    # Try to load snapshot on startup and cache it globally
     logger.info("Checking for graph snapshot...")
     should_use, reason = snapshot_loader.should_use_snapshot()
     if should_use:
         logger.info(f"Loading snapshot: {reason}")
         graph = snapshot_loader.load_graph()
         if graph:
-            logger.info(f"Snapshot loaded successfully: {graph.directed.number_of_nodes()} nodes, {graph.directed.number_of_edges()} edges")
+            # Cache the snapshot globally for fast /api/graph-data responses
+            app.config["CACHED_SNAPSHOT"] = graph
+            logger.info(f"✅ Snapshot cached in memory: {graph.directed.number_of_nodes()} nodes, {graph.directed.number_of_edges()} edges")
         else:
+            app.config["CACHED_SNAPSHOT"] = None
             logger.warning("Failed to load snapshot, will rebuild on first request")
     else:
+        app.config["CACHED_SNAPSHOT"] = None
         logger.warning(f"Snapshot not available: {reason}")
         logger.info("Graph will be rebuilt from cache on first request")
 
@@ -389,6 +402,12 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
             min_followers = int(request.args.get("min_followers", "0"))
             force_rebuild = request.args.get("force_rebuild", "false").lower() == "true"
 
+            # Check response cache first (avoid re-serializing same data)
+            cache_key = f"{include_shadow}_{mutual_only}_{min_followers}"
+            if not force_rebuild and cache_key in _GRAPH_DATA_RESPONSE_CACHE:
+                logger.info(f"✅ Returning cached response for key={cache_key} (<10ms)")
+                return _GRAPH_DATA_RESPONSE_CACHE[cache_key]
+
             with profile_operation("api_get_graph_data", {
                 "include_shadow": include_shadow,
                 "mutual_only": mutual_only,
@@ -399,10 +418,10 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                 graph = None
                 source = "snapshot"
 
-                # Try snapshot first unless force_rebuild
+                # Try cached snapshot first (fast!)
                 # NOTE: Snapshot is always built with include_shadow=True, mutual_only=False, min_followers=0
                 # If client requests different parameters, we must rebuild
-                snapshot_loader = app.config["SNAPSHOT_LOADER"]
+                cached_snapshot = app.config.get("CACHED_SNAPSHOT")
                 can_use_snapshot = (
                     not force_rebuild
                     and include_shadow  # Snapshot always has shadow data
@@ -410,9 +429,10 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                     and min_followers == 0  # Snapshot has no follower filter
                 )
 
-                if can_use_snapshot:
-                    with profile_phase("load_snapshot", "api_get_graph_data"):
-                        graph = snapshot_loader.load_graph()
+                if can_use_snapshot and cached_snapshot:
+                    with profile_phase("use_cached_snapshot", "api_get_graph_data"):
+                        graph = cached_snapshot
+                        logger.info("✅ Using cached snapshot (instant!)")
 
                 # Fall back to live build if snapshot unavailable or incompatible
                 if graph is None:
@@ -471,7 +491,8 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                             "fetched_at": _serialize_datetime(data.get("fetched_at")),
                         }
 
-                return safe_jsonify({
+                # Build response
+                response = safe_jsonify({
                     "nodes": nodes,
                     "edges": edges,
                     "directed_nodes": directed.number_of_nodes(),
@@ -479,6 +500,12 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
                     "undirected_edges": graph.undirected.number_of_edges(),
                     "source": source,  # Indicates if from snapshot or live build
                 })
+
+                # Cache the response for future requests
+                _GRAPH_DATA_RESPONSE_CACHE[cache_key] = response
+                logger.info(f"💾 Cached response for key={cache_key}")
+
+                return response
 
         except Exception as e:
             logger.exception("Error loading graph data")
