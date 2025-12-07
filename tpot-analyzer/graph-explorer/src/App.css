@@ -53,6 +53,7 @@ body {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  background: var(--bg);
 }
 
 .control-panel {
@@ -285,7 +286,7 @@ select {
 .graph-container {
   flex: 1;
   position: relative;
-  background: transparent;
+  background: var(--bg);
 }
 
 .status-message {
