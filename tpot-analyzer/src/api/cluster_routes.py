@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import pickle
 import time
 from collections import OrderedDict
@@ -25,6 +26,9 @@ from src.graph.hierarchy import (
 from src.graph.spectral import load_spectral_result
 
 logger = logging.getLogger(__name__)
+_log_level_name = os.getenv("CLUSTER_LOG_LEVEL", os.getenv("API_LOG_LEVEL", "INFO")).upper()
+_log_level = getattr(logging, _log_level_name, logging.INFO)
+logger.setLevel(_log_level)
 
 cluster_bp = Blueprint("clusters", __name__, url_prefix="/api/clusters")
 
@@ -292,26 +296,62 @@ def get_clusters():
             req_id,
             getattr(inflight, "req_id", "unknown"),
         )
+        wait_start = time.time()
         try:
             payload = inflight.result()
-            return jsonify(payload | {"cache_hit": True, "deduped": True})
+            if not isinstance(payload, dict):
+                logger.info("clusters inflight payload not dict; serializing req=%s type=%s", req_id, type(payload))
+                payload = _serialize_hierarchical_view(payload)
+            wait_ms = int((time.time() - wait_start) * 1000)
+            total_ms = int((time.time() - start_total) * 1000)
+            server_timing = (payload.get("server_timing") or {}).copy()
+            server_timing.update(
+                {
+                    "req_id": req_id,
+                    "source_req_id": getattr(inflight, "req_id", None),
+                    "served_from": "inflight",
+                    "inflight_wait_ms": wait_ms,
+                    "t_total_ms": total_ms,
+                }
+            )
+            payload = {**payload, "server_timing": server_timing}
+            logger.info(
+                "clusters inflight resolved req=%s waited_ms=%d visible=%d budget_rem=%s total_ms=%d",
+                req_id,
+                wait_ms,
+                len((payload or {}).get("clusters", [])),
+                (payload or {}).get("meta", {}).get("budget_remaining"),
+                total_ms,
+            )
+            return jsonify(payload | {"cache_hit": True, "deduped": True, "inflight_wait_ms": wait_ms})
         except Exception as exc:  # pragma: no cover
             logger.warning("clusters inflight failed req=%s err=%s", req_id, exc)
             # fall through to rebuild
     cached = _cache.get(cache_key)
     if cached:
+        server_timing = (cached.get("server_timing") or {}).copy()
+        total_ms = int((time.time() - start_total) * 1000)
+        server_timing.update(
+            {
+                "req_id": req_id,
+                "served_from": "cache",
+                "t_total_ms": total_ms,
+            }
+        )
+        payload = {**cached, "server_timing": server_timing}
         logger.info(
-            "clusters cache hit req=%s n=%d budget=%d expanded=%d wl=%.2f depth=%.2f visible=%d budget_rem=%s",
+            "clusters cache hit req=%s n=%d budget=%d expanded=%d wl=%.2f depth=%.2f visible=%d budget_rem=%s total_ms=%d",
             req_id,
             granularity,
             budget,
             len(expanded_ids),
             louvain_weight,
             expand_depth,
-            len((cached or {}).get("clusters", [])),
-            (cached or {}).get("meta", {}).get("budget_remaining"),
+            len((payload or {}).get("clusters", [])),
+            (payload or {}).get("meta", {}).get("budget_remaining"),
+            total_ms,
         )
-        return jsonify(cached | {"cache_hit": True})
+        return jsonify(payload | {"cache_hit": True})
 
     start_build = time.time()
 
@@ -337,18 +377,28 @@ def get_clusters():
     future.req_id = req_id  # type: ignore[attr-defined]
     _cache.inflight_set(cache_key, future)
 
+    build_duration = serialize_duration = total_duration = None
     try:
         view = _compute_view()
-        future.set_result(view)
+        build_duration = time.time() - start_build
+
+        start_serialize = time.time()
+        payload = _serialize_hierarchical_view(view)
+        serialize_duration = time.time() - start_serialize
+        total_duration = time.time() - start_total
+
+        future.set_result(payload)
     finally:
         _cache.inflight_clear(cache_key)
 
-    build_duration = time.time() - start_build
-
-    start_serialize = time.time()
-    payload = _serialize_hierarchical_view(view)
-    serialize_duration = time.time() - start_serialize
-    total_duration = time.time() - start_total
+    server_timing = {
+        "req_id": req_id,
+        "served_from": "build",
+        "t_build_ms": int(build_duration * 1000) if build_duration is not None else None,
+        "t_serialize_ms": int(serialize_duration * 1000) if serialize_duration is not None else None,
+        "t_total_ms": int(total_duration * 1000) if total_duration is not None else None,
+    }
+    payload = {**payload, "server_timing": server_timing}
 
     logger.info(
         "clusters built req=%s n=%d expanded=%d visible=%d budget_rem=%s wl=%.2f depth=%.2f "
