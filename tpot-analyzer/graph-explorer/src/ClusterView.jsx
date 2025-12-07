@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import {
   fetchClusterMembers,
   fetchClusterView,
@@ -14,12 +14,122 @@ const toNumber = (value, fallback) => {
   return Number.isFinite(n) ? n : fallback
 }
 
+const computeBaseCut = (budget) => {
+  const capped = clamp(budget, 5, 500)
+  const headroomCut = Math.round(capped * 0.45)
+  return clamp(headroomCut, 8, capped - 1 >= 8 ? capped - 1 : capped)
+}
+
+const center = (points) => {
+  const n = points.length
+  if (!n) return { centered: [], mean: [0, 0], scale: 1 }
+  const meanX = points.reduce((s, p) => s + p[0], 0) / n
+  const meanY = points.reduce((s, p) => s + p[1], 0) / n
+  const centered = points.map(p => [p[0] - meanX, p[1] - meanY])
+  const scale = Math.sqrt(centered.reduce((s, p) => s + p[0] * p[0] + p[1] * p[1], 0)) || 1
+  return { centered: centered.map(p => [p[0] / scale, p[1] / scale]), mean: [meanX, meanY], scale }
+}
+
+const procrustesAlign = (A, B) => {
+  // Align B onto A with rotation+scale, returning aligned B and stats
+  if (A.length !== B.length || A.length < 2) {
+    return { aligned: B, stats: { aligned: false, overlap: A.length, rmsBefore: null, rmsAfter: null, scale: 1 } }
+  }
+
+  const { centered: Ac, mean: meanA, scale: scaleA } = center(A)
+  const { centered: Bc, mean: meanB, scale: scaleB } = center(B)
+
+  // 2x2 cross-covariance
+  const m00 = Bc.reduce((s, p, i) => s + p[0] * Ac[i][0], 0)
+  const m01 = Bc.reduce((s, p, i) => s + p[0] * Ac[i][1], 0)
+  const m10 = Bc.reduce((s, p, i) => s + p[1] * Ac[i][0], 0)
+  const m11 = Bc.reduce((s, p, i) => s + p[1] * Ac[i][1], 0)
+
+  // SVD of 2x2 manually
+  const T = m00 + m11
+  const D = m00 * m11 - m01 * m10
+  const S = Math.sqrt((m00 - m11) * (m00 - m11) + (m01 + m10) * (m01 + m10))
+  const trace = Math.sqrt((T + S) / 2) + Math.sqrt((T - S) / 2)
+  const scale = trace / (scaleB || 1)
+
+  // Rotation matrix R = U V^T for 2x2 via polar decomposition
+  const det = D >= 0 ? 1 : -1
+  const denom = Math.hypot(m00 + m11, m01 - m10) || 1
+  const r00 = (m00 + m11) / denom
+  const r01 = (m01 - m10) / denom
+  const r10 = (m10 - m01) / denom
+  const r11 = (m00 + m11) / denom
+  const R = [[r00, r01], [r10 * det, r11 * det]]
+
+  const aligned = B.map(p => {
+    const x = (p[0] - meanB[0]) / scaleB
+    const y = (p[1] - meanB[1]) / scaleB
+    const rx = x * R[0][0] + y * R[0][1]
+    const ry = x * R[1][0] + y * R[1][1]
+    return [
+      rx * scale + meanA[0],
+      ry * scale + meanA[1],
+    ]
+  })
+
+  const rmsBefore = Math.sqrt(A.reduce((s, p, i) => {
+    const dx = p[0] - B[i][0]
+    const dy = p[1] - B[i][1]
+    return s + dx * dx + dy * dy
+  }, 0) / A.length)
+
+  const rmsAfter = Math.sqrt(A.reduce((s, p, i) => {
+    const dx = p[0] - aligned[i][0]
+    const dy = p[1] - aligned[i][1]
+    return s + dx * dx + dy * dy
+  }, 0) / A.length)
+
+  return {
+    aligned,
+    stats: { aligned: true, overlap: A.length, rmsBefore, rmsAfter, scale },
+    transform: { meanA, meanB, scaleB, scale, R },
+  }
+}
+
+const alignLayout = (clusters, positions, prevLayout) => {
+  const prevPositions = prevLayout?.positions || {}
+  const overlapIds = clusters
+    .map(c => c.id)
+    .filter(id => positions?.[id] && prevPositions[id])
+
+  if (overlapIds.length < 2) {
+    return { positions, stats: { aligned: false, overlap: overlapIds.length, rmsBefore: null, rmsAfter: null, scale: 1 } }
+  }
+
+  const A = overlapIds.map(id => prevPositions[id])
+  const B = overlapIds.map(id => positions[id])
+  const { aligned, stats, transform } = procrustesAlign(A, B)
+
+  const applyTransform = (p) => {
+    if (!transform) return p
+    const [meanAx, meanAy] = transform.meanA
+    const [meanBx, meanBy] = transform.meanB
+    const { scaleB, scale, R } = transform
+    const x = (p[0] - meanBx) / (scaleB || 1)
+    const y = (p[1] - meanBy) / (scaleB || 1)
+    const rx = x * R[0][0] + y * R[0][1]
+    const ry = x * R[1][0] + y * R[1][1]
+    return [rx * scale + meanAx, ry * scale + meanAy]
+  }
+
+  const alignedPositions = {}
+  Object.entries(positions || {}).forEach(([id, pos]) => {
+    alignedPositions[id] = applyTransform(pos)
+  })
+  return { positions: alignedPositions, stats }
+}
+
 export default function ClusterView({ defaultEgo = '' }) {
-  const [granularity, setGranularity] = useState(25)
+  const [budget, setBudget] = useState(25) // Max clusters allowed (slider)
+  const [visibleTarget, setVisibleTarget] = useState(computeBaseCut(25)) // Initial/base cut below budget
   const [wl, setWl] = useState(0)
   const [expandDepth, setExpandDepth] = useState(0.5)
   const [ego, setEgo] = useState(defaultEgo || '')
-  const [budget, setBudget] = useState(25)
   const [expanded, setExpanded] = useState(new Set())
   const [collapseSelection, setCollapseSelection] = useState(new Set())
   const [selectionMode, setSelectionMode] = useState(false)
@@ -33,13 +143,21 @@ export default function ClusterView({ defaultEgo = '' }) {
   const [membersTotal, setMembersTotal] = useState(0)
   const [labelDraft, setLabelDraft] = useState('')
   const [pendingAction, setPendingAction] = useState(null) // { type: 'expand' | 'collapse', clusterId: string }
-  const [lastPayloadKey, setLastPayloadKey] = useState(null)
+  const prevLayoutRef = useRef({ positions: {}, ids: [] })
 
   // Parse URL on mount
   useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
-    setGranularity(toNumber(params.get('n'), 25))
+    const nParam = toNumber(params.get('n'), 25)
+    const budgetParam = toNumber(params.get('budget'), nParam)
+    setBudget(budgetParam)
+    const visibleParam = toNumber(params.get('visible'), NaN)
+    if (Number.isFinite(visibleParam)) {
+      setVisibleTarget(clamp(visibleParam, 5, budgetParam))
+    } else {
+      setVisibleTarget(computeBaseCut(budgetParam))
+    }
     setWl(clamp(toNumber(params.get('wl'), 0), 0, 1))
     setExpandDepth(clamp(toNumber(params.get('expand_depth'), 0.5), 0, 1))
     setEgo(params.get('ego') || defaultEgo || '')
@@ -54,7 +172,9 @@ export default function ClusterView({ defaultEgo = '' }) {
     if (typeof window === 'undefined') return
     const url = new URL(window.location.href)
     url.searchParams.set('view', 'cluster')
-    url.searchParams.set('n', granularity)
+    url.searchParams.set('n', budget)
+    url.searchParams.set('budget', budget)
+    url.searchParams.set('visible', visibleTarget)
     url.searchParams.set('wl', wl.toFixed(2))
     url.searchParams.set('expand_depth', expandDepth.toFixed(2))
     url.searchParams.set('expanded', Array.from(expanded).join(','))
@@ -64,62 +184,76 @@ export default function ClusterView({ defaultEgo = '' }) {
       url.searchParams.delete('ego')
     }
     window.history.replaceState({}, '', url.toString())
-  }, [granularity, wl, expandDepth, ego, expanded])
+  }, [budget, visibleTarget, wl, expandDepth, ego, expanded])
 
   // Fetch cluster view
   useEffect(() => {
     let cancelled = false
-    const expandedKey = Array.from(expanded).sort().join(',')
-    const payloadKey = JSON.stringify({
-      n: granularity,
-      wl,
-      expandDepth,
-      ego: ego.trim() || '',
-      expanded: expandedKey,
-      budget,
-    })
-
-    // If we already have data for this key, skip fetch
-    if (lastPayloadKey === payloadKey && data) {
-      return undefined
-    }
 
     const run = async () => {
+      const reqId = Math.random().toString(36).slice(2, 8)
+      let attemptTimings = []
       const timings = {}
       const t0 = performance.now()
       timings.start = t0
 
-      console.log('[ClusterView] 🚀 Stage 1: Starting cluster view fetch...')
+      console.log('[ClusterView] 🚀 Stage 1: Starting cluster view fetch...', {
+        reqId,
+        visibleTarget,
+        budget,
+        expanded: expanded.size,
+        wl,
+        expandDepth,
+        ego: ego || null,
+      })
       setLoading(true)
       setError(null)
 
       try {
         const t1 = performance.now()
         timings.beforeFetch = t1
-        console.log(`[ClusterView] ⏱️  Stage 2: Initiating API call (prep: ${Math.round(t1 - t0)}ms)`)
+        console.log(`[ClusterView] ⏱️  Stage 2: Initiating API call (prep: ${Math.round(t1 - t0)}ms)`, { reqId })
 
         const payload = await fetchClusterView({
-          n: granularity,
+          n: visibleTarget,
           ego: ego.trim() || undefined,
           wl,
           budget,
           expanded: Array.from(expanded),
           expand_depth: expandDepth,
         })
+        const { positions, stats } = alignLayout(payload?.clusters || [], payload?.positions || {}, prevLayoutRef.current)
+        const enrichedPayload = {
+          ...payload,
+          positions,
+          meta: {
+            ...(payload?.meta || {}),
+            budget,
+            base_cut: visibleTarget,
+            alignment: stats,
+          },
+        }
 
         const t2 = performance.now()
         timings.afterFetch = t2
-        console.log(`[ClusterView] 📦 Stage 3: API response received (fetch: ${Math.round(t2 - t1)}ms)`)
+        console.log(`[ClusterView] 📦 Stage 3: API response received (fetch: ${Math.round(t2 - t1)}ms)`, {
+          reqId,
+          cache_hit: enrichedPayload?.cache_hit,
+          deduped: enrichedPayload?.deduped,
+          inflight_wait_ms: enrichedPayload?.inflight_wait_ms,
+          meta: enrichedPayload?.meta,
+          clusters: enrichedPayload?.clusters?.length,
+        })
 
         if (!cancelled) {
-          setData(payload)
+          setData(enrichedPayload)
           setSelectedCluster(null)
           setPendingAction(null)
-          setLastPayloadKey(payloadKey)
+          prevLayoutRef.current = { positions, ids: (payload?.clusters || []).map(c => c.id) }
 
           const t3 = performance.now()
           timings.afterStateUpdate = t3
-          console.log(`[ClusterView] 🎨 Stage 4: State updated (setState: ${Math.round(t3 - t2)}ms)`)
+          console.log(`[ClusterView] 🎨 Stage 4: State updated (setState: ${Math.round(t3 - t2)}ms)`, { reqId })
 
           const t4 = performance.now()
           timings.end = t4
@@ -131,15 +265,21 @@ export default function ClusterView({ defaultEgo = '' }) {
             '4_render': `${Math.round(t4 - t3)}ms`,
             'TOTAL': `${Math.round(t4 - t0)}ms`,
             expanded: expanded.size,
-            visible: payload?.clusters?.length,
-            budget: payload?.meta?.budget,
-            budget_remaining: payload?.meta?.budget_remaining,
+            visible: enrichedPayload?.clusters?.length,
+            budget: enrichedPayload?.meta?.budget,
+            budget_remaining: enrichedPayload?.meta?.budget_remaining,
+            base_cut: visibleTarget,
+            alignment: stats,
             expand_depth: expandDepth,
+            reqId,
+            cache_hit: enrichedPayload?.cache_hit,
+            deduped: enrichedPayload?.deduped,
+            inflight_wait_ms: enrichedPayload?.inflight_wait_ms,
           })
         }
       } catch (err) {
         const t_error = performance.now()
-        console.error(`[ClusterView] ❌ Error after ${Math.round(t_error - t0)}ms:`, err.message)
+        console.error(`[ClusterView] ❌ Error after ${Math.round(t_error - t0)}ms:`, err.message, { reqId })
         if (!cancelled) setError(err.message || 'Failed to load clusters')
       } finally {
         if (!cancelled) setLoading(false)
@@ -147,7 +287,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     }
     run()
     return () => { cancelled = true }
-  }, [granularity, wl, ego, budget, expandDepth, expanded, lastPayloadKey, data])
+  }, [visibleTarget, wl, ego, budget, expandDepth, expanded])
 
   const nodes = useMemo(() => {
     if (!data?.clusters) return []
@@ -165,7 +305,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     try {
       const res = await fetchClusterMembers({ 
         clusterId, 
-        n: granularity, 
+        n: visibleTarget, 
         wl, 
         expand_depth: expandDepth,
         ego: ego || undefined, 
@@ -183,7 +323,7 @@ export default function ClusterView({ defaultEgo = '' }) {
       const visibleIds = (data?.clusters || []).map(c => c.id)
       const res = await fetchClusterPreview({
         clusterId,
-        n: granularity,
+        n: visibleTarget,
         expand_depth: expandDepth,
         budget,
         expanded: Array.from(expanded),
@@ -201,10 +341,13 @@ export default function ClusterView({ defaultEgo = '' }) {
   const handleRename = async () => {
     if (!selectedCluster || !labelDraft.trim()) return
     try {
-      await setClusterLabel({ clusterId: selectedCluster.id, n: granularity, wl, label: labelDraft.trim() })
+      console.debug('[ClusterView] Rename request', { clusterId: selectedCluster.id, n: visibleTarget, wl })
+      await setClusterLabel({ clusterId: selectedCluster.id, n: visibleTarget, wl, label: labelDraft.trim() })
       // refresh view to pick up label
-      const refreshed = await fetchClusterView({ n: granularity, ego: ego.trim() || undefined, wl })
-      setData(refreshed)
+      const refreshed = await fetchClusterView({ n: visibleTarget, ego: ego.trim() || undefined, wl, budget })
+      const { positions, stats } = alignLayout(refreshed?.clusters || [], refreshed?.positions || {}, prevLayoutRef.current)
+      setData({ ...refreshed, positions, meta: { ...(refreshed?.meta || {}), budget, base_cut: visibleTarget, alignment: stats } })
+      prevLayoutRef.current = { positions, ids: (refreshed?.clusters || []).map(c => c.id) }
     } catch (err) {
       console.error('Failed to rename cluster', err)
     }
@@ -213,9 +356,12 @@ export default function ClusterView({ defaultEgo = '' }) {
   const handleDeleteLabel = async () => {
     if (!selectedCluster) return
     try {
-      await deleteClusterLabel({ clusterId: selectedCluster.id, n: granularity, wl })
-      const refreshed = await fetchClusterView({ n: granularity, ego: ego.trim() || undefined, wl })
-      setData(refreshed)
+      console.debug('[ClusterView] Delete label', { clusterId: selectedCluster.id, n: visibleTarget, wl })
+      await deleteClusterLabel({ clusterId: selectedCluster.id, n: visibleTarget, wl })
+      const refreshed = await fetchClusterView({ n: visibleTarget, ego: ego.trim() || undefined, wl, budget })
+      const { positions, stats } = alignLayout(refreshed?.clusters || [], refreshed?.positions || {}, prevLayoutRef.current)
+      setData({ ...refreshed, positions, meta: { ...(refreshed?.meta || {}), budget, base_cut: visibleTarget, alignment: stats } })
+      prevLayoutRef.current = { positions, ids: (refreshed?.clusters || []).map(c => c.id) }
     } catch (err) {
       console.error('Failed to delete label', err)
     }
@@ -237,7 +383,11 @@ export default function ClusterView({ defaultEgo = '' }) {
   }
 
   const handleGranularityDelta = (delta) => {
-    setGranularity(g => clamp(g + delta, 5, 200))
+    setBudget(b => {
+      const next = clamp(b + delta, 5, 200)
+      setVisibleTarget(computeBaseCut(next))
+      return next
+    })
   }
 
   const handleExpand = (cluster) => {
@@ -344,15 +494,20 @@ export default function ClusterView({ defaultEgo = '' }) {
         flexWrap: 'wrap'
       }}>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <label style={{ fontWeight: 600 }}>Granularity</label>
+          <label style={{ fontWeight: 600 }}>Max clusters (budget)</label>
           <input
             type="range"
             min={5}
             max={200}
-            value={granularity}
-            onChange={e => setGranularity(Number(e.target.value))}
+            value={budget}
+            onChange={e => {
+              const next = Number(e.target.value)
+              setBudget(next)
+              setVisibleTarget(computeBaseCut(next))
+            }}
           />
-          <span style={{ minWidth: 32 }}>{granularity}</span>
+          <span style={{ minWidth: 32 }}>{budget}</span>
+          <span style={{ color: '#475569', fontSize: 12 }}>Base cut {visibleTarget}</span>
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           <label style={{ fontWeight: 600 }}>Louvain weight</label>
@@ -418,7 +573,7 @@ export default function ClusterView({ defaultEgo = '' }) {
         {selectionMode && <span style={{ color: '#0ea5e9' }}>Drag to select clusters</span>}
       </div>
 
-      <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         <ClusterCanvas
           nodes={nodes}
           edges={data?.edges || []}
@@ -431,9 +586,20 @@ export default function ClusterView({ defaultEgo = '' }) {
           pendingClusterId={pendingAction?.clusterId}
         />
 
-        <div style={{ width: 360, borderLeft: '1px solid #e2e8f0', padding: 16, overflow: 'auto' }}>
-          <h3 style={{ margin: '0 0 12px 0' }}>Cluster details</h3>
-          {selectedCluster ? (
+        {selectedCluster && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: 360,
+            height: '100%',
+            borderLeft: '1px solid #e2e8f0',
+            padding: 16,
+            overflow: 'auto',
+            background: 'var(--panel, #fff)',
+            boxShadow: '0 0 20px rgba(0,0,0,0.08)'
+          }}>
+            <h3 style={{ margin: '0 0 12px 0' }}>Cluster details</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontWeight: 700 }}>{selectedCluster.label}</div>
               <div style={{ color: '#475569' }}>
@@ -490,10 +656,8 @@ export default function ClusterView({ defaultEgo = '' }) {
                 {!members.length && <div style={{ color: '#94a3b8' }}>No members loaded</div>}
               </div>
             </div>
-          ) : (
-            <div style={{ color: '#94a3b8' }}>Click a cluster to view members</div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
