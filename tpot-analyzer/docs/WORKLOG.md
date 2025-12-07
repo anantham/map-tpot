@@ -6,6 +6,10 @@
 - `scripts/verify_cluster_layout.py`: new verification script for budget headroom and layout alignment metrics.
 - Rationale: reduce visual teleports on expand/collapse and keep initial visible count below max budget for user-driven expansion.
 
+## 2025-12-07T11:10:00Z — Cluster inflight dedupe fix
+- `src/api/cluster_routes.py`: inflight dedupe now stores serialized payloads (not HierarchicalViewData) to avoid `unsupported operand type(s) for |`, logs inflight wait time/visible counts, and serializes non-dict inflight payloads defensively so deduped responses stay consistent.
+- Rationale: client retries were hitting inflight futures returning non-dict objects; dedupe now returns cached payload cleanly.
+
 ## 2025-12-07T01:45:00Z — Feature intent & motivations doc
 - `docs/FEATURES_INTENT.md`: captured motivations for snapshots, hierarchy/budgets, metrics/discovery flow, member counts, UI selection/error handling, and perf/logging goals; ties behavior to ADRs/specs and current UX constraints.
 - Verification: documentation only.
@@ -29,6 +33,11 @@
   - `docs/diagnostics/performance_optimizations.md`
   - `docs/diagnostics/slow_backend_diagnosis.md`
 - Verification: documentation only.
+
+## 2025-12-07T11:10:00Z — Theme toggle and contrast variables
+- `graph-explorer/src/App.css`: introduced light/dark CSS variables and swapped hard-coded colors to use vars for panel backgrounds, text, borders, buttons, sliders, textarea, and select; body now uses theme tokens.
+- `graph-explorer/src/App.jsx`: added theme toggle (persisted in localStorage, applies `data-theme` on html) and header button to switch light/dark.
+- Verification: not run (UI change only).
 
 ## 2025-12-06T00:10:00Z — Cluster canvas marquee selection
 - `graph-explorer/src/ClusterCanvas.jsx`: added selection-mode box drag with overlay, shared selected set highlighting, and click-to-toggle selection so multiple clusters can be marked at once.
