@@ -1,5 +1,11 @@
 # WORKLOG
 
+## 2025-12-07T10:15:00Z — Cluster layout continuity + budget headroom
+- `graph-explorer/src/ClusterView.jsx`: added Procrustes alignment for successive layouts (lines ~1-170), decoupled base cut from max budget with headroom defaults (lines ~10-120, ~320-370), and propagated aligned positions/meta through fetch/rename flows.
+- `graph-explorer/src/ClusterCanvas.jsx`: smoothed persistent node movement with position tweening and parent/child seeding (lines ~90-320, ~300-500), stabilized autofit to avoid camera jumps, and interpolated edges/labels during transitions.
+- `scripts/verify_cluster_layout.py`: new verification script for budget headroom and layout alignment metrics.
+- Rationale: reduce visual teleports on expand/collapse and keep initial visible count below max budget for user-driven expansion.
+
 ## 2025-12-07T01:45:00Z — Feature intent & motivations doc
 - `docs/FEATURES_INTENT.md`: captured motivations for snapshots, hierarchy/budgets, metrics/discovery flow, member counts, UI selection/error handling, and perf/logging goals; ties behavior to ADRs/specs and current UX constraints.
 - Verification: documentation only.
@@ -14,6 +20,15 @@
 - `graph-explorer/src/data.js`: deduplicate identical `fetchClusterView` calls to reuse the same promise.
 - `graph-explorer/src/ClusterView.jsx`: skip refetch when params unchanged (n/wl/expandDepth/ego/expanded/budget), reducing re-loads when navigating away and back.
 - Verification: `npm run test:e2e` (all 6 tests passed); cluster fetch ~48s, cache hit, no aborts.
+
+## 2025-12-07T04:15:00Z — Docs re-org and index
+- Moved root docs into `docs/ui/` and `docs/diagnostics/`; added `docs/index.md` to explain doc intent/timing.
+- Files:
+  - `docs/ui/cluster_animations.md`
+  - `docs/diagnostics/performance_monitoring.md`
+  - `docs/diagnostics/performance_optimizations.md`
+  - `docs/diagnostics/slow_backend_diagnosis.md`
+- Verification: documentation only.
 
 ## 2025-12-06T00:10:00Z — Cluster canvas marquee selection
 - `graph-explorer/src/ClusterCanvas.jsx`: added selection-mode box drag with overlay, shared selected set highlighting, and click-to-toggle selection so multiple clusters can be marked at once.
