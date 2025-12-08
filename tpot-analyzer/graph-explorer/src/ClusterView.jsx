@@ -111,11 +111,19 @@ const alignLayout = (clusters, positions, prevLayout) => {
     const [meanAx, meanAy] = transform.meanA
     const [meanBx, meanBy] = transform.meanB
     const { scaleB, scale, R } = transform
-    const x = (p[0] - meanBx) / (scaleB || 1)
-    const y = (p[1] - meanBy) / (scaleB || 1)
+    // Guard against division by zero or tiny scales
+    const safeDenom = Math.abs(scaleB) > 1e-10 ? scaleB : 1
+    const x = (p[0] - meanBx) / safeDenom
+    const y = (p[1] - meanBy) / safeDenom
     const rx = x * R[0][0] + y * R[0][1]
     const ry = x * R[1][0] + y * R[1][1]
-    return [rx * scale + meanAx, ry * scale + meanAy]
+    const resultX = rx * scale + meanAx
+    const resultY = ry * scale + meanAy
+    // Final NaN check
+    if (!Number.isFinite(resultX) || !Number.isFinite(resultY)) {
+      return p  // Fall back to original position
+    }
+    return [resultX, resultY]
   }
 
   const alignedPositions = {}
@@ -409,8 +417,11 @@ export default function ClusterView({ defaultEgo = '' }) {
     const maxSize = Math.max(...weights, 1)
     return data.clusters.map(c => {
       const pos = positions[c.id] || [0, 0]
+      // Guard against NaN/Infinity positions from Procrustes alignment
+      const x = Number.isFinite(pos[0]) ? pos[0] : 0
+      const y = Number.isFinite(pos[1]) ? pos[1] : 0
       const radius = 6 + Math.sqrt((c.size || 1) / maxSize) * 18
-      return { ...c, x: pos[0], y: pos[1], radius }
+      return { ...c, x, y, radius }
     })
   }, [data])
 

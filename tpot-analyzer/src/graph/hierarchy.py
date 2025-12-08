@@ -212,10 +212,21 @@ def build_hierarchical_view(
     visible_nodes: Set[int] = set(label_to_leader.values())
     subtree_cache: Dict[int, int] = {}
     
+    logger.info(
+        "Expansion phase: visible_nodes=%s expanded_ids=%s",
+        sorted(visible_nodes)[:20],  # First 20 to avoid spam
+        expanded_ids,
+    )
+    
     for exp_id in expanded_ids:
         t_exp_start = time.time()
-        node_idx = _get_node_idx(exp_id)
+        try:
+            node_idx = _get_node_idx(exp_id)
+        except Exception as e:
+            logger.warning("Invalid expanded_id %s: %s", exp_id, e)
+            continue
         if node_idx not in visible_nodes:
+            logger.info("Skipping expand %s (node %d not in visible_nodes)", exp_id, node_idx)
             continue
         # Target child count grows with size, controlled by expand_depth
         # expand_depth 0.0 = exponent 0.4 (conservative, ~4 children for size 50)
