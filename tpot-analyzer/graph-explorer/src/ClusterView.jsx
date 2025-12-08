@@ -131,6 +131,7 @@ export default function ClusterView({ defaultEgo = '' }) {
   const [expandDepth, setExpandDepth] = useState(0.5)
   const [ego, setEgo] = useState(defaultEgo || '')
   const [expanded, setExpanded] = useState(new Set())
+  const [collapsed, setCollapsed] = useState(new Set())  // Parent IDs we've collapsed into
   const [collapseSelection, setCollapseSelection] = useState(new Set())
   const [selectionMode, setSelectionMode] = useState(false)
   const [data, setData] = useState(null)
@@ -143,6 +144,11 @@ export default function ClusterView({ defaultEgo = '' }) {
   const [membersTotal, setMembersTotal] = useState(0)
   const [labelDraft, setLabelDraft] = useState('')
   const [pendingAction, setPendingAction] = useState(null) // { type: 'expand' | 'collapse', clusterId: string }
+  const [explodedLeaves, setExplodedLeaves] = useState(new Map()) // clusterId -> { members }
+  const collapseTraceLogged = useRef(false)
+  const activeReqRef = useRef(null)
+  const lastGoodReqRef = useRef(null)
+  const abortControllerRef = useRef(null)
   const prevLayoutRef = useRef({ positions: {}, ids: [] })
 
   // Parse URL on mount
@@ -165,6 +171,10 @@ export default function ClusterView({ defaultEgo = '' }) {
     if (expandedParam) {
       setExpanded(new Set(expandedParam.split(',').filter(Boolean)))
     }
+    const collapsedParam = params.get('collapsed')
+    if (collapsedParam) {
+      setCollapsed(new Set(collapsedParam.split(',').filter(Boolean)))
+    }
   }, [defaultEgo])
 
   // Update URL when controls change
@@ -178,20 +188,27 @@ export default function ClusterView({ defaultEgo = '' }) {
     url.searchParams.set('wl', wl.toFixed(2))
     url.searchParams.set('expand_depth', expandDepth.toFixed(2))
     url.searchParams.set('expanded', Array.from(expanded).join(','))
+    url.searchParams.set('collapsed', Array.from(collapsed).join(','))
     if (ego) {
       url.searchParams.set('ego', ego)
     } else {
       url.searchParams.delete('ego')
     }
     window.history.replaceState({}, '', url.toString())
-  }, [budget, visibleTarget, wl, expandDepth, ego, expanded])
+  }, [budget, visibleTarget, wl, expandDepth, ego, expanded, collapsed])
 
   // Fetch cluster view
   useEffect(() => {
-    let cancelled = false
+    // Cancel any previous in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     const run = async () => {
       const reqId = Math.random().toString(36).slice(2, 8)
+      activeReqRef.current = reqId
       let attemptTimings = []
       const timings = {}
       const t0 = performance.now()
@@ -220,11 +237,18 @@ export default function ClusterView({ defaultEgo = '' }) {
           wl,
           budget,
           expanded: Array.from(expanded),
+          collapsed: Array.from(collapsed),
           expand_depth: expandDepth,
+          signal: controller.signal,
         })
+        if (payload?._timing) {
+          attemptTimings = payload._timing.attempts || []
+          console.debug('[ClusterView] fetch timing', { reqId, timing: payload._timing })
+        }
         const { positions, stats } = alignLayout(payload?.clusters || [], payload?.positions || {}, prevLayoutRef.current)
         const enrichedPayload = {
           ...payload,
+          req_id: reqId,
           positions,
           meta: {
             ...(payload?.meta || {}),
@@ -241,15 +265,25 @@ export default function ClusterView({ defaultEgo = '' }) {
           cache_hit: enrichedPayload?.cache_hit,
           deduped: enrichedPayload?.deduped,
           inflight_wait_ms: enrichedPayload?.inflight_wait_ms,
+          server_timing: enrichedPayload?.server_timing,
           meta: enrichedPayload?.meta,
           clusters: enrichedPayload?.clusters?.length,
+          attempts: attemptTimings,
         })
 
-        if (!cancelled) {
+        const clusterCount = enrichedPayload?.clusters?.length || 0
+        const positionCount = enrichedPayload?.positions ? Object.keys(enrichedPayload.positions).length : 0
+
+        if (clusterCount === 0) {
+          console.warn('[ClusterView] ⚠️  Dropping response: no clusters returned', { reqId, clusterCount, positionCount, payloadKeys: Object.keys(enrichedPayload || {}) })
+        } else if (reqId !== activeReqRef.current && lastGoodReqRef.current) {
+          console.warn('[ClusterView] ⚠️  Dropping stale response (another request already applied)', { reqId, activeReq: activeReqRef.current, lastGoodReq: lastGoodReqRef.current, clusterCount, positionCount })
+        } else if (!controller.signal.aborted) {
           setData(enrichedPayload)
           setSelectedCluster(null)
           setPendingAction(null)
           prevLayoutRef.current = { positions, ids: (payload?.clusters || []).map(c => c.id) }
+          lastGoodReqRef.current = reqId
 
           const t3 = performance.now()
           timings.afterStateUpdate = t3
@@ -275,19 +309,53 @@ export default function ClusterView({ defaultEgo = '' }) {
             cache_hit: enrichedPayload?.cache_hit,
             deduped: enrichedPayload?.deduped,
             inflight_wait_ms: enrichedPayload?.inflight_wait_ms,
+            server_timing: enrichedPayload?.server_timing,
           })
         }
       } catch (err) {
+        // Ignore abort errors - they're expected when we cancel stale requests
+        if (err.name === 'AbortError') {
+          console.debug(`[ClusterView] 🛑 Request aborted (superseded by newer request)`, { reqId })
+          return
+        }
         const t_error = performance.now()
         console.error(`[ClusterView] ❌ Error after ${Math.round(t_error - t0)}ms:`, err.message, { reqId })
-        if (!cancelled) setError(err.message || 'Failed to load clusters')
+        if (!controller.signal.aborted) setError(err.message || 'Failed to load clusters')
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
     }
     run()
-    return () => { cancelled = true }
-  }, [visibleTarget, wl, ego, budget, expandDepth, expanded])
+    return () => controller.abort()
+  }, [visibleTarget, wl, ego, budget, expandDepth, expanded, collapsed])
+
+  useEffect(() => {
+    const clusterCount = data?.clusters?.length || 0
+    const positionCount = data?.positions ? Object.keys(data.positions).length : 0
+    console.info('[ClusterView] Render readiness', {
+      clusters: clusterCount,
+      positions: positionCount,
+      edges: data?.edges?.length || 0,
+      loading,
+      lastReqId: data?.req_id,
+      lastGoodReq: lastGoodReqRef.current,
+    })
+  }, [data, loading])
+
+  // Drop exploded leaves that are no longer visible
+  useEffect(() => {
+    setExplodedLeaves(prev => {
+      if (!prev.size) return prev
+      const visibleIds = new Set((data?.clusters || []).map(c => c.id))
+      const next = new Map()
+      prev.forEach((val, key) => {
+        if (visibleIds.has(key)) {
+          next.set(key, val)
+        }
+      })
+      return next
+    })
+  }, [data])
 
   const nodes = useMemo(() => {
     if (!data?.clusters) return []
@@ -309,7 +377,8 @@ export default function ClusterView({ defaultEgo = '' }) {
         wl, 
         expand_depth: expandDepth,
         ego: ego || undefined, 
-        expanded: Array.from(expanded) 
+        expanded: Array.from(expanded),
+        collapsed: Array.from(collapsed),
       })
       setMembers(res.members || [])
       setMembersTotal(res.total || 0)
@@ -327,7 +396,14 @@ export default function ClusterView({ defaultEgo = '' }) {
         expand_depth: expandDepth,
         budget,
         expanded: Array.from(expanded),
+        collapsed: Array.from(collapsed),
         visible: visibleIds,
+      })
+      console.info('[ClusterView] Preview loaded', {
+        clusterId,
+        expandPreview: res.expand,
+        collapsePreview: res.collapse,
+        currentExpanded: Array.from(expanded),
       })
       setExpandPreview(res.expand || null)
       setCollapsePreview(res.collapse || null)
@@ -338,13 +414,54 @@ export default function ClusterView({ defaultEgo = '' }) {
     }
   }
 
+  const explodeLeaf = async (cluster) => {
+    if (!cluster) return
+    const pos = (data?.positions || {})[cluster.id]
+    try {
+      const existing = explodedLeaves.get(cluster.id)
+      if (existing?.members?.length) {
+        // Already exploded; keep as-is
+        return
+      }
+      const res = await fetchClusterMembers({
+        clusterId: cluster.id,
+        n: visibleTarget,
+        wl,
+        expand_depth: expandDepth,
+        ego: ego || undefined,
+        expanded: Array.from(expanded),
+        collapsed: Array.from(collapsed),
+        limit: cluster.size || 100,
+      })
+      const members = res.members || []
+      setExplodedLeaves(prev => {
+        const next = new Map(prev)
+        next.set(cluster.id, { members, pos })
+        return next
+      })
+      console.info('[ClusterView] Exploded leaf cluster into members', { clusterId: cluster.id, members: members.length })
+    } catch (err) {
+      console.error('Failed to explode leaf cluster', err)
+    }
+  }
+
+  const clearExploded = (clusterIds) => {
+    if (!clusterIds || !clusterIds.length) return
+    setExplodedLeaves(prev => {
+      if (!prev.size) return prev
+      const next = new Map(prev)
+      clusterIds.forEach(id => next.delete(id))
+      return next
+    })
+  }
+
   const handleRename = async () => {
     if (!selectedCluster || !labelDraft.trim()) return
     try {
       console.debug('[ClusterView] Rename request', { clusterId: selectedCluster.id, n: visibleTarget, wl })
       await setClusterLabel({ clusterId: selectedCluster.id, n: visibleTarget, wl, label: labelDraft.trim() })
       // refresh view to pick up label
-      const refreshed = await fetchClusterView({ n: visibleTarget, ego: ego.trim() || undefined, wl, budget })
+      const refreshed = await fetchClusterView({ n: visibleTarget, ego: ego.trim() || undefined, wl, budget, expanded: Array.from(expanded), collapsed: Array.from(collapsed) })
       const { positions, stats } = alignLayout(refreshed?.clusters || [], refreshed?.positions || {}, prevLayoutRef.current)
       setData({ ...refreshed, positions, meta: { ...(refreshed?.meta || {}), budget, base_cut: visibleTarget, alignment: stats } })
       prevLayoutRef.current = { positions, ids: (refreshed?.clusters || []).map(c => c.id) }
@@ -358,7 +475,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     try {
       console.debug('[ClusterView] Delete label', { clusterId: selectedCluster.id, n: visibleTarget, wl })
       await deleteClusterLabel({ clusterId: selectedCluster.id, n: visibleTarget, wl })
-      const refreshed = await fetchClusterView({ n: visibleTarget, ego: ego.trim() || undefined, wl, budget })
+      const refreshed = await fetchClusterView({ n: visibleTarget, ego: ego.trim() || undefined, wl, budget, expanded: Array.from(expanded), collapsed: Array.from(collapsed) })
       const { positions, stats } = alignLayout(refreshed?.clusters || [], refreshed?.positions || {}, prevLayoutRef.current)
       setData({ ...refreshed, positions, meta: { ...(refreshed?.meta || {}), budget, base_cut: visibleTarget, alignment: stats } })
       prevLayoutRef.current = { positions, ids: (refreshed?.clusters || []).map(c => c.id) }
@@ -376,6 +493,16 @@ export default function ClusterView({ defaultEgo = '' }) {
       setCollapsePreview(null)
       return
     }
+    console.info('[ClusterView] Cluster selected', {
+      id: cluster.id,
+      label: cluster.label,
+      size: cluster.size,
+      isLeaf: cluster.isLeaf,
+      parentId: cluster.parentId,
+      childrenIds: cluster.childrenIds,
+      isInExpandedSet: expanded.has(cluster.id),
+      parentInExpandedSet: cluster.parentId ? expanded.has(cluster.parentId) : null,
+    })
     setSelectedCluster(cluster)
     setLabelDraft(cluster.label)
     loadMembers(cluster.id)
@@ -390,8 +517,13 @@ export default function ClusterView({ defaultEgo = '' }) {
     })
   }
 
-  const handleExpand = (cluster) => {
+  const handleExpand = async (cluster) => {
     if (!cluster) return
+    // Leaf: explode into members instead of hierarchical expand
+    if (cluster.isLeaf) {
+      await explodeLeaf(cluster)
+      return
+    }
     if (!expandPreview?.can_expand) {
       console.info('[ClusterView] Expand blocked: no children or preview denies expand', {
         clusterId: cluster.id,
@@ -415,6 +547,13 @@ export default function ClusterView({ defaultEgo = '' }) {
       return
     }
     setPendingAction({ type: 'expand', clusterId: cluster.id })
+    // If this cluster was previously collapsed, remove it from collapsed set
+    setCollapsed(prev => {
+      const next = new Set(prev)
+      next.delete(cluster.id)
+      if (cluster.parentId) next.delete(cluster.parentId)
+      return next
+    })
     setExpanded(prev => new Set(prev).add(cluster.id))
     // Optimistic: clear collapse selection and previews to avoid stale data
     setCollapseSelection(new Set())
@@ -425,12 +564,20 @@ export default function ClusterView({ defaultEgo = '' }) {
   const handleCollapse = (cluster) => {
     if (!cluster || !collapsePreview?.can_collapse) return
     setPendingAction({ type: 'collapse', clusterId: collapsePreview.parent_id })
-    // Remove the parent from expanded set, which will re-merge children
+    // Mark parent as collapsed and remove from expanded set (merges children)
+    setCollapsed(prev => {
+      const next = new Set(prev)
+      next.add(collapsePreview.parent_id)
+      return next
+    })
     setExpanded(prev => {
       const next = new Set(prev)
       next.delete(collapsePreview.parent_id)
+      // also clear expanded flags for siblings being merged
+      collapsePreview.sibling_ids?.forEach(id => next.delete(id))
       return next
     })
+    clearExploded([cluster.id, ...(collapsePreview.sibling_ids || [])])
     setCollapseSelection(new Set())
     setExpandPreview(null)
     setCollapsePreview(null)
@@ -451,6 +598,10 @@ export default function ClusterView({ defaultEgo = '' }) {
 
   const handleCollapseSelected = () => {
     if (!collapseSelection.size) return
+    if (!collapseTraceLogged.current) {
+      console.log('[ClusterView] Collapse stack trace (once):', new Error().stack)
+      collapseTraceLogged.current = true
+    }
     const parentMap = new Map((data?.clusters || []).map(c => [c.id, c.parentId]))
     console.info('[ClusterView] Collapse selected requested', {
       selectedIds: Array.from(collapseSelection),
@@ -472,6 +623,17 @@ export default function ClusterView({ defaultEgo = '' }) {
       console.info('[ClusterView] Expanded set after collapse selection', { expandedCount: next.size, expandedIds: Array.from(next) })
       return next
     })
+    setCollapsed(prev => {
+      const next = new Set(prev)
+      collapseSelection.forEach(id => {
+        const parentId = parentMap.get(id)
+        if (parentId) {
+          next.add(parentId)
+        }
+      })
+      return next
+    })
+    clearExploded(Array.from(collapseSelection))
     setCollapseSelection(new Set())
   }
 
