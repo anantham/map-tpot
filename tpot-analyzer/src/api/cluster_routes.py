@@ -209,8 +209,9 @@ def _load_or_build_adjacency(edges_df: pd.DataFrame, node_ids: np.ndarray, cache
     return adjacency
 
 
-def _make_cache_key(granularity: int, ego: Optional[str], expanded: Set[str], louvain_weight: float = 0.0, expand_depth: float = 0.5) -> Tuple:
-    return (granularity, ego or "", ",".join(sorted(expanded)), round(louvain_weight, 2), round(expand_depth, 2))
+def _make_cache_key(granularity: int, ego: Optional[str], expanded: Set[str], collapsed: Set[str] = None, louvain_weight: float = 0.0, expand_depth: float = 0.5) -> Tuple:
+    collapsed = collapsed or set()
+    return (granularity, ego or "", ",".join(sorted(expanded)), ",".join(sorted(collapsed)), round(louvain_weight, 2), round(expand_depth, 2))
 
 
 def init_cluster_routes(app, data_dir: Path = Path("data")) -> None:
@@ -269,6 +270,8 @@ def get_clusters():
     ego = request.args.get("ego", None, type=str)
     expanded_arg = request.args.get("expanded", "")
     expanded_ids: Set[str] = set([e for e in expanded_arg.split(",") if e])
+    collapsed_arg = request.args.get("collapsed", "")
+    collapsed_ids: Set[str] = set([c for c in collapsed_arg.split(",") if c])
     budget = request.args.get("budget", 25, type=int)
     budget = max(5, budget)
     louvain_weight = request.args.get("wl", 0.0, type=float)
@@ -277,16 +280,17 @@ def get_clusters():
     expand_depth = max(0.0, min(1.0, expand_depth))
 
     logger.info(
-        "clusters start req=%s n=%d budget=%d expanded=%d wl=%.2f depth=%.2f",
+        "clusters start req=%s n=%d budget=%d expanded=%d collapsed=%d wl=%.2f depth=%.2f",
         req_id,
         granularity,
         budget,
         len(expanded_ids),
+        len(collapsed_ids),
         louvain_weight,
         expand_depth,
     )
 
-    cache_key = _make_cache_key(granularity, ego, expanded_ids, louvain_weight, expand_depth)
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth)
 
     # Deduplicate identical in-flight builds
     inflight = _cache.inflight_get(cache_key)
@@ -365,6 +369,7 @@ def get_clusters():
             node_metadata=_node_metadata,
             base_granularity=granularity,
             expanded_ids=expanded_ids,
+            collapsed_ids=collapsed_ids,
             ego_node_id=ego,
             budget=budget,
             label_store=_label_store,
@@ -414,6 +419,19 @@ def get_clusters():
         serialize_duration,
         total_duration,
     )
+    try:
+        logger.info(
+            "clusters response req=%s clusters=%d cache_hit=%s expanded=%d collapsed=%d budget=%d body_bytes=%d",
+            req_id,
+            len(payload.get("clusters", [])),
+            payload.get("cache_hit"),
+            len(expanded_ids),
+            len(collapsed_ids),
+            budget,
+            len(json.dumps(payload)),
+        )
+    except Exception:
+        logger.warning("clusters response logging failed for req=%s", req_id)
     _cache.set(cache_key, payload)
     return jsonify(payload)
 
@@ -429,6 +447,8 @@ def get_cluster_members(cluster_id: str):
     ego = request.args.get("ego", None, type=str)
     expanded_arg = request.args.get("expanded", "")
     expanded_ids: Set[str] = set([e for e in expanded_arg.split(",") if e])
+    collapsed_arg = request.args.get("collapsed", "")
+    collapsed_ids: Set[str] = set([c for c in collapsed_arg.split(",") if c])
     budget = request.args.get("budget", 25, type=int)
     budget = max(5, budget)
     louvain_weight = request.args.get("wl", 0.0, type=float)
@@ -436,7 +456,7 @@ def get_cluster_members(cluster_id: str):
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
 
-    cache_key = _make_cache_key(granularity, ego, expanded_ids, louvain_weight, expand_depth)
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth)
     view = _cache.get(cache_key)
     if not view:
         start_build = time.time()
@@ -449,6 +469,7 @@ def get_cluster_members(cluster_id: str):
             node_metadata=_node_metadata,
             base_granularity=granularity,
             expanded_ids=expanded_ids,
+            collapsed_ids=collapsed_ids,
             ego_node_id=ego,
             budget=budget,
             label_store=_label_store,
@@ -632,6 +653,7 @@ def _serialize_hierarchical_view(view) -> dict:
             "budget": view.budget,
             "budget_remaining": view.budget_remaining,
             "expanded": view.expanded_ids,
+            "collapsed": view.collapsed_ids,
         },
         "cache_hit": False,
     }

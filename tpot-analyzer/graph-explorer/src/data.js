@@ -70,24 +70,71 @@ if (typeof window !== 'undefined') {
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const fetchWithRetry = async (url, options = {}, { retries = 2, backoffMs = 400, timeoutMs = API_TIMEOUT_MS } = {}) => {
+  // Extract external signal (e.g., from caller's AbortController)
+  const externalSignal = options.signal;
+  
+  // If already aborted before we start, bail immediately
+  if (externalSignal?.aborted) {
+    const err = new Error('Aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
+
   let attempt = 0;
   let lastError;
+  const start = performance.now();
+  const attemptsMeta = [];
+  
   while (attempt <= retries) {
+    // Check external abort before each attempt
+    if (externalSignal?.aborted) {
+      const err = new Error('Aborted');
+      err.name = 'AbortError';
+      throw err;
+    }
+
+    const attemptStart = performance.now();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    
+    // Listen to external signal and propagate abort
+    const externalAbortHandler = () => controller.abort();
+    externalSignal?.addEventListener('abort', externalAbortHandler);
+    
     try {
+      console.debug('[API] fetch start', { url, attempt: attempt + 1, timeoutMs });
       const res = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeout);
+      externalSignal?.removeEventListener('abort', externalAbortHandler);
+      const dur = Math.round(performance.now() - attemptStart);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status} ${res.statusText}`);
       }
+      console.debug('[API] fetch ok', { url, attempt: attempt + 1, durationMs: dur, totalMs: Math.round(performance.now() - start) });
+      attemptsMeta.push({ attempt: attempt + 1, durationMs: dur, totalMs: Math.round(performance.now() - start), success: true, aborted: false, error: null });
+      res._timing = { attempt: attempt + 1, durationMs: dur, totalMs: Math.round(performance.now() - start), attempts: [...attemptsMeta] }; // attach timing for consumers
       return res;
     } catch (err) {
       clearTimeout(timeout);
+      externalSignal?.removeEventListener('abort', externalAbortHandler);
       lastError = err;
-      if (attempt === retries) break;
+      const dur = Math.round(performance.now() - attemptStart);
+      const total = Math.round(performance.now() - start);
+      const wasExternalAbort = externalSignal?.aborted;
+      attemptsMeta.push({ attempt: attempt + 1, durationMs: dur, totalMs: total, success: false, aborted: err.name === 'AbortError', externalAbort: wasExternalAbort, error: err.message });
+      
+      // If externally aborted, don't retry - propagate immediately
+      if (wasExternalAbort) {
+        console.debug('[API] fetch aborted by caller', { url, attempt: attempt + 1, durationMs: dur, totalMs: total });
+        throw err;
+      }
+      
+      if (attempt === retries) {
+        console.error('[API] fetch failed (no retries left)', { url, attempt: attempt + 1, durationMs: dur, totalMs: total, error: err.message, aborted: err.name === 'AbortError' });
+        break;
+      }
       const delay = backoffMs * Math.pow(2, attempt);
-      console.warn('[API] retrying', url, 'attempt', attempt + 1, 'error', err.message);
+      console.warn('[API] retrying', { url, attempt: attempt + 1, durationMs: dur, totalMs: total, nextDelayMs: delay, error: err.message, aborted: err.name === 'AbortError' });
       await sleep(delay);
     }
     attempt += 1;
@@ -663,6 +710,7 @@ export const fetchClusterView = async (options = {}) => {
     n: options.n ?? 25,
     ego: options.ego || '',
     expanded: Array.isArray(options.expanded) ? [...options.expanded].sort() : [],
+    collapsed: Array.isArray(options.collapsed) ? [...options.collapsed].sort() : [],
     budget: options.budget ?? 25,
     wl: typeof options.wl === 'number' ? Math.min(1, Math.max(0, options.wl)).toFixed(2) : '0.00',
     expand_depth: typeof options.expand_depth === 'number'
@@ -671,7 +719,11 @@ export const fetchClusterView = async (options = {}) => {
   });
   const inflight = fetchClusterView._inflight.get(cacheKey);
   if (inflight) {
-    return inflight;
+    console.debug('[API] fetchClusterView inflight dedupe hit', { cacheKey });
+    // Must await and destructure to match the normal return shape
+    const { data, timing } = await inflight;
+    const total = Math.round(performance.now() - startTime);
+    return { ...data, _timing: { totalMs: total, lastAttempt: timing, attempts: [], deduped: true } };
   }
   const params = new URLSearchParams();
   const granularity = options.n ?? 25;
@@ -680,6 +732,9 @@ export const fetchClusterView = async (options = {}) => {
   if (options.focus) params.set('focus', options.focus);
   if (Array.isArray(options.expanded) && options.expanded.length) {
     params.set('expanded', options.expanded.join(','));
+  }
+  if (Array.isArray(options.collapsed) && options.collapsed.length) {
+    params.set('collapsed', options.collapsed.join(','));
   }
   if (typeof options.budget === 'number') {
     params.set('budget', options.budget);
@@ -693,27 +748,55 @@ export const fetchClusterView = async (options = {}) => {
     params.set('expand_depth', ed.toFixed(2));
   }
 
+  const attemptMeta = { attempts: [] };
+  const url = `${API_BASE_URL}/api/clusters?${params.toString()}`;
+
+  // Extract signal before storing promise (signal shouldn't be part of cache key)
+  const { signal } = options;
+
   try {
-    const promise = fetchWithRetry(`${API_BASE_URL}/api/clusters?${params.toString()}`, {}, { timeoutMs: API_TIMEOUT_SLOW_MS });
+    console.log('[API] Dedup check (clusters)', {
+      cacheKey,
+      hasInflight: !!inflight,
+      mapSize: fetchClusterView._inflight.size,
+      mapKeysSample: Array.from(fetchClusterView._inflight.keys()).slice(0, 3),
+    });
+
+    const promise = (async () => {
+      const res = await fetchWithRetry(url, { signal }, { timeoutMs: API_TIMEOUT_SLOW_MS });
+      const rawText = await res.clone().text();
+      console.log('[API] Raw cluster response', {
+        url,
+        status: res.status,
+        statusText: res.statusText,
+        bodyLength: rawText.length,
+        bodyPreview: rawText.slice(0, 200),
+        timing: res._timing,
+      });
+      const data = rawText ? JSON.parse(rawText) : {};
+      return { data, timing: res._timing };
+    })();
     fetchClusterView._inflight.set(cacheKey, promise);
 
-    const response = await promise;
-    if (!response.ok) {
-      throw new Error(`Failed to fetch clusters: ${response.statusText}`);
-    }
-    const data = await response.json();
-    performanceLog.log('fetchClusterView', performance.now() - startTime, { granularity, ego: options.ego });
-    return data;
+    const { data, timing } = await promise;
+    const total = Math.round(performance.now() - startTime);
+    performanceLog.log('fetchClusterView', total, { granularity, ego: options.ego, attempts: attemptMeta.attempts, lastAttempt: timing });
+    return { ...data, _timing: { totalMs: total, lastAttempt: timing, attempts: attemptMeta.attempts } };
   } catch (error) {
     const duration = performance.now() - startTime;
-    performanceLog.log('fetchClusterView [ERROR]', duration, { error: error.message });
+    // Don't log aborts as errors - they're expected when requests are superseded
+    if (error.name === 'AbortError') {
+      console.debug('[API] fetchClusterView aborted (expected)', { duration: Math.round(duration), ego: options.ego, cacheKey });
+    } else {
+      performanceLog.log('fetchClusterView [ERROR]', duration, { error: error.message });
+    }
     throw error;
   } finally {
     fetchClusterView._inflight.delete(cacheKey);
   }
 };
 
-export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_depth = 0.5, ego, expanded = [], focus, limit = 100, offset = 0 }) => {
+export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_depth = 0.5, ego, expanded = [], collapsed = [], focus, limit = 100, offset = 0 }) => {
   const params = new URLSearchParams();
   params.set('n', n);
   params.set('limit', limit);
@@ -722,6 +805,9 @@ export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_de
   if (focus) params.set('focus', focus);
   if (Array.isArray(expanded) && expanded.length) {
     params.set('expanded', expanded.join(','));
+  }
+  if (Array.isArray(collapsed) && collapsed.length) {
+    params.set('collapsed', collapsed.join(','));
   }
   params.set('wl', Math.min(1, Math.max(0, wl)).toFixed(2));
   params.set('expand_depth', Math.min(1, Math.max(0, expand_depth)).toFixed(2));
@@ -761,13 +847,16 @@ export const deleteClusterLabel = async ({ clusterId, n = 25, wl = 0 }) => {
   return response.json();
 };
 
-export const fetchClusterPreview = async ({ clusterId, n = 25, expand_depth = 0.5, budget = 25, expanded = [], visible = [] }) => {
+export const fetchClusterPreview = async ({ clusterId, n = 25, expand_depth = 0.5, budget = 25, expanded = [], collapsed = [], visible = [] }) => {
   const params = new URLSearchParams();
   params.set('n', n);
   params.set('budget', budget);
   params.set('expand_depth', Math.min(1, Math.max(0, expand_depth)).toFixed(2));
   if (Array.isArray(expanded) && expanded.length) {
     params.set('expanded', expanded.join(','));
+  }
+  if (Array.isArray(collapsed) && collapsed.length) {
+    params.set('collapsed', collapsed.join(','));
   }
   if (Array.isArray(visible) && visible.length) {
     params.set('visible', visible.join(','));

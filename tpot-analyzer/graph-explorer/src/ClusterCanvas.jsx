@@ -2,8 +2,44 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 
 const clamp = (val, min, max) => Math.min(max, Math.max(min, val))
 
-// Easing function for smooth animations
+// Easing functions for smooth animations
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3)
+const easeInOutQuad = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+
+// Spring physics with damping for natural bounce effect
+const easeOutElastic = (t) => {
+  const c4 = (2 * Math.PI) / 3
+  return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1
+}
+
+// Smooth spring for entering nodes (gentle bounce)
+const easeOutBack = (t) => {
+  const c1 = 1.70158
+  const c3 = c1 + 1
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)
+}
+
+// Find the "parent" position for expand/collapse animations
+// For collapse: find the cluster that will remain after collapse
+// For expand: use the cluster that's being expanded
+const findParentPosition = (nodeId, allNodes, edges) => {
+  // Try to find a connected cluster as parent
+  const connectedEdges = edges.filter(e => e.source === nodeId || e.target === nodeId)
+  if (connectedEdges.length > 0) {
+    const connectedId = connectedEdges[0].source === nodeId ? connectedEdges[0].target : connectedEdges[0].source
+    const parent = allNodes.find(n => n.id === connectedId)
+    if (parent) return { x: parent.x, y: parent.y }
+  }
+
+  // Fallback: use center of all nodes
+  if (allNodes.length > 0) {
+    const centerX = allNodes.reduce((sum, n) => sum + n.x, 0) / allNodes.length
+    const centerY = allNodes.reduce((sum, n) => sum + n.y, 0) / allNodes.length
+    return { x: centerX, y: centerY }
+  }
+
+  return { x: 0, y: 0 }
+}
 
 // Force-based repulsion to spread overlapping nodes
 const spreadNodes = (inputNodes) => {
@@ -81,11 +117,20 @@ export default function ClusterCanvas({
   // Animation state - use a single render trigger instead of complex objects in deps
   const prevNodesRef = useRef([])
   const animationRef = useRef(null)
-  const transitionRef = useRef({ entering: new Set(), exiting: new Set(), exitingNodes: [] })
+  const transitionRef = useRef({
+    entering: new Set(),
+    exiting: new Set(),
+    exitingNodes: [],
+    parentPositions: new Map(), // Map of node.id -> {x, y} for collapse/expand origins
+    nodeVelocities: new Map(), // Map of node.id -> {vx, vy} for smooth physics
+    moving: new Map(),
+  })
   const [renderTrigger, setRenderTrigger] = useState(0) // Simple number to trigger re-renders
   const animProgressRef = useRef(1)
   const pulsePhaseRef = useRef(0)
   const pulseAnimationRef = useRef(null)
+  const overlapRatioRef = useRef(1)
+  const hasAutofitRef = useRef(false)
   
   // Keep transform ref in sync
   useEffect(() => {
@@ -137,60 +182,142 @@ export default function ClusterCanvas({
 
   // Detect node transitions and start animation
   useEffect(() => {
-    const prevIds = new Set(prevNodesRef.current.map(n => n.id))
-    const currIds = new Set(processedNodes.map(n => n.id))
-    
+    const prevMap = new Map(prevNodesRef.current.map(n => [n.id, n]))
+    const currMap = new Map(processedNodes.map(n => [n.id, n]))
+    const prevIds = new Set(prevMap.keys())
+    const currIds = new Set(currMap.keys())
+
+    const overlap = [...currIds].filter(id => prevIds.has(id)).length
+    overlapRatioRef.current = currIds.size ? overlap / currIds.size : 1
+
     const entering = new Set([...currIds].filter(id => !prevIds.has(id)))
     const exiting = new Set([...prevIds].filter(id => !currIds.has(id)))
-    
+
+    const moving = new Map()
+    currMap.forEach((node, id) => {
+      const prevNode = prevMap.get(id)
+      if (prevNode) {
+        const dx = node.x - prevNode.x
+        const dy = node.y - prevNode.y
+        if (Math.hypot(dx, dy) > 1e-3) {
+          moving.set(id, { from: { x: prevNode.x, y: prevNode.y }, to: { x: node.x, y: node.y } })
+        }
+      }
+    })
+
+    const getAvgPosition = (ids, sourceMap) => {
+      const pts = ids.map(cid => sourceMap.get(cid)).filter(Boolean)
+      if (!pts.length) return null
+      const x = pts.reduce((s, p) => s + p.x, 0) / pts.length
+      const y = pts.reduce((s, p) => s + p.y, 0) / pts.length
+      return { x, y }
+    }
+
     // Only animate if there are changes
-    if (entering.size > 0 || exiting.size > 0) {
-      transitionRef.current = { 
-        entering, 
-        exiting, 
-        exitingNodes: prevNodesRef.current.filter(n => !currIds.has(n.id)) 
+    if (entering.size > 0 || exiting.size > 0 || moving.size > 0) {
+      const parentPositions = new Map()
+      const nodeVelocities = new Map()
+
+      const seedEntering = (id) => {
+        const node = currMap.get(id)
+        if (!node) return null
+        if (node.parentId && prevMap.has(node.parentId)) return prevMap.get(node.parentId)
+        if (node.childrenIds && node.childrenIds.length) {
+          const fromChildren = getAvgPosition(node.childrenIds, prevMap)
+          if (fromChildren) return fromChildren
+        }
+        if (node.parentId && currMap.has(node.parentId)) return currMap.get(node.parentId)
+        return findParentPosition(id, processedNodes, edges)
+      }
+
+      const seedExiting = (id) => {
+        const node = prevMap.get(id)
+        if (!node) return null
+        if (node.parentId && currMap.has(node.parentId)) return currMap.get(node.parentId)
+        if (node.childrenIds && node.childrenIds.length) {
+          const toChildren = getAvgPosition(node.childrenIds, currMap)
+          if (toChildren) return toChildren
+        }
+        return findParentPosition(id, processedNodes, edges)
+      }
+
+      entering.forEach(id => {
+        const parentPos = seedEntering(id)
+        if (parentPos) parentPositions.set(id, parentPos)
+        nodeVelocities.set(id, { vx: 0, vy: 0 }) // Start with zero velocity
+      })
+
+      exiting.forEach(id => {
+        const parentPos = seedExiting(id)
+        if (parentPos) parentPositions.set(id, parentPos)
+        nodeVelocities.set(id, { vx: 0, vy: 0 })
+      })
+
+      transitionRef.current = {
+        entering,
+        exiting,
+        exitingNodes: prevNodesRef.current.filter(n => !currIds.has(n.id)),
+        parentPositions,
+        nodeVelocities,
+        moving,
       }
       animProgressRef.current = 0
-      
+
       // Cancel any existing animation
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
       }
-      
+
       const startTime = performance.now()
-      const duration = 300 // ms
-      
+      const duration = moving.size > 0 && entering.size === 0 && exiting.size === 0 ? 500 : 700 // ms
+
       const animate = (now) => {
         const elapsed = now - startTime
         const progress = Math.min(1, elapsed / duration)
-        animProgressRef.current = easeOutCubic(progress)
+
+        if (entering.size > 0 && exiting.size === 0) {
+          animProgressRef.current = easeOutBack(progress)
+        } else if (exiting.size > 0 && entering.size === 0) {
+          animProgressRef.current = easeInOutQuad(progress)
+        } else {
+          animProgressRef.current = easeOutCubic(progress)
+        }
+
         setRenderTrigger(t => t + 1) // Trigger re-render
-        
+
         if (progress < 1) {
           animationRef.current = requestAnimationFrame(animate)
         } else {
-          // Animation complete - clear transition state
-          transitionRef.current = { entering: new Set(), exiting: new Set(), exitingNodes: [] }
+          transitionRef.current = {
+            entering: new Set(),
+            exiting: new Set(),
+            exitingNodes: [],
+            parentPositions: new Map(),
+            nodeVelocities: new Map(),
+            moving: new Map(),
+          }
           animationRef.current = null
         }
       }
-      
+
       animationRef.current = requestAnimationFrame(animate)
     }
-    
-    // Store current nodes for next comparison
+
     prevNodesRef.current = processedNodes
-    
+
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [processedNodes])
+  }, [processedNodes, edges])
 
-  // Auto-fit transform when processedNodes change
+  // Auto-fit transform when processedNodes change (first load or big mismatch)
   useEffect(() => {
     if (!processedNodes.length || !containerRef.current) return
+    const shouldFit = !hasAutofitRef.current || overlapRatioRef.current < 0.25
+    if (!shouldFit) return
+
     const xs = processedNodes.map(n => n.x)
     const ys = processedNodes.map(n => n.y)
     const bbox = {
@@ -210,18 +337,22 @@ export default function ClusterCanvas({
       y: height / 2 - ((bbox.minY + bbox.maxY) / 2) * scale,
     }
     setTransform({ scale, offset })
+    hasAutofitRef.current = true
   }, [processedNodes])
 
   // Draw canvas - use renderTrigger for animation updates
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+
+    const renderStart = performance.now()
     const ctx = canvas.getContext('2d')
     const { width, height } = canvas
     ctx.clearRect(0, 0, width, height)
 
     // Get current animation state from refs
     const transitionState = transitionRef.current
+    const movingState = transitionState.moving || new Map()
     const animationProgress = animProgressRef.current
     const pulsePhase = pulsePhaseRef.current
 
@@ -233,13 +364,38 @@ export default function ClusterCanvas({
       y: p.y * transform.scale + transform.offset.y,
     })
 
+    const positionFor = (node) => {
+      if (!node) return null
+      const isEntering = transitionState.entering.has(node.id)
+      const isExiting = transitionState.exiting.has(node.id)
+      const isMoving = movingState.has(node.id)
+      let nx = node.x
+      let ny = node.y
+      const parentPos = transitionState.parentPositions.get(node.id)
+      if (isEntering && parentPos) {
+        nx = parentPos.x + (node.x - parentPos.x) * animationProgress
+        ny = parentPos.y + (node.y - parentPos.y) * animationProgress
+      } else if (isExiting && parentPos) {
+        nx = node.x + (parentPos.x - node.x) * animationProgress
+        ny = node.y + (parentPos.y - node.y) * animationProgress
+      } else if (isMoving) {
+        const move = movingState.get(node.id)
+        nx = move.from.x + (move.to.x - move.from.x) * animationProgress
+        ny = move.from.y + (move.to.y - move.from.y) * animationProgress
+      }
+      return { x: nx, y: ny }
+    }
+
     // Draw edges
     edges.forEach(edge => {
       const source = index[edge.source]
       const target = index[edge.target]
       if (!source || !target) return
-      const p1 = toScreen(source)
-      const p2 = toScreen(target)
+      const sp = positionFor(source)
+      const tp = positionFor(target)
+      if (!sp || !tp) return
+      const p1 = toScreen(sp)
+      const p2 = toScreen(tp)
       
       const mx = (p1.x + p2.x) / 2
       const my = (p1.y + p2.y) / 2
@@ -276,22 +432,49 @@ export default function ClusterCanvas({
 
     // Draw nodes (including exiting ones during animation)
     allNodes.forEach(node => {
-      const p = toScreen(node)
       const isHovered = hoveredNode === node.id
       const isSelected = selectedSet.has(node.id)
       const isHighlighted = highlightedSet.has(node.id)
       const isEntering = transitionState.entering.has(node.id)
       const isExiting = transitionState.exiting.has(node.id)
+      const isMoving = movingState.has(node.id)
       const isPending = node.id === pendingClusterId
-      
+
+      // Calculate interpolated position for smooth animations
+      let nodeX = node.x
+      let nodeY = node.y
+
+      if (isEntering || isExiting) {
+        const parentPos = transitionState.parentPositions.get(node.id)
+        if (parentPos) {
+          if (isEntering) {
+            // Entering: interpolate FROM parent TO final position (birth animation)
+            nodeX = parentPos.x + (node.x - parentPos.x) * animationProgress
+            nodeY = parentPos.y + (node.y - parentPos.y) * animationProgress
+          } else if (isExiting) {
+            // Exiting: interpolate FROM current TO parent position (collapse animation)
+          nodeX = node.x + (parentPos.x - node.x) * animationProgress
+          nodeY = node.y + (parentPos.y - node.y) * animationProgress
+        }
+      } else if (isMoving) {
+        const move = movingState.get(node.id)
+        nodeX = move.from.x + (move.to.x - move.from.x) * animationProgress
+        nodeY = move.from.y + (move.to.y - move.from.y) * animationProgress
+      }
+      }
+
+      const p = toScreen({ x: nodeX, y: nodeY })
+
       // Calculate animation modifiers
       let animScale = 1
       let animOpacity = 1
       if (isEntering) {
-        animScale = 0.5 + animationProgress * 0.5  // Scale from 50% to 100%
-        animOpacity = animationProgress  // Fade in
+        // Birth animation: start small and grow
+        animScale = 0.2 + animationProgress * 0.8  // Scale from 20% to 100%
+        animOpacity = Math.min(1, animationProgress * 1.5)  // Fade in faster
       } else if (isExiting) {
-        animScale = 1 - animationProgress * 0.5  // Scale from 100% to 50%
+        // Collapse animation: shrink as it moves toward parent
+        animScale = 1 - animationProgress * 0.8  // Scale from 100% to 20%
         animOpacity = 1 - animationProgress  // Fade out
       }
       
@@ -356,9 +539,29 @@ export default function ClusterCanvas({
     ctx.textBaseline = 'top'
     
     allNodes.forEach(node => {
-      const p = toScreen(node)
       const isEntering = transitionState.entering.has(node.id)
       const isExiting = transitionState.exiting.has(node.id)
+      const isMoving = movingState.has(node.id)
+      let lx = node.x
+      let ly = node.y
+      if (isEntering || isExiting) {
+        const parentPos = transitionState.parentPositions.get(node.id)
+        if (parentPos) {
+          if (isEntering) {
+            lx = parentPos.x + (node.x - parentPos.x) * animationProgress
+            ly = parentPos.y + (node.y - parentPos.y) * animationProgress
+          } else {
+            lx = node.x + (parentPos.x - node.x) * animationProgress
+            ly = node.y + (parentPos.y - node.y) * animationProgress
+          }
+        }
+      } else if (isMoving) {
+        const move = movingState.get(node.id)
+        lx = move.from.x + (move.to.x - move.from.x) * animationProgress
+        ly = move.from.y + (move.to.y - move.from.y) * animationProgress
+      }
+
+      const p = toScreen({ x: lx, y: ly })
       
       // Apply animation to labels
       let animOpacity = 1
@@ -394,6 +597,15 @@ export default function ClusterCanvas({
       ctx.fillText(`(${node.size})`, p.x, labelY + 13)
       ctx.font = '11px Inter, system-ui, sans-serif'
     })
+
+    // Log render performance
+    const renderEnd = performance.now()
+    const renderTime = Math.round(renderEnd - renderStart)
+    if (renderTime > 16) { // Only log if slower than 60fps (16ms)
+      console.warn(`[ClusterCanvas] ⚠️  Slow render: ${renderTime}ms (nodes: ${processedNodes.length}, edges: ${edges.length})`)
+    } else if (transitionState.entering.size > 0 || transitionState.exiting.size > 0) {
+      console.log(`[ClusterCanvas] 🎬 Animation frame: ${renderTime}ms (progress: ${Math.round(animationProgress * 100)}%)`)
+    }
   }, [processedNodes, edges, transform, hoveredNode, hoveredEdge, selectedSet, highlightedSet, pendingClusterId, renderTrigger])
 
   const hitTest = useCallback((x, y) => {
