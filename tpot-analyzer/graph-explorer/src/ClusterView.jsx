@@ -360,7 +360,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     }
     run()
     return () => controller.abort()
-  }, [visibleTarget, budget, wl, expandDepth, ego, expandedKey, collapsedKey])
+  }, [urlParsed, visibleTarget, budget, wl, expandDepth, ego, expandedKey, collapsedKey])
 
   useEffect(() => {
     const clusterCount = data?.clusters?.length || 0
