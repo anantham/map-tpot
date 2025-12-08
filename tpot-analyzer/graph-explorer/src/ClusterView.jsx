@@ -147,10 +147,17 @@ export default function ClusterView({ defaultEgo = '' }) {
   const [pendingAction, setPendingAction] = useState(null) // { type: 'expand' | 'collapse', clusterId: string }
   const [explodedLeaves, setExplodedLeaves] = useState(new Map()) // clusterId -> { members }
   const collapseTraceLogged = useRef(false)
+  const lastDataRef = useRef(null)
   const activeReqRef = useRef(null)
   const lastGoodReqRef = useRef(null)
   const abortControllerRef = useRef(null)
   const prevLayoutRef = useRef({ positions: {}, ids: [] })
+  const expandedKey = useMemo(() => Array.from(expanded).sort().join(','), [expanded])
+  const collapsedKey = useMemo(() => Array.from(collapsed).sort().join(','), [collapsed])
+
+  useEffect(() => {
+    lastDataRef.current = data
+  }, [data])
 
   // Parse URL on mount
   useEffect(() => {
@@ -226,6 +233,7 @@ export default function ClusterView({ defaultEgo = '' }) {
       })
       setLoading(true)
       setError(null)
+      let accepted = false
 
       try {
         const t1 = performance.now()
@@ -240,6 +248,8 @@ export default function ClusterView({ defaultEgo = '' }) {
           expanded: Array.from(expanded),
           collapsed: Array.from(collapsed),
           expand_depth: expandDepth,
+          reqId,
+          controller,
           signal: controller.signal,
         })
         if (payload?._timing) {
@@ -274,12 +284,24 @@ export default function ClusterView({ defaultEgo = '' }) {
 
         const clusterCount = enrichedPayload?.clusters?.length || 0
         const positionCount = enrichedPayload?.positions ? Object.keys(enrichedPayload.positions).length : 0
+        const currentClusterCount = lastDataRef.current?.clusters?.length || 0
+        const hasClusters = clusterCount > 0
+        const isActive = reqId === activeReqRef.current
+        const preferThisPayload = hasClusters && currentClusterCount === 0
 
-        if (clusterCount === 0) {
+        if (!hasClusters) {
           clusterViewLog.warn('Dropping response: no clusters returned', { reqId, clusterCount, positionCount, payloadKeys: Object.keys(enrichedPayload || {}) })
-        } else if (reqId !== activeReqRef.current && lastGoodReqRef.current) {
+          if (isActive && !controller.signal.aborted) {
+            setError('No clusters returned')
+          }
+        } else if (!isActive && !preferThisPayload && lastGoodReqRef.current) {
           clusterViewLog.warn('Dropping stale response (another request already applied)', { reqId, activeReq: activeReqRef.current, lastGoodReq: lastGoodReqRef.current, clusterCount, positionCount })
         } else if (!controller.signal.aborted) {
+          // Accept either the active request or a non-empty payload when we currently have none
+          accepted = true
+          if (!isActive) {
+            activeReqRef.current = reqId
+          }
           setData(enrichedPayload)
           setSelectedCluster(null)
           setPendingAction(null)
@@ -323,12 +345,15 @@ export default function ClusterView({ defaultEgo = '' }) {
         clusterViewLog.error(`Error after ${Math.round(t_error - t0)}ms`, { reqId, error: err.message })
         if (!controller.signal.aborted) setError(err.message || 'Failed to load clusters')
       } finally {
-        if (!controller.signal.aborted) setLoading(false)
+        if (!controller.signal.aborted && reqId === activeReqRef.current) {
+          // Only clear loading when the active request finished (accepted or errored)
+          setLoading(false)
+        }
       }
     }
     run()
     return () => controller.abort()
-  }, [visibleTarget, wl, ego, budget, expandDepth, expanded, collapsed])
+  }, [visibleTarget, budget, wl, expandDepth, ego, expandedKey, collapsedKey])
 
   useEffect(() => {
     const clusterCount = data?.clusters?.length || 0

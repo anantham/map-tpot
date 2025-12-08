@@ -701,16 +701,36 @@ export const fetchDiscoveryRanking = async ({
  * @param {number} [options.wl=0] Louvain weight (0..1)
  * @param {string} [options.focus] Focus cluster id
  */
+// Persist inflight across HMR/dev reloads
+const _globalClusterInflight = (() => {
+  if (typeof window !== 'undefined') {
+    window.__clusterInflight = window.__clusterInflight || new Map();
+    return window.__clusterInflight;
+  }
+  return new Map();
+})();
+
+// Abort orphaned controllers on module load (HMR safety)
+if (typeof window !== 'undefined' && window.__clusterAbortControllers) {
+  window.__clusterAbortControllers.forEach(c => c.abort());
+  window.__clusterAbortControllers = new Map();
+}
+
 export const fetchClusterView = async (options = {}) => {
   const startTime = performance.now();
   if (!fetchClusterView._inflight) {
-    fetchClusterView._inflight = new Map();
+    fetchClusterView._inflight = _globalClusterInflight;
   }
+  if (typeof window !== 'undefined' && !window.__clusterAbortControllers) {
+    window.__clusterAbortControllers = new Map();
+  }
+  const expandedKey = Array.isArray(options.expanded) ? [...options.expanded].sort().join(',') : '';
+  const collapsedKey = Array.isArray(options.collapsed) ? [...options.collapsed].sort().join(',') : '';
   const cacheKey = JSON.stringify({
     n: options.n ?? 25,
     ego: options.ego || '',
-    expanded: Array.isArray(options.expanded) ? [...options.expanded].sort() : [],
-    collapsed: Array.isArray(options.collapsed) ? [...options.collapsed].sort() : [],
+    expanded: expandedKey,
+    collapsed: collapsedKey,
     budget: options.budget ?? 25,
     wl: typeof options.wl === 'number' ? Math.min(1, Math.max(0, options.wl)).toFixed(2) : '0.00',
     expand_depth: typeof options.expand_depth === 'number'
@@ -747,6 +767,8 @@ export const fetchClusterView = async (options = {}) => {
     const ed = Math.min(1, Math.max(0, options.expand_depth));
     params.set('expand_depth', ed.toFixed(2));
   }
+  const reqId = options.reqId || Math.random().toString(36).slice(2, 8);
+  params.set('reqId', reqId);
 
   const attemptMeta = { attempts: [] };
   const url = `${API_BASE_URL}/api/clusters?${params.toString()}`;
@@ -761,6 +783,7 @@ export const fetchClusterView = async (options = {}) => {
         hasInflight: !!inflight,
         mapSize: fetchClusterView._inflight.size,
         mapKeysSample: Array.from(fetchClusterView._inflight.keys()).slice(0, 3),
+        reqId,
       };
       try {
         const { clusterViewLog } = await import('./logger.js');
@@ -778,6 +801,7 @@ export const fetchClusterView = async (options = {}) => {
         bodyLength: rawText.length,
         bodyPreview: rawText.slice(0, 200),
         timing: res._timing,
+        reqId,
       };
       try {
         const { clusterViewLog } = await import('./logger.js');
@@ -790,6 +814,15 @@ export const fetchClusterView = async (options = {}) => {
       return { data, timing: res._timing };
     })();
     fetchClusterView._inflight.set(cacheKey, promise);
+    if (typeof window !== 'undefined') {
+      // track controller for HMR cleanup
+      if (!window.__clusterAbortControllers) {
+        window.__clusterAbortControllers = new Map();
+      }
+      if (options.controller) {
+        window.__clusterAbortControllers.set(reqId, options.controller);
+      }
+    }
 
     const { data, timing } = await promise;
     const total = Math.round(performance.now() - startTime);
