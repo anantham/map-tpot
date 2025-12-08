@@ -277,8 +277,9 @@ def build_hierarchical_view(
             visible_nodes.add(col_idx)
     
     logger.info("Visible nodes after collapse: %d", len(visible_nodes))
-    
+
     # Step 4: Build cluster info for each visible node
+    t_cluster_info = time.time()
     # First, map micro-clusters to nodes
     micro_to_nodes: Dict[int, List[int]] = {}  # micro_idx -> list of node indices
     for node_idx, micro_idx in enumerate(micro_labels):
@@ -295,6 +296,12 @@ def build_hierarchical_view(
     
     # Create node_id -> index mapping for in-degree lookups
     node_id_to_idx = {str(nid): i for i, nid in enumerate(node_ids)}
+    in_degrees = None
+    if adjacency is not None:
+        try:
+            in_degrees = np.array(adjacency.sum(axis=0)).ravel()
+        except Exception:
+            in_degrees = None
     
     clusters: List[HierarchicalCluster] = []
     user_labels = label_store.get_all_labels() if label_store else {}
@@ -326,7 +333,7 @@ def build_hierarchical_view(
         reps = _get_representative_handles(
             member_node_ids_list, 
             node_metadata,
-            adjacency=adjacency,
+            in_degrees=in_degrees,
             node_id_to_idx=node_id_to_idx,
         )
         
@@ -352,7 +359,8 @@ def build_hierarchical_view(
             contains_ego=contains_ego,
             is_leaf=is_leaf,
         ))
-    
+    logger.info("hierarchy timing: cluster_info=%.2fs clusters=%d", time.time() - t_cluster_info, len(clusters))
+
     # Step 5: Compute edges with connectivity metric (with optional Louvain fusion)
     t_edges_start = time.time()
     edges = _compute_hierarchical_edges(
@@ -364,7 +372,7 @@ def build_hierarchical_view(
         louvain_weight,
     )
     logger.info("hierarchy timing: compute_edges=%.2fs", time.time() - t_edges_start)
-    
+
     # Step 6: Compute positions via PCA on centroids
     t_pos_start = time.time()
     positions = _compute_positions(clusters)
@@ -512,7 +520,7 @@ def get_expand_preview(
 def _get_representative_handles(
     member_ids: List[str],
     node_metadata: Dict[str, Dict],
-    adjacency=None,
+    in_degrees=None,
     node_id_to_idx: Optional[Dict[str, int]] = None,
     n: int = 3,
 ) -> List[str]:
@@ -527,11 +535,10 @@ def _get_representative_handles(
         followers = meta.get("num_followers") or 0
         
         # Fallback to in-degree if followers is 0 and we have adjacency
-        if followers == 0 and adjacency is not None and node_id_to_idx is not None:
+        if followers == 0 and in_degrees is not None and node_id_to_idx is not None:
             idx = node_id_to_idx.get(node_id)
             if idx is not None:
-                # in-degree = sum of column idx (who points to this node)
-                followers = int(adjacency[:, idx].sum())
+                followers = int(in_degrees[idx])
         
         rows.append((handle, followers))
     rows.sort(key=lambda x: x[1], reverse=True)
