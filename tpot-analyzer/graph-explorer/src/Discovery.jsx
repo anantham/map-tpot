@@ -959,11 +959,10 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     setTimeout(() => setShowAccountSuggestions(false), 150)
   }
 
-  // Client-side filtering - apply filters without refetching
-  useEffect(() => {
+  // Client-side filtering - apply filters without refetching (memoized)
+  const filteredRecommendations = useMemo(() => {
     if (allRecommendations.length === 0) {
-      setRecommendations([])
-      return
+      return []
     }
 
     console.log('[DISCOVERY] Applying client-side filters')
@@ -977,9 +976,14 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
       filtered = filtered.filter(rec => !rec.metadata?.is_shadow)
     }
 
-    setRecommendations(filtered)
     console.log(`[DISCOVERY] Filtered: ${filtered.length} / ${allRecommendations.length} candidates`)
+    return filtered
   }, [allRecommendations, filters.include_shadow])
+
+  // Update state when filtered recommendations change
+  useEffect(() => {
+    setRecommendations(filteredRecommendations)
+  }, [filteredRecommendations])
 
   // Fetch recommendations with pagination
   const fetchRecommendations = useCallback(async ({ append = false } = {}) => {
