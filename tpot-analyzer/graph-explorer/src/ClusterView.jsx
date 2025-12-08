@@ -209,7 +209,17 @@ export default function ClusterView({ defaultEgo = '' }) {
 
   // Fetch cluster view
   useEffect(() => {
-    if (!urlParsed) return
+    clusterViewLog.info('Fetch effect entered', {
+      urlParsed,
+      visibleTarget,
+      budget,
+      expandedKey,
+      collapsedKey,
+    })
+    if (!urlParsed) {
+      clusterViewLog.info('Fetch skipped: URL not yet parsed')
+      return
+    }
     // Cancel any previous in-flight request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -358,7 +368,9 @@ export default function ClusterView({ defaultEgo = '' }) {
         }
       }
     }
-    run()
+    run().catch(err => {
+      clusterViewLog.error('Fetch effect run() crashed', { error: err.message })
+    })
     return () => controller.abort()
   }, [urlParsed, visibleTarget, budget, wl, expandDepth, ego, expandedKey, collapsedKey])
 
