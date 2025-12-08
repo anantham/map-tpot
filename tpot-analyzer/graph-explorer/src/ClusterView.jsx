@@ -369,6 +369,36 @@ export default function ClusterView({ defaultEgo = '' }) {
     })
   }, [data])
 
+  const memberNodes = useMemo(() => {
+    if (!data?.clusters || !data?.positions || !explodedLeaves.size) return []
+    const positions = data.positions || {}
+    const nodeIndex = new Map(nodes.map(n => [n.id, n]))
+    const members = []
+    explodedLeaves.forEach((payload, clusterId) => {
+      const pos = positions[clusterId]
+      const memberList = payload?.members || []
+      if (!pos || !memberList.length) return
+      const parentNode = nodeIndex.get(clusterId)
+      const ringRadius = (parentNode?.radius || 14) * 1.4
+      memberList.forEach((m, idx) => {
+        const angle = (idx / memberList.length) * Math.PI * 2
+        const mx = pos[0] + Math.cos(angle) * ringRadius
+        const my = pos[1] + Math.sin(angle) * ringRadius
+        members.push({
+          id: `member-${clusterId}-${m.id}`,
+          parentId: clusterId,
+          x: mx,
+          y: my,
+          radius: 4,
+          username: m.username,
+          displayName: m.displayName,
+          numFollowers: m.numFollowers,
+        })
+      })
+    })
+    return members
+  }, [data, explodedLeaves, nodes])
+
   const loadMembers = async (clusterId) => {
     try {
       const res = await fetchClusterMembers({ 
@@ -431,7 +461,7 @@ export default function ClusterView({ defaultEgo = '' }) {
         ego: ego || undefined,
         expanded: Array.from(expanded),
         collapsed: Array.from(collapsed),
-        limit: cluster.size || 100,
+        limit: Math.min(cluster.size || 100, 500),
       })
       const members = res.members || []
       setExplodedLeaves(prev => {
@@ -739,6 +769,7 @@ export default function ClusterView({ defaultEgo = '' }) {
         <ClusterCanvas
           nodes={nodes}
           edges={data?.edges || []}
+          memberNodes={memberNodes}
           onSelect={handleSelect}
           onGranularityChange={handleGranularityDelta}
           selectionMode={selectionMode}

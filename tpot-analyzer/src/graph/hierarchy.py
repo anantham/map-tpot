@@ -50,7 +50,8 @@ class HierarchicalViewData:
     total_nodes: int
     n_micro_clusters: int
     positions: Dict[str, List[float]]
-    expanded_ids: List[str]  # Which clusters have been expanded
+    expanded_ids: List[str]  # Which clusters have been expanded (show children)
+    collapsed_ids: List[str]  # Which clusters have been collapsed upward (merged into parent)
     budget: int  # Max clusters allowed
     budget_remaining: int  # How many more can be added
 
@@ -125,6 +126,22 @@ def _get_siblings(linkage_matrix: np.ndarray, node_idx: int, n_leaves: int) -> O
     return right if left == node_idx else left
 
 
+def _is_descendant(linkage_matrix: np.ndarray, node_idx: int, ancestor_idx: int, n_leaves: int) -> bool:
+    """Check if node_idx is a descendant of ancestor_idx (or equal to it)."""
+    if node_idx == ancestor_idx:
+        return True
+    if ancestor_idx < n_leaves:
+        # Ancestor is a leaf, can only be descendant if equal
+        return False
+    # Get all leaves under ancestor and check if node is one of them
+    # (or an internal node whose leaves are a subset)
+    ancestor_leaves = set(_get_subtree_leaves(linkage_matrix, ancestor_idx, n_leaves))
+    if node_idx < n_leaves:
+        return node_idx in ancestor_leaves
+    node_leaves = set(_get_subtree_leaves(linkage_matrix, node_idx, n_leaves))
+    return node_leaves.issubset(ancestor_leaves)
+
+
 def _find_cluster_leaders(linkage_matrix: np.ndarray, labels: np.ndarray, n_leaves: int) -> Dict[int, int]:
     """Find the dendrogram node that represents each cluster label.
     
@@ -144,6 +161,7 @@ def build_hierarchical_view(
     node_metadata: Dict[str, Dict],
     base_granularity: int = 15,
     expanded_ids: Optional[Set[str]] = None,
+    collapsed_ids: Optional[Set[str]] = None,  # Parent IDs to show instead of descendants
     ego_node_id: Optional[str] = None,
     budget: int = 25,
     label_store = None,
@@ -161,7 +179,8 @@ def build_hierarchical_view(
         adjacency: Sparse adjacency matrix
         node_metadata: Metadata dict per node
         base_granularity: Initial number of clusters before expansion
-        expanded_ids: Set of dendrogram node IDs that have been expanded
+        expanded_ids: Set of dendrogram node IDs that have been expanded (show children)
+        collapsed_ids: Set of dendrogram node IDs to show instead of their descendants (collapse upward)
         ego_node_id: Ego node for highlighting
         budget: Maximum clusters allowed on screen
         label_store: Optional label store for user labels
@@ -170,6 +189,7 @@ def build_hierarchical_view(
         expand_depth: Controls expansion aggressiveness (0.0 = size^0.4, 1.0 = size^0.7)
     """
     expanded_ids = expanded_ids or set()
+    collapsed_ids = collapsed_ids or set()
     n_micro = len(micro_centroids)  # Number of micro-clusters (leaves in dendrogram)
     
     logger.info(
@@ -224,6 +244,27 @@ def build_hierarchical_view(
         visible_nodes.update(current)
     
     logger.info("Visible nodes after expansion: %d", len(visible_nodes))
+    
+    # Step 3b: Apply collapse-upward operations
+    # For each collapsed parent, replace its visible descendants with the parent itself
+    for col_id in collapsed_ids:
+        col_idx = _get_node_idx(col_id)
+        # Find all visible nodes that are descendants of this collapsed parent
+        descendants_to_remove = set()
+        for vis_node in visible_nodes:
+            # Check if vis_node is a descendant of col_idx
+            if _is_descendant(linkage_matrix, vis_node, col_idx, n_micro):
+                descendants_to_remove.add(vis_node)
+        
+        if descendants_to_remove:
+            logger.info(
+                "Collapsing %d nodes into parent %s: %s",
+                len(descendants_to_remove), col_id, [_get_dendrogram_id(d) for d in descendants_to_remove]
+            )
+            visible_nodes -= descendants_to_remove
+            visible_nodes.add(col_idx)
+    
+    logger.info("Visible nodes after collapse: %d", len(visible_nodes))
     
     # Step 4: Build cluster info for each visible node
     # First, map micro-clusters to nodes
@@ -328,6 +369,7 @@ def build_hierarchical_view(
         n_micro_clusters=n_micro,
         positions=positions,
         expanded_ids=list(expanded_ids),
+        collapsed_ids=list(collapsed_ids),
         budget=budget,
         budget_remaining=budget - len(clusters),
     )

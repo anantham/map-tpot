@@ -568,13 +568,15 @@ def preview_cluster(cluster_id: str):
     granularity = max(5, min(500, granularity))
     expanded_arg = request.args.get("expanded", "")
     expanded_ids: Set[str] = set([e for e in expanded_arg.split(",") if e])
+    collapsed_arg = request.args.get("collapsed", "")
+    collapsed_ids: Set[str] = set([c for c in collapsed_arg.split(",") if c])
     visible_arg = request.args.get("visible", "")
     visible_ids: Set[str] = set([v for v in visible_arg.split(",") if v])
     budget = request.args.get("budget", 25, type=int)
     budget = max(5, budget)
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
-    cache_key = _make_cache_key(granularity, None, expanded_ids, 0.0, expand_depth)
+    cache_key = _make_cache_key(granularity, None, expanded_ids, collapsed_ids, 0.0, expand_depth)
 
     # Try to reuse cached view to avoid recompute during preview
     cached_view = _cache.get(cache_key)
