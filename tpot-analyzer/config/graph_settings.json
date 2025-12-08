@@ -1,5 +1,5 @@
 {
-  "active_list": "og_tpot",
+  "active_list": "adi_tpot",
   "lists": {
     "og_tpot": [
       "prerationalist",
@@ -18,15 +18,15 @@
   },
   "settings": {
     "alpha": 0.85,
+    "auto_include_shadow": true,
     "discovery_weights": {
-      "neighbor_overlap": 0.4,
-      "pagerank": 0.3,
-      "community": 0.2,
-      "path_distance": 0.1
+      "community": 0.20000000000000004,
+      "neighbor_overlap": 0.4000000000000001,
+      "pagerank": 0.30000000000000004,
+      "path_distance": 0.10000000000000002
     },
-    "max_distance": 3,
     "limit": 500,
-    "auto_include_shadow": true
+    "max_distance": 3
   },
-  "updated_at": "2025-11-08T18:37:19.345983+00:00"
+  "updated_at": "2025-12-07T04:03:57.609954+00:00"
 }

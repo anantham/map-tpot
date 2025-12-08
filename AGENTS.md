@@ -204,6 +204,11 @@ Use WORKLOG to ensure valuable context about current work is saved so that if yo
 
 Every leg of your roadmap, todo list, uncertainties, discoveries, antipatterns discovered, friction should be noted that as a form of escalating it to human and to other AI for attention
 
+Docs hygiene
+- Prefer subfolders under docs/ (e.g., docs/diagnostics, docs/ui) over root-level markdown. Add/update docs/index.md when new docs are created or moved.
+- When adding a new doc, note its intent and timing in docs/index.md and WORKLOG.
+- If a doc is outdated or superseded, record that in docs/index.md (e.g., “superseded by …”) rather than leaving silent drift; prune/move with a brief note in WORKLOG.
+
 ---
 
 # STOP_CONDITIONS (immediate)

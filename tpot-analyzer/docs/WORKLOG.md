@@ -1,5 +1,20 @@
 # WORKLOG
 
+## 2025-12-07T12:35:00Z — Cluster request timing surfaced to frontend
+- `src/api/cluster_routes.py`: added server_timing metadata (served_from/build/cache/inflight, wait_ms, total_ms, build/serialize ms, req ids) to `/api/clusters` responses and expanded inflight/cache logs to include totals for slow-request diagnosis.
+- `graph-explorer/src/ClusterView.jsx`: Stage 3/complete logs now include backend `server_timing` so dev console shows server vs client timings.
+- Logging config: `API_LOG_LEVEL`/`CLUSTER_LOG_LEVEL` env vars raise file logging to INFO/DEBUG so cluster timing logs persist to `logs/api.log` behind rotation.
+- `StartGraphExplorer.command`: start API with `API_LOG_LEVEL=DEBUG CLUSTER_LOG_LEVEL=DEBUG` so timing logs always hit disk during local dev.
+- `graph-explorer/src/ClusterView.jsx`: added request guards (drop stale/empty payloads), attached `req_id`, and emit render readiness logs (cluster/position counts) to spot spinner causes without manual inspection.
+- Rationale: make it obvious in logs whether cluster fetch delays come from backend build, inflight waits, or client retries; keep timing visible in both `api.log` and browser console.
+
+## 2025-12-07T13:10:00Z — Collapse-upward & leaf explosion UX
+- `src/graph/hierarchy.py` + `src/api/cluster_routes.py`: plumbed `collapsed_ids` through cache keys, previews, meta; added `_is_descendant` so collapsing shows parent even if it wasn’t previously expanded.
+- `graph-explorer/src/ClusterView.jsx`: track `collapsed` state in URL/requests, cancel in-flight fetches on param change, and add leaf “explode” path that fetches members and renders them as satellites; stale/empty payloads now dropped; readiness log includes lastGoodReq.
+- `graph-explorer/src/data.js`: propagate `collapsed` through cluster, preview, and member requests; retry/abort logging now respects external AbortSignals to avoid noisy errors.
+- `graph-explorer/src/ClusterCanvas.jsx`: draw exploded member dots with hover tooltip; hover/cursor handling respects member nodes.
+- Scripts: added `scripts/start_dev.sh`, `wait_for_backend.sh`, and `verify_cluster_layout.py` for repeatable startup and layout checks.
+
 ## 2025-12-07T10:15:00Z — Cluster layout continuity + budget headroom
 - `graph-explorer/src/ClusterView.jsx`: added Procrustes alignment for successive layouts (lines ~1-170), decoupled base cut from max budget with headroom defaults (lines ~10-120, ~320-370), and propagated aligned positions/meta through fetch/rename flows.
 - `graph-explorer/src/ClusterCanvas.jsx`: smoothed persistent node movement with position tweening and parent/child seeding (lines ~90-320, ~300-500), stabilized autofit to avoid camera jumps, and interpolated edges/labels during transitions.
@@ -9,6 +24,14 @@
 ## 2025-12-07T11:10:00Z — Cluster inflight dedupe fix
 - `src/api/cluster_routes.py`: inflight dedupe now stores serialized payloads (not HierarchicalViewData) to avoid `unsupported operand type(s) for |`, logs inflight wait time/visible counts, and serializes non-dict inflight payloads defensively so deduped responses stay consistent.
 - Rationale: client retries were hitting inflight futures returning non-dict objects; dedupe now returns cached payload cleanly.
+
+## 2025-12-07T11:25:00Z — Frontend diagnostics for cluster fetches
+- `graph-explorer/src/data.js`: added per-attempt fetch logging with durations, abort detection, retry delays, total wall time, and attached timing metadata on responses for downstream logs.
+- `graph-explorer/src/ClusterView.jsx`: added request IDs and richer Stage logs (cache/dedup flags, inflight wait, meta, per-attempt timings now propagated) plus context for rename/delete flows to trace delays end-to-end in the console.
+
+## 2025-12-07T11:40:00Z — Mocked cluster e2e scaffold
+- `graph-explorer/e2e/cluster_mock.spec.ts`: Playwright test that mocks cluster API responses to verify ClusterView renders and respects expanded param (visible count changes 3→4 with expanded root). Useful for fast, backend-free coverage.
+- Note: `PW_NO_SERVER=1` allows running against an already-started dev server; automatic webServer can still fail in restricted sandboxes (EPERM on binding 127.0.0.1:5173).
 
 ## 2025-12-07T01:45:00Z — Feature intent & motivations doc
 - `docs/FEATURES_INTENT.md`: captured motivations for snapshots, hierarchy/budgets, metrics/discovery flow, member counts, UI selection/error handling, and perf/logging goals; ties behavior to ADRs/specs and current UX constraints.
