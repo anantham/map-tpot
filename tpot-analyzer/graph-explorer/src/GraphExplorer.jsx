@@ -97,6 +97,7 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
   const [loading, setLoading] = useState(true);
   const [computing, setComputing] = useState(false);
   const [backendAvailable, setBackendAvailable] = useState(null);
+  const metricsInFlightRef = useRef(false); // Guard against concurrent metric computations
   const [panelOpen, setPanelOpen] = useState(true);
   const [mutualOnly, setMutualOnly] = useState(false);
   const [graphSettings, setGraphSettings] = useState(null);
@@ -271,7 +272,14 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
   const recomputeMetrics = useCallback(async () => {
     if (!backendAvailable || !graphStructure) return;
 
+    // Guard: prevent concurrent calls (React StrictMode protection)
+    if (metricsInFlightRef.current) {
+      console.log('[GraphExplorer] Metrics computation already in progress, skipping...');
+      return;
+    }
+
     try {
+      metricsInFlightRef.current = true;
       setComputing(true);
       console.log(`[GraphExplorer] Computing base metrics with ${activeSeedList.length} seeds...`);
       const weightVector = [weights.pr, weights.bt, weights.eng];
@@ -292,6 +300,7 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
       setError(err);
     } finally {
       setComputing(false);
+      metricsInFlightRef.current = false;
     }
   }, [backendAvailable, graphStructure, activeSeedList, includeShadows, weights]);
 
