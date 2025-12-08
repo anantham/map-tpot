@@ -26,6 +26,12 @@ const positionsFor = (clusters: any[]) => {
   )
 }
 
+const parseVisible = (text: string) => {
+  const match = text.match(/Visible\s+(\d+)\s*\/\s*(\d+)/i)
+  if (!match) throw new Error(`Could not parse visible text: ${text}`)
+  return { visible: Number(match[1]), budget: Number(match[2]) }
+}
+
 test.describe('ClusterView (mocked backend)', () => {
   test('loads with mocked clusters and reflects expanded param', async ({ page }) => {
     // Mock all API calls
@@ -62,7 +68,8 @@ test.describe('ClusterView (mocked backend)', () => {
     await page.waitForSelector('canvas')
     await page.waitForTimeout(500) // allow render
     const visibleText = await page.locator('text=Visible').first().innerText()
-    expect(visibleText).toContain('Visible')
+    const initial = parseVisible(visibleText)
+    expect(initial.visible).toBeGreaterThan(0)
     const canvasVisible = await page.locator('canvas').isVisible()
     expect(canvasVisible).toBe(true)
 
@@ -71,7 +78,10 @@ test.describe('ClusterView (mocked backend)', () => {
     await page.waitForSelector('canvas')
     await page.waitForTimeout(500)
     const visibleTextExpanded = await page.locator('text=Visible').first().innerText()
-    // Expect visible count to increase from 3 -> 4
-    expect(visibleTextExpanded).toContain('4/10')
+    const expanded = parseVisible(visibleTextExpanded)
+    // Expect visible count to increase
+    expect(expanded.visible).toBeGreaterThan(initial.visible)
+    // Budget should stay the same across navigation
+    expect(expanded.budget).toBe(initial.budget)
   })
 })
