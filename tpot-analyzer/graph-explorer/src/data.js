@@ -710,10 +710,13 @@ const _globalClusterInflight = (() => {
   return new Map();
 })();
 
-// Abort orphaned controllers on module load (HMR safety)
-if (typeof window !== 'undefined' && window.__clusterAbortControllers) {
-  window.__clusterAbortControllers.forEach(c => c.abort());
-  window.__clusterAbortControllers = new Map();
+// Clear controller registry on module load (HMR safety) without aborting
+if (typeof window !== 'undefined') {
+  window.__clusterAbortControllers = window.__clusterAbortControllers || new Map();
+  if (window.__clusterAbortControllers.size) {
+    console.debug('[API] Clearing abort controller registry after reload', { count: window.__clusterAbortControllers.size });
+    window.__clusterAbortControllers.clear();
+  }
 }
 
 export const fetchClusterView = async (options = {}) => {
@@ -792,7 +795,8 @@ export const fetchClusterView = async (options = {}) => {
         console.debug('[API] Dedup check (clusters)', dedupState);
       }
 
-      const res = await fetchWithRetry(url, { signal }, { timeoutMs: API_TIMEOUT_SLOW_MS });
+      // Do NOT pass caller signal so the shared request can complete and warm cache
+      const res = await fetchWithRetry(url, {}, { timeoutMs: API_TIMEOUT_SLOW_MS });
       const rawText = await res.clone().text();
       const payloadInfo = {
         url,
@@ -839,6 +843,9 @@ export const fetchClusterView = async (options = {}) => {
     throw error;
   } finally {
     fetchClusterView._inflight.delete(cacheKey);
+    if (typeof window !== 'undefined') {
+      window.__clusterAbortControllers?.delete(reqId);
+    }
   }
 };
 

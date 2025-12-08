@@ -252,6 +252,10 @@ export default function ClusterView({ defaultEgo = '' }) {
           controller,
           signal: controller.signal,
         })
+        if (controller.signal.aborted) {
+          clusterViewLog.debug('Request aborted post-fetch, skipping apply', { reqId })
+          return
+        }
         if (payload?._timing) {
           attemptTimings = payload._timing.attempts || []
           clusterViewLog.debug('fetch timing', { reqId, timing: payload._timing })
