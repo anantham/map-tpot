@@ -147,6 +147,7 @@ export default function ClusterView({ defaultEgo = '' }) {
   const [pendingAction, setPendingAction] = useState(null) // { type: 'expand' | 'collapse', clusterId: string }
   const [explodedLeaves, setExplodedLeaves] = useState(new Map()) // clusterId -> { members }
   const collapseTraceLogged = useRef(false)
+  const [urlParsed, setUrlParsed] = useState(false)
   const lastDataRef = useRef(null)
   const activeReqRef = useRef(null)
   const lastGoodReqRef = useRef(null)
@@ -183,6 +184,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     if (collapsedParam) {
       setCollapsed(new Set(collapsedParam.split(',').filter(Boolean)))
     }
+    setUrlParsed(true)
   }, [defaultEgo])
 
   // Update URL when controls change
@@ -207,6 +209,7 @@ export default function ClusterView({ defaultEgo = '' }) {
 
   // Fetch cluster view
   useEffect(() => {
+    if (!urlParsed) return
     // Cancel any previous in-flight request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -191,6 +192,7 @@ def build_hierarchical_view(
     expanded_ids = expanded_ids or set()
     collapsed_ids = collapsed_ids or set()
     n_micro = len(micro_centroids)  # Number of micro-clusters (leaves in dendrogram)
+    t_start = time.time()
     
     logger.info(
         "Building hierarchical view: %d micro-clusters, base_granularity=%d, expanded=%s",
@@ -199,7 +201,9 @@ def build_hierarchical_view(
     
     # Step 1: Get base cut
     base_granularity = min(base_granularity, n_micro, budget)
+    t0 = time.time()
     base_labels = fcluster(linkage_matrix, t=base_granularity, criterion="maxclust")
+    logger.info("hierarchy timing: fcluster=%.2fs granularity=%d", time.time() - t0, base_granularity)
     
     # Step 2: Find dendrogram nodes for each base cluster
     label_to_leader = _find_cluster_leaders(linkage_matrix, base_labels, n_micro)
@@ -209,6 +213,7 @@ def build_hierarchical_view(
     subtree_cache: Dict[int, int] = {}
     
     for exp_id in expanded_ids:
+        t_exp_start = time.time()
         node_idx = _get_node_idx(exp_id)
         if node_idx not in visible_nodes:
             continue
@@ -242,6 +247,13 @@ def build_hierarchical_view(
         # apply expansion
         visible_nodes.discard(node_idx)
         visible_nodes.update(current)
+        logger.info(
+            "hierarchy timing: expand_node=%.2fs node=%s target_children=%d visible_now=%d",
+            time.time() - t_exp_start,
+            exp_id,
+            target_children,
+            len(visible_nodes),
+        )
     
     logger.info("Visible nodes after expansion: %d", len(visible_nodes))
     
@@ -342,6 +354,7 @@ def build_hierarchical_view(
         ))
     
     # Step 5: Compute edges with connectivity metric (with optional Louvain fusion)
+    t_edges_start = time.time()
     edges = _compute_hierarchical_edges(
         clusters, 
         micro_labels, 
@@ -350,9 +363,12 @@ def build_hierarchical_view(
         louvain_communities,
         louvain_weight,
     )
+    logger.info("hierarchy timing: compute_edges=%.2fs", time.time() - t_edges_start)
     
     # Step 6: Compute positions via PCA on centroids
+    t_pos_start = time.time()
     positions = _compute_positions(clusters)
+    logger.info("hierarchy timing: compute_positions=%.2fs", time.time() - t_pos_start)
     
     # Find ego cluster
     ego_cluster_id = None
@@ -372,6 +388,12 @@ def build_hierarchical_view(
         collapsed_ids=list(collapsed_ids),
         budget=budget,
         budget_remaining=budget - len(clusters),
+    )
+    logger.info(
+        "hierarchy timing: total=%.2fs clusters=%d edges=%d",
+        time.time() - t_start,
+        len(clusters),
+        len(edges),
     )
 
 
