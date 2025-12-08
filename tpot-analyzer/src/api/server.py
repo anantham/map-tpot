@@ -19,6 +19,7 @@ from flask import Flask, jsonify, request, g, Response
 from flask_cors import CORS
 
 from src.api.cluster_routes import init_cluster_routes
+from src.api.log_routes import log_bp
 from src.api.discovery import (
     DiscoveryRequest,
     discover_subgraph,
@@ -273,6 +274,9 @@ def create_app(cache_db_path: Path | None = None) -> Flask:
         init_cluster_routes(app, data_dir=snapshot_dir)
     except Exception as exc:
         logger.warning("Cluster routes not initialized: %s", exc)
+
+    # Frontend log endpoint
+    app.register_blueprint(log_bp)
 
     # Performance tracking middleware
     @app.before_request

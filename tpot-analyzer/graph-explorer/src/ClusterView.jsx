@@ -7,6 +7,7 @@ import {
   deleteClusterLabel
 } from './data'
 import ClusterCanvas from './ClusterCanvas'
+import { clusterViewLog } from './logger'
 
 const clamp = (val, min, max) => Math.min(max, Math.max(min, val))
 const toNumber = (value, fallback) => {
@@ -214,7 +215,7 @@ export default function ClusterView({ defaultEgo = '' }) {
       const t0 = performance.now()
       timings.start = t0
 
-      console.log('[ClusterView] 🚀 Stage 1: Starting cluster view fetch...', {
+      clusterViewLog.info('Stage 1: Starting cluster view fetch', {
         reqId,
         visibleTarget,
         budget,
@@ -229,7 +230,7 @@ export default function ClusterView({ defaultEgo = '' }) {
       try {
         const t1 = performance.now()
         timings.beforeFetch = t1
-        console.log(`[ClusterView] ⏱️  Stage 2: Initiating API call (prep: ${Math.round(t1 - t0)}ms)`, { reqId })
+        clusterViewLog.info(`Stage 2: Initiating API call (prep: ${Math.round(t1 - t0)}ms)`, { reqId })
 
         const payload = await fetchClusterView({
           n: visibleTarget,
@@ -260,7 +261,7 @@ export default function ClusterView({ defaultEgo = '' }) {
 
         const t2 = performance.now()
         timings.afterFetch = t2
-        console.log(`[ClusterView] 📦 Stage 3: API response received (fetch: ${Math.round(t2 - t1)}ms)`, {
+        clusterViewLog.info(`Stage 3: API response received (fetch: ${Math.round(t2 - t1)}ms)`, {
           reqId,
           cache_hit: enrichedPayload?.cache_hit,
           deduped: enrichedPayload?.deduped,
@@ -275,9 +276,9 @@ export default function ClusterView({ defaultEgo = '' }) {
         const positionCount = enrichedPayload?.positions ? Object.keys(enrichedPayload.positions).length : 0
 
         if (clusterCount === 0) {
-          console.warn('[ClusterView] ⚠️  Dropping response: no clusters returned', { reqId, clusterCount, positionCount, payloadKeys: Object.keys(enrichedPayload || {}) })
+          clusterViewLog.warn('Dropping response: no clusters returned', { reqId, clusterCount, positionCount, payloadKeys: Object.keys(enrichedPayload || {}) })
         } else if (reqId !== activeReqRef.current && lastGoodReqRef.current) {
-          console.warn('[ClusterView] ⚠️  Dropping stale response (another request already applied)', { reqId, activeReq: activeReqRef.current, lastGoodReq: lastGoodReqRef.current, clusterCount, positionCount })
+          clusterViewLog.warn('Dropping stale response (another request already applied)', { reqId, activeReq: activeReqRef.current, lastGoodReq: lastGoodReqRef.current, clusterCount, positionCount })
         } else if (!controller.signal.aborted) {
           setData(enrichedPayload)
           setSelectedCluster(null)

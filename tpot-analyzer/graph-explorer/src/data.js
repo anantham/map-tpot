@@ -755,24 +755,37 @@ export const fetchClusterView = async (options = {}) => {
   const { signal } = options;
 
   try {
-    console.log('[API] Dedup check (clusters)', {
-      cacheKey,
-      hasInflight: !!inflight,
-      mapSize: fetchClusterView._inflight.size,
-      mapKeysSample: Array.from(fetchClusterView._inflight.keys()).slice(0, 3),
-    });
-
     const promise = (async () => {
+      const dedupState = {
+        cacheKey,
+        hasInflight: !!inflight,
+        mapSize: fetchClusterView._inflight.size,
+        mapKeysSample: Array.from(fetchClusterView._inflight.keys()).slice(0, 3),
+      };
+      try {
+        const { clusterViewLog } = await import('./logger.js');
+        clusterViewLog?.debug?.('clusters dedup check', dedupState);
+      } catch (_) {
+        console.debug('[API] Dedup check (clusters)', dedupState);
+      }
+
       const res = await fetchWithRetry(url, { signal }, { timeoutMs: API_TIMEOUT_SLOW_MS });
       const rawText = await res.clone().text();
-      console.log('[API] Raw cluster response', {
+      const payloadInfo = {
         url,
         status: res.status,
         statusText: res.statusText,
         bodyLength: rawText.length,
         bodyPreview: rawText.slice(0, 200),
         timing: res._timing,
-      });
+      };
+      try {
+        const { clusterViewLog } = await import('./logger.js');
+        clusterViewLog?.info?.('clusters raw response', payloadInfo);
+      } catch (_) {
+        console.log('[API] Raw cluster response', payloadInfo);
+      }
+
       const data = rawText ? JSON.parse(rawText) : {};
       return { data, timing: res._timing };
     })();
