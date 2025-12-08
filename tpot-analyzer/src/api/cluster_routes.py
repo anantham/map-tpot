@@ -394,6 +394,10 @@ def get_clusters():
         total_duration = time.time() - start_total
 
         future.set_result(payload)
+    except Exception as exc:
+        logger.exception("clusters build failed req=%s expanded=%s collapsed=%s: %s", req_id, expanded_ids, collapsed_ids, exc)
+        _cache.inflight_clear(cache_key)
+        return jsonify({"error": str(exc), "req_id": req_id}), 500
     finally:
         _cache.inflight_clear(cache_key)
 
