@@ -521,6 +521,7 @@ def _get_representative_handles(
     member_ids: List[str],
     node_metadata: Dict[str, Dict],
     in_degrees=None,
+    adjacency=None,  # kept for backward compatibility; prefer in_degrees
     node_id_to_idx: Optional[Dict[str, int]] = None,
     n: int = 3,
 ) -> List[str]:
@@ -535,10 +536,13 @@ def _get_representative_handles(
         followers = meta.get("num_followers") or 0
         
         # Fallback to in-degree if followers is 0 and we have adjacency
-        if followers == 0 and in_degrees is not None and node_id_to_idx is not None:
+        if followers == 0 and node_id_to_idx is not None:
             idx = node_id_to_idx.get(node_id)
             if idx is not None:
-                followers = int(in_degrees[idx])
+                if in_degrees is not None:
+                    followers = int(in_degrees[idx])
+                elif adjacency is not None:
+                    followers = int(adjacency[:, idx].sum())
         
         rows.append((handle, followers))
     rows.sort(key=lambda x: x[1], reverse=True)
