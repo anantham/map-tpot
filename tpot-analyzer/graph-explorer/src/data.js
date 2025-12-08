@@ -795,8 +795,8 @@ export const fetchClusterView = async (options = {}) => {
         console.debug('[API] Dedup check (clusters)', dedupState);
       }
 
-      // Do NOT pass caller signal so the shared request can complete and warm cache
-      const res = await fetchWithRetry(url, {}, { timeoutMs: API_TIMEOUT_SLOW_MS });
+      // Do NOT pass caller signal so the shared request can complete and warm cache, but cap runtime
+      const res = await fetchWithRetry(url, {}, { timeoutMs: Math.max(API_TIMEOUT_SLOW_MS, 45000) });
       const rawText = await res.clone().text();
       const payloadInfo = {
         url,
