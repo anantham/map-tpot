@@ -261,7 +261,8 @@ def get_clusters():
     """Return hierarchical cluster view with expand/collapse support."""
     if _spectral_result is None or _adjacency is None:
         return jsonify({"error": "Cluster data not loaded"}), 503
-    req_id = uuid4().hex[:8]
+    req_arg = request.args.get("reqId", type=str)
+    req_id = req_arg if req_arg else uuid4().hex[:8]
     start_total = time.time()
     import concurrent.futures
 
