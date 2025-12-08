@@ -90,6 +90,7 @@ const spreadNodes = (inputNodes) => {
 export default function ClusterCanvas({ 
   nodes, 
   edges, 
+  memberNodes = [],
   onSelect, 
   onGranularityChange,
   selectionMode = false,
@@ -104,6 +105,7 @@ export default function ClusterCanvas({
   const dragRef = useRef(null)
   const [hoveredNode, setHoveredNode] = useState(null)
   const [hoveredEdge, setHoveredEdge] = useState(null)
+  const [hoveredMember, setHoveredMember] = useState(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [selectionBox, setSelectionBox] = useState(null)
   const selectionDragRef = useRef(null)
@@ -533,6 +535,22 @@ export default function ClusterCanvas({
       ctx.globalAlpha = 1  // Reset alpha
     })
 
+    // Draw member nodes (exploded leaves)
+    memberNodes.forEach(m => {
+      const p = toScreen({ x: m.x, y: m.y })
+      const isHovered = hoveredMember && hoveredMember.id === m.id
+      const radius = (m.radius || 4) * transform.scale * 0.9
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
+      ctx.fillStyle = isHovered ? 'rgba(59,130,246,0.9)' : 'rgba(148,163,184,0.9)'
+      ctx.fill()
+      if (isHovered && m.username) {
+        ctx.font = '10px Inter, system-ui, sans-serif'
+        ctx.fillStyle = '#0f172a'
+        ctx.fillText(m.username, p.x + 6, p.y - 6)
+      }
+    })
+
     // Draw labels (including exiting ones during animation)
     ctx.font = '11px Inter, system-ui, sans-serif'
     ctx.textAlign = 'center'
@@ -606,7 +624,7 @@ export default function ClusterCanvas({
     } else if (transitionState.entering.size > 0 || transitionState.exiting.size > 0) {
       console.log(`[ClusterCanvas] 🎬 Animation frame: ${renderTime}ms (progress: ${Math.round(animationProgress * 100)}%)`)
     }
-  }, [processedNodes, edges, transform, hoveredNode, hoveredEdge, selectedSet, highlightedSet, pendingClusterId, renderTrigger])
+  }, [processedNodes, edges, memberNodes, transform, hoveredNode, hoveredEdge, hoveredMember, selectedSet, highlightedSet, pendingClusterId, renderTrigger])
 
   const hitTest = useCallback((x, y) => {
     const t = transformRef.current
@@ -737,14 +755,32 @@ export default function ClusterCanvas({
       return prev === next ? prev : next
     })
     
-    // Check edge hover if no node is hovered
-    if (!hitNode) {
+    // Check member hover if no cluster node hovered
+    let hitMember = null
+    if (!hitNode && memberNodes.length) {
+      const inv = transformRef.current
+      for (let i = memberNodes.length - 1; i >= 0; i--) {
+        const m = memberNodes[i]
+        const sx = m.x * inv.scale + inv.offset.x
+        const sy = m.y * inv.scale + inv.offset.y
+        const dist = Math.hypot(sx - x, sy - y)
+        const r = (m.radius || 4) * inv.scale + 4
+        if (dist <= r) {
+          hitMember = m
+          break
+        }
+      }
+    }
+    setHoveredMember(hitMember)
+    
+    // Check edge hover if no node/member is hovered
+    if (!hitNode && !hitMember) {
       const hitEdge = edgeHitTest(x, y)
       setHoveredEdge(hitEdge)
     } else {
       setHoveredEdge(null)
     }
-  }, [hitTest, edgeHitTest])
+  }, [hitTest, edgeHitTest, memberNodes])
 
   const handleMouseDown = useCallback((evt) => {
     if (selectionMode && evt.button === 0) {
@@ -780,6 +816,7 @@ export default function ClusterCanvas({
       setSelectionBox(null)
       selectionDragRef.current = null
     }
+    setHoveredMember(null)
     dragRef.current = null
   }, [processedNodes, onSelectionChange, selectedSet])
 
@@ -826,7 +863,7 @@ export default function ClusterCanvas({
         style={{ 
           width: '100%', 
           height: '100%', 
-          cursor: selectionMode ? 'crosshair' : (hoveredNode ? 'pointer' : (dragRef.current ? 'grabbing' : 'grab')) 
+          cursor: selectionMode ? 'crosshair' : ((hoveredNode || hoveredMember) ? 'pointer' : (dragRef.current ? 'grabbing' : 'grab')) 
         }} 
       />
       {!processedNodes.length && (
@@ -885,6 +922,37 @@ export default function ClusterCanvas({
           <div style={{ color: '#94a3b8', fontSize: 11 }}>
             Connectivity: {(hoveredEdge.connectivity || 0).toFixed(3)}
           </div>
+        </div>
+      )}
+      {hoveredMember && (
+        <div style={{
+          position: 'fixed',
+          left: mousePos.x + 12,
+          top: mousePos.y + 12,
+          background: 'rgba(30, 41, 59, 0.95)',
+          color: '#f8fafc',
+          padding: '8px 12px',
+          borderRadius: 6,
+          fontSize: 12,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          pointerEvents: 'none',
+          zIndex: 1000,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          maxWidth: 220,
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+            {hoveredMember.displayName || hoveredMember.username || hoveredMember.id}
+          </div>
+          {hoveredMember.username && (
+            <div style={{ color: '#94a3b8', fontSize: 11 }}>
+              @{hoveredMember.username}
+            </div>
+          )}
+          {hoveredMember.numFollowers != null && (
+            <div style={{ color: '#94a3b8', fontSize: 11 }}>
+              Followers: {hoveredMember.numFollowers}
+            </div>
+          )}
         </div>
       )}
     </div>
