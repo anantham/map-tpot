@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { forceSimulation, forceManyBody, forceCollide, forceX, forceY } from 'd3-force'
 
 const clamp = (val, min, max) => Math.min(max, Math.max(min, val))
 
@@ -102,6 +103,12 @@ export default function ClusterCanvas({
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const [transform, setTransform] = useState({ scale: 1, offset: { x: 0, y: 0 } })
+  const targetTransformRef = useRef(null) // Target for smooth camera tween
+  const cameraAnimRef = useRef(null) // Animation frame for camera tween
+  const forceSimRef = useRef(null) // D3 force simulation for settling
+  const settledPositionsRef = useRef(new Map()) // Force-settled positions
+  const draggedNodeRef = useRef(null) // Node being dragged { id, startX, startY, nodeStartX, nodeStartY }
+  const [isDraggingNode, setIsDraggingNode] = useState(false) // For cursor state
   const dragRef = useRef(null)
   const [hoveredNode, setHoveredNode] = useState(null)
   const [hoveredEdge, setHoveredEdge] = useState(null)
@@ -125,6 +132,7 @@ export default function ClusterCanvas({
     exitingNodes: [],
     parentPositions: new Map(), // Map of node.id -> {x, y} for collapse/expand origins
     nodeVelocities: new Map(), // Map of node.id -> {vx, vy} for smooth physics
+    staggerDelays: new Map(), // Map of node.id -> delay (0-1) for staggered entry
     moving: new Map(),
   })
   const [renderTrigger, setRenderTrigger] = useState(0) // Simple number to trigger re-renders
@@ -219,6 +227,7 @@ export default function ClusterCanvas({
     if (entering.size > 0 || exiting.size > 0 || moving.size > 0) {
       const parentPositions = new Map()
       const nodeVelocities = new Map()
+      const staggerDelays = new Map() // Stagger delay for each entering node (0-1 range)
 
       const seedEntering = (id) => {
         const node = currMap.get(id)
@@ -243,6 +252,27 @@ export default function ClusterCanvas({
         return findParentPosition(id, processedNodes, edges)
       }
 
+      // Sort entering nodes by distance from parent for natural stagger
+      const enteringArray = [...entering]
+      const enteringWithDistance = enteringArray.map(id => {
+        const node = currMap.get(id)
+        const parentPos = seedEntering(id)
+        const dist = parentPos && node 
+          ? Math.hypot(node.x - parentPos.x, node.y - parentPos.y)
+          : 0
+        return { id, dist }
+      })
+      enteringWithDistance.sort((a, b) => a.dist - b.dist)
+      
+      // Assign stagger delays (0 to 0.3 range, so last node starts at 70% through animation)
+      const staggerRange = Math.min(0.35, entering.size * 0.04) // Cap stagger for large sets
+      enteringWithDistance.forEach(({ id }, idx) => {
+        const stagger = entering.size > 1 
+          ? (idx / (entering.size - 1)) * staggerRange 
+          : 0
+        staggerDelays.set(id, stagger)
+      })
+
       entering.forEach(id => {
         const parentPos = seedEntering(id)
         if (parentPos) parentPositions.set(id, parentPos)
@@ -261,9 +291,19 @@ export default function ClusterCanvas({
         exitingNodes: prevNodesRef.current.filter(n => !currIds.has(n.id)),
         parentPositions,
         nodeVelocities,
+        staggerDelays,
         moving,
       }
       animProgressRef.current = 0
+      
+      // Clear settled positions when starting new animation
+      settledPositionsRef.current.clear()
+      
+      // Stop any running force simulation
+      if (forceSimRef.current) {
+        forceSimRef.current.stop()
+        forceSimRef.current = null
+      }
 
       // Cancel any existing animation
       if (animationRef.current) {
@@ -296,9 +336,56 @@ export default function ClusterCanvas({
             exitingNodes: [],
             parentPositions: new Map(),
             nodeVelocities: new Map(),
+            staggerDelays: new Map(),
             moving: new Map(),
           }
           animationRef.current = null
+          
+          // Start force settling after tween completes
+          if (processedNodes.length > 1) {
+            // Stop any existing simulation
+            if (forceSimRef.current) {
+              forceSimRef.current.stop()
+            }
+            
+            // Create simulation nodes with current positions
+            const simNodes = processedNodes.map(n => ({
+              id: n.id,
+              x: n.x,
+              y: n.y,
+              radius: n.radius || 20,
+            }))
+            
+            // Short burst simulation for overlap settling
+            const sim = forceSimulation(simNodes)
+              .force('charge', forceManyBody().strength(-120).distanceMax(250))
+              .force('collide', forceCollide().radius(d => d.radius + 12).strength(0.8))
+              .force('x', forceX(d => d.x).strength(0.08)) // Gentle pull to original x
+              .force('y', forceY(d => d.y).strength(0.08)) // Gentle pull to original y
+              .alpha(0.5)
+              .alphaDecay(0.015)
+              .velocityDecay(0.35)
+            
+            forceSimRef.current = sim
+            
+            // Run for limited ticks, updating positions
+            let tickCount = 0
+            const maxTicks = 60
+            
+            sim.on('tick', () => {
+              tickCount++
+              // Update settled positions
+              simNodes.forEach(sn => {
+                settledPositionsRef.current.set(sn.id, { x: sn.x, y: sn.y })
+              })
+              setRenderTrigger(t => t + 1)
+              
+              if (tickCount >= maxTicks || sim.alpha() < 0.01) {
+                sim.stop()
+                forceSimRef.current = null
+              }
+            })
+          }
         }
       }
 
@@ -315,6 +402,7 @@ export default function ClusterCanvas({
   }, [processedNodes, edges])
 
   // Auto-fit transform when processedNodes change (first load or big mismatch)
+  // Now with smooth camera tween instead of snap
   useEffect(() => {
     if (!processedNodes.length || !containerRef.current) return
     const shouldFit = !hasAutofitRef.current || overlapRatioRef.current < 0.25
@@ -333,13 +421,60 @@ export default function ClusterCanvas({
     const pad = 120
     const dx = Math.max(bbox.maxX - bbox.minX, 1)
     const dy = Math.max(bbox.maxY - bbox.minY, 1)
-    const scale = 0.85 * Math.min((width - pad) / dx, (height - pad) / dy)
-    const offset = {
-      x: width / 2 - ((bbox.minX + bbox.maxX) / 2) * scale,
-      y: height / 2 - ((bbox.minY + bbox.maxY) / 2) * scale,
+    const targetScale = 0.85 * Math.min((width - pad) / dx, (height - pad) / dy)
+    const targetOffset = {
+      x: width / 2 - ((bbox.minX + bbox.maxX) / 2) * targetScale,
+      y: height / 2 - ((bbox.minY + bbox.maxY) / 2) * targetScale,
     }
-    setTransform({ scale, offset })
+    
+    // First load: snap immediately
+    if (!hasAutofitRef.current) {
+      setTransform({ scale: targetScale, offset: targetOffset })
+      hasAutofitRef.current = true
+      return
+    }
+    
+    // Subsequent changes: tween the camera
+    targetTransformRef.current = { scale: targetScale, offset: targetOffset }
+    
+    // Cancel any existing camera animation
+    if (cameraAnimRef.current) {
+      cancelAnimationFrame(cameraAnimRef.current)
+    }
+    
+    const startTime = performance.now()
+    const duration = 600 // ms - match node animation duration
+    const startTransform = transformRef.current
+    
+    const animateCamera = (now) => {
+      const elapsed = now - startTime
+      const t = Math.min(1, elapsed / duration)
+      const eased = easeOutCubic(t)
+      
+      const newScale = startTransform.scale + (targetScale - startTransform.scale) * eased
+      const newOffset = {
+        x: startTransform.offset.x + (targetOffset.x - startTransform.offset.x) * eased,
+        y: startTransform.offset.y + (targetOffset.y - startTransform.offset.y) * eased,
+      }
+      
+      setTransform({ scale: newScale, offset: newOffset })
+      
+      if (t < 1) {
+        cameraAnimRef.current = requestAnimationFrame(animateCamera)
+      } else {
+        cameraAnimRef.current = null
+        targetTransformRef.current = null
+      }
+    }
+    
+    cameraAnimRef.current = requestAnimationFrame(animateCamera)
     hasAutofitRef.current = true
+    
+    return () => {
+      if (cameraAnimRef.current) {
+        cancelAnimationFrame(cameraAnimRef.current)
+      }
+    }
   }, [processedNodes])
 
   // Draw canvas - use renderTrigger for animation updates
@@ -373,10 +508,23 @@ export default function ClusterCanvas({
       const isMoving = movingState.has(node.id)
       let nx = node.x
       let ny = node.y
+      
+      // Use settled position if available and not animating
+      const settledPos = settledPositionsRef.current.get(node.id)
+      if (settledPos && !isEntering && !isExiting && !isMoving) {
+        nx = settledPos.x
+        ny = settledPos.y
+      }
+      
       const parentPos = transitionState.parentPositions.get(node.id)
       if (isEntering && parentPos) {
-        nx = parentPos.x + (node.x - parentPos.x) * animationProgress
-        ny = parentPos.y + (node.y - parentPos.y) * animationProgress
+        // Apply stagger delay for entering nodes
+        const stagger = transitionState.staggerDelays?.get(node.id) || 0
+        const effectiveProgress = stagger < animationProgress 
+          ? Math.min(1, (animationProgress - stagger) / (1 - stagger))
+          : 0
+        nx = parentPos.x + (node.x - parentPos.x) * effectiveProgress
+        ny = parentPos.y + (node.y - parentPos.y) * effectiveProgress
       } else if (isExiting && parentPos) {
         nx = node.x + (parentPos.x - node.x) * animationProgress
         ny = node.y + (parentPos.y - node.y) * animationProgress
@@ -399,6 +547,29 @@ export default function ClusterCanvas({
       const p1 = toScreen(sp)
       const p2 = toScreen(tp)
       
+      // Fade edges for entering/exiting nodes (using staggered progress)
+      const sourceEntering = transitionState.entering.has(edge.source)
+      const targetEntering = transitionState.entering.has(edge.target)
+      const sourceExiting = transitionState.exiting.has(edge.source)
+      const targetExiting = transitionState.exiting.has(edge.target)
+      
+      let edgeFade = 1
+      if (sourceEntering || targetEntering) {
+        // Use the slower (min) progress of the two nodes for edge fade
+        const sourceStagger = transitionState.staggerDelays?.get(edge.source) || 0
+        const targetStagger = transitionState.staggerDelays?.get(edge.target) || 0
+        const sourceProgress = sourceEntering && sourceStagger < animationProgress
+          ? Math.min(1, (animationProgress - sourceStagger) / (1 - sourceStagger))
+          : (sourceEntering ? 0 : 1)
+        const targetProgress = targetEntering && targetStagger < animationProgress
+          ? Math.min(1, (animationProgress - targetStagger) / (1 - targetStagger))
+          : (targetEntering ? 0 : 1)
+        // Edge fades in based on the slower node (both need to be visible)
+        edgeFade = Math.min(sourceProgress, targetProgress)
+      } else if (sourceExiting || targetExiting) {
+        edgeFade = 1 - animationProgress // Fade out
+      }
+      
       const mx = (p1.x + p2.x) / 2
       const my = (p1.y + p2.y) / 2
       const dx = p2.x - p1.x
@@ -418,11 +589,16 @@ export default function ClusterCanvas({
       
       if (isHovered) {
         // Highlight hovered edge
-        ctx.strokeStyle = 'rgba(59, 130, 246, 0.9)'  // Blue
+        ctx.strokeStyle = `rgba(59, 130, 246, ${0.9 * edgeFade})`  // Blue with fade
         ctx.lineWidth = 3
       } else {
-        const baseOpacity = 0.1 + Math.min(0.4, op)
-        ctx.strokeStyle = `rgba(100, 140, 200, ${baseOpacity})`
+        const baseOpacity = (0.1 + Math.min(0.4, op)) * edgeFade
+        // Desaturate exiting edges (shift toward gray)
+        const isExitingEdge = sourceExiting || targetExiting
+        const r = isExitingEdge ? 140 : 100
+        const g = isExitingEdge ? 140 : 140
+        const b = isExitingEdge ? 150 : 200
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOpacity})`
         ctx.lineWidth = 0.5 + Math.min(2, Math.log1p(edge.rawCount || 1) * 0.2)
       }
       
@@ -441,18 +617,32 @@ export default function ClusterCanvas({
       const isExiting = transitionState.exiting.has(node.id)
       const isMoving = movingState.has(node.id)
       const isPending = node.id === pendingClusterId
+      const isDragged = draggedNodeRef.current?.id === node.id
 
       // Calculate interpolated position for smooth animations
       let nodeX = node.x
       let nodeY = node.y
+      
+      // Apply force-settled position if available (after tween completes)
+      const settledPos = settledPositionsRef.current.get(node.id)
+      if (settledPos && !isEntering && !isExiting && !isMoving) {
+        nodeX = settledPos.x
+        nodeY = settledPos.y
+      }
+
+      // Get stagger-adjusted progress for entering nodes
+      const stagger = transitionState.staggerDelays?.get(node.id) || 0
+      const effectiveProgress = isEntering && stagger < animationProgress 
+        ? Math.min(1, (animationProgress - stagger) / (1 - stagger))
+        : animationProgress
 
       if (isEntering || isExiting) {
         const parentPos = transitionState.parentPositions.get(node.id)
         if (parentPos) {
           if (isEntering) {
             // Entering: interpolate FROM parent TO final position (birth animation)
-            nodeX = parentPos.x + (node.x - parentPos.x) * animationProgress
-            nodeY = parentPos.y + (node.y - parentPos.y) * animationProgress
+            nodeX = parentPos.x + (node.x - parentPos.x) * effectiveProgress
+            nodeY = parentPos.y + (node.y - parentPos.y) * effectiveProgress
           } else if (isExiting) {
             // Exiting: interpolate FROM current TO parent position (collapse animation)
           nodeX = node.x + (parentPos.x - node.x) * animationProgress
@@ -467,13 +657,13 @@ export default function ClusterCanvas({
 
       const p = toScreen({ x: nodeX, y: nodeY })
 
-      // Calculate animation modifiers
+      // Calculate animation modifiers (using staggered progress for entering)
       let animScale = 1
       let animOpacity = 1
       if (isEntering) {
-        // Birth animation: start small and grow
-        animScale = 0.2 + animationProgress * 0.8  // Scale from 20% to 100%
-        animOpacity = Math.min(1, animationProgress * 1.5)  // Fade in faster
+        // Birth animation: start small and grow (with stagger)
+        animScale = 0.2 + effectiveProgress * 0.8  // Scale from 20% to 100%
+        animOpacity = Math.min(1, effectiveProgress * 1.5)  // Fade in faster
       } else if (isExiting) {
         // Collapse animation: shrink as it moves toward parent
         animScale = 1 - animationProgress * 0.8  // Scale from 100% to 20%
@@ -509,6 +699,10 @@ export default function ClusterCanvas({
       if (node.containsEgo) {
         gradient.addColorStop(0, '#a78bfa')
         gradient.addColorStop(1, '#7c3aed')
+      } else if (isDragged) {
+        // Bright cyan for dragged node
+        gradient.addColorStop(0, '#22d3ee')
+        gradient.addColorStop(1, '#06b6d4')
       } else if (isHighlighted) {
         // Orange/amber for collapse preview siblings
         gradient.addColorStop(0, '#fbbf24')
@@ -528,9 +722,20 @@ export default function ClusterCanvas({
       ctx.fillStyle = gradient
       ctx.fill()
       
-      ctx.strokeStyle = isPending ? '#0ea5e9' : (isHighlighted ? '#f59e0b' : (isSelected ? '#0ea5e9' : (isHovered ? '#3b82f6' : '#e2e8f0')))
-      ctx.lineWidth = isPending ? 4 : (isHighlighted ? 4 : (isSelected ? 3.5 : (isHovered ? 3 : 1.5)))
-      ctx.stroke()
+      // Draw glow for dragged node
+      if (isDragged) {
+        ctx.save()
+        ctx.shadowColor = 'rgba(6, 182, 212, 0.7)'
+        ctx.shadowBlur = 20
+        ctx.strokeStyle = '#06b6d4'
+        ctx.lineWidth = 4
+        ctx.stroke()
+        ctx.restore()
+      } else {
+        ctx.strokeStyle = isPending ? '#0ea5e9' : (isHighlighted ? '#f59e0b' : (isSelected ? '#0ea5e9' : (isHovered ? '#3b82f6' : '#e2e8f0')))
+        ctx.lineWidth = isPending ? 4 : (isHighlighted ? 4 : (isSelected ? 3.5 : (isHovered ? 3 : 1.5)))
+        ctx.stroke()
+      }
       
       ctx.globalAlpha = 1  // Reset alpha
     })
@@ -629,8 +834,12 @@ export default function ClusterCanvas({
   const hitTest = useCallback((x, y) => {
     const t = transformRef.current
     return processedNodes.find(node => {
-      const sx = node.x * t.scale + t.offset.x
-      const sy = node.y * t.scale + t.offset.y
+      // Use settled position if available (after drag or force settle)
+      const settledPos = settledPositionsRef.current.get(node.id)
+      const nx = settledPos?.x ?? node.x
+      const ny = settledPos?.y ?? node.y
+      const sx = nx * t.scale + t.offset.x
+      const sy = ny * t.scale + t.offset.y
       return Math.hypot(sx - x, sy - y) <= node.radius + 8
     })
   }, [processedNodes])
@@ -639,10 +848,16 @@ export default function ClusterCanvas({
   const edgeHitTest = useCallback((x, y) => {
     const t = transformRef.current
     const index = Object.fromEntries(processedNodes.map(n => [n.id, n]))
-    const toScreen = (p) => ({
-      x: p.x * t.scale + t.offset.x,
-      y: p.y * t.scale + t.offset.y,
-    })
+    const toScreen = (node) => {
+      // Use settled position if available
+      const settledPos = settledPositionsRef.current.get(node.id)
+      const nx = settledPos?.x ?? node.x
+      const ny = settledPos?.y ?? node.y
+      return {
+        x: nx * t.scale + t.offset.x,
+        y: ny * t.scale + t.offset.y,
+      }
+    }
     
     const threshold = 8 // pixels from edge
     
@@ -715,8 +930,12 @@ export default function ClusterCanvas({
       const maxY = Math.max(y1, y)
       const hits = processedNodes
         .filter(node => {
-          const sx = node.x * transformRef.current.scale + transformRef.current.offset.x
-          const sy = node.y * transformRef.current.scale + transformRef.current.offset.y
+          // Use settled position if available
+          const settledPos = settledPositionsRef.current.get(node.id)
+          const nx = settledPos?.x ?? node.x
+          const ny = settledPos?.y ?? node.y
+          const sx = nx * transformRef.current.scale + transformRef.current.offset.x
+          const sy = ny * transformRef.current.scale + transformRef.current.offset.y
           return sx >= minX && sx <= maxX && sy >= minY && sy <= maxY
         })
         .map(n => n.id)
@@ -725,6 +944,18 @@ export default function ClusterCanvas({
         hits.forEach(id => next.add(id))
         onSelectionChange(next)
       }
+      return
+    }
+    
+    // Node dragging
+    if (draggedNodeRef.current) {
+      const { id, startX, startY, nodeStartX, nodeStartY } = draggedNodeRef.current
+      const dx = (evt.clientX - startX) / transformRef.current.scale
+      const dy = (evt.clientY - startY) / transformRef.current.scale
+      const newX = nodeStartX + dx
+      const newY = nodeStartY + dy
+      settledPositionsRef.current.set(id, { x: newX, y: newY })
+      setRenderTrigger(t => t + 1) // Trigger re-render
       return
     }
     
@@ -791,10 +1022,81 @@ export default function ClusterCanvas({
       setSelectionBox({ x1: x, y1: y, x2: x, y2: y })
       return
     }
+    
+    // Check if clicking on a node (for node dragging)
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (rect) {
+      const x = evt.clientX - rect.left
+      const y = evt.clientY - rect.top
+      const hitNode = hitTest(x, y)
+      if (hitNode) {
+        // Start node drag
+        const currentPos = settledPositionsRef.current.get(hitNode.id) || { x: hitNode.x, y: hitNode.y }
+        draggedNodeRef.current = {
+          id: hitNode.id,
+          startX: evt.clientX,
+          startY: evt.clientY,
+          nodeStartX: currentPos.x,
+          nodeStartY: currentPos.y,
+        }
+        setIsDraggingNode(true)
+        return
+      }
+    }
+    
     dragRef.current = { x: evt.clientX, y: evt.clientY, transform: transformRef.current }
-  }, [selectionMode])
+  }, [selectionMode, hitTest])
   
   const handleMouseUp = useCallback(() => {
+    // End node drag and trigger local force settle
+    if (draggedNodeRef.current) {
+      const draggedId = draggedNodeRef.current.id
+      draggedNodeRef.current = null
+      setIsDraggingNode(false)
+      
+      // Run a quick force settle with the dragged node pinned
+      if (processedNodes.length > 1) {
+        if (forceSimRef.current) {
+          forceSimRef.current.stop()
+        }
+        
+        const simNodes = processedNodes.map(n => {
+          const pos = settledPositionsRef.current.get(n.id) || { x: n.x, y: n.y }
+          return {
+            id: n.id,
+            x: pos.x,
+            y: pos.y,
+            fx: n.id === draggedId ? pos.x : null, // Pin dragged node
+            fy: n.id === draggedId ? pos.y : null,
+            radius: n.radius || 20,
+          }
+        })
+        
+        const sim = forceSimulation(simNodes)
+          .force('charge', forceManyBody().strength(-100).distanceMax(200))
+          .force('collide', forceCollide().radius(d => d.radius + 10).strength(0.85))
+          .alpha(0.35)
+          .alphaDecay(0.025)
+        
+        forceSimRef.current = sim
+        
+        let tickCount = 0
+        sim.on('tick', () => {
+          tickCount++
+          simNodes.forEach(sn => {
+            settledPositionsRef.current.set(sn.id, { x: sn.x, y: sn.y })
+          })
+          setRenderTrigger(t => t + 1)
+          
+          if (tickCount >= 35 || sim.alpha() < 0.01) {
+            sim.stop()
+            forceSimRef.current = null
+          }
+        })
+      }
+      return
+    }
+    
     if (selectionDragRef.current) {
       const { x1, y1, x2, y2 } = selectionDragRef.current
       const minX = Math.min(x1, x2)
@@ -803,8 +1105,12 @@ export default function ClusterCanvas({
       const maxY = Math.max(y1, y2)
       const hits = processedNodes
         .filter(node => {
-          const sx = node.x * transformRef.current.scale + transformRef.current.offset.x
-          const sy = node.y * transformRef.current.scale + transformRef.current.offset.y
+          // Use settled position if available
+          const settledPos = settledPositionsRef.current.get(node.id)
+          const nx = settledPos?.x ?? node.x
+          const ny = settledPos?.y ?? node.y
+          const sx = nx * transformRef.current.scale + transformRef.current.offset.x
+          const sy = ny * transformRef.current.scale + transformRef.current.offset.y
           return sx >= minX && sx <= maxX && sy >= minY && sy <= maxY
         })
         .map(n => n.id)
@@ -863,7 +1169,13 @@ export default function ClusterCanvas({
         style={{ 
           width: '100%', 
           height: '100%', 
-          cursor: selectionMode ? 'crosshair' : ((hoveredNode || hoveredMember) ? 'pointer' : (dragRef.current ? 'grabbing' : 'grab')) 
+          cursor: selectionMode 
+            ? 'crosshair' 
+            : isDraggingNode 
+              ? 'grabbing'
+              : (hoveredNode || hoveredMember) 
+                ? 'grab' 
+                : (dragRef.current ? 'grabbing' : 'default') 
         }} 
       />
       {!processedNodes.length && (
@@ -897,7 +1209,7 @@ export default function ClusterCanvas({
       }}>
         {selectionMode 
           ? 'Selection mode: drag to box-select clusters for collapse. Click toggles selection.'
-          : 'Scroll: split/merge clusters | Ctrl+Scroll: zoom | Drag: pan'}
+          : 'Scroll: split/merge | Ctrl+Scroll: zoom | Drag canvas: pan | Drag node: reposition'}
       </div>
       {/* Edge tooltip */}
       {hoveredEdge && (
