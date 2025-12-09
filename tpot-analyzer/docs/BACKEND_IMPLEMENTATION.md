@@ -1,7 +1,7 @@
 # Backend API Implementation Summary
 
-**Date:** 2025-10-10
-**Status:** ✅ Complete (Option B - Simple Backend)
+**Date:** 2025-12-08
+**Status:** ✅ Complete (Modular Architecture)
 
 ---
 
@@ -9,10 +9,20 @@
 
 ### 1. Flask Backend API (`src/api/`)
 
-**Files Created:**
-- `src/api/__init__.py` - Package initialization
-- `src/api/server.py` - Flask app with 4 endpoints
-- `scripts/start_api_server.py` - Startup script with CLI options
+**Refactored Architecture (Dec 2025):**
+The monolithic `server.py` has been decomposed into a scalable Application Factory pattern.
+
+**Structure:**
+- `src/api/server.py` - Lightweight app factory (~100 LOC)
+- `src/api/routes/` - Feature-based Blueprints:
+    - `core.py`: Health checks (`/health`)
+    - `graph.py`: Graph data retrieval (`/api/graph-data`)
+    - `analysis.py`: Metrics & jobs (`/api/analysis/*`)
+    - `discovery.py`: Subgraph discovery (`/api/subgraph/*`)
+    - `accounts.py`: Shadow store access (`/api/accounts/*`)
+- `src/api/services/` - Dependency Injection services:
+    - `analysis_manager.py`: Thread-safe background job management
+    - `cache_manager.py`: Centralized in-memory caching
 
 **Endpoints Implemented:**
 
@@ -22,8 +32,20 @@
 | `/api/graph-data` | GET | Load graph structure | 200-500ms |
 | `/api/metrics/compute` | POST | Dynamic PageRank computation | 500-2000ms |
 | `/api/metrics/presets` | GET | Get seed presets | <50ms |
+| `/api/analysis/run` | POST | Start background analysis | <50ms |
+| `/api/analysis/status`| GET | Check background job status | <10ms |
+| `/api/subgraph/discover`| POST | Discover relevant subgraphs | 1-3s |
 
-### 2. Frontend Integration (`graph-explorer/src/`)
+### 2. Hierarchy Engine (`src/graph/hierarchy/`)
+
+**Refactored Structure:**
+The hierarchy logic was split from `hierarchy.py` into a focused package:
+- `models.py`: Data structures (`HierarchicalCluster`, `HierarchicalViewData`)
+- `traversal.py`: Tree navigation (`get_children`, `get_parent`)
+- `layout.py`: PCA positioning & edge connectivity logic
+- `builder.py`: Main orchestration (`build_hierarchical_view`)
+
+### 3. Frontend Integration (`graph-explorer/src/`)
 
 **Files Modified:**
 - `data.js` - Complete rewrite with 4 API client functions
@@ -47,7 +69,7 @@ const metrics = await computeMetrics({
 })
 ```
 
-### 3. Testing (`tests/test_api.py`)
+### 4. Testing (`tests/test_api.py`)
 
 **Test Coverage:**
 - ✅ Health endpoint
@@ -64,7 +86,7 @@ source .venv/bin/activate
 pytest tests/test_api.py -v
 ```
 
-### 4. Documentation
+### 5. Documentation
 
 **Updated:**
 - `graph-explorer/README.md` - Complete rewrite with:
@@ -72,6 +94,7 @@ pytest tests/test_api.py -v
   - Setup instructions for both servers
   - API endpoint documentation
   - Troubleshooting guide
+- `docs/WORKLOG.md` - Updated with 2025 refactoring details.
 
 ---
 
@@ -304,43 +327,35 @@ To achieve <200ms response times:
 ## Commit Message Template
 
 ```
-feat(api): Add Flask backend for dynamic graph metrics computation
+refactor(api): Decompose monolithic server and hierarchy modules
 
 MOTIVATION:
-- Graph Explorer needed dynamic seed-based PageRank (was using static JSON)
-- Weight sliders (α, β, γ) were broken - only α was functional
-- Shadow enrichment data (7,706 nodes) wasn't accessible in UI
+- src/api/server.py was a 1100+ LOC God Object, making testing and maintenance difficult.
+- src/graph/hierarchy.py was a 700+ LOC file mixing data models, algorithms, and view logic.
+- Global state variables made unit testing impossible without side effects.
 
 APPROACH:
-- Implemented Option B (simple Flask backend) per design doc
-- Reused existing src/graph/metrics.py for computation
-- Split frontend state: graph structure loaded once, metrics computed on-demand
-- Added health checking and error handling
+- Implemented Flask Application Factory pattern.
+- Extracted business logic into `src/api/services/`.
+- Sliced routes into `src/api/routes/` Blueprints.
+- Split hierarchy logic into a modular `src/graph/hierarchy/` package.
 
 CHANGES:
-- src/api/server.py:1-290 — Flask app with 4 endpoints
-- scripts/start_api_server.py:1-55 — Startup script with CLI options
-- graph-explorer/src/data.js:1-110 — API client functions
-- graph-explorer/src/GraphExplorer.jsx:70-176, 192-197, 372-419 — Backend integration
-- tests/test_api.py:1-200 — API endpoint tests
-- graph-explorer/README.md — Complete documentation rewrite
+- Created `src/api/services/analysis_manager.py` & `cache_manager.py`.
+- Created `src/api/routes/{core,graph,analysis,discovery,accounts}.py`.
+- Rewrote `src/api/server.py` to use `create_app`.
+- Split `src/graph/hierarchy.py` into `models.py`, `traversal.py`, `layout.py`, `builder.py`.
+- Updated docs/WORKLOG.md and docs/BACKEND_IMPLEMENTATION.md.
 
 IMPACT:
-✅ Seed changes in UI now trigger PageRank recomputation (was broken)
-✅ All three weight sliders functional (α, β, γ)
-✅ Shadow nodes (7,706) accessible via API
-✅ Response time: 500-2000ms (acceptable, can optimize with caching later)
-⚠️ Requires running backend server (python -m scripts.start_api_server)
+- Server code is now modular and testable.
+- Hierarchy logic is separated by concern.
+- No changes to external API contract (frontend compatible).
+- 55% reduction in max file size.
 
 TESTING:
-- pytest tests/test_api.py -v → 10/10 tests pass
-- Manual: Start backend + frontend, change seeds → metrics recompute
-- Manual: Adjust α, β, γ sliders → composite score updates correctly
-
-NEXT STEPS:
-- Option C (caching) to reduce response time to <200ms
-- Client-side slider reweighting (skip backend for weight-only changes)
-- Rate limiting and concurrent request handling
+- pytest tests/test_api.py -v (integration tests pass)
+- scripts/verify_setup.py (environment check pass)
 ```
 
 ---
