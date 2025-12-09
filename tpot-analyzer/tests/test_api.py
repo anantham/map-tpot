@@ -12,14 +12,24 @@ from src.api.server import create_app
 
 @pytest.fixture
 def client(tmp_path):
-    """Create test client with temporary cache DB."""
-    # Use existing cache.db for integration tests
-    cache_path = Path("data/cache.db")
-    if not cache_path.exists():
-        pytest.skip("cache.db not found - run data pipeline first")
+    """Create test client with existing cache DB."""
+    # Try multiple common locations for cache.db
+    potential_paths = [
+        Path("tpot-analyzer/data/cache.db"),  # Run from repo root
+        Path("data/cache.db"),                # Run from tpot-analyzer dir
+        Path("../data/cache.db"),             # Run from tests dir
+    ]
+    
+    cache_path = None
+    for p in potential_paths:
+        if p.exists():
+            cache_path = p.resolve()
+            break
+            
+    if not cache_path:
+        pytest.skip(f"cache.db not found in {potential_paths} - run data pipeline first")
 
-    app = create_app(cache_db_path=cache_path)
-    app.config["TESTING"] = True
+    app = create_app({"CACHE_DB_PATH": str(cache_path), "TESTING": True})
 
     with app.test_client() as client:
         yield client
@@ -77,8 +87,20 @@ def test_graph_data_filters(client):
 
 def test_compute_metrics_endpoint(client):
     """Test metrics computation endpoint."""
+    # 1. Get a valid seed from the graph first
+    graph_resp = client.get("/api/graph-data")
+    if graph_resp.status_code != 200:
+        pytest.skip("Could not fetch graph data to find seeds")
+        
+    graph_data = json.loads(graph_resp.data)
+    if not graph_data["nodes"]:
+        pytest.skip("Graph is empty, cannot test metrics")
+        
+    # Pick a real node ID from the DB
+    valid_seed = graph_data["nodes"][0]["id"]
+
     payload = {
-        "seeds": ["nosilverv", "DefenderOfBasic"],
+        "seeds": [valid_seed],
         "weights": [0.4, 0.3, 0.3],
         "alpha": 0.85,
         "resolution": 1.0,
@@ -120,7 +142,13 @@ def test_compute_metrics_endpoint(client):
 
 def test_compute_metrics_with_weights(client):
     """Test that different weights produce different composite scores."""
-    seeds = ["nosilverv"]
+    # 1. Get a valid seed
+    graph_resp = client.get("/api/graph-data")
+    graph_data = json.loads(graph_resp.data)
+    if not graph_data["nodes"]:
+        pytest.skip("Graph is empty")
+    
+    seeds = [graph_data["nodes"][0]["id"]]
 
     # Compute with weight favoring PageRank
     response1 = client.post(

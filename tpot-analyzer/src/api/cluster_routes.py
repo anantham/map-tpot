@@ -220,6 +220,10 @@ def init_cluster_routes(app, data_dir: Path = Path("data")) -> None:
 
     try:
         base = data_dir / "graph_snapshot"
+        spectral_sidecar = data_dir / "graph_snapshot.spectral.npz"
+        if not spectral_sidecar.exists():
+            logger.warning("Spectral sidecar not found at %s; skipping cluster routes init", spectral_sidecar)
+            return
         _spectral_result = load_spectral_result(base)
         nodes_df = pd.read_parquet(data_dir / "graph_snapshot.nodes.parquet")
         edges_df = pd.read_parquet(data_dir / "graph_snapshot.edges.parquet")
