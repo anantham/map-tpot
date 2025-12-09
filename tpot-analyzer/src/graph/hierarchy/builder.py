@@ -3,154 +3,31 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
-from scipy.cluster.hierarchy import fcluster, leaders
+from scipy.cluster.hierarchy import fcluster
+
+from src.graph.hierarchy.models import (
+    HierarchicalCluster,
+    HierarchicalViewData,
+)
+from src.graph.hierarchy.traversal import (
+    find_cluster_leaders,
+    get_children,
+    get_dendrogram_id,
+    get_node_idx,
+    get_parent,
+    get_subtree_leaves,
+    is_descendant,
+    subtree_size,
+)
+from src.graph.hierarchy.layout import (
+    compute_hierarchical_edges,
+    compute_positions,
+)
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class HierarchicalCluster:
-    """A cluster with hierarchy info for navigation."""
-    
-    id: str  # Dendrogram node ID: "d_XXX"
-    dendrogram_node: int  # Raw node index in dendrogram
-    parent_id: Optional[str]  # Parent dendrogram node ID
-    children_ids: Optional[Tuple[str, str]]  # Child dendrogram node IDs (if internal node)
-    member_micro_indices: List[int]  # Which micro-clusters belong to this cluster
-    member_node_ids: List[str]  # Which original nodes belong to this cluster
-    centroid: np.ndarray
-    size: int
-    label: str
-    label_source: str
-    representative_handles: List[str]
-    contains_ego: bool = False
-    is_leaf: bool = False  # True if this is a micro-cluster (can't expand further)
-
-
-@dataclass 
-class HierarchicalEdge:
-    """Edge between clusters with connectivity metric."""
-    
-    source_id: str
-    target_id: str
-    raw_count: int  # Actual edge count between clusters
-    connectivity: float  # Normalized: raw_count / sqrt(size_A * size_B)
-    
-
-@dataclass
-class HierarchicalViewData:
-    """Complete data for hierarchical cluster view."""
-    
-    clusters: List[HierarchicalCluster]
-    edges: List[HierarchicalEdge]
-    ego_cluster_id: Optional[str]
-    total_nodes: int
-    n_micro_clusters: int
-    positions: Dict[str, List[float]]
-    expanded_ids: List[str]  # Which clusters have been expanded (show children)
-    collapsed_ids: List[str]  # Which clusters have been collapsed upward (merged into parent)
-    budget: int  # Max clusters allowed
-    budget_remaining: int  # How many more can be added
-
-
-def _get_dendrogram_id(node_idx: int) -> str:
-    """Convert dendrogram node index to string ID."""
-    return f"d_{node_idx}"
-
-
-def _get_node_idx(dendrogram_id: str) -> int:
-    """Convert string ID back to node index."""
-    return int(dendrogram_id.split("_")[1])
-
-
-def _get_children(linkage_matrix: np.ndarray, node_idx: int, n_leaves: int) -> Optional[Tuple[int, int]]:
-    """Get children of a dendrogram internal node."""
-    if node_idx < n_leaves:
-        return None  # Leaf node, no children
-    row = node_idx - n_leaves
-    if row < 0 or row >= len(linkage_matrix):
-        return None
-    left = int(linkage_matrix[row, 0])
-    right = int(linkage_matrix[row, 1])
-    return (left, right)
-
-
-def _get_parent(linkage_matrix: np.ndarray, node_idx: int, n_leaves: int) -> Optional[int]:
-    """Get parent of a dendrogram node."""
-    for i, row in enumerate(linkage_matrix):
-        if int(row[0]) == node_idx or int(row[1]) == node_idx:
-            return n_leaves + i
-    return None  # Root has no parent
-
-
-def _get_subtree_leaves(linkage_matrix: np.ndarray, node_idx: int, n_leaves: int) -> List[int]:
-    """Get all leaf indices under this dendrogram node."""
-    if node_idx < n_leaves:
-        return [node_idx]
-    children = _get_children(linkage_matrix, node_idx, n_leaves)
-    if children is None:
-        return [node_idx]
-    left, right = children
-    return _get_subtree_leaves(linkage_matrix, left, n_leaves) + \
-           _get_subtree_leaves(linkage_matrix, right, n_leaves)
-
-
-def _subtree_size(linkage_matrix: np.ndarray, node_idx: int, n_leaves: int, memo: Dict[int, int]) -> int:
-    """Compute number of leaves under a dendrogram node (cached)."""
-    if node_idx in memo:
-        return memo[node_idx]
-    if node_idx < n_leaves:
-        memo[node_idx] = 1
-        return 1
-    children = _get_children(linkage_matrix, node_idx, n_leaves)
-    if not children:
-        memo[node_idx] = 1
-        return 1
-    size = _subtree_size(linkage_matrix, children[0], n_leaves, memo) + _subtree_size(linkage_matrix, children[1], n_leaves, memo)
-    memo[node_idx] = size
-    return size
-
-
-def _get_siblings(linkage_matrix: np.ndarray, node_idx: int, n_leaves: int) -> Optional[int]:
-    """Get sibling of a dendrogram node."""
-    parent = _get_parent(linkage_matrix, node_idx, n_leaves)
-    if parent is None:
-        return None
-    children = _get_children(linkage_matrix, parent, n_leaves)
-    if children is None:
-        return None
-    left, right = children
-    return right if left == node_idx else left
-
-
-def _is_descendant(linkage_matrix: np.ndarray, node_idx: int, ancestor_idx: int, n_leaves: int) -> bool:
-    """Check if node_idx is a descendant of ancestor_idx (or equal to it)."""
-    if node_idx == ancestor_idx:
-        return True
-    if ancestor_idx < n_leaves:
-        # Ancestor is a leaf, can only be descendant if equal
-        return False
-    # Get all leaves under ancestor and check if node is one of them
-    # (or an internal node whose leaves are a subset)
-    ancestor_leaves = set(_get_subtree_leaves(linkage_matrix, ancestor_idx, n_leaves))
-    if node_idx < n_leaves:
-        return node_idx in ancestor_leaves
-    node_leaves = set(_get_subtree_leaves(linkage_matrix, node_idx, n_leaves))
-    return node_leaves.issubset(ancestor_leaves)
-
-
-def _find_cluster_leaders(linkage_matrix: np.ndarray, labels: np.ndarray, n_leaves: int) -> Dict[int, int]:
-    """Find the dendrogram node that represents each cluster label.
-    
-    Returns: dict mapping cluster_label -> dendrogram_node_idx
-    """
-    # Use scipy's leaders function
-    leader_nodes, leader_labels = leaders(linkage_matrix, labels)
-    return {int(label): int(node) for node, label in zip(leader_nodes, leader_labels)}
 
 
 def build_hierarchical_view(
@@ -206,7 +83,7 @@ def build_hierarchical_view(
     logger.info("hierarchy timing: fcluster=%.2fs granularity=%d", time.time() - t0, base_granularity)
     
     # Step 2: Find dendrogram nodes for each base cluster
-    label_to_leader = _find_cluster_leaders(linkage_matrix, base_labels, n_micro)
+    label_to_leader = find_cluster_leaders(linkage_matrix, base_labels, n_micro)
     
     # Step 3: Build visible set by starting with base clusters, then expanding
     visible_nodes: Set[int] = set(label_to_leader.values())
@@ -221,7 +98,7 @@ def build_hierarchical_view(
     for exp_id in expanded_ids:
         t_exp_start = time.time()
         try:
-            node_idx = _get_node_idx(exp_id)
+            node_idx = get_node_idx(exp_id)
         except Exception as e:
             logger.warning("Invalid expanded_id %s: %s", exp_id, e)
             continue
@@ -231,7 +108,7 @@ def build_hierarchical_view(
         # Target child count grows with size, controlled by expand_depth
         # expand_depth 0.0 = exponent 0.4 (conservative, ~4 children for size 50)
         # expand_depth 1.0 = exponent 0.7 (aggressive, ~14 children for size 50)
-        subtree_sz = _subtree_size(linkage_matrix, node_idx, n_micro, subtree_cache)
+        subtree_sz = subtree_size(linkage_matrix, node_idx, n_micro, subtree_cache)
         exponent = 0.4 + expand_depth * 0.3
         target_children = max(3, int(subtree_sz ** exponent))
         budget_remaining = budget - len(visible_nodes) + 1  # removing 1 node
@@ -240,12 +117,12 @@ def build_hierarchical_view(
         current = {node_idx}
         while len(current) < target_children:
             # pick largest splittable node
-            splittable = [(n, _subtree_size(linkage_matrix, n, n_micro, subtree_cache)) for n in current if _get_children(linkage_matrix, n, n_micro)]
+            splittable = [(n, subtree_size(linkage_matrix, n, n_micro, subtree_cache)) for n in current if get_children(linkage_matrix, n, n_micro)]
             if not splittable:
                 break
             splittable.sort(key=lambda x: x[1], reverse=True)
             node_to_split = splittable[0][0]
-            children = _get_children(linkage_matrix, node_to_split, n_micro)
+            children = get_children(linkage_matrix, node_to_split, n_micro)
             if not children:
                 break
             # check budget impact: replacing 1 with 2 => +1
@@ -271,18 +148,18 @@ def build_hierarchical_view(
     # Step 3b: Apply collapse-upward operations
     # For each collapsed parent, replace its visible descendants with the parent itself
     for col_id in collapsed_ids:
-        col_idx = _get_node_idx(col_id)
+        col_idx = get_node_idx(col_id)
         # Find all visible nodes that are descendants of this collapsed parent
         descendants_to_remove = set()
         for vis_node in visible_nodes:
             # Check if vis_node is a descendant of col_idx
-            if _is_descendant(linkage_matrix, vis_node, col_idx, n_micro):
+            if is_descendant(linkage_matrix, vis_node, col_idx, n_micro):
                 descendants_to_remove.add(vis_node)
         
         if descendants_to_remove:
             logger.info(
                 "Collapsing %d nodes into parent %s: %s",
-                len(descendants_to_remove), col_id, [_get_dendrogram_id(d) for d in descendants_to_remove]
+                len(descendants_to_remove), col_id, [get_dendrogram_id(d) for d in descendants_to_remove]
             )
             visible_nodes -= descendants_to_remove
             visible_nodes.add(col_idx)
@@ -319,7 +196,7 @@ def build_hierarchical_view(
     
     for dend_node in sorted(visible_nodes):
         # Get all micro-cluster leaves under this dendrogram node
-        micro_leaves = _get_subtree_leaves(linkage_matrix, dend_node, n_micro)
+        micro_leaves = get_subtree_leaves(linkage_matrix, dend_node, n_micro)
         
         # Get all original nodes in these micro-clusters
         member_node_indices = []
@@ -334,8 +211,8 @@ def build_hierarchical_view(
             centroid = np.zeros(micro_centroids.shape[1])
         
         # Get parent and children
-        parent_idx = _get_parent(linkage_matrix, dend_node, n_micro)
-        children = _get_children(linkage_matrix, dend_node, n_micro)
+        parent_idx = get_parent(linkage_matrix, dend_node, n_micro)
+        children = get_children(linkage_matrix, dend_node, n_micro)
         
         # Check if contains ego
         contains_ego = ego_micro is not None and ego_micro in micro_leaves
@@ -349,7 +226,7 @@ def build_hierarchical_view(
         )
         
         # Label
-        dend_id = _get_dendrogram_id(dend_node)
+        dend_id = get_dendrogram_id(dend_node)
         user_label = user_labels.get(dend_id)
         auto_label = f"Cluster {dend_node}: " + ", ".join(f"@{h}" for h in reps[:3]) if reps else f"Cluster {dend_node}"
         
@@ -358,8 +235,8 @@ def build_hierarchical_view(
         clusters.append(HierarchicalCluster(
             id=dend_id,
             dendrogram_node=dend_node,
-            parent_id=_get_dendrogram_id(parent_idx) if parent_idx is not None else None,
-            children_ids=(_get_dendrogram_id(children[0]), _get_dendrogram_id(children[1])) if children else None,
+            parent_id=get_dendrogram_id(parent_idx) if parent_idx is not None else None,
+            children_ids=(get_dendrogram_id(children[0]), get_dendrogram_id(children[1])) if children else None,
             member_micro_indices=micro_leaves,
             member_node_ids=member_node_ids_list,
             centroid=centroid,
@@ -374,7 +251,7 @@ def build_hierarchical_view(
 
     # Step 5: Compute edges with connectivity metric (with optional Louvain fusion)
     t_edges_start = time.time()
-    edges = _compute_hierarchical_edges(
+    edges = compute_hierarchical_edges(
         clusters, 
         micro_labels, 
         adjacency, 
@@ -386,7 +263,7 @@ def build_hierarchical_view(
 
     # Step 6: Compute positions via PCA on centroids
     t_pos_start = time.time()
-    positions = _compute_positions(clusters)
+    positions = compute_positions(clusters)
     logger.info("hierarchy timing: compute_positions=%.2fs", time.time() - t_pos_start)
     
     # Find ego cluster
@@ -408,12 +285,6 @@ def build_hierarchical_view(
         budget=budget,
         budget_remaining=budget - len(clusters),
     )
-    logger.info(
-        "hierarchy timing: total=%.2fs clusters=%d edges=%d",
-        time.time() - t_start,
-        len(clusters),
-        len(edges),
-    )
 
 
 def get_collapse_preview(
@@ -429,23 +300,23 @@ def get_collapse_preview(
         - sibling_ids: List of cluster IDs that would be merged
         - can_collapse: Whether collapse is possible
     """
-    node_idx = _get_node_idx(cluster_id)
-    parent_idx = _get_parent(linkage_matrix, node_idx, n_micro)
+    node_idx = get_node_idx(cluster_id)
+    parent_idx = get_parent(linkage_matrix, node_idx, n_micro)
     
     if parent_idx is None:
         return {"can_collapse": False, "reason": "Already at root level"}
     
     # Get all children of the parent
-    children = _get_children(linkage_matrix, parent_idx, n_micro)
+    children = get_children(linkage_matrix, parent_idx, n_micro)
     if children is None:
         return {"can_collapse": False, "reason": "Parent has no children"}
     
     # Find all visible nodes that are descendants of this parent
     def get_visible_descendants(node):
-        node_id = _get_dendrogram_id(node)
+        node_id = get_dendrogram_id(node)
         if node_id in visible_ids:
             return [node_id]
-        children = _get_children(linkage_matrix, node, n_micro)
+        children = get_children(linkage_matrix, node, n_micro)
         if children is None:
             return []
         return get_visible_descendants(children[0]) + get_visible_descendants(children[1])
@@ -454,7 +325,7 @@ def get_collapse_preview(
     
     return {
         "can_collapse": True,
-        "parent_id": _get_dendrogram_id(parent_idx),
+        "parent_id": get_dendrogram_id(parent_idx),
         "sibling_ids": siblings,
         "nodes_freed": len(siblings) - 1,  # How many nodes we gain back in budget
     }
@@ -477,15 +348,15 @@ def get_expand_preview(
         - predicted_new_total: New total visible count
         - budget_impact: How many slots this will consume (predicted_children - 1)
     """
-    node_idx = _get_node_idx(cluster_id)
-    children = _get_children(linkage_matrix, node_idx, n_micro)
+    node_idx = get_node_idx(cluster_id)
+    children = get_children(linkage_matrix, node_idx, n_micro)
     
     if children is None:
         return {"can_expand": False, "reason": "Already at maximum detail (micro-cluster level)"}
     
     # Simulate greedy split to predict actual child count
     subtree_cache: Dict[int, int] = {}
-    subtree_sz = _subtree_size(linkage_matrix, node_idx, n_micro, subtree_cache)
+    subtree_sz = subtree_size(linkage_matrix, node_idx, n_micro, subtree_cache)
     exponent = 0.4 + expand_depth * 0.3
     target_children = max(3, int(subtree_sz ** exponent))
     budget_remaining = budget - current_count + 1  # removing 1 node
@@ -495,14 +366,14 @@ def get_expand_preview(
     current = {node_idx}
     while len(current) < target_children:
         splittable = [
-            (n, _subtree_size(linkage_matrix, n, n_micro, subtree_cache))
-            for n in current if _get_children(linkage_matrix, n, n_micro)
+            (n, subtree_size(linkage_matrix, n, n_micro, subtree_cache))
+            for n in current if get_children(linkage_matrix, n, n_micro)
         ]
         if not splittable:
             break
         splittable.sort(key=lambda x: x[1], reverse=True)
         node_to_split = splittable[0][0]
-        split_children = _get_children(linkage_matrix, node_to_split, n_micro)
+        split_children = get_children(linkage_matrix, node_to_split, n_micro)
         if not split_children:
             break
         current.remove(node_to_split)
@@ -558,104 +429,3 @@ def _get_representative_handles(
         rows.append((handle, followers))
     rows.sort(key=lambda x: x[1], reverse=True)
     return [h for h, _ in rows[:n]]
-
-
-def _compute_hierarchical_edges(
-    clusters: List[HierarchicalCluster],
-    micro_labels: np.ndarray,
-    adjacency,
-    node_ids: np.ndarray,
-    louvain_communities: Optional[Dict[str, int]] = None,
-    louvain_weight: float = 0.0,
-) -> List[HierarchicalEdge]:
-    """Compute edges between clusters with connectivity metric and optional Louvain fusion.
-    
-    When louvain_weight > 0, edges between nodes in the same Louvain community
-    are boosted, while edges between different communities are reduced.
-    """
-    # Build mapping: micro_cluster -> cluster_id
-    micro_to_cluster: Dict[int, str] = {}
-    for c in clusters:
-        for micro_idx in c.member_micro_indices:
-            micro_to_cluster[micro_idx] = c.id
-    
-    # Build Louvain labels array if available
-    louvain_labels: Optional[np.ndarray] = None
-    if louvain_communities and louvain_weight > 0:
-        louvain_labels = np.array([
-            louvain_communities.get(str(nid), -1) 
-            for nid in node_ids
-        ])
-    
-    # Count edges between clusters (with optional Louvain weighting)
-    edge_counts: Dict[Tuple[str, str], float] = {}
-    
-    if hasattr(adjacency, "tocoo"):
-        coo = adjacency.tocoo()
-        rows, cols = coo.row, coo.col
-    else:
-        rows, cols = np.nonzero(adjacency)
-    
-    for i, j in zip(rows, cols):
-        micro_i = micro_labels[i]
-        micro_j = micro_labels[j]
-        cluster_i = micro_to_cluster.get(micro_i)
-        cluster_j = micro_to_cluster.get(micro_j)
-        if cluster_i and cluster_j and cluster_i != cluster_j:
-            key = (cluster_i, cluster_j) if cluster_i < cluster_j else (cluster_j, cluster_i)
-            
-            # Apply Louvain fusion factor
-            weight = 1.0
-            if louvain_labels is not None:
-                same_community = louvain_labels[i] == louvain_labels[j] and louvain_labels[i] != -1
-                if same_community:
-                    weight = 1.0 + louvain_weight  # Boost same-community edges
-                else:
-                    weight = max(0.0, 1.0 - louvain_weight)  # Reduce cross-community edges
-            
-            edge_counts[key] = edge_counts.get(key, 0) + weight
-    
-    # Get cluster sizes
-    sizes = {c.id: c.size for c in clusters}
-    
-    # Build edges with connectivity
-    edges = []
-    for (src, tgt), count in edge_counts.items():
-        size_product = sizes[src] * sizes[tgt]
-        connectivity = count / np.sqrt(size_product) if size_product > 0 else 0
-        edges.append(HierarchicalEdge(
-            source_id=src,
-            target_id=tgt,
-            raw_count=int(round(count)),  # Raw count may be fractional with fusion
-            connectivity=connectivity,
-        ))
-    
-    return edges
-
-
-def _compute_positions(clusters: List[HierarchicalCluster]) -> Dict[str, List[float]]:
-    """Compute 2D positions via PCA on centroids."""
-    if not clusters:
-        return {}
-    
-    centroids = np.stack([c.centroid for c in clusters])
-    centroids = np.nan_to_num(centroids.astype(np.float64))
-    centroids -= centroids.mean(axis=0, keepdims=True)
-    
-    if len(clusters) == 1:
-        return {clusters[0].id: [0.0, 0.0]}
-    
-    try:
-        U, S, Vt = np.linalg.svd(centroids, full_matrices=False)
-        coords = centroids @ Vt[:2].T
-    except Exception as e:
-        logger.error("PCA failed: %s, using random positions", e)
-        coords = np.random.randn(len(clusters), 2) * 100
-    
-    positions = {}
-    for cluster, pos in zip(clusters, coords):
-        x = float(pos[0]) if np.isfinite(pos[0]) else 0.0
-        y = float(pos[1]) if np.isfinite(pos[1]) else 0.0
-        positions[cluster.id] = [x, y]
-    
-    return positions
