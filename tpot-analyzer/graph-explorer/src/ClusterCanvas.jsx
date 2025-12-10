@@ -99,6 +99,7 @@ export default function ClusterCanvas({
   onSelectionChange,
   highlightedIds = [],
   pendingClusterId = null,
+  theme = 'light',
 }) {
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
@@ -138,6 +139,41 @@ export default function ClusterCanvas({
   const [renderTrigger, setRenderTrigger] = useState(0) // Simple number to trigger re-renders
   const animProgressRef = useRef(1)
   const pulsePhaseRef = useRef(0)
+
+  const palette = useMemo(() => {
+    // Try CSS vars first for live theme values
+    const readVar = (name, fallback) => {
+      if (typeof window === 'undefined') return fallback
+      const val = getComputedStyle(document.documentElement).getPropertyValue(name)
+      return val ? val.trim() : fallback
+    }
+    if (theme === 'dark') {
+      return {
+        bg: readVar('--bg', '#0b1220'),
+        edgeRgb: '200, 213, 237',
+        edgeHoverRgb: '96, 165, 250',
+        nodeDefaultInner: '#cbd5ff',
+        nodeDefaultOuter: '#475569',
+        labelShadow: 'rgba(0,0,0,0.55)',
+        label: '#e2e8f0',
+        labelMuted: '#cbd5e1',
+        memberFill: 'rgba(226,232,240,0.85)',
+        memberText: '#e2e8f0',
+      }
+    }
+    return {
+      bg: readVar('--bg', '#f8fafc'),
+      edgeRgb: '148, 163, 184',
+      edgeHoverRgb: '59, 130, 246',
+      nodeDefaultInner: '#64748b',
+      nodeDefaultOuter: '#334155',
+      labelShadow: 'rgba(255,255,255,0.9)',
+      label: '#1e293b',
+      labelMuted: '#64748b',
+      memberFill: 'rgba(148,163,184,0.9)',
+      memberText: '#0f172a',
+    }
+  }, [theme])
   const pulseAnimationRef = useRef(null)
   const overlapRatioRef = useRef(1)
   const hasAutofitRef = useRef(false)
@@ -486,6 +522,8 @@ export default function ClusterCanvas({
     const ctx = canvas.getContext('2d')
     const { width, height } = canvas
     ctx.clearRect(0, 0, width, height)
+    ctx.fillStyle = palette.bg
+    ctx.fillRect(0, 0, width, height)
 
     // Get current animation state from refs
     const transitionState = transitionRef.current
@@ -589,16 +627,11 @@ export default function ClusterCanvas({
       
       if (isHovered) {
         // Highlight hovered edge
-        ctx.strokeStyle = `rgba(59, 130, 246, ${0.9 * edgeFade})`  // Blue with fade
+        ctx.strokeStyle = `rgba(${palette.edgeHoverRgb}, ${0.9 * edgeFade})`
         ctx.lineWidth = 3
       } else {
         const baseOpacity = (0.1 + Math.min(0.4, op)) * edgeFade
-        // Desaturate exiting edges (shift toward gray)
-        const isExitingEdge = sourceExiting || targetExiting
-        const r = isExitingEdge ? 140 : 100
-        const g = isExitingEdge ? 140 : 140
-        const b = isExitingEdge ? 150 : 200
-        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseOpacity})`
+        ctx.strokeStyle = `rgba(${palette.edgeRgb}, ${baseOpacity})`
         ctx.lineWidth = 0.5 + Math.min(2, Math.log1p(edge.rawCount || 1) * 0.2)
       }
       
@@ -716,8 +749,8 @@ export default function ClusterCanvas({
         gradient.addColorStop(0, '#86efac')
         gradient.addColorStop(1, '#22c55e')
       } else {
-        gradient.addColorStop(0, '#64748b')
-        gradient.addColorStop(1, '#334155')
+        gradient.addColorStop(0, palette.nodeDefaultInner)
+        gradient.addColorStop(1, palette.nodeDefaultOuter)
       }
       ctx.fillStyle = gradient
       ctx.fill()
@@ -732,7 +765,7 @@ export default function ClusterCanvas({
         ctx.stroke()
         ctx.restore()
       } else {
-        ctx.strokeStyle = isPending ? '#0ea5e9' : (isHighlighted ? '#f59e0b' : (isSelected ? '#0ea5e9' : (isHovered ? '#3b82f6' : '#e2e8f0')))
+        ctx.strokeStyle = isPending ? '#0ea5e9' : (isHighlighted ? '#f59e0b' : (isSelected ? '#0ea5e9' : (isHovered ? `rgba(${palette.edgeHoverRgb}, 0.8)` : `rgba(${palette.edgeRgb}, 0.9)`)))
         ctx.lineWidth = isPending ? 4 : (isHighlighted ? 4 : (isSelected ? 3.5 : (isHovered ? 3 : 1.5)))
         ctx.stroke()
       }
@@ -747,11 +780,11 @@ export default function ClusterCanvas({
       const radius = (m.radius || 4) * transform.scale * 0.9
       ctx.beginPath()
       ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
-      ctx.fillStyle = isHovered ? 'rgba(59,130,246,0.9)' : 'rgba(148,163,184,0.9)'
+      ctx.fillStyle = isHovered ? `rgba(${palette.edgeHoverRgb},0.9)` : palette.memberFill
       ctx.fill()
       if (isHovered && m.username) {
         ctx.font = '10px Inter, system-ui, sans-serif'
-        ctx.fillStyle = '#0f172a'
+        ctx.fillStyle = palette.memberText
         ctx.fillText(m.username, p.x + 6, p.y - 6)
       }
     })
@@ -806,17 +839,17 @@ export default function ClusterCanvas({
       }
       
       // Text shadow
-      ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * animOpacity})`
+      ctx.fillStyle = palette.labelShadow
       ctx.fillText(label, p.x + 1, labelY + 1)
       ctx.fillText(label, p.x - 1, labelY - 1)
       ctx.fillText(label, p.x + 1, labelY - 1)
       ctx.fillText(label, p.x - 1, labelY + 1)
       
-      ctx.fillStyle = `rgba(30, 41, 59, ${animOpacity})`
+      ctx.fillStyle = palette.label
       ctx.fillText(label, p.x, labelY)
       
       ctx.font = '9px Inter, system-ui, sans-serif'
-      ctx.fillStyle = `rgba(100, 116, 139, ${animOpacity})`
+      ctx.fillStyle = palette.labelMuted
       ctx.fillText(`(${node.size})`, p.x, labelY + 13)
       ctx.font = '11px Inter, system-ui, sans-serif'
     })
