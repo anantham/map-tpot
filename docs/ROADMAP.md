@@ -18,7 +18,7 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [x] **HIGH PRIORITY**: Add direct unit tests for `shadow_store.py` ✅ **2025-10-05** - 27 tests added, 39% → 88% coverage (COALESCE upsert, edge summaries, metrics queries)
 - [ ] Introduce regression tests for JSON-LD fallback using saved profile fixtures (ensure counts remain accurate when headers fail).
 - [ ] Add frontend tests for ClusterView tag summary + “Apply suggested label” flow (mock `/api/clusters/<id>/tag_summary` + `/label`).
-- [ ] Add E2E coverage for search → teleport → tag → tag-summary refresh (Playwright against a mocked backend).
+- [x] Add E2E coverage for search → teleport → tag → tag-summary refresh (Playwright against a mocked backend). ✅ **2025-12-16**
 - [x] Add policy-driven tests covering cache-skipping logic (profile-only refresh, list skipping, delta-triggered rescrapes). ✅ **2025-10-05**
   - 14 integration tests for policy refresh logic (age/delta triggers, skip logic, confirmation behavior)
   - Tests refactored to follow behavioral testing principles (test through public API, verify observable outcomes)
