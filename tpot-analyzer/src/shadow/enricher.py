@@ -135,7 +135,12 @@ class HybridShadowEnricher:
     ) -> None:
         self._store = store
         self._config = config
-        self._policy = policy or EnrichmentPolicy.default()
+        if policy is None:
+            self._policy = EnrichmentPolicy.default()
+        elif not isinstance(policy, EnrichmentPolicy):
+            raise TypeError(f"policy must be EnrichmentPolicy or None, got {type(policy)!r}")
+        else:
+            self._policy = policy
         selenium_config = SeleniumConfig(
             cookies_path=config.selenium_cookies_path,
             headless=config.selenium_headless,
@@ -494,30 +499,82 @@ class HybridShadowEnricher:
         Returns:
             tuple of (would_skip: bool, days_ago: int, captured_count: int)
         """
-        # Query the database for recent runs with data for this list
-        # We only need to look at the last N days (policy.list_refresh_days)
-        from sqlalchemy import select, desc, or_
-        from datetime import timedelta
+        # Prefer store-level APIs so this logic is mockable in unit tests.
+        account_id_variants = {account_id}
+        if username:
+            shadow_id = f"shadow:{username.lower()}"
+            if shadow_id != account_id:
+                account_id_variants.add(shadow_id)
 
-        cutoff_date = datetime.utcnow() - timedelta(days=self._policy.list_refresh_days)
+        recent_metrics = []
+        if hasattr(self._store, "get_all_recent_scrape_metrics"):
+            try:
+                recent_metrics = self._store.get_all_recent_scrape_metrics() or []
+            except Exception as exc:
+                LOGGER.warning(
+                    "Failed to retrieve recent scrape metrics via get_all_recent_scrape_metrics "
+                    "(seed=%s list=%s); proceeding without history: %s",
+                    account_id,
+                    list_type,
+                    exc,
+                )
+                recent_metrics = []
+        elif hasattr(self._store, "get_recent_scrape_runs"):
+            try:
+                recent_metrics = self._store.get_recent_scrape_runs(days=self._policy.list_refresh_days) or []
+            except TypeError:
+                # Backwards-compatible call signature
+                recent_metrics = self._store.get_recent_scrape_runs(self._policy.list_refresh_days) or []
+            except Exception as exc:
+                LOGGER.warning(
+                    "Failed to retrieve recent scrape metrics via get_recent_scrape_runs "
+                    "(seed=%s list=%s); proceeding without history: %s",
+                    account_id,
+                    list_type,
+                    exc,
+                )
+                recent_metrics = []
+        else:
+            # Fallback: real ShadowStore instance (legacy internal query path).
+            try:
+                from datetime import timedelta
+                from sqlalchemy import desc, select
 
-        def _query(engine):
-            with engine.begin() as conn:
-                # Build list of account IDs to check (handles shadow ID migration)
-                account_id_variants = [account_id]
-                if username:
-                    shadow_id = f"shadow:{username.lower()}"
-                    if shadow_id != account_id:
-                        account_id_variants.append(shadow_id)
+                cutoff_date = datetime.utcnow() - timedelta(days=self._policy.list_refresh_days)
 
-                query = select(self._store._metrics_table).where(
-                    self._store._metrics_table.c.seed_account_id.in_(account_id_variants),
-                    self._store._metrics_table.c.run_at >= cutoff_date,
-                ).order_by(desc(self._store._metrics_table.c.run_at))
-                results = conn.execute(query).fetchall()
-                return results
+                def _query(engine):
+                    with engine.begin() as conn:
+                        query = select(self._store._metrics_table).where(
+                            self._store._metrics_table.c.seed_account_id.in_(list(account_id_variants)),
+                            self._store._metrics_table.c.run_at >= cutoff_date,
+                        ).order_by(desc(self._store._metrics_table.c.run_at))
+                        return conn.execute(query).fetchall()
 
-        recent_metrics = self._store._execute_with_retry("check_list_freshness", _query)
+                recent_metrics = self._store._execute_with_retry("check_list_freshness", _query)
+            except Exception as exc:
+                LOGGER.warning(
+                    "Failed to retrieve recent scrape metrics via ShadowStore fallback query "
+                    "(seed=%s list=%s); proceeding without history: %s",
+                    account_id,
+                    list_type,
+                    exc,
+                )
+                recent_metrics = []
+
+        try:
+            recent_metrics = [
+                m for m in recent_metrics
+                if getattr(m, "seed_account_id", None) in account_id_variants
+            ]
+            recent_metrics.sort(key=lambda m: getattr(m, "run_at", datetime.min), reverse=True)
+        except Exception as exc:
+            LOGGER.warning(
+                "Failed to normalize recent scrape metrics (seed=%s list=%s); proceeding without history: %s",
+                account_id,
+                list_type,
+                exc,
+            )
+            recent_metrics = []
 
         # Look for the most recent run where this list was successfully scraped
         MIN_RAW_TO_SKIP = 13
@@ -672,6 +729,32 @@ class HybridShadowEnricher:
             )
             return (True, "age_threshold")
 
+        # Rule 4: Refresh if the observed total has changed substantially since last run.
+        # This catches fast-growing accounts that need re-scrape despite recent runs.
+        baseline_total = (
+            last_metrics.following_claimed_total
+            if list_type == "following"
+            else last_metrics.followers_claimed_total
+        )
+        if (
+            baseline_total is not None
+            and baseline_total > 0
+            and observed_total is not None
+            and observed_total > 0
+        ):
+            pct_delta = abs(observed_total - baseline_total) / float(baseline_total)
+            if pct_delta > self._policy.pct_delta_threshold:
+                LOGGER.info(
+                    "@%s %s list changed by %.1f%% vs baseline %d (observed %d); refresh needed (threshold %.1f%%).",
+                    seed.username,
+                    list_type,
+                    pct_delta * 100.0,
+                    baseline_total,
+                    observed_total,
+                    self._policy.pct_delta_threshold * 100.0,
+                )
+                return (True, "pct_delta_threshold")
+
         # Otherwise, the data is considered fresh enough.
         LOGGER.info(
             "@%s %s list is considered fresh (age: %d days, metrics: %d captured, DB: %d edges, profile_total=%s) - skipping",
@@ -792,6 +875,12 @@ class HybridShadowEnricher:
         Returns:
             tuple of (followers_capture, followers_you_follow_capture, verified_followers_capture)
         """
+        def _normalize_capture(capture: Optional[UserListCapture]) -> Optional[UserListCapture]:
+            if capture is None:
+                return None
+            entries = getattr(capture, "entries", None)
+            return capture if isinstance(entries, list) else None
+
         if not self._config.include_followers:
             LOGGER.info(
                 "Skipping @%s followers list: include_followers disabled in config",
@@ -817,6 +906,7 @@ class HybridShadowEnricher:
         LOGGER.info("Scraping @%s followers list (reason: %s)...", seed.username, reason)
         with self._time_phase("list_followers", "selenium_fetch"):
             followers_capture = self._selenium.fetch_followers(seed.username)
+        followers_capture = _normalize_capture(followers_capture)
         if followers_capture:
             LOGGER.info(
                 "✓ Scraped @%s followers: captured %d/%s accounts",
@@ -831,6 +921,7 @@ class HybridShadowEnricher:
         LOGGER.info("Scraping @%s verified-followers list...", seed.username)
         with self._time_phase("list_verified_followers", "selenium_fetch"):
             verified_followers_capture = self._selenium.fetch_verified_followers(seed.username)
+        verified_followers_capture = _normalize_capture(verified_followers_capture)
         if verified_followers_capture:
             LOGGER.info(
                 "✓ Scraped @%s verified-followers: captured %d/%s accounts",
@@ -849,6 +940,7 @@ class HybridShadowEnricher:
                 followers_you_follow_capture = self._selenium.fetch_followers_you_follow(
                     seed.username
                 )
+            followers_you_follow_capture = _normalize_capture(followers_you_follow_capture)
             if followers_you_follow_capture:
                 LOGGER.info(
                     "✓ Scraped @%s followers-you-follow: captured %d/%s accounts",

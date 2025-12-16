@@ -30,6 +30,76 @@ class NodeCoverage:
     data_source: str  # 'seed_scraped', 'archive', 'discovered'
 
 
+def compute_summary_only(db_path: str) -> dict:
+    """Compute coverage summary without per-node subqueries (fast path)."""
+    engine = create_engine(f"sqlite:///{db_path}", future=True)
+
+    query = text(
+        """
+        WITH inbound_counts AS (
+            SELECT target_id AS account_id, COUNT(*) AS followers_captured
+            FROM shadow_edge
+            WHERE direction = 'inbound'
+            GROUP BY target_id
+        ),
+        outbound_counts AS (
+            SELECT source_id AS account_id, COUNT(*) AS following_captured
+            FROM shadow_edge
+            WHERE direction = 'outbound'
+            GROUP BY source_id
+        ),
+        base AS (
+            SELECT
+                a.account_id,
+                a.username,
+                a.followers_count AS claimed_followers,
+                a.following_count AS claimed_following,
+                COALESCE(ic.followers_captured, 0) AS followers_captured,
+                COALESCE(oc.following_captured, 0) AS following_captured,
+                CASE
+                    WHEN EXISTS(SELECT 1 FROM scrape_run_metrics WHERE seed_account_id = a.account_id AND skipped = 0)
+                        THEN 'seed_scraped'
+                    WHEN EXISTS(SELECT 1 FROM account WHERE account_id = a.account_id)
+                        THEN 'archive'
+                    ELSE 'discovered'
+                END AS data_source
+            FROM shadow_account a
+            LEFT JOIN inbound_counts ic ON ic.account_id = a.account_id
+            LEFT JOIN outbound_counts oc ON oc.account_id = a.account_id
+            WHERE a.followers_count IS NOT NULL OR a.following_count IS NOT NULL
+        )
+        SELECT
+            data_source,
+            COUNT(*) AS total_nodes,
+            AVG(CASE WHEN claimed_followers > 0 THEN 100.0 * followers_captured / claimed_followers END) AS avg_follower_coverage,
+            AVG(CASE WHEN claimed_following > 0 THEN 100.0 * following_captured / claimed_following END) AS avg_following_coverage,
+            MAX(CASE WHEN claimed_followers > 0 THEN 100.0 * followers_captured / claimed_followers END) AS max_follower_coverage,
+            MAX(CASE WHEN claimed_following > 0 THEN 100.0 * following_captured / claimed_following END) AS max_following_coverage,
+            SUM(CASE WHEN claimed_followers > 0 THEN 1 ELSE 0 END) AS nodes_with_followers,
+            SUM(CASE WHEN claimed_following > 0 THEN 1 ELSE 0 END) AS nodes_with_following
+        FROM base
+        GROUP BY data_source
+        """
+    )
+
+    stats: dict = {}
+    with engine.begin() as conn:
+        for row in conn.execute(query):
+            stats[row.data_source] = {
+                "total_nodes": int(row.total_nodes),
+                "avg_follower_coverage": float(row.avg_follower_coverage or 0.0),
+                "avg_following_coverage": float(row.avg_following_coverage or 0.0),
+                "max_follower_coverage": float(row.max_follower_coverage or 0.0),
+                "max_following_coverage": float(row.max_following_coverage or 0.0),
+                "nodes_with_data": {
+                    "followers": int(row.nodes_with_followers or 0),
+                    "following": int(row.nodes_with_following or 0),
+                },
+            }
+
+    return stats
+
+
 def compute_node_coverage(db_path: str) -> List[NodeCoverage]:
     """Compute edge coverage for all accounts with claimed totals."""
     engine = create_engine(f"sqlite:///{db_path}", future=True)
@@ -198,17 +268,23 @@ def main():
     args = parser.parse_args()
 
     # Compute coverage
-    nodes = compute_node_coverage(args.db_path)
-
-    if not nodes:
-        print("No nodes with claimed follower/following counts found.", file=sys.stderr)
-        sys.exit(1)
+    if args.summary_only:
+        stats = compute_summary_only(args.db_path)
+        if not stats:
+            print("No nodes with claimed follower/following counts found.", file=sys.stderr)
+            sys.exit(1)
+        nodes: List[NodeCoverage] = []
+    else:
+        nodes = compute_node_coverage(args.db_path)
+        if not nodes:
+            print("No nodes with claimed follower/following counts found.", file=sys.stderr)
+            sys.exit(1)
+        stats = compute_summary_stats(nodes)
 
     # Output based on format
     if args.format == "table":
         if not args.summary_only:
             print_table(nodes, min_coverage=args.min_coverage)
-        stats = compute_summary_stats(nodes)
         print_summary(stats)
 
     elif args.format == "json":
@@ -230,7 +306,7 @@ def main():
                    (n.followers_coverage_pct and n.followers_coverage_pct >= args.min_coverage) or
                    (n.following_coverage_pct and n.following_coverage_pct >= args.min_coverage)
             ],
-            'summary': compute_summary_stats(nodes),
+            'summary': stats,
         }
         print(json.dumps(output, indent=2))
 

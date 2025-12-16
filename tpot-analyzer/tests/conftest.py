@@ -111,13 +111,16 @@ def mock_enrichment_policy():
             mock_enrichment_policy.require_user_confirmation = True
             # Test code
     """
-    policy = Mock()
-    policy.list_refresh_days = 180
-    policy.profile_refresh_days = 30
-    policy.pct_delta_threshold = 0.5
-    policy.require_user_confirmation = False  # Don't block on user input in tests
-    policy.auto_confirm_rescrapes = True  # Always proceed in tests
-    return policy
+    from src.shadow.enricher import EnrichmentPolicy
+
+    return EnrichmentPolicy(
+        list_refresh_days=180,
+        profile_refresh_days=30,
+        pct_delta_threshold=0.5,
+        require_user_confirmation=False,  # Don't block on user input in tests
+        auto_confirm_rescrapes=True,  # Always proceed in tests
+        skip_if_ever_scraped=False,
+    )
 
 
 @pytest.fixture

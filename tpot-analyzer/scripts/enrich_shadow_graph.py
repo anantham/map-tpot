@@ -12,6 +12,8 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
+_BROWSER_BINARY_ENV_VARS = ("TPOT_CHROME_BINARY", "CHROME_BIN")
+
 from src.config import get_cache_settings
 from src.logging_utils import setup_enrichment_logging
 from src.data.fetcher import CachedDataFetcher
@@ -22,6 +24,10 @@ from src.shadow import HybridShadowEnricher, SeedAccount, ShadowEnrichmentConfig
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Enrich shadow nodes via Selenium + X API")
+    default_chrome_binary = next(
+        (os.getenv(key) for key in _BROWSER_BINARY_ENV_VARS if os.getenv(key)),
+        None,
+    )
     parser.add_argument(
         "--cookies",
         type=Path,
@@ -85,8 +91,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--chrome-binary",
         type=Path,
-        default=None,
-        help="Path to Chrome/Chromium binary to launch (defaults to Selenium Manager discovery).",
+        default=Path(default_chrome_binary) if default_chrome_binary else None,
+        help=(
+            "Path to Chrome/Chromium binary to launch (defaults to Selenium Manager discovery). "
+            "You can also set TPOT_CHROME_BINARY or CHROME_BIN."
+        ),
     )
     parser.add_argument(
         "--max-scrolls",
@@ -333,6 +342,13 @@ def main() -> None:
         # Calculate retry_delays from retry_attempts (attempts = delays + 1)
         retry_delays = [5.0, 15.0, 60.0][:max(0, args.retry_attempts - 1)]
 
+        chrome_binary = args.chrome_binary
+        if chrome_binary and chrome_binary.suffix == ".app" and chrome_binary.is_dir():
+            macos_binary = chrome_binary / "Contents" / "MacOS" / chrome_binary.stem
+            if macos_binary.is_file():
+                LOGGER.info("Resolved app bundle to browser binary: %s -> %s", chrome_binary, macos_binary)
+                chrome_binary = macos_binary
+
         config = ShadowEnrichmentConfig(
             selenium_cookies_path=args.cookies,
             selenium_headless=args.headless,
@@ -343,7 +359,7 @@ def main() -> None:
             user_pause_seconds=args.pause,
             action_delay_min=args.delay_min,
             action_delay_max=args.delay_max,
-            chrome_binary=args.chrome_binary,
+            chrome_binary=chrome_binary,
             wait_for_manual_login=not args.auto_continue,
             include_followers=args.include_followers,
             include_following=args.include_following,
