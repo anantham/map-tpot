@@ -700,6 +700,7 @@ export const fetchDiscoveryRanking = async ({
  * @param {string} [options.ego] Ego node id
  * @param {number} [options.wl=0] Louvain weight (0..1)
  * @param {string} [options.focus] Focus cluster id
+ * @param {string} [options.focus_leaf] Leaf cluster id to force visible (teleport)
  */
 // Persist inflight across HMR/dev reloads
 const _globalClusterInflight = (() => {
@@ -734,6 +735,7 @@ export const fetchClusterView = async (options = {}) => {
     ego: options.ego || '',
     expanded: expandedKey,
     collapsed: collapsedKey,
+    focus_leaf: options.focus_leaf || '',
     budget: options.budget ?? 25,
     wl: typeof options.wl === 'number' ? Math.min(1, Math.max(0, options.wl)).toFixed(2) : '0.00',
     expand_depth: typeof options.expand_depth === 'number'
@@ -746,13 +748,14 @@ export const fetchClusterView = async (options = {}) => {
     // Must await and destructure to match the normal return shape
     const { data, timing } = await inflight;
     const total = Math.round(performance.now() - startTime);
-    return { ...data, _timing: { totalMs: total, lastAttempt: timing, attempts: [], deduped: true } };
+    return { ...data, _timing: { totalMs: total, lastAttempt: timing, attempts: timing?.attempts || [], deduped: true } };
   }
   const params = new URLSearchParams();
   const granularity = options.n ?? 25;
   params.set('n', granularity);
   if (options.ego) params.set('ego', options.ego);
   if (options.focus) params.set('focus', options.focus);
+  if (options.focus_leaf) params.set('focus_leaf', options.focus_leaf);
   if (Array.isArray(options.expanded) && options.expanded.length) {
     params.set('expanded', options.expanded.join(','));
   }
@@ -773,11 +776,7 @@ export const fetchClusterView = async (options = {}) => {
   const reqId = options.reqId || Math.random().toString(36).slice(2, 8);
   params.set('reqId', reqId);
 
-  const attemptMeta = { attempts: [] };
   const url = `${API_BASE_URL}/api/clusters?${params.toString()}`;
-
-  // Extract signal before storing promise (signal shouldn't be part of cache key)
-  const { signal } = options;
 
   try {
     const promise = (async () => {
@@ -791,7 +790,7 @@ export const fetchClusterView = async (options = {}) => {
       try {
         const { clusterViewLog } = await import('./logger.js');
         clusterViewLog?.debug?.('clusters dedup check', dedupState);
-      } catch (_) {
+      } catch {
         console.debug('[API] Dedup check (clusters)', dedupState);
       }
 
@@ -810,7 +809,7 @@ export const fetchClusterView = async (options = {}) => {
       try {
         const { clusterViewLog } = await import('./logger.js');
         clusterViewLog?.info?.('clusters raw response', payloadInfo);
-      } catch (_) {
+      } catch {
         console.log('[API] Raw cluster response', payloadInfo);
       }
 
@@ -830,8 +829,9 @@ export const fetchClusterView = async (options = {}) => {
 
     const { data, timing } = await promise;
     const total = Math.round(performance.now() - startTime);
-    performanceLog.log('fetchClusterView', total, { granularity, ego: options.ego, attempts: attemptMeta.attempts, lastAttempt: timing });
-    return { ...data, _timing: { totalMs: total, lastAttempt: timing, attempts: attemptMeta.attempts } };
+    const attemptTimings = timing?.attempts || [];
+    performanceLog.log('fetchClusterView', total, { granularity, ego: options.ego, attempts: attemptTimings, lastAttempt: timing });
+    return { ...data, _timing: { totalMs: total, lastAttempt: timing, attempts: attemptTimings } };
   } catch (error) {
     const duration = performance.now() - startTime;
     // Don't log aborts as errors - they're expected when requests are superseded
@@ -849,13 +849,14 @@ export const fetchClusterView = async (options = {}) => {
   }
 };
 
-export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_depth = 0.5, ego, expanded = [], collapsed = [], focus, limit = 100, offset = 0 }) => {
+export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_depth = 0.5, ego, expanded = [], collapsed = [], focus, focus_leaf, limit = 100, offset = 0 }) => {
   const params = new URLSearchParams();
   params.set('n', n);
   params.set('limit', limit);
   params.set('offset', offset);
   if (ego) params.set('ego', ego);
   if (focus) params.set('focus', focus);
+  if (focus_leaf) params.set('focus_leaf', focus_leaf);
   if (Array.isArray(expanded) && expanded.length) {
     params.set('expanded', expanded.join(','));
   }
@@ -871,6 +872,30 @@ export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_de
   }
   return response.json();
 };
+
+export const fetchClusterTagSummary = async ({ clusterId, n = 25, wl = 0, expand_depth = 0.5, ego, expanded = [], collapsed = [], focus_leaf, budget = 25, signal }) => {
+  if (!ego) {
+    throw new Error('ego is required to fetch tag summary')
+  }
+  const params = new URLSearchParams()
+  params.set('n', n)
+  params.set('budget', budget)
+  params.set('ego', ego)
+  if (focus_leaf) params.set('focus_leaf', focus_leaf)
+  if (Array.isArray(expanded) && expanded.length) {
+    params.set('expanded', expanded.join(','))
+  }
+  if (Array.isArray(collapsed) && collapsed.length) {
+    params.set('collapsed', collapsed.join(','))
+  }
+  params.set('wl', Math.min(1, Math.max(0, wl)).toFixed(2))
+  params.set('expand_depth', Math.min(1, Math.max(0, expand_depth)).toFixed(2))
+
+  const url = `${API_BASE_URL}/api/clusters/${clusterId}/tag_summary?${params.toString()}`
+  const res = await fetchWithRetry(url, { signal }, { timeoutMs: API_TIMEOUT_MS })
+  const data = await res.json()
+  return { ...data, _timing: res._timing }
+}
 
 export const setClusterLabel = async ({ clusterId, n = 25, wl = 0, label }) => {
   const params = new URLSearchParams();

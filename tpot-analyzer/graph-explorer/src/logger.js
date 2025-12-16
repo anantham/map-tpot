@@ -11,7 +11,7 @@ function logToBackend(entry) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(entry),
     }).catch(() => {});
-  } catch (_) {
+  } catch {
     // swallow
   }
 }
