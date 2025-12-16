@@ -7,12 +7,6 @@ const clamp = (val, min, max) => Math.min(max, Math.max(min, val))
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3)
 const easeInOutQuad = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
 
-// Spring physics with damping for natural bounce effect
-const easeOutElastic = (t) => {
-  const c4 = (2 * Math.PI) / 3
-  return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1
-}
-
 // Smooth spring for entering nodes (gentle bounce)
 const easeOutBack = (t) => {
   const c1 = 1.70158
@@ -93,6 +87,9 @@ export default function ClusterCanvas({
   edges, 
   memberNodes = [],
   onSelect, 
+  onMemberSelect,
+  focusPoint = null, // {x, y, scale?} in world coords
+  highlightedMemberAccountId = null,
   onGranularityChange,
   selectionMode = false,
   selectedIds = new Set(),
@@ -177,6 +174,50 @@ export default function ClusterCanvas({
   const pulseAnimationRef = useRef(null)
   const overlapRatioRef = useRef(1)
   const hasAutofitRef = useRef(false)
+
+  // Focus camera on a specific world point (teleport)
+  useEffect(() => {
+    if (!focusPoint || !containerRef.current) return
+    const width = containerRef.current.clientWidth || 800
+    const height = containerRef.current.clientHeight || 600
+    const targetScale = typeof focusPoint.scale === 'number' ? clamp(focusPoint.scale, 0.1, 10) : transformRef.current.scale
+    const targetOffset = {
+      x: width / 2 - focusPoint.x * targetScale,
+      y: height / 2 - focusPoint.y * targetScale,
+    }
+
+    if (cameraAnimRef.current) {
+      cancelAnimationFrame(cameraAnimRef.current)
+      cameraAnimRef.current = null
+    }
+
+    const startTime = performance.now()
+    const duration = 600
+    const startTransform = transformRef.current
+
+    const animateCamera = (now) => {
+      const elapsed = now - startTime
+      const t = Math.min(1, elapsed / duration)
+      const eased = easeOutCubic(t)
+
+      const newScale = startTransform.scale + (targetScale - startTransform.scale) * eased
+      const newOffset = {
+        x: startTransform.offset.x + (targetOffset.x - startTransform.offset.x) * eased,
+        y: startTransform.offset.y + (targetOffset.y - startTransform.offset.y) * eased,
+      }
+
+      setTransform({ scale: newScale, offset: newOffset })
+
+      if (t < 1) {
+        cameraAnimRef.current = requestAnimationFrame(animateCamera)
+      } else {
+        cameraAnimRef.current = null
+        targetTransformRef.current = null
+      }
+    }
+
+    cameraAnimRef.current = requestAnimationFrame(animateCamera)
+  }, [focusPoint])
   
   // Keep transform ref in sync
   useEffect(() => {
@@ -778,10 +819,20 @@ export default function ClusterCanvas({
       const p = toScreen({ x: m.x, y: m.y })
       const isHovered = hoveredMember && hoveredMember.id === m.id
       const radius = (m.radius || 4) * transform.scale * 0.9
+      const isHighlighted = highlightedMemberAccountId && m.accountId === highlightedMemberAccountId
       ctx.beginPath()
       ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
       ctx.fillStyle = isHovered ? `rgba(${palette.edgeHoverRgb},0.9)` : palette.memberFill
       ctx.fill()
+      if (isHighlighted) {
+        ctx.save()
+        ctx.strokeStyle = '#0ea5e9'
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, radius + 4, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.restore()
+      }
       if (isHovered && m.username) {
         ctx.font = '10px Inter, system-ui, sans-serif'
         ctx.fillStyle = palette.memberText
@@ -834,25 +885,30 @@ export default function ClusterCanvas({
       
       const maxLen = 24
       let label = node.label || node.id
-      if (label.length > maxLen) {
-        label = label.slice(0, maxLen - 1) + '…'
-      }
-      
-      // Text shadow
-      ctx.fillStyle = palette.labelShadow
-      ctx.fillText(label, p.x + 1, labelY + 1)
-      ctx.fillText(label, p.x - 1, labelY - 1)
+	      if (label.length > maxLen) {
+	        label = label.slice(0, maxLen - 1) + '…'
+	      }
+	      
+	      const prevAlpha = ctx.globalAlpha
+	      ctx.globalAlpha = animOpacity
+
+	      // Text shadow
+	      ctx.fillStyle = palette.labelShadow
+	      ctx.fillText(label, p.x + 1, labelY + 1)
+	      ctx.fillText(label, p.x - 1, labelY - 1)
       ctx.fillText(label, p.x + 1, labelY - 1)
       ctx.fillText(label, p.x - 1, labelY + 1)
       
       ctx.fillStyle = palette.label
       ctx.fillText(label, p.x, labelY)
       
-      ctx.font = '9px Inter, system-ui, sans-serif'
-      ctx.fillStyle = palette.labelMuted
-      ctx.fillText(`(${node.size})`, p.x, labelY + 13)
-      ctx.font = '11px Inter, system-ui, sans-serif'
-    })
+	      ctx.font = '9px Inter, system-ui, sans-serif'
+	      ctx.fillStyle = palette.labelMuted
+	      ctx.fillText(`(${node.size})`, p.x, labelY + 13)
+	      ctx.font = '11px Inter, system-ui, sans-serif'
+
+	      ctx.globalAlpha = prevAlpha
+	    })
 
     // Log render performance
     const renderEnd = performance.now()
@@ -933,6 +989,25 @@ export default function ClusterCanvas({
     const x = evt.clientX - rect.left
     const y = evt.clientY - rect.top
     const hit = hitTest(x, y)
+    if (!hit && memberNodes.length) {
+      const inv = transformRef.current
+      let hitMember = null
+      for (let i = memberNodes.length - 1; i >= 0; i--) {
+        const m = memberNodes[i]
+        const sx = m.x * inv.scale + inv.offset.x
+        const sy = m.y * inv.scale + inv.offset.y
+        const dist = Math.hypot(sx - x, sy - y)
+        const r = (m.radius || 4) * inv.scale + 4
+        if (dist <= r) {
+          hitMember = m
+          break
+        }
+      }
+      if (hitMember) {
+        onMemberSelect?.(hitMember)
+        return
+      }
+    }
     if (selectionMode && hit) {
       const next = new Set(selectedSet)
       if (next.has(hit.id)) {
@@ -943,7 +1018,7 @@ export default function ClusterCanvas({
       onSelectionChange?.(next)
     }
     onSelect?.(hit || null)
-  }, [hitTest, onSelect, onSelectionChange, selectedSet, selectionMode])
+  }, [hitTest, memberNodes, onMemberSelect, onSelect, onSelectionChange, selectedSet, selectionMode])
 
   const handleMouseMove = useCallback((evt) => {
     if (selectionDragRef.current) {

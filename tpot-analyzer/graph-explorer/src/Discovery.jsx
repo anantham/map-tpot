@@ -217,8 +217,8 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   const [error, setError] = useState(null)
   const [meta, setMeta] = useState(null)
   const [expandedCards, setExpandedCards] = useState(new Set())
-  const [egoFollowing, setEgoFollowing] = useState(new Set())  // Accounts ego follows
-  const [egoAccountId, setEgoAccountId] = useState(null)
+  const [_egoFollowing, setEgoFollowing] = useState(new Set())  // Accounts ego follows
+  const [_egoAccountId, setEgoAccountId] = useState(null)
   const [hasMoreResults, setHasMoreResults] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadMoreCountdown, setLoadMoreCountdown] = useState(null)
@@ -279,7 +279,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   const isPresetSelection = presetSeedLists.includes(selectedSeedList)
   const canLoadMore = hasMoreResults && !loadingMore && !loading
   const effectiveMaxAutoLimit = modelSettings.limit || MAX_AUTO_LIMIT
-  const autoScopeSummary = `Depth ${queryState.depth}, max distance ${queryState.maxDistance}, limit ${Math.min(queryState.limit, effectiveMaxAutoLimit)}${queryState.maxFollowers > serverFilters.max_followers ? ' · follower cap lifted' : ''}`
+  const _autoScopeSummary = `Depth ${queryState.depth}, max distance ${queryState.maxDistance}, limit ${Math.min(queryState.limit, effectiveMaxAutoLimit)}${queryState.maxFollowers > serverFilters.max_followers ? ' · follower cap lifted' : ''}`
   const normalizedAccountHandle = normalizeHandle(validatedAccount)
   const normalizedSeedSignature = useMemo(() => {
     const seen = new Set()
@@ -491,7 +491,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
       }
       const data = await response.json()
       setAnalysisStatus(data)
-    } catch (err) {
+    } catch {
       // Suppress network errors for analysis status
       // console.error('Failed to fetch analysis status:', err)
     }
@@ -988,7 +988,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   // Fetch recommendations with pagination
   const fetchRecommendations = useCallback(async ({ append = false } = {}) => {
     const activeAccount = validatedAccount?.trim()
-    const { depth, maxDistance, maxFollowers, limit } = queryStateRef.current
+    const { depth: _depth, maxDistance, maxFollowers, limit } = queryStateRef.current
     const requestLimit = Math.max(limit, MIN_BATCH_SIZE)
     const offset = append ? paginationRef.current.offset : 0
 

@@ -58,16 +58,17 @@ function App() {
         display: 'flex',
         gap: '10px',
         padding: '10px 20px',
-        background: '#f7f9fa',
-        borderBottom: '1px solid #e1e8ed'
+        background: 'var(--panel)',
+        borderBottom: '1px solid var(--panel-border)',
+        color: 'var(--text)'
       }}>
         <button
           onClick={() => setCurrentView('discovery')}
           style={{
             padding: '8px 16px',
-            background: currentView === 'discovery' ? '#1da1f2' : 'white',
-            color: currentView === 'discovery' ? 'white' : '#14171a',
-            border: '1px solid #e1e8ed',
+            background: currentView === 'discovery' ? 'var(--accent)' : 'var(--panel)',
+            color: currentView === 'discovery' ? 'var(--bg)' : 'var(--text)',
+            border: '1px solid var(--panel-border)',
             borderRadius: '6px',
             cursor: 'pointer',
             fontWeight: '600'
@@ -80,9 +81,9 @@ function App() {
           disabled={!accountStatus.valid}
           style={{
             padding: '8px 16px',
-            background: currentView === 'graph' ? '#1da1f2' : 'white',
-            color: currentView === 'graph' ? 'white' : '#14171a',
-            border: '1px solid #e1e8ed',
+            background: currentView === 'graph' ? 'var(--accent)' : 'var(--panel)',
+            color: currentView === 'graph' ? 'var(--bg)' : 'var(--text)',
+            border: '1px solid var(--panel-border)',
             borderRadius: '6px',
             cursor: accountStatus.valid ? 'pointer' : 'not-allowed',
             fontWeight: '600'
@@ -94,9 +95,9 @@ function App() {
           onClick={() => setCurrentView('cluster')}
           style={{
             padding: '8px 16px',
-            background: currentView === 'cluster' ? '#1da1f2' : 'white',
-            color: currentView === 'cluster' ? 'white' : '#14171a',
-            border: '1px solid #e1e8ed',
+            background: currentView === 'cluster' ? 'var(--accent)' : 'var(--panel)',
+            color: currentView === 'cluster' ? 'var(--bg)' : 'var(--text)',
+            border: '1px solid var(--panel-border)',
             borderRadius: '6px',
             cursor: 'pointer',
             fontWeight: '600'
@@ -105,20 +106,6 @@ function App() {
           Cluster View
         </button>
         <div style={{ flex: 1 }} />
-        <button
-          onClick={toggleTheme}
-          style={{
-            padding: '8px 12px',
-            background: 'white',
-            color: '#14171a',
-            border: '1px solid #e1e8ed',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontWeight: '600'
-          }}
-        >
-          Theme: {theme === 'dark' ? 'Dark' : 'Light'}
-        </button>
       </div>
 
       {/* Main Content - render both but hide inactive one */}
@@ -157,7 +144,11 @@ function App() {
         )}
         {currentView === 'cluster' && (
           <div style={{ height: '100%' }}>
-            <ClusterView defaultEgo={accountStatus.handle} />
+            <ClusterView
+              defaultEgo={accountStatus.handle}
+              theme={theme}
+              onThemeChange={toggleTheme}
+            />
           </div>
         )}
       </div>

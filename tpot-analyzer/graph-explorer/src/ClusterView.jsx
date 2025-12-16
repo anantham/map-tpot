@@ -3,11 +3,15 @@ import {
   fetchClusterMembers,
   fetchClusterView,
   fetchClusterPreview,
+  fetchClusterTagSummary,
   setClusterLabel,
   deleteClusterLabel
 } from './data'
 import ClusterCanvas from './ClusterCanvas'
 import { clusterViewLog } from './logger'
+import AccountSearch from './AccountSearch'
+import AccountTagPanel from './AccountTagPanel'
+import { fetchTeleportPlan } from './accountsApi'
 
 const clamp = (val, min, max) => Math.min(max, Math.max(min, val))
 const toNumber = (value, fallback) => {
@@ -37,7 +41,7 @@ const procrustesAlign = (A, B) => {
     return { aligned: B, stats: { aligned: false, overlap: A.length, rmsBefore: null, rmsAfter: null, scale: 1 } }
   }
 
-  const { centered: Ac, mean: meanA, scale: scaleA } = center(A)
+  const { centered: Ac, mean: meanA } = center(A)
   const { centered: Bc, mean: meanB, scale: scaleB } = center(B)
 
   // 2x2 cross-covariance
@@ -104,7 +108,7 @@ const alignLayout = (clusters, positions, prevLayout) => {
 
   const A = overlapIds.map(id => prevPositions[id])
   const B = overlapIds.map(id => positions[id])
-  const { aligned, stats, transform } = procrustesAlign(A, B)
+  const { stats, transform } = procrustesAlign(A, B)
 
   const applyTransform = (p) => {
     if (!transform) return p
@@ -133,7 +137,7 @@ const alignLayout = (clusters, positions, prevLayout) => {
   return { positions: alignedPositions, stats }
 }
 
-export default function ClusterView({ defaultEgo = '' }) {
+export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeChange }) {
   const [budget, setBudget] = useState(25) // Max clusters allowed (slider)
   const [visibleTarget, setVisibleTarget] = useState(computeBaseCut(25)) // Initial/base cut below budget
   const [wl, setWl] = useState(0)
@@ -151,18 +155,31 @@ export default function ClusterView({ defaultEgo = '' }) {
   const [collapsePreview, setCollapsePreview] = useState(null)
   const [members, setMembers] = useState([])
   const [membersTotal, setMembersTotal] = useState(0)
+  const [tagSummary, setTagSummary] = useState(null)
+  const [tagSummaryLoading, setTagSummaryLoading] = useState(false)
+  const [tagSummaryError, setTagSummaryError] = useState(null)
   const [labelDraft, setLabelDraft] = useState('')
   const [pendingAction, setPendingAction] = useState(null) // { type: 'expand' | 'collapse', clusterId: string }
   const [explodedLeaves, setExplodedLeaves] = useState(new Map()) // clusterId -> { members }
   const collapseTraceLogged = useRef(false)
+  const [selectedAccount, setSelectedAccount] = useState(null) // {id, username?, displayName?}
+  const [highlightedAccountId, setHighlightedAccountId] = useState(null) // raw account id to highlight
+  const [focusPoint, setFocusPoint] = useState(null) // {x,y,scale?} for ClusterCanvas camera
+  const [focusLeaf, setFocusLeaf] = useState(null) // leaf cluster id to force-visible (teleport)
+  const [returnSnapshot, setReturnSnapshot] = useState(null)
   const [urlParsed, setUrlParsed] = useState(false)
   const lastDataRef = useRef(null)
   const activeReqRef = useRef(null)
   const lastGoodReqRef = useRef(null)
   const abortControllerRef = useRef(null)
+  const tagSummaryAbortRef = useRef(null)
   const prevLayoutRef = useRef({ positions: {}, ids: [] })
+  const teleportAppliedRef = useRef(null) // `${leaf}|${accountId}`
+  const focusAppliedRef = useRef(null) // `${accountId}`
+  const [showSettings, setShowSettings] = useState(false)
   const expandedKey = useMemo(() => Array.from(expanded).sort().join(','), [expanded])
   const collapsedKey = useMemo(() => Array.from(collapsed).sort().join(','), [collapsed])
+  const focusLeafKey = focusLeaf || ''
 
   useEffect(() => {
     lastDataRef.current = data
@@ -254,25 +271,25 @@ export default function ClusterView({ defaultEgo = '' }) {
       })
       setLoading(true)
       setError(null)
-      let accepted = false
 
       try {
         const t1 = performance.now()
         timings.beforeFetch = t1
         clusterViewLog.info(`Stage 2: Initiating API call (prep: ${Math.round(t1 - t0)}ms)`, { reqId })
 
-        const payload = await fetchClusterView({
-          n: visibleTarget,
-          ego: ego.trim() || undefined,
-          wl,
-          budget,
-          expanded: Array.from(expanded),
-          collapsed: Array.from(collapsed),
-          expand_depth: expandDepth,
-          reqId,
-          controller,
-          signal: controller.signal,
-        })
+	        const payload = await fetchClusterView({
+	          n: visibleTarget,
+	          ego: ego.trim() || undefined,
+	          wl,
+	          budget,
+	          expanded: Array.from(expanded),
+	          collapsed: Array.from(collapsed),
+	          focus_leaf: focusLeaf || undefined,
+	          expand_depth: expandDepth,
+	          reqId,
+	          controller,
+	          signal: controller.signal,
+	        })
         if (controller.signal.aborted) {
           clusterViewLog.debug('Request aborted post-fetch, skipping apply', { reqId })
           return
@@ -323,7 +340,6 @@ export default function ClusterView({ defaultEgo = '' }) {
           clusterViewLog.warn('Dropping stale response (another request already applied)', { reqId, activeReq: activeReqRef.current, lastGoodReq: lastGoodReqRef.current, clusterCount, positionCount })
         } else if (!controller.signal.aborted) {
           // Accept either the active request or a non-empty payload when we currently have none
-          accepted = true
           if (!isActive) {
             activeReqRef.current = reqId
           }
@@ -380,7 +396,7 @@ export default function ClusterView({ defaultEgo = '' }) {
       clusterViewLog.error('Fetch effect run() crashed', { error: err.message })
     })
     return () => controller.abort()
-  }, [urlParsed, visibleTarget, budget, wl, expandDepth, ego, expandedKey, collapsedKey])
+	  }, [urlParsed, visibleTarget, budget, wl, expandDepth, ego, expandedKey, collapsedKey, focusLeafKey])
 
   useEffect(() => {
     const clusterCount = data?.clusters?.length || 0
@@ -440,36 +456,88 @@ export default function ClusterView({ defaultEgo = '' }) {
         const angle = (idx / memberList.length) * Math.PI * 2
         const mx = pos[0] + Math.cos(angle) * ringRadius
         const my = pos[1] + Math.sin(angle) * ringRadius
-        members.push({
-          id: `member-${clusterId}-${m.id}`,
-          parentId: clusterId,
-          x: mx,
-          y: my,
-          radius: 4,
-          username: m.username,
-          displayName: m.displayName,
-          numFollowers: m.numFollowers,
-        })
+	        members.push({
+	          id: `member-${clusterId}-${m.id}`,
+	          accountId: m.id,
+	          parentId: clusterId,
+	          x: mx,
+	          y: my,
+	          radius: 4,
+	          username: m.username,
+	          displayName: m.displayName,
+	          numFollowers: m.numFollowers,
+	        })
       })
     })
     return members
   }, [data, explodedLeaves, nodes])
 
-  const loadMembers = async (clusterId) => {
-    try {
-      const res = await fetchClusterMembers({ 
-        clusterId, 
-        n: visibleTarget, 
-        wl, 
-        expand_depth: expandDepth,
-        ego: ego || undefined, 
-        expanded: Array.from(expanded),
-        collapsed: Array.from(collapsed),
-      })
+	  const loadMembers = async (clusterId) => {
+	    try {
+	      const res = await fetchClusterMembers({ 
+	        clusterId, 
+	        n: visibleTarget, 
+	        wl, 
+	        expand_depth: expandDepth,
+	        ego: ego || undefined, 
+	        expanded: Array.from(expanded),
+	        collapsed: Array.from(collapsed),
+	        focus_leaf: focusLeaf || undefined,
+	      })
       setMembers(res.members || [])
       setMembersTotal(res.total || 0)
     } catch (err) {
       clusterViewLog.error('Failed to load members', { error: err.message })
+	    }
+	  }
+
+  const loadTagSummary = async (clusterId) => {
+    if (!clusterId) return
+    const egoTrimmed = ego.trim()
+    if (!egoTrimmed) {
+      setTagSummary(null)
+      setTagSummaryError(null)
+      setTagSummaryLoading(false)
+      return
+    }
+    if (tagSummaryAbortRef.current) {
+      tagSummaryAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    tagSummaryAbortRef.current = controller
+    setTagSummaryLoading(true)
+    setTagSummaryError(null)
+    try {
+      const res = await fetchClusterTagSummary({
+        clusterId,
+        n: visibleTarget,
+        wl,
+        expand_depth: expandDepth,
+        ego: egoTrimmed,
+        expanded: Array.from(expanded),
+        collapsed: Array.from(collapsed),
+        focus_leaf: focusLeaf || undefined,
+        budget,
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return
+      setTagSummary(res || null)
+      clusterViewLog.debug('Tag summary loaded', {
+        clusterId,
+        ego: egoTrimmed,
+        totalMembers: res?.totalMembers,
+        taggedMembers: res?.taggedMembers,
+        tags: res?.tagCounts?.length,
+        suggested: res?.suggestedLabel?.tag || null,
+        timing: res?._timing,
+      })
+    } catch (err) {
+      if (err.name === 'AbortError') return
+      clusterViewLog.error('Failed to load tag summary', { clusterId, error: err.message })
+      setTagSummary(null)
+      setTagSummaryError(err.message || 'Failed to load tag summary')
+    } finally {
+      if (!controller.signal.aborted) setTagSummaryLoading(false)
     }
   }
 
@@ -509,16 +577,17 @@ export default function ClusterView({ defaultEgo = '' }) {
         // Already exploded; keep as-is
         return
       }
-      const res = await fetchClusterMembers({
-        clusterId: cluster.id,
-        n: visibleTarget,
-        wl,
-        expand_depth: expandDepth,
-        ego: ego || undefined,
-        expanded: Array.from(expanded),
-        collapsed: Array.from(collapsed),
-        limit: Math.min(cluster.size || 100, 500),
-      })
+	      const res = await fetchClusterMembers({
+	        clusterId: cluster.id,
+	        n: visibleTarget,
+	        wl,
+	        expand_depth: expandDepth,
+	        ego: ego || undefined,
+	        expanded: Array.from(expanded),
+	        collapsed: Array.from(collapsed),
+	        focus_leaf: focusLeaf || undefined,
+	        limit: Math.min(cluster.size || 100, 500),
+	      })
       const members = res.members || []
       setExplodedLeaves(prev => {
         const next = new Map(prev)
@@ -539,18 +608,40 @@ export default function ClusterView({ defaultEgo = '' }) {
       clusterIds.forEach(id => next.delete(id))
       return next
     })
+	  }
+
+  const refreshClusterView = async (clusterIdToReselect = null) => {
+    const refreshed = await fetchClusterView({
+      n: visibleTarget,
+      ego: ego.trim() || undefined,
+      wl,
+      budget,
+      expanded: Array.from(expanded),
+      collapsed: Array.from(collapsed),
+      focus_leaf: focusLeaf || undefined,
+    })
+    const { positions, stats } = alignLayout(refreshed?.clusters || [], refreshed?.positions || {}, prevLayoutRef.current)
+    const nextData = { ...refreshed, positions, meta: { ...(refreshed?.meta || {}), budget, base_cut: visibleTarget, alignment: stats } }
+    setData(nextData)
+    prevLayoutRef.current = { positions, ids: (refreshed?.clusters || []).map(c => c.id) }
+    if (clusterIdToReselect) {
+      const updated = (nextData?.clusters || []).find(c => c.id === clusterIdToReselect)
+      if (updated) {
+        setSelectedCluster(updated)
+        setLabelDraft(updated.label || '')
+      }
+    }
+    return nextData
   }
 
   const handleRename = async () => {
     if (!selectedCluster || !labelDraft.trim()) return
     try {
-      clusterViewLog.debug('Rename request', { clusterId: selectedCluster.id, n: visibleTarget, wl })
-      await setClusterLabel({ clusterId: selectedCluster.id, n: visibleTarget, wl, label: labelDraft.trim() })
-      // refresh view to pick up label
-      const refreshed = await fetchClusterView({ n: visibleTarget, ego: ego.trim() || undefined, wl, budget, expanded: Array.from(expanded), collapsed: Array.from(collapsed) })
-      const { positions, stats } = alignLayout(refreshed?.clusters || [], refreshed?.positions || {}, prevLayoutRef.current)
-      setData({ ...refreshed, positions, meta: { ...(refreshed?.meta || {}), budget, base_cut: visibleTarget, alignment: stats } })
-      prevLayoutRef.current = { positions, ids: (refreshed?.clusters || []).map(c => c.id) }
+      const clusterId = selectedCluster.id
+      const label = labelDraft.trim()
+      clusterViewLog.debug('Rename request', { clusterId, n: visibleTarget, wl, label })
+      await setClusterLabel({ clusterId, n: visibleTarget, wl, label })
+      await refreshClusterView(clusterId)
     } catch (err) {
       clusterViewLog.error('Failed to rename cluster', { error: err.message })
     }
@@ -559,12 +650,10 @@ export default function ClusterView({ defaultEgo = '' }) {
   const handleDeleteLabel = async () => {
     if (!selectedCluster) return
     try {
-      clusterViewLog.debug('Delete label', { clusterId: selectedCluster.id, n: visibleTarget, wl })
-      await deleteClusterLabel({ clusterId: selectedCluster.id, n: visibleTarget, wl })
-      const refreshed = await fetchClusterView({ n: visibleTarget, ego: ego.trim() || undefined, wl, budget, expanded: Array.from(expanded), collapsed: Array.from(collapsed) })
-      const { positions, stats } = alignLayout(refreshed?.clusters || [], refreshed?.positions || {}, prevLayoutRef.current)
-      setData({ ...refreshed, positions, meta: { ...(refreshed?.meta || {}), budget, base_cut: visibleTarget, alignment: stats } })
-      prevLayoutRef.current = { positions, ids: (refreshed?.clusters || []).map(c => c.id) }
+      const clusterId = selectedCluster.id
+      clusterViewLog.debug('Delete label', { clusterId, n: visibleTarget, wl })
+      await deleteClusterLabel({ clusterId, n: visibleTarget, wl })
+      await refreshClusterView(clusterId)
     } catch (err) {
       clusterViewLog.error('Failed to delete label', { error: err.message })
     }
@@ -575,8 +664,12 @@ export default function ClusterView({ defaultEgo = '' }) {
       setSelectedCluster(null)
       setMembers([])
       setMembersTotal(0)
+      setTagSummary(null)
+      setTagSummaryError(null)
+      setTagSummaryLoading(false)
       setExpandPreview(null)
       setCollapsePreview(null)
+      if (tagSummaryAbortRef.current) tagSummaryAbortRef.current.abort()
       return
     }
     clusterViewLog.info('Cluster selected', {
@@ -592,6 +685,7 @@ export default function ClusterView({ defaultEgo = '' }) {
     setSelectedCluster(cluster)
     setLabelDraft(cluster.label)
     loadMembers(cluster.id)
+    loadTagSummary(cluster.id)
     loadPreview(cluster.id)
   }
 
@@ -727,98 +821,284 @@ export default function ClusterView({ defaultEgo = '' }) {
     setCollapseSelection(new Set(ids))
   }
 
-  const budgetRemaining = data?.meta?.budget_remaining ?? (budget - (data?.clusters?.length || 0))
+  const handleMemberSelect = (member) => {
+    if (!member) return
+    const accountId = member.accountId || member.id
+    setHighlightedAccountId(accountId)
+    setSelectedAccount({ id: accountId, username: member.username, displayName: member.displayName })
+    if (Number.isFinite(member.x) && Number.isFinite(member.y)) {
+      setFocusPoint({ x: member.x, y: member.y, scale: 2.2 })
+    }
+    if (member.parentId && selectedCluster?.id !== member.parentId) {
+      const parentCluster = (data?.clusters || []).find(c => c.id === member.parentId)
+      if (parentCluster) handleSelect(parentCluster)
+    }
+  }
+
+  const restorePreviousView = () => {
+    if (!returnSnapshot) return
+    setBudget(returnSnapshot.budget)
+    setVisibleTarget(returnSnapshot.visibleTarget)
+    setWl(returnSnapshot.wl)
+    setExpandDepth(returnSnapshot.expandDepth)
+    setEgo(returnSnapshot.ego)
+    setExpanded(new Set(returnSnapshot.expanded))
+    setCollapsed(new Set(returnSnapshot.collapsed))
+    setSelectionMode(returnSnapshot.selectionMode)
+    setCollapseSelection(new Set(returnSnapshot.collapseSelection))
+    setFocusLeaf(null)
+    setHighlightedAccountId(null)
+    setFocusPoint(null)
+    setSelectedAccount(null)
+    setExplodedLeaves(new Map())
+    setReturnSnapshot(null)
+  }
+
+  const handleTeleportPick = async (account) => {
+    if (!account?.id) return
+    if (!returnSnapshot) {
+      setReturnSnapshot({
+        budget,
+        visibleTarget,
+        wl,
+        expandDepth,
+        ego,
+        expanded: Array.from(expanded),
+        collapsed: Array.from(collapsed),
+        selectionMode,
+        collapseSelection: Array.from(collapseSelection),
+      })
+    }
+    setShowSettings(false)
+    setPendingAction(null)
+    setSelectedCluster(null)
+    setMembers([])
+    setMembersTotal(0)
+    setExpandPreview(null)
+    setCollapsePreview(null)
+    setExplodedLeaves(new Map())
+    setExpanded(new Set())
+    setCollapsed(new Set())
+    setCollapseSelection(new Set())
+    setSelectionMode(false)
+    setFocusPoint(null)
+    setSelectedAccount({
+      id: account.id,
+      username: account.username,
+      displayName: account.displayName || account.display_name,
+    })
+    setHighlightedAccountId(account.id)
+
+    try {
+      const plan = await fetchTeleportPlan({
+        accountId: account.id,
+        budget,
+        visible: visibleTarget,
+      })
+      setVisibleTarget(plan?.targetVisible ?? visibleTarget)
+      setFocusLeaf(plan?.leafClusterId || null)
+      teleportAppliedRef.current = null
+      focusAppliedRef.current = null
+      clusterViewLog.info('Teleport plan applied', { accountId: account.id, plan })
+    } catch (err) {
+      clusterViewLog.error('Teleport plan failed', { accountId: account.id, error: err.message })
+      setError(err.message || 'Teleport plan failed')
+    }
+  }
+
+  // Teleport: once the focused leaf cluster is present, select and explode it.
+  useEffect(() => {
+    if (!focusLeaf || !highlightedAccountId || !data?.clusters?.length) return
+    const key = `${focusLeaf}|${highlightedAccountId}`
+    if (teleportAppliedRef.current === key) return
+
+    const leafCluster = (data.clusters || []).find(c => c.id === focusLeaf)
+    if (!leafCluster) return
+
+    teleportAppliedRef.current = key
+    clusterViewLog.info('Teleport: selecting and exploding leaf', { focusLeaf, accountId: highlightedAccountId })
+    handleSelect(leafCluster)
+    if (leafCluster.isLeaf) {
+      explodeLeaf(leafCluster)
+    }
+  }, [data, focusLeaf, highlightedAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Teleport: once the member node exists, center camera and populate account selection.
+  useEffect(() => {
+    if (!highlightedAccountId || !memberNodes.length) return
+    if (focusAppliedRef.current === highlightedAccountId) return
+    const hit = memberNodes.find(m => m.accountId === highlightedAccountId)
+    if (!hit) return
+    focusAppliedRef.current = highlightedAccountId
+    setFocusPoint({ x: hit.x, y: hit.y, scale: 2.2 })
+    setSelectedAccount({ id: highlightedAccountId, username: hit.username, displayName: hit.displayName })
+  }, [highlightedAccountId, memberNodes])
+
   const visibleCount = data?.clusters?.length || 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{
         padding: '12px 16px',
-        borderBottom: '1px solid #e2e8f0',
-        background: '#f8fafc',
+        borderBottom: '1px solid var(--panel-border)',
+        background: 'var(--panel)',
         display: 'flex',
-        gap: '12px',
-        alignItems: 'center',
-        flexWrap: 'wrap'
+        flexDirection: 'column',
+        gap: '10px'
       }}>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <label style={{ fontWeight: 600 }}>Max clusters (budget)</label>
-          <input
-            type="range"
-            min={5}
-            max={200}
-            value={budget}
-            onChange={e => {
-              const next = Number(e.target.value)
-              setBudget(next)
-              setVisibleTarget(computeBaseCut(next))
-            }}
-          />
-          <span style={{ minWidth: 32 }}>{budget}</span>
-          <span style={{ color: '#475569', fontSize: 12 }}>Base cut {visibleTarget}</span>
-        </div>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <label style={{ fontWeight: 600 }}>Louvain weight</label>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.1}
-            value={wl}
-            onChange={e => setWl(clamp(Number(e.target.value), 0, 1))}
-          />
-          <span style={{ minWidth: 32 }}>{wl.toFixed(1)}</span>
-        </div>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <label style={{ fontWeight: 600 }} title="Controls how many children appear when expanding a cluster. Low = conservative (sqrt), High = aggressive (more children)">
-            Expand depth
-          </label>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.1}
-            value={expandDepth}
-            onChange={e => setExpandDepth(clamp(Number(e.target.value), 0, 1))}
-          />
-          <span style={{ minWidth: 32 }}>{expandDepth.toFixed(1)}</span>
-        </div>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <label style={{ fontWeight: 600 }}>Ego</label>
-          <input
-            type="text"
-            value={ego}
-            onChange={e => setEgo(e.target.value)}
-            placeholder="node id or handle"
-            style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1' }}
-          />
-        </div>
-        {loading && <span style={{ color: '#475569' }}>Loading…</span>}
-        {data?.cache_hit && <span style={{ color: '#10b981' }}>Cache hit</span>}
-        {error && <span style={{ color: '#b91c1c' }}>{error}</span>}
-        <span style={{ color: '#475569' }}>Visible {visibleCount}/{budget}</span>
-        {collapseSelection.size > 0 && (
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ fontWeight: 700, color: 'var(--text)' }}>Visible {visibleCount}/{budget}</div>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <label style={{ fontWeight: 600 }}>Max clusters</label>
+            <input
+              type="range"
+              min={5}
+              max={200}
+              value={budget}
+              onChange={e => {
+                const next = Number(e.target.value)
+                setBudget(next)
+                setVisibleTarget(computeBaseCut(next))
+              }}
+            />
+            <span style={{ minWidth: 32 }}>{budget}</span>
+          </div>
           <button
-            onClick={handleCollapseSelected}
-            style={{ padding: '6px 10px', borderRadius: 6, background: '#475569', color: 'white', border: 'none' }}
+            onClick={() => setSelectionMode(m => !m)}
+            style={{
+              padding: '6px 10px',
+              borderRadius: 6,
+              border: selectionMode ? '1px solid var(--accent)' : '1px solid var(--panel-border)',
+              background: selectionMode ? 'rgba(14,165,233,0.12)' : 'var(--panel)',
+              color: selectionMode ? 'var(--accent)' : 'var(--text-muted)',
+            }}
+            title="Toggle drag-to-select mode for collapsing multiple clusters"
           >
-            Collapse selected ({collapseSelection.size})
+            {selectionMode ? 'Multi-select on' : 'Multi-select off'}
           </button>
+          {collapseSelection.size > 0 && (
+            <button
+              onClick={handleCollapseSelected}
+              style={{ padding: '6px 10px', borderRadius: 6, background: 'var(--text)', color: 'var(--bg)', border: 'none' }}
+            >
+              Collapse selected ({collapseSelection.size})
+            </button>
+          )}
+          {loading && <span style={{ color: 'var(--text-muted)' }}>Loading…</span>}
+          {data?.cache_hit && <span style={{ color: '#10b981' }}>Cache hit</span>}
+          {error && <span style={{ color: '#b91c1c' }}>{error}</span>}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {returnSnapshot && (
+              <button
+                onClick={restorePreviousView}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid var(--panel-border)',
+                  background: 'rgba(14,165,233,0.10)',
+                  color: 'var(--text)',
+                }}
+                title="Return to your previous cluster view"
+              >
+                Return
+              </button>
+            )}
+            <AccountSearch onPick={handleTeleportPick} placeholder="Teleport to @account…" />
+            <button
+              onClick={() => setShowSettings(s => !s)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid var(--panel-border)',
+                background: showSettings ? 'var(--bg-muted)' : 'var(--panel)',
+                color: 'var(--text)',
+                cursor: 'pointer'
+              }}
+            >
+              Settings
+            </button>
+          </div>
+        </div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+          Pan: drag · Zoom: scroll · Split/merge: scroll on a node · Multi-select: toggle above
+        </div>
+        {showSettings && (
+          <div style={{
+            marginTop: 4,
+            padding: 12,
+            border: '1px solid var(--panel-border)',
+            borderRadius: 10,
+            background: 'var(--bg-muted)',
+            display: 'grid',
+            gap: 10,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))'
+          }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label style={{ fontWeight: 600 }}>Base cut</label>
+              <input
+                type="range"
+                min={5}
+                max={budget}
+                value={visibleTarget}
+                onChange={e => setVisibleTarget(clamp(Number(e.target.value), 5, budget))}
+              />
+              <span style={{ minWidth: 32 }}>{visibleTarget}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <label style={{ fontWeight: 600 }}>Louvain weight</label>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.1}
+                value={wl}
+                onChange={e => setWl(clamp(Number(e.target.value), 0, 1))}
+              />
+              <span style={{ minWidth: 32 }}>{wl.toFixed(1)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <label style={{ fontWeight: 600 }} title="Controls how many children appear when expanding a cluster. Low = conservative (sqrt), High = aggressive (more children)">
+                Expand depth
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.1}
+                value={expandDepth}
+                onChange={e => setExpandDepth(clamp(Number(e.target.value), 0, 1))}
+              />
+              <span style={{ minWidth: 32 }}>{expandDepth.toFixed(1)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <label style={{ fontWeight: 600 }}>Ego</label>
+              <input
+                type="text"
+                value={ego}
+                onChange={e => setEgo(e.target.value)}
+                placeholder="node id or handle"
+                style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--panel-border)', width: '100%' }}
+              />
+            </div>
+            {onThemeChange && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <label style={{ fontWeight: 600 }}>Theme</label>
+                <button
+                  onClick={onThemeChange}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid var(--panel-border)',
+                    background: 'var(--panel)',
+                    color: 'var(--text)'
+                  }}
+                >
+                  {theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+                </button>
+              </div>
+            )}
+          </div>
         )}
-        <button
-          onClick={() => setSelectionMode(m => !m)}
-          style={{
-            padding: '6px 10px',
-            borderRadius: 6,
-            border: selectionMode ? '1px solid #0ea5e9' : '1px solid #cbd5e1',
-            background: selectionMode ? 'rgba(14,165,233,0.12)' : 'white',
-            color: selectionMode ? '#0ea5e9' : '#475569',
-          }}
-          title="Toggle drag-to-select mode for collapsing multiple clusters"
-        >
-          {selectionMode ? 'Selection mode on' : 'Selection mode off'}
-        </button>
-        {selectionMode && <span style={{ color: '#0ea5e9' }}>Drag to select clusters</span>}
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
@@ -827,12 +1107,16 @@ export default function ClusterView({ defaultEgo = '' }) {
           edges={data?.edges || []}
           memberNodes={memberNodes}
           onSelect={handleSelect}
+          onMemberSelect={handleMemberSelect}
+          focusPoint={focusPoint}
+          highlightedMemberAccountId={highlightedAccountId}
           onGranularityChange={handleGranularityDelta}
           selectionMode={selectionMode}
           selectedIds={collapseSelection}
           onSelectionChange={handleSelectionChange}
           highlightedIds={collapsePreview?.sibling_ids || []}
           pendingClusterId={pendingAction?.clusterId}
+          theme={theme}
         />
 
         {selectedCluster && (
@@ -894,16 +1178,90 @@ export default function ClusterView({ defaultEgo = '' }) {
                   Delete
                 </button>
               </div>
+              <div style={{ fontWeight: 600, marginTop: 12 }}>Tag summary</div>
+              {!ego.trim() && (
+                <div style={{ color: '#94a3b8' }}>Set `ego` in Settings to compute tag summary.</div>
+              )}
+              {ego.trim() && tagSummaryLoading && <div style={{ color: '#94a3b8' }}>Loading tag summary…</div>}
+              {ego.trim() && tagSummaryError && <div style={{ color: '#b91c1c' }}>{tagSummaryError}</div>}
+              {ego.trim() && !tagSummaryLoading && !tagSummaryError && tagSummary && (
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: 'rgba(148,163,184,0.08)' }}>
+                  <div style={{ color: '#475569', fontSize: 13 }}>
+                    Tagged members: {tagSummary.taggedMembers}/{tagSummary.totalMembers} • Assignments: {tagSummary.tagAssignments} • Compute: {tagSummary.computeMs}ms
+                  </div>
+                  {tagSummary.suggestedLabel?.tag && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontWeight: 700 }}>Suggested label</div>
+                      <div style={{ color: '#475569', fontSize: 13 }}>
+                        {tagSummary.suggestedLabel.tag} (score {tagSummary.suggestedLabel.score})
+                      </div>
+	                      <button
+	                        onClick={async () => {
+	                          try {
+	                            setLabelDraft(tagSummary.suggestedLabel.tag)
+	                            await setClusterLabel({ clusterId: selectedCluster.id, n: visibleTarget, wl, label: tagSummary.suggestedLabel.tag })
+	                            await refreshClusterView(selectedCluster.id)
+	                          } catch (err) {
+	                            clusterViewLog.error('Failed to apply suggested label', { clusterId: selectedCluster.id, error: err.message })
+	                            setError(err.message || 'Failed to apply suggested label')
+	                          }
+	                        }}
+	                        style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: '#16a34a', color: 'white', border: 'none' }}
+	                      >
+	                        Apply suggested label
+	                      </button>
+                    </div>
+                  )}
+                  <div style={{ marginTop: 10, fontWeight: 700 }}>Top tags</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflow: 'auto', marginTop: 6 }}>
+                    {(tagSummary.tagCounts || []).slice(0, 12).map((row) => (
+                      <div
+                        key={row.tag}
+                        style={{ display: 'flex', justifyContent: 'space-between', gap: 10, border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 8px', background: 'white' }}
+                      >
+                        <div style={{ fontWeight: 700 }}>{row.tag}</div>
+                        <div style={{ color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>
+                          IN {row.inCount} · NOT {row.notInCount} · score {row.score}
+                        </div>
+                      </div>
+                    ))}
+                    {(!tagSummary.tagCounts || tagSummary.tagCounts.length === 0) && (
+                      <div style={{ color: '#94a3b8' }}>No tags found for members in this cluster.</div>
+                    )}
+                  </div>
+                </div>
+              )}
               <div style={{ fontWeight: 600, marginTop: 12 }}>Members ({membersTotal})</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflow: 'auto' }}>
                 {members.map(m => (
-                  <div key={m.id} style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 8 }}>
+                  <div
+                    key={m.id}
+                    onClick={() => handleMemberSelect({ accountId: m.id, parentId: selectedCluster.id, username: m.username, displayName: m.displayName })}
+                    style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 8, cursor: 'pointer' }}
+                    title="Select account to tag"
+                  >
                     <div style={{ fontWeight: 600 }}>{m.username || m.id}</div>
                     <div style={{ color: '#475569', fontSize: 13 }}>Followers: {m.numFollowers ?? '–'}</div>
                   </div>
                 ))}
                 {!members.length && <div style={{ color: '#94a3b8' }}>No members loaded</div>}
               </div>
+              <div style={{ fontWeight: 700, marginTop: 14 }}>Selected account</div>
+              {!selectedAccount && <div style={{ color: '#94a3b8' }}>Click a member to tag.</div>}
+              {selectedAccount && (
+                <>
+	                  <div style={{ color: '#475569' }}>
+	                    @{selectedAccount.username || selectedAccount.id}{selectedAccount.displayName ? ` · ${selectedAccount.displayName}` : ''}
+	                  </div>
+	                  <AccountTagPanel
+	                    ego={ego.trim()}
+	                    account={selectedAccount}
+	                    onTagChanged={() => {
+	                      if (selectedCluster?.id) loadTagSummary(selectedCluster.id)
+	                    }}
+	                  />
+	                </>
+	              )}
             </div>
           </div>
         )}
