@@ -56,3 +56,11 @@ tpot-analyzer/graph-explorer/.vite/
 tpot-analyzer/graph-explorer/.eslintcache
 /graph-explorer/
 test-results/
+tpot-analyzer/data/account_tags.db*
+CLAUDE.md
+
+# Local experiments (not ready for git yet)
+tpot-analyzer/data/holdout_clusters.json
+tpot-analyzer/docs/HOLDOUT_VALIDATION_PLAN.md
+tpot-analyzer/scripts/setup_holdout.py
+tpot-analyzer/scripts/run_propagation.py
