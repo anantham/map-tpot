@@ -73,6 +73,19 @@
         - `tpot-analyzer/graph-explorer/package.json:1` Add `test:e2e:mock` (auto-starts Vite) and `test:e2e:mock:no-server` for reusing an already-running dev server.
         - `tpot-analyzer/scripts/run_e2e.sh:1` Add a repo-level Playwright runner for mock/full/ui/debug modes.
         - `tpot-analyzer/scripts/verify_browser_binaries.py:1` Add a browser-binary/cache verification script; docs in `tpot-analyzer/docs/diagnostics/BROWSER_BINARIES.md`.
+- [2025-12-16] **E2E: lock in Phase 1 loop (mocked)**
+    - **UI deep-link correctness**
+        - `tpot-analyzer/graph-explorer/src/ClusterView.jsx:213` Gate URL-sync effect on `urlParsed` so StrictMode mount doesn’t overwrite initial URL params before parsing (fixes flaky deep-link behavior in tests and manual reloads).
+    - **Mocked E2E coverage (Playwright)**
+        - `tpot-analyzer/graph-explorer/e2e/teleport_tagging_mock.spec.ts:1` Add “search → teleport → tag → tag summary refresh” regression test with fully mocked backend.
+        - `tpot-analyzer/graph-explorer/e2e/cluster_mock.spec.ts:1` Stabilize cluster-view E2E by clicking nodes deterministically via canvas test helpers; add real API-failure assertion (`HTTP 500`).
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:225` Expose `window.__CLUSTER_CANVAS_TEST__` helpers in dev mode only (Playwright uses these for stable node selection).
+    - **Runner updates**
+        - `tpot-analyzer/graph-explorer/package.json:1` Update mock runner scripts to execute all `e2e/*mock*.spec.ts` tests.
+        - `tpot-analyzer/scripts/run_e2e.sh:1` Update mock runner to execute all `e2e/*mock*.spec.ts` tests.
+    - **Verification**
+        - `cd tpot-analyzer/graph-explorer && npm run test:e2e:mock` (9 passed)
+        - `cd tpot-analyzer/graph-explorer && npx vitest run` (7 passed)
 
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.
