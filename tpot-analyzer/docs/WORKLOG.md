@@ -86,6 +86,16 @@
     - **Verification**
         - `cd tpot-analyzer/graph-explorer && npm run test:e2e:mock` (9 passed)
         - `cd tpot-analyzer/graph-explorer && npx vitest run` (7 passed)
+- [2025-12-16] **UI polish: force-morph expand/collapse transitions**
+    - **Goal**: remove “teleporting” feel when the cluster layout changes by using a short-lived D3 force simulation to morph nodes toward their new positions.
+    - **Implementation**
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:384` Replace linear “move-to-target” tweening with a force-directed morph (`forceX/forceY` to target + `forceCollide` + `forceManyBody`) and snap to exact targets at the end for deterministic focus/teleport behavior.
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:832` Keep exploded member dots visually attached to their parent cluster during morphs by translating them by the parent’s display delta.
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:185` E2E helper `window.__CLUSTER_CANVAS_TEST__` returns *displayed* positions (settled/morphed), keeping Playwright clicks stable while nodes move.
+    - **Verification**
+        - `cd tpot-analyzer/graph-explorer && npm run test:e2e:mock` (9 passed)
+        - `cd tpot-analyzer/graph-explorer && npx vitest run` (7 passed)
+        - `cd tpot-analyzer && .venv/bin/python -m pytest -q` (307 passed, 7 skipped)
 
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.
