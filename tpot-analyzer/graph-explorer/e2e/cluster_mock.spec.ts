@@ -1,6 +1,18 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, Page } from '@playwright/test'
 
-// ---------- Mock helpers ----------
+/**
+ * E2E tests for ClusterView with mocked backend.
+ * 
+ * These tests verify the cluster visualization UI works correctly
+ * without requiring the real Python backend.
+ * 
+ * Test helpers exposed by ClusterCanvas:
+ * - window.__CLUSTER_CANVAS_TEST__.getNodeIds() - list of node IDs
+ * - window.__CLUSTER_CANVAS_TEST__.getNodeScreenPosition(id) - {x, y} screen coords
+ * - window.__CLUSTER_CANVAS_TEST__.getAllNodePositions() - all nodes with screen coords
+ */
+
+// ---------- Mock Data ----------
 const BASE_CLUSTERS = [
   { id: 'root_a', size: 30, label: 'Root A', childrenIds: ['a1', 'a2'], parentId: null },
   { id: 'root_b', size: 20, label: 'Root B', childrenIds: ['b1', 'b2'], parentId: null },
@@ -18,16 +30,19 @@ const CHILDREN: Record<string, any[]> = {
   ],
 }
 
+// ---------- Helpers ----------
+
 const positionsFor = (clusters: any[]) => {
-  const step = 90
-  const startX = 140
-  const startY = 160
+  // Spread clusters horizontally for easy clicking
+  const step = 100
+  const startX = 200
+  const startY = 200
   return Object.fromEntries(
     clusters.map((c, idx) => [c.id, [startX + idx * step, startY]])
   )
 }
 
-const buildClusters = (expanded: Set<string>, collapsed: Set<string>, budget: number, padToBudget = false) => {
+const buildClusters = (expanded: Set<string>, collapsed: Set<string>) => {
   let clusters = [...BASE_CLUSTERS]
 
   // Apply expands
@@ -38,27 +53,13 @@ const buildClusters = (expanded: Set<string>, collapsed: Set<string>, budget: nu
     clusters = clusters.filter(c => c.id !== id).concat(children)
   })
 
-  // Apply collapses (force parent back, drop children)
+  // Apply collapses
   collapsed.forEach(id => {
     const parent = BASE_CLUSTERS.find(c => c.id === id)
     if (!parent) return
     clusters = clusters.filter(c => c.parentId !== id && c.id !== id)
     clusters.push(parent)
   })
-
-  // Optionally pad to budget to force budget_remaining = 0
-  if (padToBudget && clusters.length < budget) {
-    const needed = budget - clusters.length
-    for (let i = 0; i < needed; i++) {
-      clusters.push({
-        id: `filler_${i}`,
-        size: 5,
-        label: `Filler ${i + 1}`,
-        parentId: null,
-        childrenIds: [],
-      })
-    }
-  }
 
   return clusters
 }
@@ -69,50 +70,47 @@ const parseVisible = (text: string) => {
   return { visible: Number(match[1]), budget: Number(match[2]) }
 }
 
-const trySelectNode = async (page, _positions?: { x: number, y: number }[]) => {
-  // After auto-fit, nodes are centered in the canvas. Click in a wide grid to find one.
-  const canvas = page.locator('canvas')
-  const box = await canvas.boundingBox()
-  if (!box) return false
+/** Click on a cluster node by ID using test helpers */
+const clickNode = async (page: Page, nodeId: string) => {
+  // Wait for test helper to be available
+  await page.waitForFunction(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds)
   
-  const centerX = box.width / 2
-  const centerY = box.height / 2
+  const pos = await page.evaluate((id) => {
+    return window.__CLUSTER_CANVAS_TEST__?.getNodeScreenPosition(id)
+  }, nodeId)
   
-  // Wider search grid - nodes could be anywhere after auto-fit transform
-  const offsets = [
-    { x: 0, y: 0 },
-    { x: -80, y: 0 }, { x: 80, y: 0 },
-    { x: -160, y: 0 }, { x: 160, y: 0 },
-    { x: 0, y: -80 }, { x: 0, y: 80 },
-    { x: -80, y: -80 }, { x: 80, y: -80 },
-    { x: -80, y: 80 }, { x: 80, y: 80 },
-  ]
-  
-  const details = page.getByText('Cluster details')
-  for (const offset of offsets) {
-    await canvas.click({ position: { x: centerX + offset.x, y: centerY + offset.y } })
-    await page.waitForTimeout(200)
-    const visible = await details.isVisible().catch(() => false)
-    if (visible) return true
+  if (!pos) {
+    throw new Error(`Node ${nodeId} not found. Available: ${await page.evaluate(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds())}`)
   }
-  return false
+  
+  await page.locator('canvas').click({ position: { x: pos.x, y: pos.y } })
 }
 
-const setupMockApi = async (page, { padToBudget = false } = {}) => {
+/** Wait for cluster details panel to appear */
+const waitForSelection = async (page: Page) => {
+  await expect(page.getByText('Cluster details')).toBeVisible({ timeout: 5000 })
+}
+
+// ---------- Mock API Setup ----------
+
+const setupMockApi = async (page: Page, { failClusters = false } = {}) => {
   await page.route('**/api/**', async route => {
     const url = new URL(route.request().url())
     const pathname = url.pathname
 
-    // Allow explicit failure toggle
-    if (url.searchParams.get('fail') === '1') {
-      return route.fulfill({ status: 500, body: 'Mock 500' })
+    if (failClusters && pathname === '/api/clusters') {
+      return route.fulfill({
+        status: 500,
+        body: JSON.stringify({ error: 'Mock server error' }),
+        contentType: 'application/json',
+      })
     }
 
     if (pathname === '/api/clusters') {
       const expanded = new Set((url.searchParams.get('expanded') || '').split(',').filter(Boolean))
       const collapsed = new Set((url.searchParams.get('collapsed') || '').split(',').filter(Boolean))
       const budget = Number(url.searchParams.get('budget') || 10)
-      const clusters = buildClusters(expanded, collapsed, budget, padToBudget)
+      const clusters = buildClusters(expanded, collapsed)
       const positions = positionsFor(clusters)
       const payload = {
         clusters,
@@ -136,15 +134,17 @@ const setupMockApi = async (page, { padToBudget = false } = {}) => {
       const expanded = new Set((url.searchParams.get('expanded') || '').split(',').filter(Boolean))
       const collapsed = new Set((url.searchParams.get('collapsed') || '').split(',').filter(Boolean))
       const budget = Number(url.searchParams.get('budget') || 10)
-      const clusters = buildClusters(expanded, collapsed, budget, padToBudget)
+      const clusters = buildClusters(expanded, collapsed)
       const cluster = clusters.find(c => c.id === clusterId)
       const remaining = Math.max(0, budget - clusters.length)
       const children = CHILDREN[clusterId] || []
+      const budgetImpact = children.length ? children.length - 1 : 0
+      const canAfford = remaining >= budgetImpact
       const expand = {
-        can_expand: children.length > 0 && !collapsed.has(clusterId),
+        can_expand: children.length > 0 && !collapsed.has(clusterId) && canAfford,
         predicted_children: children.length || 0,
-        budget_impact: children.length ? children.length - 1 : 0,
-        reason: remaining <= 0 ? 'budget' : '',
+        budget_impact: budgetImpact,
+        reason: !canAfford ? 'budget' : '',
       }
       const siblingIds = cluster?.parentId ? (CHILDREN[cluster.parentId] || []).map(c => c.id).filter(id => id !== clusterId) : []
       const collapse = {
@@ -179,115 +179,173 @@ const setupMockApi = async (page, { padToBudget = false } = {}) => {
   })
 }
 
+// ---------- Tests ----------
+
+// Extend window type for TypeScript
+declare global {
+  interface Window {
+    __CLUSTER_CANVAS_TEST__?: {
+      getNodeIds: () => string[]
+      getNodeScreenPosition: (id: string) => { x: number; y: number } | null
+      getAllNodePositions: () => Array<{ id: string; x: number; y: number; radius: number }>
+      getTransform: () => { scale: number; offset: { x: number; y: number } }
+    }
+  }
+}
+
 test.describe('ClusterView (mocked backend)', () => {
-  test('loads with mocked clusters and reflects expanded param', async ({ page }) => {
+  
+  test('loads clusters and displays them on canvas', async ({ page }) => {
     await setupMockApi(page)
-
-    // Initial load (no expanded)
     await page.goto('/?view=cluster&n=10&budget=10')
-    await page.waitForSelector('canvas')
-    await page.waitForTimeout(500) // allow render
+    
+    // Canvas should be visible
+    await expect(page.locator('canvas')).toBeVisible()
+    
+    // Wait for clusters to load
+    await page.waitForFunction(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds()?.length > 0)
+    
+    // Should have 3 base clusters
+    const nodeIds = await page.evaluate(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds())
+    expect(nodeIds).toContain('root_a')
+    expect(nodeIds).toContain('root_b')
+    expect(nodeIds).toContain('root_c')
+    
+    // Visible count should show in UI
     const visibleText = await page.locator('text=Visible').first().innerText()
-    const initial = parseVisible(visibleText)
-    expect(initial.visible).toBeGreaterThan(0)
-    const canvasVisible = await page.locator('canvas').isVisible()
-    expect(canvasVisible).toBe(true)
-
-    // Navigate with expanded=root_a to increase visible clusters
-    await page.goto('/?view=cluster&n=10&budget=10&expanded=root_a')
-    await page.waitForSelector('canvas')
-    await page.waitForTimeout(500)
-    const visibleTextExpanded = await page.locator('text=Visible').first().innerText()
-    const expanded = parseVisible(visibleTextExpanded)
-    // Expect visible count to increase
-    expect(expanded.visible).toBeGreaterThan(initial.visible)
-    // Budget should stay the same across navigation
-    expect(expanded.budget).toBe(initial.budget)
+    const { visible } = parseVisible(visibleText)
+    expect(visible).toBe(3)
   })
 
-  test('expand button increases visible count', async ({ page }) => {
+  test('selecting a cluster shows details panel', async ({ page }) => {
     await setupMockApi(page)
     await page.goto('/?view=cluster&n=10&budget=10')
-    await page.waitForSelector('canvas')
-    await page.waitForTimeout(300)
-    const initial = parseVisible(await page.locator('text=Visible').first().innerText())
-    const selected = await trySelectNode(page, [{ x: 150, y: 170 }, { x: 230, y: 170 }, { x: 320, y: 170 }])
-    expect(selected).toBeTruthy()
-    const expandButton = page.getByRole('button', { name: /Expand/ }).first()
-    await expect(expandButton).toBeVisible()
-    await expandButton.click({ trial: false })
-    await page.waitForTimeout(300)
-    const after = parseVisible(await page.locator('text=Visible').first().innerText())
-    expect(after.visible).toBeGreaterThan(initial.visible)
-  })
-
-  // TODO: This test is flaky because trySelectNode can't reliably find nodes after
-  // canvas auto-fit transform. Need to either expose node positions via test hook
-  // or use data-testid attributes on rendered nodes.
-  test.skip('collapse button reduces visible count', async ({ page }) => {
-    await setupMockApi(page)
-    // Start already expanded so children are visible
-    await page.goto('/?view=cluster&n=10&budget=10&expanded=root_a')
-    await page.waitForSelector('canvas')
-    await page.waitForTimeout(300)
-    const before = parseVisible(await page.locator('text=Visible').first().innerText())
-    // Select a child (a1 is first node)
-    const selected = await trySelectNode(page, [{ x: 150, y: 170 }, { x: 230, y: 170 }])
-    expect(selected).toBeTruthy()
-    const collapseButton = page.getByRole('button', { name: /^Collapse/ }).first()
-    await expect(collapseButton).toBeVisible()
-    await collapseButton.click()
-    await page.waitForTimeout(300)
-    const after = parseVisible(await page.locator('text=Visible').first().innerText())
-    expect(after.visible).toBeLessThan(before.visible)
-  })
-
-  test('budget slider blocks expand when at capacity', async ({ page }) => {
-    await setupMockApi(page, { padToBudget: true })
-    await page.goto('/?view=cluster&n=10&budget=5')
-    await page.waitForSelector('canvas')
-    await page.waitForTimeout(500)
+    await page.waitForFunction(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds()?.length > 0)
     
-    // Select a node to see the expand button
-    const selected = await trySelectNode(page)
-    expect(selected).toBeTruthy()
+    // Click on root_a
+    await clickNode(page, 'root_a')
     
-    // Expand button should be disabled when at budget capacity
-    const expandButton = page.getByRole('button', { name: /Expand/ }).first()
-    await expect(expandButton).toBeVisible()
-    await expect(expandButton).toBeDisabled()
+    // Details panel should appear
+    await waitForSelection(page)
+    
+    // Should show expand button (root_a has children)
+    await expect(page.getByRole('button', { name: /Expand/ })).toBeVisible()
   })
 
-  // TODO: This test can't work as designed - the fail=1 param is on the page URL,
-  // but the mock intercepts API requests which have different params.
-  // Need to implement a different error-triggering mechanism (e.g., mock network error).
-  test.skip('shows error message on cluster fetch failure', async ({ page }) => {
-    await setupMockApi(page)
-    await page.goto('/?view=cluster&n=10&budget=10&fail=1')
-    // Wait for either error text or the error span
-    const errorText = page.locator('text=/HTTP 500|Mock 500|Internal Server Error|Failed/')
-    await expect(errorText.first()).toBeVisible({ timeout: 10000 })
-  })
-
-  test('selection mode drag selects multiple clusters', async ({ page }) => {
+  test('expand button increases visible cluster count', async ({ page }) => {
     await setupMockApi(page)
     await page.goto('/?view=cluster&n=10&budget=10')
-    await page.waitForSelector('canvas')
+    await page.waitForFunction(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds()?.length > 0)
+    
+    const initialVisible = parseVisible(await page.locator('text=Visible').first().innerText())
+    expect(initialVisible.visible).toBe(3)
+    
+    // Select expandable cluster
+    await clickNode(page, 'root_a')
+    await waitForSelection(page)
+    
+    // Click expand
+    const expandBtn = page.getByRole('button', { name: /Expand/ })
+    await expect(expandBtn).toBeVisible()
+    await expect(expandBtn).toBeEnabled()
+    await expandBtn.click()
+    
+    // Wait for new clusters to load
+    await page.waitForTimeout(500)
+    
+    // Visible count should increase (root_a replaced by a1, a2 = net +1)
+    const afterVisible = parseVisible(await page.locator('text=Visible').first().innerText())
+    expect(afterVisible.visible).toBeGreaterThan(initialVisible.visible)
+  })
+
+  test('collapse button decreases visible cluster count', async ({ page }) => {
+    await setupMockApi(page)
+    // Start with root_a already expanded
+    await page.goto('/?view=cluster&n=10&budget=10&expanded=root_a')
+    await page.waitForFunction(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds()?.length > 0)
+    
+    // Should have a1, a2, root_b, root_c (4 clusters)
+    const beforeVisible = parseVisible(await page.locator('text=Visible').first().innerText())
+    expect(beforeVisible.visible).toBe(4)
+    
+    // Select a child cluster (a1)
+    await clickNode(page, 'a1')
+    await waitForSelection(page)
+    
+    // Click collapse
+    const collapseBtn = page.getByRole('button', { name: /^Collapse/ })
+    await expect(collapseBtn).toBeVisible()
+    await collapseBtn.click()
+    
+    // Wait for collapse
+    await page.waitForTimeout(500)
+    
+    // Visible count should decrease
+    const afterVisible = parseVisible(await page.locator('text=Visible').first().innerText())
+    expect(afterVisible.visible).toBeLessThan(beforeVisible.visible)
+  })
+
+  test('expand button is disabled when budget exhausted', async ({ page }) => {
+    await setupMockApi(page)
+    // Budget=3 with 3 clusters. Expanding root_a costs +1 (2 children - 1 parent).
+    // With 0 remaining budget, expand should be blocked.
+    await page.goto('/?view=cluster&n=10&budget=3')
+    await page.waitForFunction(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds()?.length > 0)
+    
+    const beforeVisible = parseVisible(await page.locator('text=Visible').first().innerText())
+    expect(beforeVisible.visible).toBe(3)
+    expect(beforeVisible.budget).toBe(3) // At capacity
+    
+    // Select expandable cluster
+    await clickNode(page, 'root_a')
+    await waitForSelection(page)
+    
+    // Expand button should be disabled due to budget constraint
+    const expandBtn = page.getByRole('button', { name: /Expand/ })
+    await expect(expandBtn).toBeVisible()
+    await expect(expandBtn).toBeDisabled()
+  })
+
+  test('shows error message on cluster fetch failure', async ({ page }) => {
+    await setupMockApi(page, { failClusters: true })
+    await page.goto('/?view=cluster&n=10&budget=10')
+    await expect(page.getByText(/HTTP 500/)).toBeVisible({ timeout: 10000 })
+  })
+
+  test('multi-select mode allows selecting multiple clusters', async ({ page }) => {
+    await setupMockApi(page)
+    await page.goto('/?view=cluster&n=10&budget=10')
+    await page.waitForFunction(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds()?.length > 0)
+    
+    // Enable multi-select
     await page.getByRole('button', { name: /Multi-select off/ }).click()
     await expect(page.getByRole('button', { name: /Multi-select on/ })).toBeVisible()
-
-    // Click canvas center area where nodes should be rendered after auto-fit
-    const canvas = page.locator('canvas')
-    const box = await canvas.boundingBox()
-    if (!box) throw new Error('Canvas not found')
-    const centerX = box.x + box.width / 2
-    const centerY = box.y + box.height / 2
     
-    // Click near center to select nodes
-    await canvas.click({ position: { x: box.width / 2 - 50, y: box.height / 2 } })
-    await canvas.click({ position: { x: box.width / 2 + 50, y: box.height / 2 } })
-
-    // Check that multi-select UI appeared (may not have Collapse if no valid selection)
+    // Click two nodes
+    await clickNode(page, 'root_a')
+    await clickNode(page, 'root_b')
+    
+    // Multi-select should still be on
     await expect(page.getByRole('button', { name: /Multi-select on/ })).toBeVisible()
+  })
+
+  test('navigating with expanded param pre-expands clusters', async ({ page }) => {
+    await setupMockApi(page)
+    
+    // Load without expansion first
+    await page.goto('/?view=cluster&n=10&budget=10')
+    await page.waitForFunction(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds()?.length > 0)
+    const beforeIds = await page.evaluate(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds())
+    expect(beforeIds).toContain('root_a')
+    expect(beforeIds).not.toContain('a1')
+    
+    // Navigate with expanded param
+    await page.goto('/?view=cluster&n=10&budget=10&expanded=root_a')
+    await page.waitForFunction(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds()?.includes('a1'))
+    
+    const afterIds = await page.evaluate(() => window.__CLUSTER_CANVAS_TEST__?.getNodeIds())
+    expect(afterIds).not.toContain('root_a') // Replaced by children
+    expect(afterIds).toContain('a1')
+    expect(afterIds).toContain('a2')
   })
 })

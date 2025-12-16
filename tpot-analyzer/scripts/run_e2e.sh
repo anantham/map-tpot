@@ -25,11 +25,11 @@ fi
 case "${1:-mock}" in
   mock)
     echo "Running mocked E2E tests (no backend required; Vite dev server auto-starts)..."
-    npx playwright test e2e/cluster_mock.spec.ts --reporter=line
+    npx playwright test e2e/*mock*.spec.ts --reporter=line
     ;;
   mock-no-server)
     echo "Running mocked E2E tests against an already-running dev server (PW_NO_SERVER=1)..."
-    PW_NO_SERVER=1 npx playwright test e2e/cluster_mock.spec.ts --reporter=line
+    PW_NO_SERVER=1 npx playwright test e2e/*mock*.spec.ts --reporter=line
     ;;
   full)
     echo "Running full E2E tests (backend must be running at http://localhost:5001)..."
@@ -42,11 +42,11 @@ case "${1:-mock}" in
     ;;
   headed)
     echo "Running mocked tests in headed mode..."
-    npx playwright test e2e/cluster_mock.spec.ts --headed --reporter=line
+    npx playwright test e2e/*mock*.spec.ts --headed --reporter=line
     ;;
   debug)
     echo "Running mocked tests in debug mode..."
-    npx playwright test e2e/cluster_mock.spec.ts --debug
+    npx playwright test e2e/*mock*.spec.ts --debug
     ;;
   *)
     echo "Usage: $0 [mock|mock-no-server|full|ui|headed|debug]" >&2

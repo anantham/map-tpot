@@ -224,6 +224,40 @@ export default function ClusterCanvas({
     transformRef.current = transform
   }, [transform])
 
+  // Expose test helpers for E2E tests (Playwright)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!import.meta.env?.DEV) return
+    
+    window.__CLUSTER_CANVAS_TEST__ = {
+      getNodeIds: () => nodes.map(n => n.id),
+      getNodeScreenPosition: (nodeId) => {
+        const node = nodes.find(n => n.id === nodeId)
+        if (!node) return null
+        const t = transformRef.current
+        // Convert world coords to screen coords (relative to canvas)
+        return {
+          x: node.x * t.scale + t.offset.x,
+          y: node.y * t.scale + t.offset.y,
+        }
+      },
+      getAllNodePositions: () => {
+        const t = transformRef.current
+        return nodes.map(n => ({
+          id: n.id,
+          x: n.x * t.scale + t.offset.x,
+          y: n.y * t.scale + t.offset.y,
+          radius: (n.radius || 20) * t.scale,
+        }))
+      },
+      getTransform: () => transformRef.current,
+    }
+    
+    return () => {
+      delete window.__CLUSTER_CANVAS_TEST__
+    }
+  }, [nodes])
+
   // Resize canvas to container
   useEffect(() => {
     const resize = () => {
