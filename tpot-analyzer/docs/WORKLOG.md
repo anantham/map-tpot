@@ -14,6 +14,65 @@
         - `src/api/routes/`: Functional slices (Blueprints) for `core`, `graph`, `analysis`, `discovery`, `accounts`.
         - `src/api/server.py`: A lightweight Application Factory pattern (~100 LOC).
     - **Verification**: `verify_setup.py` passed.
+- [2025-12-12] **Phase 1.1 (WIP): Account search → teleport → tag single accounts**
+    - **Backend (teleport plumbing)**
+        - `tpot-analyzer/src/api/cluster_routes.py:296` Parse `focus_leaf` query param and include it in the cache key (`_make_cache_key`) so `/api/clusters` and `/members` stay consistent.
+        - `tpot-analyzer/src/graph/hierarchy/builder.py:44` Add `focus_leaf_id` parameter to `build_hierarchical_view` and apply it before greedy expansions.
+        - `tpot-analyzer/src/graph/hierarchy/focus.py:1` Add deterministic “reveal leaf by splitting along the path” helper (`reveal_leaf_in_visible_set`) to guarantee a target leaf becomes visible when budget allows.
+    - **Backend (search + tagging)**
+        - `tpot-analyzer/src/api/routes/accounts.py:69` Add `GET /api/accounts/search?q=` using snapshot metadata for handle/name prefix search (autocomplete semantics).
+        - `tpot-analyzer/src/api/routes/accounts.py:103` Add tag CRUD endpoints scoped by `ego`:
+            - `GET /api/accounts/<id>/tags`
+            - `POST /api/accounts/<id>/tags` with `{tag, polarity: in|not_in}`
+            - `DELETE /api/accounts/<id>/tags/<tag>`
+            - `GET /api/tags` for autocomplete.
+        - `tpot-analyzer/src/data/account_tags.py:1` Introduce SQLite-backed `AccountTagStore` persisted at `tpot-analyzer/data/account_tags.db`.
+        - `tpot-analyzer/src/api/routes/accounts.py:200` Add `GET /api/accounts/<id>/teleport_plan` which selects a base cut `n` that guarantees revealing the target leaf within `budget` (returns `focus_leaf` to use in `/api/clusters`).
+    - **Frontend (wiring)**
+        - `tpot-analyzer/graph-explorer/src/data.js:703` Add `focus_leaf` param propagation to `fetchClusterView` and `fetchClusterMembers`; fix timing propagation so Stage logs can show per-attempt timings.
+        - `tpot-analyzer/graph-explorer/src/AccountSearch.jsx:1` Add search dropdown UI that calls `/api/accounts/search` and triggers teleport.
+        - `tpot-analyzer/graph-explorer/src/AccountTagPanel.jsx:1` Add “IN / NOT IN” single-account tagging UI backed by the new account tag endpoints.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.jsx:220` Add teleport flow: clear state → apply `teleport_plan` (`visibleTarget` + `focusLeaf`) → auto-explode leaf → center camera on the member node; integrate `AccountTagPanel` in the side panel (`ClusterView.jsx:1115`).
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:98` Add member-node hit testing + highlight/centering hooks so teleport can visually focus the selected account.
+    - **Repo hygiene**
+        - `.gitignore` Add `tpot-analyzer/data/account_tags.db*` to keep local tag DB/WAL out of git.
+    - **Verification**
+        - `tpot-analyzer/scripts/verify_search_teleport_tagging.py:1` Add a human-friendly verification script that exercises `/api/clusters`, `/api/accounts/search`, `teleport_plan`, and tag CRUD with ✓/✗ output.
+- [2025-12-13] **TDD backfill: regression tests for teleport + tagging**
+    - **Backend unit/integration tests**
+        - `tpot-analyzer/tests/test_hierarchy_focus_leaf.py:1` Covers deterministic leaf reveal (`reveal_leaf_in_visible_set`) including budget exhaustion behavior.
+        - `tpot-analyzer/tests/test_account_tags_store.py:1` Covers `AccountTagStore` CRUD and tag normalization (case-insensitive keys).
+        - `tpot-analyzer/tests/test_accounts_search_teleport_tags.py:1` Covers `/api/accounts/search`, `/api/accounts/<id>/teleport_plan`, and tag endpoints using Flask’s test client (no network).
+    - **Frontend component tests (Vitest)**
+        - `tpot-analyzer/graph-explorer/src/AccountSearch.test.jsx:1` Covers debounce + selection → `onPick`.
+        - `tpot-analyzer/graph-explorer/src/AccountTagPanel.test.jsx:1` Covers tag load + add/remove flows with mocked API calls.
+- [2025-12-13] **Phase 2.0 (WIP): On-demand cluster tag summary + heuristic suggested label**
+    - **Goal / UX**
+        - Compute tag summary only when a cluster is selected (keeps `/api/clusters` payload small).
+        - Suggested label heuristic uses `score = inCount - notInCount` and picks the top tag with `score > 0`.
+    - **Backend**
+        - `tpot-analyzer/src/data/account_tags.py:110` Add `AccountTagStore.list_tags_for_accounts(...)` with chunking to avoid SQLite variable limits.
+        - `tpot-analyzer/src/api/cluster_routes.py:582` Add `GET /api/clusters/<cluster_id>/tag_summary` returning `tagCounts` + `suggestedLabel` (uses cached view when available).
+    - **Frontend**
+        - `tpot-analyzer/graph-explorer/src/data.js:876` Add `fetchClusterTagSummary(...)`.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.jsx:525` Fetch tag summary on cluster select + after tag edits; render Tag summary panel and “Apply suggested label”.
+    - **Tests + Verification**
+        - `tpot-analyzer/tests/test_cluster_tag_summary.py:1` Covers tag summary counts + `ego` requirement.
+        - `tpot-analyzer/scripts/verify_search_teleport_tagging.py:317` Extend verification to hit `/tag_summary` and confirm member-tag appears at the cluster level.
+- [2025-12-16] **Stabilization: make test suite green + tighten contracts**
+    - **Autocomplete/search semantics**
+        - `tpot-analyzer/src/api/routes/accounts.py:1` Keep `/api/accounts/search` prefix-only (autocomplete semantics); remove dead `_rank_search_hit`.
+        - `tpot-analyzer/tests/test_api_autocomplete.py:1` Align fixtures with documented expectations (5 `eigen*` accounts).
+    - **Enricher testability + observability**
+        - `tpot-analyzer/src/shadow/enricher.py:1` Fail fast if `policy` isn’t an `EnrichmentPolicy`; add warning logs when scrape-history lookup fails but proceed “fail-open”.
+        - `tpot-analyzer/tests/conftest.py:1` Return a real `EnrichmentPolicy` fixture (no `Mock()` truthiness surprises).
+        - `tpot-analyzer/tests/test_account_status_tracking.py:1` Use real `EnrichmentPolicy` in HybridShadowEnricher tests.
+    - **Result**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest -q` → `307 passed, 7 skipped` (green).
+    - **Dev tooling**
+        - `tpot-analyzer/graph-explorer/package.json:1` Add `test:e2e:mock` (auto-starts Vite) and `test:e2e:mock:no-server` for reusing an already-running dev server.
+        - `tpot-analyzer/scripts/run_e2e.sh:1` Add a repo-level Playwright runner for mock/full/ui/debug modes.
+        - `tpot-analyzer/scripts/verify_browser_binaries.py:1` Add a browser-binary/cache verification script; docs in `tpot-analyzer/docs/diagnostics/BROWSER_BINARIES.md`.
 
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.

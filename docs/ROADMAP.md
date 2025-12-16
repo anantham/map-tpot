@@ -17,6 +17,8 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [x] **HIGH PRIORITY**: Add tests for `x_api_client.py` ✅ **2025-10-05** - 23 tests added, 28% → 97% coverage (rate limiting, persistent state, HTTP errors)
 - [x] **HIGH PRIORITY**: Add direct unit tests for `shadow_store.py` ✅ **2025-10-05** - 27 tests added, 39% → 88% coverage (COALESCE upsert, edge summaries, metrics queries)
 - [ ] Introduce regression tests for JSON-LD fallback using saved profile fixtures (ensure counts remain accurate when headers fail).
+- [ ] Add frontend tests for ClusterView tag summary + “Apply suggested label” flow (mock `/api/clusters/<id>/tag_summary` + `/label`).
+- [ ] Add E2E coverage for search → teleport → tag → tag-summary refresh (Playwright against a mocked backend).
 - [x] Add policy-driven tests covering cache-skipping logic (profile-only refresh, list skipping, delta-triggered rescrapes). ✅ **2025-10-05**
   - 14 integration tests for policy refresh logic (age/delta triggers, skip logic, confirmation behavior)
   - Tests refactored to follow behavioral testing principles (test through public API, verify observable outcomes)
@@ -62,6 +64,7 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Ego network view (focus + highlight on click).
 - [ ] Export controls (PNG snapshot, CSV of current rankings, shareable config link).
 - [ ] Add seed selector UI (drop-down or multi-select list populated from presets + fetched data).
+- [ ] Refactor `tpot-analyzer/graph-explorer/src/ClusterView.jsx` and `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx` into smaller modules (<300 LOC each) to improve debuggability and reduce context overflow.
 
 ## Dev Experience & Infrastructure
 - [ ] Provide Makefile or CLI entrypoint for common commands (`make verify`, `make analyze SEEDS=...`).
@@ -76,4 +79,4 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Tutorial-style notebook showing how to use CLI outputs for custom analysis.
 - [ ] Inline code comments where logic is non-obvious (e.g., seed normalization).
 
-*Last updated: 2025-10-05*
+*Last updated: 2025-12-16*
