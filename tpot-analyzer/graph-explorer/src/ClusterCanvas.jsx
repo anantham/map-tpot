@@ -36,52 +36,6 @@ const findParentPosition = (nodeId, allNodes, edges) => {
   return { x: 0, y: 0 }
 }
 
-// Force-based repulsion to spread overlapping nodes
-const spreadNodes = (inputNodes) => {
-  if (!inputNodes.length) return inputNodes
-  
-  const positioned = inputNodes.map(n => ({
-    ...n,
-    px: n.x,
-    py: n.y,
-  }))
-  
-  const iterations = 50
-  const minDistance = 60
-  
-  for (let iter = 0; iter < iterations; iter++) {
-    for (let i = 0; i < positioned.length; i++) {
-      for (let j = i + 1; j < positioned.length; j++) {
-        const a = positioned[i]
-        const b = positioned[j]
-        
-        const dx = b.px - a.px
-        const dy = b.py - a.py
-        const dist = Math.sqrt(dx * dx + dy * dy) || 0.1
-        
-        const minDist = Math.max(minDistance, a.radius + b.radius + 20)
-        
-        if (dist < minDist) {
-          const force = (minDist - dist) / dist * 0.5
-          const fx = dx * force
-          const fy = dy * force
-          
-          a.px -= fx
-          a.py -= fy
-          b.px += fx
-          b.py += fy
-        }
-      }
-    }
-  }
-  
-  return positioned.map(n => ({
-    ...n,
-    x: n.px,
-    y: n.py,
-  }))
-}
-
 export default function ClusterCanvas({ 
   nodes, 
   edges, 
@@ -129,7 +83,6 @@ export default function ClusterCanvas({
     exiting: new Set(),
     exitingNodes: [],
     parentPositions: new Map(), // Map of node.id -> {x, y} for collapse/expand origins
-    nodeVelocities: new Map(), // Map of node.id -> {vx, vy} for smooth physics
     staggerDelays: new Map(), // Map of node.id -> delay (0-1) for staggered entry
     moving: new Map(),
   })
@@ -234,19 +187,20 @@ export default function ClusterCanvas({
       getNodeScreenPosition: (nodeId) => {
         const node = nodes.find(n => n.id === nodeId)
         if (!node) return null
+        const pos = settledPositionsRef.current.get(nodeId) || node
         const t = transformRef.current
         // Convert world coords to screen coords (relative to canvas)
         return {
-          x: node.x * t.scale + t.offset.x,
-          y: node.y * t.scale + t.offset.y,
+          x: pos.x * t.scale + t.offset.x,
+          y: pos.y * t.scale + t.offset.y,
         }
       },
       getAllNodePositions: () => {
         const t = transformRef.current
         return nodes.map(n => ({
           id: n.id,
-          x: n.x * t.scale + t.offset.x,
-          y: n.y * t.scale + t.offset.y,
+          x: (settledPositionsRef.current.get(n.id)?.x ?? n.x) * t.scale + t.offset.x,
+          y: (settledPositionsRef.current.get(n.id)?.y ?? n.y) * t.scale + t.offset.y,
           radius: (n.radius || 20) * t.scale,
         }))
       },
@@ -298,8 +252,7 @@ export default function ClusterCanvas({
     }
   }, [pendingClusterId])
 
-  // Memoize spread calculation
-  const processedNodes = useMemo(() => spreadNodes(nodes), [nodes])
+  const processedNodes = useMemo(() => nodes, [nodes])
 
   // Detect node transitions and start animation
   useEffect(() => {
@@ -334,11 +287,20 @@ export default function ClusterCanvas({
       return { x, y }
     }
 
+    // Initial mount: seed stable positions so hit-testing/E2E clicks are deterministic.
+    if (!prevNodesRef.current.length) {
+      processedNodes.forEach(n => {
+        settledPositionsRef.current.set(n.id, { x: n.x, y: n.y })
+      })
+      prevNodesRef.current = processedNodes
+      return
+    }
+
     // Only animate if there are changes
     if (entering.size > 0 || exiting.size > 0 || moving.size > 0) {
       const parentPositions = new Map()
-      const nodeVelocities = new Map()
       const staggerDelays = new Map() // Stagger delay for each entering node (0-1 range)
+      const exitingNodes = prevNodesRef.current.filter(n => !currIds.has(n.id))
 
       const seedEntering = (id) => {
         const node = currMap.get(id)
@@ -387,46 +349,127 @@ export default function ClusterCanvas({
       entering.forEach(id => {
         const parentPos = seedEntering(id)
         if (parentPos) parentPositions.set(id, parentPos)
-        nodeVelocities.set(id, { vx: 0, vy: 0 }) // Start with zero velocity
       })
 
       exiting.forEach(id => {
         const parentPos = seedExiting(id)
         if (parentPos) parentPositions.set(id, parentPos)
-        nodeVelocities.set(id, { vx: 0, vy: 0 })
       })
 
       transitionRef.current = {
         entering,
         exiting,
-        exitingNodes: prevNodesRef.current.filter(n => !currIds.has(n.id)),
+        exitingNodes,
         parentPositions,
-        nodeVelocities,
         staggerDelays,
         moving,
       }
       animProgressRef.current = 0
-      
-      // Clear settled positions when starting new animation
-      settledPositionsRef.current.clear()
-      
-      // Stop any running force simulation
+
+      // Cancel any existing animation
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+        animationRef.current = null
+      }
+
+      // Stop any running force simulation (we start a new morph simulation below)
       if (forceSimRef.current) {
         forceSimRef.current.stop()
         forceSimRef.current = null
       }
 
-      // Cancel any existing animation
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current)
+      const startTime = performance.now()
+      const durationMs = entering.size > 0 || exiting.size > 0 ? 1100 : 900
+
+      // Force-directed morph: move nodes from their current positions toward the new layout,
+      // while applying collision/repulsion for a smoother, less jarring deformation.
+      const simNodes = []
+      const ensureStartPos = (id, fallback) => {
+        const existing = settledPositionsRef.current.get(id)
+        if (existing) return existing
+        settledPositionsRef.current.set(id, fallback)
+        return fallback
       }
 
-      const startTime = performance.now()
-      const duration = moving.size > 0 && entering.size === 0 && exiting.size === 0 ? 500 : 700 // ms
+      // Current visible nodes (targets from backend)
+      processedNodes.forEach(node => {
+        const id = node.id
+        const isNew = entering.has(id)
+        const parentPos = parentPositions.get(id)
+        const fallback = isNew && parentPos ? { x: parentPos.x, y: parentPos.y } : { x: node.x, y: node.y }
+        const startPos = ensureStartPos(id, fallback)
+        simNodes.push({
+          id,
+          x: startPos.x,
+          y: startPos.y,
+          radius: node.radius || 20,
+          targetX: node.x,
+          targetY: node.y,
+        })
+      })
+
+      // Exiting nodes still drawn during the fade-out
+      exitingNodes.forEach(node => {
+        const id = node.id
+        const parentPos = parentPositions.get(id)
+        const startPos = ensureStartPos(id, { x: node.x, y: node.y })
+        const target = parentPos ? { x: parentPos.x, y: parentPos.y } : startPos
+        simNodes.push({
+          id,
+          x: startPos.x,
+          y: startPos.y,
+          radius: node.radius || 20,
+          targetX: target.x,
+          targetY: target.y,
+        })
+      })
+
+      let simStopped = false
+      const stopSim = (sim) => {
+        if (simStopped) return
+        simStopped = true
+        sim.stop()
+        forceSimRef.current = null
+        // Snap visible nodes to their exact target positions for consistency (teleport focus, etc).
+        processedNodes.forEach(n => {
+          settledPositionsRef.current.set(n.id, { x: n.x, y: n.y })
+        })
+        // Remove exiting nodes from the settled map once fade completes (pruned again below too).
+        exitingNodes.forEach(n => settledPositionsRef.current.delete(n.id))
+      }
+
+      if (simNodes.length > 1) {
+        const sim = forceSimulation(simNodes)
+          .force('charge', forceManyBody().strength(-90).distanceMax(320))
+          .force('collide', forceCollide().radius(d => (d.radius || 20) + 10).strength(0.9))
+          .force('x', forceX(d => d.targetX).strength(0.22))
+          .force('y', forceY(d => d.targetY).strength(0.22))
+          .alpha(1)
+          .alphaDecay(0.04)
+          .velocityDecay(0.45)
+
+        forceSimRef.current = sim
+
+        sim.on('tick', () => {
+          simNodes.forEach(sn => {
+            settledPositionsRef.current.set(sn.id, { x: sn.x, y: sn.y })
+          })
+          setRenderTrigger(t => t + 1)
+
+          const elapsed = performance.now() - startTime
+          if (elapsed >= durationMs || sim.alpha() < 0.03) {
+            stopSim(sim)
+          }
+        })
+      } else if (simNodes.length === 1) {
+        // Single node: no meaningful forces; just ensure it's at target.
+        const only = simNodes[0]
+        settledPositionsRef.current.set(only.id, { x: only.targetX, y: only.targetY })
+      }
 
       const animate = (now) => {
         const elapsed = now - startTime
-        const progress = Math.min(1, elapsed / duration)
+        const progress = Math.min(1, elapsed / durationMs)
 
         if (entering.size > 0 && exiting.size === 0) {
           animProgressRef.current = easeOutBack(progress)
@@ -441,62 +484,26 @@ export default function ClusterCanvas({
         if (progress < 1) {
           animationRef.current = requestAnimationFrame(animate)
         } else {
+          // Ensure simulation is stopped and positions are snapped at the end of the visual transition.
+          if (forceSimRef.current) {
+            stopSim(forceSimRef.current)
+          }
+
           transitionRef.current = {
             entering: new Set(),
             exiting: new Set(),
             exitingNodes: [],
             parentPositions: new Map(),
-            nodeVelocities: new Map(),
             staggerDelays: new Map(),
             moving: new Map(),
           }
           animationRef.current = null
-          
-          // Start force settling after tween completes
-          if (processedNodes.length > 1) {
-            // Stop any existing simulation
-            if (forceSimRef.current) {
-              forceSimRef.current.stop()
-            }
-            
-            // Create simulation nodes with current positions
-            const simNodes = processedNodes.map(n => ({
-              id: n.id,
-              x: n.x,
-              y: n.y,
-              radius: n.radius || 20,
-            }))
-            
-            // Short burst simulation for overlap settling
-            const sim = forceSimulation(simNodes)
-              .force('charge', forceManyBody().strength(-120).distanceMax(250))
-              .force('collide', forceCollide().radius(d => d.radius + 12).strength(0.8))
-              .force('x', forceX(d => d.x).strength(0.08)) // Gentle pull to original x
-              .force('y', forceY(d => d.y).strength(0.08)) // Gentle pull to original y
-              .alpha(0.5)
-              .alphaDecay(0.015)
-              .velocityDecay(0.35)
-            
-            forceSimRef.current = sim
-            
-            // Run for limited ticks, updating positions
-            let tickCount = 0
-            const maxTicks = 60
-            
-            sim.on('tick', () => {
-              tickCount++
-              // Update settled positions
-              simNodes.forEach(sn => {
-                settledPositionsRef.current.set(sn.id, { x: sn.x, y: sn.y })
-              })
-              setRenderTrigger(t => t + 1)
-              
-              if (tickCount >= maxTicks || sim.alpha() < 0.01) {
-                sim.stop()
-                forceSimRef.current = null
-              }
-            })
-          }
+
+          // Prune any stale settled positions (nodes no longer visible).
+          const keep = new Set(processedNodes.map(n => n.id))
+          Array.from(settledPositionsRef.current.keys()).forEach((id) => {
+            if (!keep.has(id)) settledPositionsRef.current.delete(id)
+          })
         }
       }
 
@@ -508,6 +515,11 @@ export default function ClusterCanvas({
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
+        animationRef.current = null
+      }
+      if (forceSimRef.current) {
+        forceSimRef.current.stop()
+        forceSimRef.current = null
       }
     }
   }, [processedNodes, edges])
@@ -619,15 +631,12 @@ export default function ClusterCanvas({
       const isEntering = transitionState.entering.has(node.id)
       const isExiting = transitionState.exiting.has(node.id)
       const isMoving = movingState.has(node.id)
+      const settledPos = settledPositionsRef.current.get(node.id)
+      if (settledPos) {
+        return { x: settledPos.x, y: settledPos.y }
+      }
       let nx = node.x
       let ny = node.y
-      
-      // Use settled position if available and not animating
-      const settledPos = settledPositionsRef.current.get(node.id)
-      if (settledPos && !isEntering && !isExiting && !isMoving) {
-        nx = settledPos.x
-        ny = settledPos.y
-      }
       
       const parentPos = transitionState.parentPositions.get(node.id)
       if (isEntering && parentPos) {
@@ -723,47 +732,17 @@ export default function ClusterCanvas({
       const isHighlighted = highlightedSet.has(node.id)
       const isEntering = transitionState.entering.has(node.id)
       const isExiting = transitionState.exiting.has(node.id)
-      const isMoving = movingState.has(node.id)
       const isPending = node.id === pendingClusterId
       const isDragged = draggedNodeRef.current?.id === node.id
 
-      // Calculate interpolated position for smooth animations
-      let nodeX = node.x
-      let nodeY = node.y
-      
-      // Apply force-settled position if available (after tween completes)
-      const settledPos = settledPositionsRef.current.get(node.id)
-      if (settledPos && !isEntering && !isExiting && !isMoving) {
-        nodeX = settledPos.x
-        nodeY = settledPos.y
-      }
+      const pos = positionFor(node) || { x: node.x, y: node.y }
 
       // Get stagger-adjusted progress for entering nodes
       const stagger = transitionState.staggerDelays?.get(node.id) || 0
       const effectiveProgress = isEntering && stagger < animationProgress 
         ? Math.min(1, (animationProgress - stagger) / (1 - stagger))
         : animationProgress
-
-      if (isEntering || isExiting) {
-        const parentPos = transitionState.parentPositions.get(node.id)
-        if (parentPos) {
-          if (isEntering) {
-            // Entering: interpolate FROM parent TO final position (birth animation)
-            nodeX = parentPos.x + (node.x - parentPos.x) * effectiveProgress
-            nodeY = parentPos.y + (node.y - parentPos.y) * effectiveProgress
-          } else if (isExiting) {
-            // Exiting: interpolate FROM current TO parent position (collapse animation)
-          nodeX = node.x + (parentPos.x - node.x) * animationProgress
-          nodeY = node.y + (parentPos.y - node.y) * animationProgress
-        }
-      } else if (isMoving) {
-        const move = movingState.get(node.id)
-        nodeX = move.from.x + (move.to.x - move.from.x) * animationProgress
-        nodeY = move.from.y + (move.to.y - move.from.y) * animationProgress
-      }
-      }
-
-      const p = toScreen({ x: nodeX, y: nodeY })
+      const p = toScreen(pos)
 
       // Calculate animation modifiers (using staggered progress for entering)
       let animScale = 1
@@ -850,7 +829,18 @@ export default function ClusterCanvas({
 
     // Draw member nodes (exploded leaves)
     memberNodes.forEach(m => {
-      const p = toScreen({ x: m.x, y: m.y })
+      // Keep exploded members visually attached to their parent cluster during layout morphs.
+      let mx = m.x
+      let my = m.y
+      const parent = index[m.parentId]
+      if (parent) {
+        const parentPos = positionFor(parent)
+        if (parentPos) {
+          mx = m.x + (parentPos.x - parent.x)
+          my = m.y + (parentPos.y - parent.y)
+        }
+      }
+      const p = toScreen({ x: mx, y: my })
       const isHovered = hoveredMember && hoveredMember.id === m.id
       const radius = (m.radius || 4) * transform.scale * 0.9
       const isHighlighted = highlightedMemberAccountId && m.accountId === highlightedMemberAccountId
@@ -882,27 +872,8 @@ export default function ClusterCanvas({
     allNodes.forEach(node => {
       const isEntering = transitionState.entering.has(node.id)
       const isExiting = transitionState.exiting.has(node.id)
-      const isMoving = movingState.has(node.id)
-      let lx = node.x
-      let ly = node.y
-      if (isEntering || isExiting) {
-        const parentPos = transitionState.parentPositions.get(node.id)
-        if (parentPos) {
-          if (isEntering) {
-            lx = parentPos.x + (node.x - parentPos.x) * animationProgress
-            ly = parentPos.y + (node.y - parentPos.y) * animationProgress
-          } else {
-            lx = node.x + (parentPos.x - node.x) * animationProgress
-            ly = node.y + (parentPos.y - node.y) * animationProgress
-          }
-        }
-      } else if (isMoving) {
-        const move = movingState.get(node.id)
-        lx = move.from.x + (move.to.x - move.from.x) * animationProgress
-        ly = move.from.y + (move.to.y - move.from.y) * animationProgress
-      }
-
-      const p = toScreen({ x: lx, y: ly })
+      const pos = positionFor(node) || { x: node.x, y: node.y }
+      const p = toScreen(pos)
       
       // Apply animation to labels
       let animOpacity = 1
@@ -1025,11 +996,20 @@ export default function ClusterCanvas({
     const hit = hitTest(x, y)
     if (!hit && memberNodes.length) {
       const inv = transformRef.current
+      const parentIndex = new Map(processedNodes.map(n => [n.id, n]))
       let hitMember = null
       for (let i = memberNodes.length - 1; i >= 0; i--) {
         const m = memberNodes[i]
-        const sx = m.x * inv.scale + inv.offset.x
-        const sy = m.y * inv.scale + inv.offset.y
+        let mx = m.x
+        let my = m.y
+        const parent = parentIndex.get(m.parentId)
+        if (parent) {
+          const parentPos = settledPositionsRef.current.get(parent.id) || { x: parent.x, y: parent.y }
+          mx = m.x + (parentPos.x - parent.x)
+          my = m.y + (parentPos.y - parent.y)
+        }
+        const sx = mx * inv.scale + inv.offset.x
+        const sy = my * inv.scale + inv.offset.y
         const dist = Math.hypot(sx - x, sy - y)
         const r = (m.radius || 4) * inv.scale + 4
         if (dist <= r) {
@@ -1052,7 +1032,7 @@ export default function ClusterCanvas({
       onSelectionChange?.(next)
     }
     onSelect?.(hit || null)
-  }, [hitTest, memberNodes, onMemberSelect, onSelect, onSelectionChange, selectedSet, selectionMode])
+  }, [hitTest, memberNodes, processedNodes, onMemberSelect, onSelect, onSelectionChange, selectedSet, selectionMode])
 
   const handleMouseMove = useCallback((evt) => {
     if (selectionDragRef.current) {
@@ -1132,10 +1112,19 @@ export default function ClusterCanvas({
     let hitMember = null
     if (!hitNode && memberNodes.length) {
       const inv = transformRef.current
+      const parentIndex = new Map(processedNodes.map(n => [n.id, n]))
       for (let i = memberNodes.length - 1; i >= 0; i--) {
         const m = memberNodes[i]
-        const sx = m.x * inv.scale + inv.offset.x
-        const sy = m.y * inv.scale + inv.offset.y
+        let mx = m.x
+        let my = m.y
+        const parent = parentIndex.get(m.parentId)
+        if (parent) {
+          const parentPos = settledPositionsRef.current.get(parent.id) || { x: parent.x, y: parent.y }
+          mx = m.x + (parentPos.x - parent.x)
+          my = m.y + (parentPos.y - parent.y)
+        }
+        const sx = mx * inv.scale + inv.offset.x
+        const sy = my * inv.scale + inv.offset.y
         const dist = Math.hypot(sx - x, sy - y)
         const r = (m.radius || 4) * inv.scale + 4
         if (dist <= r) {
@@ -1153,7 +1142,7 @@ export default function ClusterCanvas({
     } else {
       setHoveredEdge(null)
     }
-  }, [hitTest, edgeHitTest, memberNodes])
+  }, [hitTest, edgeHitTest, memberNodes, processedNodes])
 
   const handleMouseDown = useCallback((evt) => {
     if (selectionMode && evt.button === 0) {
@@ -1172,6 +1161,10 @@ export default function ClusterCanvas({
       const y = evt.clientY - rect.top
       const hitNode = hitTest(x, y)
       if (hitNode) {
+        if (forceSimRef.current) {
+          forceSimRef.current.stop()
+          forceSimRef.current = null
+        }
         // Start node drag
         const currentPos = settledPositionsRef.current.get(hitNode.id) || { x: hitNode.x, y: hitNode.y }
         draggedNodeRef.current = {
