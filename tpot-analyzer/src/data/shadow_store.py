@@ -993,17 +993,17 @@ class ShadowStore:
             "followers_claimed_total": metrics.followers_claimed_total,
             "followers_you_follow_claimed_total": metrics.followers_you_follow_claimed_total,
             "following_coverage": (
-                round(metrics.following_coverage * 100, 2)  # Store as percentage (0-100)
+                int(round(metrics.following_coverage * 10000))  # Store as ratio * 10000
                 if metrics.following_coverage is not None
                 else None
             ),
             "followers_coverage": (
-                round(metrics.followers_coverage * 100, 2)  # Store as percentage (0-100)
+                int(round(metrics.followers_coverage * 10000))  # Store as ratio * 10000
                 if metrics.followers_coverage is not None
                 else None
             ),
             "followers_you_follow_coverage": (
-                round(metrics.followers_you_follow_coverage * 100, 2)  # Store as percentage (0-100)
+                int(round(metrics.followers_you_follow_coverage * 10000))  # Store as ratio * 10000
                 if metrics.followers_you_follow_coverage is not None
                 else None
             ),
@@ -1035,16 +1035,21 @@ class ShadowStore:
             self._merge_duplicate_accounts(conn, username, account_id, row)
 
         if username:
-            archive_table = self._archive_account_table
-            archive_row = conn.execute(
-                select(
-                    archive_table.c.account_id,
-                    archive_table.c.num_followers,
-                    archive_table.c.num_following,
-                    archive_table.c.account_display_name,
-                )
-                .where(func.lower(archive_table.c.username) == username)
-            ).fetchone()
+            archive_row = None
+            try:
+                archive_table = self._archive_account_table
+                archive_row = conn.execute(
+                    select(
+                        archive_table.c.account_id,
+                        archive_table.c.num_followers,
+                        archive_table.c.num_following,
+                        archive_table.c.account_display_name,
+                    )
+                    .where(func.lower(archive_table.c.username) == username)
+                ).fetchone()
+            except OperationalError:
+                # Unit tests often run against a minimal SQLite schema without archive tables.
+                archive_row = None
             if archive_row:
                 archive = archive_row._mapping
                 canonical_id = archive["account_id"] or account_id
@@ -1143,40 +1148,74 @@ class ShadowStore:
             )
         return self._archive_table
 
+    @property
+    def _archive_profile_table(self) -> Table:
+        if not hasattr(self, "_archive_profile"):
+            metadata = MetaData()
+            self._archive_profile = Table(
+                "profile",
+                metadata,
+                Column("account_id", String, primary_key=True),
+                Column("bio", String),
+                Column("website", String),
+                Column("location", String),
+                Column("avatar_media_url", String),
+            )
+        return self._archive_profile
+
     def sync_archive_overlaps(self) -> int:
         def _op(engine: Engine) -> int:
             with engine.begin() as conn:
                 archive_table = self._archive_account_table
-                rows = conn.execute(
-                    select(
-                        self._account_table.c.username,
-                        self._account_table.c.account_id,
-                        archive_table.c.account_id.label("archive_id"),
-                        archive_table.c.num_followers,
-                        archive_table.c.num_following,
-                        archive_table.c.account_display_name,
+                base_from = self._account_table.join(
+                    archive_table,
+                    self._account_table.c.account_id == archive_table.c.account_id,
+                )
+
+                has_profile = conn.execute(
+                    text(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='profile'"
                     )
-                    .select_from(
-                        self._account_table.join(
-                            archive_table,
-                            func.lower(self._account_table.c.username)
-                            == func.lower(archive_table.c.username),
-                        )
+                ).fetchone() is not None
+
+                profile_table = self._archive_profile_table if has_profile else None
+                if profile_table is not None:
+                    base_from = base_from.join(
+                        profile_table,
+                        profile_table.c.account_id == archive_table.c.account_id,
                     )
-                ).fetchall()
+
+                columns = [
+                    archive_table.c.account_id,
+                    archive_table.c.username,
+                    archive_table.c.account_display_name,
+                    archive_table.c.num_followers,
+                    archive_table.c.num_following,
+                ]
+                if profile_table is not None:
+                    columns.extend(
+                        [
+                            profile_table.c.bio,
+                            profile_table.c.website,
+                            profile_table.c.location,
+                            profile_table.c.avatar_media_url,
+                        ]
+                    )
+
+                rows = conn.execute(select(*columns).select_from(base_from)).fetchall()
 
                 updated = 0
                 for record_row in rows:
                     record = record_row._mapping
-                    canonical_id = record["archive_id"] or record["account_id"]
+                    canonical_id = record["account_id"]
                     prepared = {
                         "account_id": canonical_id,
-                        "username": record["username"],
-                        "display_name": record["account_display_name"],
-                        "bio": None,
-                        "location": None,
-                        "website": None,
-                        "profile_image_url": None,
+                        "username": record.get("username"),
+                        "display_name": record.get("account_display_name"),
+                        "bio": record.get("bio") if profile_table is not None else None,
+                        "location": record.get("location") if profile_table is not None else None,
+                        "website": record.get("website") if profile_table is not None else None,
+                        "profile_image_url": record.get("avatar_media_url") if profile_table is not None else None,
                         "followers_count": record["num_followers"],
                         "following_count": record["num_following"],
                         "source_channel": "archive_sync",

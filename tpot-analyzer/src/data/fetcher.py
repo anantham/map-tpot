@@ -203,20 +203,41 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
             force_refresh,
         )
 
+        cached: Optional[pd.DataFrame] = None
+        cache_age_days: Optional[float] = None
+        cache_expired = False
+
         if use_cache and not force_refresh:
             cached = self._read_cache(table_name)
             if cached is not None:
-                if self._is_cache_expired(table_name):
+                cache_expired = self._is_cache_expired(table_name)
+                cache_age_days = self._get_cache_age_days(table_name)
+                if cache_expired:
                     logger.warning(
-                        "Cache for %s is older than %d day(s); refreshing from Supabase.",
+                        "Cache for %s is stale (age=%.2f days, max_age_days=%d); attempting Supabase refresh.",
                         table_name,
+                        cache_age_days if cache_age_days is not None else -1.0,
                         self.max_age_days,
                     )
                 else:
                     logger.info("Using cached data for %s (rows=%d)", table_name, len(cached))
                     return cached
 
-        fresh = self._fetch_from_supabase(table_name=table_name, params=params)
+        try:
+            fresh = self._fetch_from_supabase(table_name=table_name, params=params)
+        except Exception as exc:
+            if cached is not None and use_cache and not force_refresh:
+                logger.error(
+                    "Supabase refresh failed for %s; returning STALE cache instead (rows=%d, age_days=%.2f, max_age_days=%d). Error: %s",
+                    table_name,
+                    len(cached),
+                    cache_age_days if cache_age_days is not None else -1.0,
+                    self.max_age_days,
+                    exc,
+                )
+                return cached
+            raise
+
         self._write_cache(table_name, fresh)
         return fresh
 
@@ -306,3 +327,18 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
             fetched_at = fetched_at.replace(tzinfo=timezone.utc)
         age = datetime.now(timezone.utc) - fetched_at
         return age > timedelta(days=self.max_age_days)
+
+    def _get_cache_age_days(self, table_name: str) -> Optional[float]:
+        with self.engine.connect() as conn:
+            result = conn.execute(
+                select(self._meta_table.c.fetched_at).where(self._meta_table.c.table_name == table_name)
+            ).fetchone()
+        if result is None:
+            return None
+        fetched_at = result[0]
+        if isinstance(fetched_at, str):
+            fetched_at = datetime.fromisoformat(fetched_at)
+        if fetched_at.tzinfo is None:
+            fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+        age = datetime.now(timezone.utc) - fetched_at
+        return age.total_seconds() / 86400

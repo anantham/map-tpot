@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta
 from src.shadow.selenium_worker import SeleniumWorker, AccountStatusInfo, ProfileOverview, SeleniumConfig
-from src.shadow.enricher import HybridShadowEnricher, SeedAccount
+from src.shadow.enricher import EnrichmentPolicy, HybridShadowEnricher, SeedAccount
 from src.data.shadow_store import ScrapeRunMetrics, ShadowAccount
 
 class TestAccountStatusTracking(unittest.TestCase):
@@ -56,8 +56,7 @@ class TestAccountStatusTracking(unittest.TestCase):
         # Setup enricher with mocked store
         store = Mock()
         config = Mock()
-        policy = Mock()
-        policy.skip_if_ever_scraped = True
+        policy = EnrichmentPolicy(skip_if_ever_scraped=True)
         
         with patch('src.shadow.enricher.XAPIClient'):
             enricher = HybridShadowEnricher(store, config, policy)
@@ -111,8 +110,7 @@ class TestAccountStatusTracking(unittest.TestCase):
         # Setup enricher
         store = Mock()
         config = Mock()
-        policy = Mock()
-        policy.skip_if_ever_scraped = True
+        policy = EnrichmentPolicy(skip_if_ever_scraped=True)
         
         with patch('src.shadow.enricher.XAPIClient'):
             enricher = HybridShadowEnricher(store, config, policy)

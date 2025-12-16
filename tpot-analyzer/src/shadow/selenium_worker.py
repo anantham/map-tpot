@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import pickle
 import random
 import re
@@ -28,6 +29,8 @@ from urllib3.exceptions import MaxRetryError, NewConnectionError
 
 LOGGER = logging.getLogger(__name__)
 
+_BROWSER_BINARY_ENV_VARS = ("TPOT_CHROME_BINARY", "CHROME_BIN")
+
 
 def _shorten_text(value: Optional[str], limit: int) -> str:
     """Return a trimmed, single-line representation for logging."""
@@ -43,6 +46,30 @@ def _shorten_text(value: Optional[str], limit: int) -> str:
         return text
 
     return text[: max(0, limit - 3)] + "..."
+
+
+def _resolve_chrome_binary_from_env() -> Optional[Path]:
+    for key in _BROWSER_BINARY_ENV_VARS:
+        raw = os.getenv(key)
+        if not raw:
+            continue
+
+        candidate = Path(raw).expanduser()
+        if candidate.suffix == ".app" and candidate.is_dir():
+            macos_binary = candidate / "Contents" / "MacOS" / candidate.stem
+            if macos_binary.is_file():
+                return macos_binary
+
+            macos_dir = candidate / "Contents" / "MacOS"
+            if macos_dir.is_dir():
+                for entry in macos_dir.iterdir():
+                    if entry.is_file():
+                        return entry
+
+        if candidate.is_file():
+            return candidate
+
+    return None
 
 
 @dataclass(frozen=True)
@@ -149,8 +176,10 @@ class SeleniumWorker:
         if self._driver:
             self._driver.quit()
         options = webdriver.ChromeOptions()
-        if self._config.chrome_binary:
-            options.binary_location = str(self._config.chrome_binary)
+        chrome_binary = self._config.chrome_binary or _resolve_chrome_binary_from_env()
+        if chrome_binary:
+            options.binary_location = str(chrome_binary)
+            LOGGER.info("Using Chrome/Chromium binary: %s", chrome_binary)
         if self._config.headless:
             options.add_argument("--headless=new")
         options.add_argument(f"--window-size={self._config.window_size}")
@@ -2068,7 +2097,7 @@ class SeleniumWorker:
     def _parse_compact_count(raw: Optional[str]) -> Optional[int]:
         if not raw:
             return None
-        cleaned = raw.strip()
+        cleaned = re.sub(r"\s+", "", raw.strip())
 
         # First, try to extract a number pattern (with optional K/M suffix) from the text.
         # This handles cases like "90.5K Followers" by extracting "90.5K" before parsing.
@@ -2079,7 +2108,7 @@ class SeleniumWorker:
         number_text = number_pattern.group(1)
 
         # Parse the extracted number
-        normalized = number_text.replace(",", "").replace(" ", "")
+        normalized = number_text.replace(",", "")
         multiplier = 1
         if normalized.lower().endswith("k"):
             multiplier = 1_000
