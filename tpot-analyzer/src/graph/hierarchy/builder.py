@@ -22,6 +22,7 @@ from src.graph.hierarchy.traversal import (
     is_descendant,
     subtree_size,
 )
+from src.graph.hierarchy.focus import reveal_leaf_in_visible_set
 from src.graph.hierarchy.layout import (
     compute_hierarchical_edges,
     compute_positions,
@@ -40,6 +41,7 @@ def build_hierarchical_view(
     base_granularity: int = 15,
     expanded_ids: Optional[Set[str]] = None,
     collapsed_ids: Optional[Set[str]] = None,  # Parent IDs to show instead of descendants
+    focus_leaf_id: Optional[str] = None,  # Leaf cluster ID to ensure becomes visible (teleport)
     ego_node_id: Optional[str] = None,
     budget: int = 25,
     label_store = None,
@@ -69,6 +71,15 @@ def build_hierarchical_view(
     expanded_ids = expanded_ids or set()
     collapsed_ids = collapsed_ids or set()
     n_micro = len(micro_centroids)  # Number of micro-clusters (leaves in dendrogram)
+    expected_rows = max(0, n_micro - 1)
+    if linkage_matrix.shape[0] != expected_rows:
+        n_leaves_in_linkage = linkage_matrix.shape[0] + 1
+        raise ValueError(
+            "linkage_matrix shape mismatch: expected %d rows for %d micro-clusters, got %d rows "
+            "(linkage implies %d leaves). Compute linkage over micro_centroids (n_micro x d), "
+            "or ensure micro_centroids matches the linkage leaves."
+            % (expected_rows, n_micro, linkage_matrix.shape[0], n_leaves_in_linkage)
+        )
     t_start = time.time()
     
     logger.info(
@@ -94,6 +105,28 @@ def build_hierarchical_view(
         sorted(visible_nodes)[:20],  # First 20 to avoid spam
         expanded_ids,
     )
+
+    # Optional: deterministically reveal a specific leaf (used for "teleport to account")
+    if focus_leaf_id:
+        try:
+            leaf_idx = get_node_idx(focus_leaf_id)
+            result = reveal_leaf_in_visible_set(
+                visible_nodes=visible_nodes,
+                linkage_matrix=linkage_matrix,
+                leaf_idx=leaf_idx,
+                n_leaves=n_micro,
+                budget=budget,
+            )
+            logger.info(
+                "focus leaf applied: leaf=%s ok=%s steps=%d visible_now=%d reason=%s",
+                focus_leaf_id,
+                result.ok,
+                result.steps,
+                len(visible_nodes),
+                result.reason,
+            )
+        except Exception as exc:
+            logger.warning("Failed to apply focus leaf %s: %s", focus_leaf_id, exc)
     
     for exp_id in expanded_ids:
         t_exp_start = time.time()

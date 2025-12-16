@@ -16,10 +16,10 @@ def test_member_ids_match_size_and_serialize():
             [2.1, 2.1],
         ]
     )
-    Z = linkage(embedding, method="ward")
     # Assign micro labels manually to ensure grouping
     micro_labels = np.array([0, 0, 1, 1, 2, 2])
     micro_centroids = np.array([[0.05, 0.05], [1.05, 1.05], [2.05, 2.05]])
+    Z = linkage(micro_centroids, method="ward")
     node_ids = np.array([f"n{i}" for i in range(len(embedding))])
     adj = np.zeros((len(embedding), len(embedding)))
     node_meta = {nid: {"username": nid} for nid in node_ids}
