@@ -41,6 +41,20 @@ def test_app():
                 "bio": "Mathematician",
                 "shadow": True
             }),
+            ("eigenron", {
+                "username": "eigenron",
+                "display_name": "eigenron",
+                "num_followers": float('nan'),
+                "bio": "shadow account",
+                "shadow": True
+            }),
+            ("eigenlucy", {
+                "username": "eigenlucy",
+                "display_name": "eigenlucy",
+                "num_followers": float('nan'),
+                "bio": "shadow account",
+                "shadow": True
+            }),
             ("testuser", {
                 "username": "testuser",
                 "display_name": "Test User",

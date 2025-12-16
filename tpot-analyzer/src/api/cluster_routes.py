@@ -17,6 +17,7 @@ import pandas as pd
 import scipy.sparse as sp
 from flask import Blueprint, jsonify, request
 
+from src.data.account_tags import AccountTagStore
 from src.graph.clusters import ClusterLabelStore
 from src.graph.hierarchy import (
     build_hierarchical_view,
@@ -94,6 +95,8 @@ _node_metadata: Dict[str, Dict] = {}
 _node_id_to_idx: Dict[str, int] = {}  # For in-degree lookups
 _louvain_communities: Dict[str, int] = {}  # Louvain community mapping
 _label_store: Optional[ClusterLabelStore] = None
+_tag_store: Optional[AccountTagStore] = None
+_data_dir: Optional[Path] = None
 _cache = ClusterCache()
 
 
@@ -209,16 +212,47 @@ def _load_or_build_adjacency(edges_df: pd.DataFrame, node_ids: np.ndarray, cache
     return adjacency
 
 
-def _make_cache_key(granularity: int, ego: Optional[str], expanded: Set[str], collapsed: Set[str] = None, louvain_weight: float = 0.0, expand_depth: float = 0.5) -> Tuple:
+def _make_cache_key(
+    granularity: int,
+    ego: Optional[str],
+    expanded: Set[str],
+    collapsed: Set[str] = None,
+    louvain_weight: float = 0.0,
+    expand_depth: float = 0.5,
+    focus_leaf: Optional[str] = None,
+) -> Tuple:
     collapsed = collapsed or set()
-    return (granularity, ego or "", ",".join(sorted(expanded)), ",".join(sorted(collapsed)), round(louvain_weight, 2), round(expand_depth, 2))
+    return (
+        granularity,
+        ego or "",
+        ",".join(sorted(expanded)),
+        ",".join(sorted(collapsed)),
+        round(louvain_weight, 2),
+        round(expand_depth, 2),
+        focus_leaf or "",
+    )
+
+def _get_tag_store() -> AccountTagStore:
+    global _tag_store
+    if _tag_store is not None:
+        return _tag_store
+    if _data_dir is None:
+        raise RuntimeError("cluster routes not initialized (missing data_dir)")
+    db_path = _data_dir / "account_tags.db"
+    _tag_store = AccountTagStore(db_path)
+    return _tag_store
 
 
-def init_cluster_routes(app, data_dir: Path = Path("data")) -> None:
-    """Initialize and register cluster routes."""
+def init_cluster_routes(data_dir: Path = Path("data")) -> None:
+    """Initialize cluster routes state (data load + caches).
+
+    Note: Blueprint registration is handled by the Flask app factory.
+    """
     global _spectral_result, _adjacency, _node_metadata, _node_id_to_idx, _louvain_communities, _label_store
+    global _data_dir
 
     try:
+        _data_dir = data_dir
         base = data_dir / "graph_snapshot"
         spectral_sidecar = data_dir / "graph_snapshot.spectral.npz"
         if not spectral_sidecar.exists():
@@ -253,8 +287,6 @@ def init_cluster_routes(app, data_dir: Path = Path("data")) -> None:
                 "Cluster routes initialized (EXACT mode): %s nodes, %s edges",
                 len(node_ids), _adjacency.count_nonzero()
             )
-
-        app.register_blueprint(cluster_bp)
     except Exception as exc:
         logger.exception("Failed to initialize cluster routes: %s", exc)
         # Do not register blueprint if we failed to load data
@@ -277,6 +309,7 @@ def get_clusters():
     expanded_ids: Set[str] = set([e for e in expanded_arg.split(",") if e])
     collapsed_arg = request.args.get("collapsed", "")
     collapsed_ids: Set[str] = set([c for c in collapsed_arg.split(",") if c])
+    focus_leaf = request.args.get("focus_leaf", "", type=str) or None
     budget = request.args.get("budget", 25, type=int)
     budget = max(5, budget)
     louvain_weight = request.args.get("wl", 0.0, type=float)
@@ -295,7 +328,7 @@ def get_clusters():
         expand_depth,
     )
 
-    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth)
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf)
 
     # Deduplicate identical in-flight builds
     inflight = _cache.inflight_get(cache_key)
@@ -373,11 +406,12 @@ def get_clusters():
             adjacency=_adjacency,
             node_metadata=_node_metadata,
             base_granularity=granularity,
-            expanded_ids=expanded_ids,
-            collapsed_ids=collapsed_ids,
-            ego_node_id=ego,
-            budget=budget,
-            label_store=_label_store,
+                expanded_ids=expanded_ids,
+                collapsed_ids=collapsed_ids,
+                focus_leaf_id=focus_leaf,
+                ego_node_id=ego,
+                budget=budget,
+                label_store=_label_store,
             louvain_communities=_louvain_communities,
             louvain_weight=louvain_weight,
             expand_depth=expand_depth,
@@ -458,6 +492,7 @@ def get_cluster_members(cluster_id: str):
     expanded_ids: Set[str] = set([e for e in expanded_arg.split(",") if e])
     collapsed_arg = request.args.get("collapsed", "")
     collapsed_ids: Set[str] = set([c for c in collapsed_arg.split(",") if c])
+    focus_leaf = request.args.get("focus_leaf", "", type=str) or None
     budget = request.args.get("budget", 25, type=int)
     budget = max(5, budget)
     louvain_weight = request.args.get("wl", 0.0, type=float)
@@ -465,7 +500,7 @@ def get_cluster_members(cluster_id: str):
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
 
-    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth)
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf)
     view = _cache.get(cache_key)
     if not view:
         start_build = time.time()
@@ -479,6 +514,7 @@ def get_cluster_members(cluster_id: str):
             base_granularity=granularity,
             expanded_ids=expanded_ids,
             collapsed_ids=collapsed_ids,
+            focus_leaf_id=focus_leaf,
             ego_node_id=ego,
             budget=budget,
             label_store=_label_store,
@@ -539,6 +575,130 @@ def get_cluster_members(cluster_id: str):
             "members": members,
             "total": total,
             "hasMore": offset + len(members) < total,
+        }
+    )
+
+
+@cluster_bp.route("/<cluster_id>/tag_summary", methods=["GET"])
+def get_cluster_tag_summary(cluster_id: str):
+    """Return per-tag counts (IN/NOT IN) for a cluster's members (scoped by ego)."""
+    if _spectral_result is None:
+        return jsonify({"error": "Cluster data not loaded"}), 503
+
+    ego = (request.args.get("ego", "", type=str) or "").strip()
+    if not ego:
+        return jsonify({"error": "ego query param is required"}), 400
+
+    granularity = request.args.get("n", 25, type=int)
+    granularity = max(5, min(500, granularity))
+    expanded_arg = request.args.get("expanded", "")
+    expanded_ids: Set[str] = set([e for e in expanded_arg.split(",") if e])
+    collapsed_arg = request.args.get("collapsed", "")
+    collapsed_ids: Set[str] = set([c for c in collapsed_arg.split(",") if c])
+    focus_leaf = request.args.get("focus_leaf", "", type=str) or None
+    budget = request.args.get("budget", 25, type=int)
+    budget = max(5, budget)
+    louvain_weight = request.args.get("wl", 0.0, type=float)
+    louvain_weight = max(0.0, min(1.0, louvain_weight))
+    expand_depth = request.args.get("expand_depth", 0.5, type=float)
+    expand_depth = max(0.0, min(1.0, expand_depth))
+
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf)
+    view = _cache.get(cache_key)
+    if not view:
+        start_build = time.time()
+        view_obj = build_hierarchical_view(
+            linkage_matrix=_spectral_result.linkage_matrix,
+            micro_labels=_spectral_result.micro_labels if _spectral_result.micro_labels is not None else np.arange(len(_spectral_result.node_ids)),
+            micro_centroids=_spectral_result.micro_centroids if _spectral_result.micro_centroids is not None else _spectral_result.embedding,
+            node_ids=_spectral_result.node_ids,
+            adjacency=_adjacency,
+            node_metadata=_node_metadata,
+            base_granularity=granularity,
+            expanded_ids=expanded_ids,
+            collapsed_ids=collapsed_ids,
+            focus_leaf_id=focus_leaf,
+            ego_node_id=ego,
+            budget=budget,
+            label_store=_label_store,
+            louvain_communities=_louvain_communities,
+            louvain_weight=louvain_weight,
+            expand_depth=expand_depth,
+        )
+        view = _serialize_hierarchical_view(view_obj)
+        _cache.set(cache_key, view)
+        logger.info(
+            "tag_summary view built: cluster=%s n=%d expanded=%d visible=%d took=%.3fs",
+            cluster_id,
+            granularity,
+            len(expanded_ids),
+            len(view.get("clusters", [])),
+            time.time() - start_build,
+        )
+
+    found = None
+    for cluster in view.get("clusters", []):
+        if cluster.get("id") == cluster_id:
+            found = cluster
+            break
+    if not found:
+        return jsonify({"error": "Cluster not found"}), 404
+
+    member_ids = [str(v) for v in (found.get("memberIds") or [])]
+    total_members = len(member_ids)
+
+    t0 = time.time()
+    store = _get_tag_store()
+    assignments = store.list_tags_for_accounts(ego=ego, account_ids=member_ids)
+    tagged_accounts = set()
+    counts: Dict[str, Dict[str, int]] = {}
+    for tag in assignments:
+        tagged_accounts.add(tag.account_id)
+        entry = counts.get(tag.tag)
+        if entry is None:
+            entry = {"inCount": 0, "notInCount": 0}
+            counts[tag.tag] = entry
+        if tag.polarity == 1:
+            entry["inCount"] += 1
+        elif tag.polarity == -1:
+            entry["notInCount"] += 1
+
+    tag_counts = []
+    for tag_name, entry in counts.items():
+        in_count = int(entry.get("inCount") or 0)
+        not_in_count = int(entry.get("notInCount") or 0)
+        tag_counts.append(
+            {
+                "tag": tag_name,
+                "inCount": in_count,
+                "notInCount": not_in_count,
+                "score": in_count - not_in_count,
+            }
+        )
+    tag_counts.sort(key=lambda row: (row["score"], row["inCount"]), reverse=True)
+    suggested = next((row for row in tag_counts if row["score"] > 0), None)
+
+    compute_ms = int((time.time() - t0) * 1000)
+    logger.info(
+        "tag_summary computed: cluster=%s ego=%s members=%d tagged_members=%d tags=%d suggested=%s took_ms=%d",
+        cluster_id,
+        ego,
+        total_members,
+        len(tagged_accounts),
+        len(tag_counts),
+        (suggested or {}).get("tag") if suggested else None,
+        compute_ms,
+    )
+    return jsonify(
+        {
+            "clusterId": cluster_id,
+            "ego": ego,
+            "totalMembers": total_members,
+            "taggedMembers": len(tagged_accounts),
+            "tagAssignments": len(assignments),
+            "tagCounts": tag_counts,
+            "suggestedLabel": suggested,
+            "computeMs": compute_ms,
         }
     )
 
