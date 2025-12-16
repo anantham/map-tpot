@@ -77,7 +77,7 @@
     - **UI deep-link correctness**
         - `tpot-analyzer/graph-explorer/src/ClusterView.jsx:213` Gate URL-sync effect on `urlParsed` so StrictMode mount doesn’t overwrite initial URL params before parsing (fixes flaky deep-link behavior in tests and manual reloads).
     - **Mocked E2E coverage (Playwright)**
-        - `tpot-analyzer/graph-explorer/e2e/teleport_tagging_mock.spec.ts:1` Add “search → teleport → tag → tag summary refresh” regression test with fully mocked backend.
+        - `tpot-analyzer/graph-explorer/e2e/teleport_tagging_mock.spec.ts:1` Add “search → teleport → tag → tag summary → apply suggested label” regression test with fully mocked backend.
         - `tpot-analyzer/graph-explorer/e2e/cluster_mock.spec.ts:1` Stabilize cluster-view E2E by clicking nodes deterministically via canvas test helpers; add real API-failure assertion (`HTTP 500`).
         - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:225` Expose `window.__CLUSTER_CANVAS_TEST__` helpers in dev mode only (Playwright uses these for stable node selection).
     - **Runner updates**
