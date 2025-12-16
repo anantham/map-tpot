@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import fs from 'node:fs';
 
 /**
  * IMPORTANT: The Python backend must be running before tests!
@@ -7,6 +8,28 @@ import { defineConfig, devices } from '@playwright/test';
  * NOTE: Cluster builds take ~57s on first load (71k nodes).
  * Tests use 180s timeout to accommodate this.
  */
+
+function resolveChromiumExecutablePath(): string | undefined {
+  const envPath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  const candidates = [
+    envPath,
+    // Prefer system browsers to avoid Playwright's downloaded browser cache.
+    '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    try {
+      if (candidate && fs.existsSync(candidate)) return candidate;
+    } catch {
+      // ignore
+    }
+  }
+  return undefined;
+}
+
+const chromiumExecutablePath = resolveChromiumExecutablePath();
 
 export default defineConfig({
   testDir: './e2e',
@@ -28,7 +51,16 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(chromiumExecutablePath
+          ? {
+              launchOptions: {
+                executablePath: chromiumExecutablePath,
+              },
+            }
+          : {}),
+      },
     },
   ],
   webServer: process.env.PW_NO_SERVER
