@@ -64,6 +64,7 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Ego network view (focus + highlight on click).
 - [ ] Export controls (PNG snapshot, CSV of current rankings, shareable config link).
 - [ ] Add seed selector UI (drop-down or multi-select list populated from presets + fetched data).
+- [x] Smooth expand/collapse transitions with force-morph animation (D3 force simulation). ✅ **2025-12-16**
 - [ ] Refactor `tpot-analyzer/graph-explorer/src/ClusterView.jsx` and `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx` into smaller modules (<300 LOC each) to improve debuggability and reduce context overflow.
 
 ## Dev Experience & Infrastructure
