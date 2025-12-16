@@ -10,8 +10,8 @@ from src.graph import (
     compute_betweenness,
     compute_louvain_communities,
     compute_personalized_pagerank,
-    compute_composite_score,
     compute_engagement_scores,
+    normalize_scores,
     load_seed_candidates,
     get_seed_state,
 )
@@ -76,12 +76,18 @@ def compute_metrics():
     communities = compute_louvain_communities(G)
 
     # 3. Composite Score
-    composite_scores = compute_composite_score(
-        pagerank=pr_scores,
-        betweenness=bt_scores,
-        engagement=eng_scores,
-        weights=weights,
-    )
+    pr_norm = normalize_scores(pr_scores)
+    bt_norm = normalize_scores(bt_scores)
+    eg_norm = normalize_scores(eng_scores)
+    alpha, beta, gamma = weights
+    composite_scores = {
+        node: (
+            alpha * pr_norm.get(node, 0.0)
+            + beta * bt_norm.get(node, 0.0)
+            + gamma * eg_norm.get(node, 0.0)
+        )
+        for node in pr_norm
+    }
 
     # 4. Format Response
     response = {
