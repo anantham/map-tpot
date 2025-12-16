@@ -215,6 +215,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   // Update URL when controls change
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (!urlParsed) return
     const url = new URL(window.location.href)
     url.searchParams.set('view', 'cluster')
     url.searchParams.set('n', budget)
@@ -230,7 +231,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       url.searchParams.delete('ego')
     }
     window.history.replaceState({}, '', url.toString())
-  }, [budget, visibleTarget, wl, expandDepth, ego, expanded, collapsed])
+  }, [urlParsed, budget, visibleTarget, wl, expandDepth, ego, expanded, collapsed])
 
   // Fetch cluster view
   useEffect(() => {
