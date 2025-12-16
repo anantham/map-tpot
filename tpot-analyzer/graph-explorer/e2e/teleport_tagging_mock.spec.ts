@@ -42,6 +42,7 @@ const positionsFor = (clusters: any[]) => {
 const nowIso = () => new Date().toISOString()
 
 const setupMockApi = async (page: Page) => {
+  const clusterLabels = new Map<string, string>() // clusterId -> label
   const tagsByEgoAccount = new Map<string, Map<string, TagRow[]>>() // ego -> account -> tags[]
 
   const getTags = (ego: string, accountId: string) => {
@@ -52,6 +53,13 @@ const setupMockApi = async (page: Page) => {
     const byAccount = tagsByEgoAccount.get(ego) || new Map<string, TagRow[]>()
     byAccount.set(accountId, next)
     tagsByEgoAccount.set(ego, byAccount)
+  }
+
+  const withClusterLabels = (clusters: any[]) => {
+    return clusters.map((c) => ({
+      ...c,
+      label: clusterLabels.get(c.id) ?? c.label,
+    }))
   }
 
   await page.route('**/api/**', async (route) => {
@@ -144,7 +152,8 @@ const setupMockApi = async (page: Page) => {
     if (pathname === '/api/clusters') {
       const budget = Number(url.searchParams.get('budget') || 10)
       const focusLeaf = url.searchParams.get('focus_leaf') || ''
-      const clusters = focusLeaf ? [CHILDREN.root_a[0], CHILDREN.root_a[1], BASE_CLUSTERS[1], BASE_CLUSTERS[2]] : BASE_CLUSTERS
+      const base = focusLeaf ? [CHILDREN.root_a[0], CHILDREN.root_a[1], BASE_CLUSTERS[1], BASE_CLUSTERS[2]] : BASE_CLUSTERS
+      const clusters = withClusterLabels(base)
       const payload = {
         clusters,
         edges: [],
@@ -159,6 +168,31 @@ const setupMockApi = async (page: Page) => {
         granularity: Number(url.searchParams.get('n') || 10),
       }
       return route.fulfill({ status: 200, body: JSON.stringify(payload), contentType: 'application/json' })
+    }
+
+    if (pathname.match(/^\/api\/clusters\/[^/]+\/label$/)) {
+      const clusterId = pathname.split('/')[3]
+      const method = route.request().method()
+
+      if (method === 'POST') {
+        let data: any = {}
+        try {
+          data = route.request().postDataJSON() as any
+        } catch {
+          data = {}
+        }
+        const label = String(data.label || '').trim()
+        if (!label) {
+          return route.fulfill({ status: 400, body: JSON.stringify({ error: 'label is required' }), contentType: 'application/json' })
+        }
+        clusterLabels.set(clusterId, label)
+        return route.fulfill({ status: 200, body: JSON.stringify({ status: 'ok' }), contentType: 'application/json' })
+      }
+
+      if (method === 'DELETE') {
+        clusterLabels.delete(clusterId)
+        return route.fulfill({ status: 200, body: JSON.stringify({ status: 'deleted' }), contentType: 'application/json' })
+      }
     }
 
     if (pathname.match(/^\/api\/clusters\/[^/]+\/preview$/)) {
@@ -278,5 +312,12 @@ test.describe('ClusterView teleport + tagging (mocked backend)', () => {
 
     await expect(page.getByText('Top tags')).toBeVisible({ timeout: 5000 })
     await expect(page.getByText('Suggested label', { exact: true })).toBeVisible()
+
+    const applySuggested = page.getByRole('button', { name: 'Apply suggested label' })
+    await expect(applySuggested).toBeVisible({ timeout: 5000 })
+    await applySuggested.click()
+
+    const renameInput = page.locator('label:has-text(\"Rename\")').locator('xpath=following-sibling::input[1]')
+    await expect(renameInput).toHaveValue('AI alignment', { timeout: 5000 })
   })
 })
