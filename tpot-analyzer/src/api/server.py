@@ -7,13 +7,15 @@ import logging.handlers
 import math
 import os
 import time
+from uuid import uuid4
 from pathlib import Path
 from typing import Any, Optional
 
-from flask import Flask, Response
+from flask import Flask, Response, g, request
 from flask_cors import CORS
 
 from src.api import snapshot_loader
+from src.api.request_context import RequestIdFilter, clear_req_id, get_req_id, set_req_id
 from src.api.services.analysis_manager import AnalysisManager
 from src.api.services.cache_manager import CacheManager
 from src.api.routes.core import core_bp
@@ -57,6 +59,38 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     app = Flask(__name__)
     CORS(app)  # Enable CORS for all routes by default
 
+    # Request-scoped correlation id + timing.
+    @app.before_request
+    def _tpot_request_context() -> None:
+        req_id = (
+            request.headers.get("X-Request-ID")
+            or request.args.get("reqId")
+            or uuid4().hex[:8]
+        )
+        g.req_id = req_id
+        g._tpot_start = time.perf_counter()
+        set_req_id(req_id)
+
+    @app.after_request
+    def _tpot_request_logging(response: Response) -> Response:
+        req_id = getattr(g, "req_id", None) or get_req_id()
+        if req_id and req_id != "-":
+            response.headers["X-Request-ID"] = req_id
+
+        start = getattr(g, "_tpot_start", None)
+        if start is not None:
+            dur_ms = int((time.perf_counter() - start) * 1000)
+            # Avoid spamming access logs for high-volume frontend log streaming.
+            if request.path == "/api/log":
+                logger.debug("http %s %s status=%s dur_ms=%d", request.method, request.path, response.status_code, dur_ms)
+            else:
+                logger.info("http %s %s status=%s dur_ms=%d", request.method, request.path, response.status_code, dur_ms)
+        return response
+
+    @app.teardown_request
+    def _tpot_request_teardown(_exc: Optional[BaseException]) -> None:
+        clear_req_id()
+
     # 1. Configuration
     app.config["STARTUP_TIME"] = time.time()
     if config_overrides:
@@ -99,10 +133,12 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     return app
 
 
-def _configure_logging(log_dir: Path = Path("logs")) -> None:
+def _configure_logging(log_dir: Optional[Path] = None) -> None:
     """Attach a rotating file handler for API diagnostics."""
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_path = log_dir / "api.log"
+    default_log_dir = Path(os.getenv("TPOT_LOG_DIR") or (Path(__file__).resolve().parent.parent.parent / "logs"))
+    resolved_log_dir = log_dir or default_log_dir
+    resolved_log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = resolved_log_dir / "api.log"
     
     log_level_name = os.getenv("API_LOG_LEVEL", "INFO").upper()
     log_level = getattr(logging, log_level_name, logging.INFO)
@@ -123,10 +159,12 @@ def _configure_logging(log_dir: Path = Path("logs")) -> None:
     file_handler = logging.handlers.RotatingFileHandler(
         log_path, maxBytes=5 * 1024 * 1024, backupCount=5
     )
-    file_handler.setLevel(log_level)
+    # Capture everything the logger emits; use logger levels/env vars to control verbosity.
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.addFilter(RequestIdFilter())
     file_handler.setFormatter(
         logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d: %(message)s"
+            "%(asctime)s [%(levelname)s] req=%(req_id)s %(name)s:%(lineno)d: %(message)s"
         )
     )
     root.addHandler(file_handler)

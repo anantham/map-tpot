@@ -3,16 +3,20 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
 from flask import Blueprint, jsonify, request
 
+from src.api.request_context import get_req_id
+
 log_bp = Blueprint("frontend_log", __name__, url_prefix="/api/log")
 logger = logging.getLogger(__name__)
 
-LOG_FILE = Path(__file__).resolve().parent.parent.parent / "logs" / "frontend.log"
+_DEFAULT_LOG_DIR = Path(__file__).resolve().parent.parent.parent / "logs"
+LOG_FILE = Path(os.getenv("TPOT_LOG_DIR") or _DEFAULT_LOG_DIR) / "frontend.log"
 
 
 @log_bp.route("", methods=["POST"])
@@ -23,10 +27,12 @@ def write_log():
     message = data.get("message") or ""
     payload = data.get("payload") or {}
     timestamp = datetime.utcnow().isoformat() + "Z"
+    req_id = get_req_id()
 
     line = json.dumps(
         {
             "ts": timestamp,
+            "req_id": req_id,
             "level": level,
             "message": message,
             "payload": payload,
