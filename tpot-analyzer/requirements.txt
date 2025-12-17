@@ -14,3 +14,4 @@ requests==2.31.0
 selenium==4.21.0
 Flask
 Flask-Cors
+gunicorn==21.2.0
