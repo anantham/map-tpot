@@ -1,7 +1,7 @@
 """Tests that legacy social graph data migrates cleanly into the shadow store."""
 from __future__ import annotations
 
-import sys
+import os
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,16 +11,15 @@ import pytest
 import sqlite3
 from sqlalchemy import create_engine, MetaData, Table, Column, String, Integer
 
-ROOT = Path(__file__).resolve().parents[1] / "tpot-analyzer"
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 from src.data.shadow_store import ShadowAccount, ShadowEdge, get_shadow_store
 
 
-LEGACY_DB = Path(
-    "/Users/aditya/Library/CloudStorage/OneDrive-IndianInstituteofScience/"
-    "Documents/Ongoing/Project 2 - tpot/data/social_graph.db"
+_LEGACY_DB_ENV = os.environ.get("TPOT_LEGACY_DB_PATH")
+LEGACY_DB = (
+    Path(_LEGACY_DB_ENV).expanduser()
+    if _LEGACY_DB_ENV
+    else Path.home()
+    / "Library/CloudStorage/OneDrive-IndianInstituteofScience/Documents/Ongoing/Project 2 - tpot/data/social_graph.db"
 )
 
 
@@ -57,6 +56,7 @@ def _load_legacy_sample(limit: int = 25) -> Tuple[List[dict], List[dict]]:
 
 
 @pytest.mark.skipif(not LEGACY_DB.exists(), reason="Legacy social graph database unavailable")
+@pytest.mark.integration
 def test_shadow_store_accepts_legacy_accounts_and_edges() -> None:
     legacy_users, legacy_edges = _load_legacy_sample()
 
@@ -117,6 +117,7 @@ def test_shadow_store_accepts_legacy_accounts_and_edges() -> None:
 
 
 @pytest.mark.skipif(not LEGACY_DB.exists(), reason="Legacy social graph database unavailable")
+@pytest.mark.integration
 @pytest.mark.xfail(reason="Edge deduplication not working correctly - known issue")
 def test_shadow_store_upsert_is_idempotent() -> None:
     legacy_users, legacy_edges = _load_legacy_sample(limit=5)
