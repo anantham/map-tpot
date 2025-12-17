@@ -25,7 +25,7 @@ This document captures the “why” behind current features and supporting beha
 ## Frontend UX patterns
 - **Selection and multi-collapse**: Marquee selection and “collapse selected” exist to reduce clicks when freeing budget; budget and visibility totals are logged to explain why visible counts may not drop.
 - **Error visibility**: Backend availability checks gate UI behavior; retries/backoff avoid immediate hard-failures, and the intent is to surface clear banners instead of silent failures.
-- **Disk-friendly E2E**: Playwright is pinned to bundled `chromium` to avoid repeated Chrome-for-Testing installs and reduce disk use; headed/CI runs share the same cache path when configured.
+- **Disk-friendly E2E**: Playwright prefers a system-installed browser (Brave/Chrome) via `graph-explorer/playwright.config.ts` to avoid Playwright browser downloads; set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` for restricted-network installs.
 
 ## Observability and performance goals
 - Favor cached data (snapshot, cluster cache, graph data cache) before recomputing expensive pieces (metrics, cluster builds).

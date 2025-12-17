@@ -26,6 +26,28 @@ The enrichment CLI (`scripts/enrich_shadow_graph.py`) and Selenium worker (`src/
 python3 -m scripts.enrich_shadow_graph --chrome-binary "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
 ```
 
+## Playwright (this repo)
+
+This repo intentionally runs Playwright E2E against a **system-installed** Chromium browser to avoid Playwright-managed browser downloads.
+
+### Configure once (recommended)
+
+Set:
+
+```bash
+export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
+```
+
+`graph-explorer/playwright.config.ts` also checks common macOS locations for Brave/Chrome/Chromium if the env var is not set.
+
+### CI / restricted network installs
+
+Playwright normally tries to download browsers during `npm install` / `npm ci`. In restricted-network environments, set:
+
+```bash
+export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+```
+
 ## Puppeteer (general guidance)
 
 This repo doesn’t use Puppeteer, but for other projects:
@@ -46,7 +68,7 @@ Common locations:
 
 - Selenium Manager: `~/.cache/selenium/chrome/`
 - Puppeteer: `~/.cache/puppeteer/`
-- Playwright: `~/Library/Caches/ms-playwright/` (Playwright-managed; only delete if you intend to re-install browsers)
+- Playwright: `~/Library/Caches/ms-playwright/` (should be unused/empty if you set `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`)
 
 To inventory:
 
@@ -54,4 +76,3 @@ To inventory:
 find "$HOME/.cache/selenium/chrome" "$HOME/.cache/puppeteer" "$HOME/Library/Caches/ms-playwright" \
   -maxdepth 10 -name "Google Chrome for Testing.app" -print
 ```
-
