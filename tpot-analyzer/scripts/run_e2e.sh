@@ -34,7 +34,7 @@ case "${1:-mock}" in
   full)
     echo "Running full E2E tests (backend must be running at http://localhost:5001)..."
     echo "Start backend: cd tpot-analyzer && .venv/bin/python -m scripts.start_api_server"
-    npx playwright test e2e/cluster.spec.ts --reporter=line
+    npx playwright test e2e/cluster_real.spec.ts --reporter=line
     ;;
   ui)
     echo "Opening Playwright UI mode..."

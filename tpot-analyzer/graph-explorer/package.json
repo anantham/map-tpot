@@ -15,6 +15,7 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:mock": "playwright test e2e/*mock*.spec.ts --reporter=line",
+    "test:e2e:real": "playwright test e2e/cluster_real.spec.ts --reporter=line",
     "test:e2e:mock:no-server": "PW_NO_SERVER=1 playwright test e2e/*mock*.spec.ts --reporter=line"
   },
   "dependencies": {
