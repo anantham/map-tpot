@@ -14,7 +14,7 @@ BACKEND_CMD="cd $(printf '%q' "$PROJECT_ROOT"); "
 if [ -f "$PROJECT_ROOT/.venv/bin/activate" ]; then
   BACKEND_CMD+="source .venv/bin/activate; "
 fi
-BACKEND_CMD+="API_LOG_LEVEL=DEBUG CLUSTER_LOG_LEVEL=DEBUG python3 -m scripts.start_api_server"
+BACKEND_CMD+="TPOT_LOG_DIR=$(printf '%q' "$PROJECT_ROOT/logs") API_LOG_LEVEL=DEBUG CLUSTER_LOG_LEVEL=DEBUG python3 -m scripts.start_api_server"
 
 escape_for_applescript() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'

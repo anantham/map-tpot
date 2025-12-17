@@ -7,8 +7,16 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
+export TPOT_LOG_DIR="${TPOT_LOG_DIR:-$PROJECT_ROOT/logs}"
+export API_LOG_LEVEL="${API_LOG_LEVEL:-DEBUG}"
+export CLUSTER_LOG_LEVEL="${CLUSTER_LOG_LEVEL:-DEBUG}"
+
+mkdir -p "$TPOT_LOG_DIR"
+
 echo "🚀 Starting TPOT Analyzer development environment..."
 echo "📂 Project root: ${PROJECT_ROOT}"
+echo "🧾 Log dir: ${TPOT_LOG_DIR}"
+echo "🔎 API_LOG_LEVEL=${API_LOG_LEVEL} CLUSTER_LOG_LEVEL=${CLUSTER_LOG_LEVEL}"
 echo ""
 
 # Cleanup function
@@ -32,10 +40,11 @@ trap cleanup SIGINT SIGTERM
 # 1. Start backend
 echo "1️⃣  Starting Flask backend..."
 source .venv/bin/activate
-python3 -m scripts.start_api_server > logs/backend.log 2>&1 &
+python3 -m scripts.start_api_server > "${TPOT_LOG_DIR}/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo "   Backend started (PID: $BACKEND_PID)"
-echo "   Logs: logs/backend.log"
+echo "   Stdout/stderr: ${TPOT_LOG_DIR}/backend.log"
+echo "   API logs:      ${TPOT_LOG_DIR}/api.log"
 echo ""
 
 # 2. Wait for backend to be ready
@@ -46,10 +55,11 @@ echo ""
 # 3. Start frontend
 echo "3️⃣  Starting Vite frontend..."
 cd graph-explorer
-npm run dev > ../logs/frontend.log 2>&1 &
+npm run dev > "${TPOT_LOG_DIR}/vite.log" 2>&1 &
 FRONTEND_PID=$!
 echo "   Frontend started (PID: $FRONTEND_PID)"
-echo "   Logs: logs/frontend.log"
+echo "   Stdout/stderr: ${TPOT_LOG_DIR}/vite.log"
+echo "   Frontend logs: ${TPOT_LOG_DIR}/frontend.log (via POST /api/log)"
 echo ""
 
 echo "✨ Development environment ready!"
