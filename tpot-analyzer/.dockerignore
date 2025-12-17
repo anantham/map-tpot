@@ -1,0 +1,43 @@
+# Dependencies
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+
+# Git
+.git/
+.gitignore
+
+# Tests (not needed in production)
+tests/
+pytest.ini
+.pytest_cache/
+.coverage
+
+# Development files
+*.md
+*.log
+logs/
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+.claude/
+
+# Frontend (deployed separately)
+graph-explorer/
+
+# Large/unnecessary data files
+data/cache.db*
+data/shadow*.db*
+data/tpot.db*
+data/adjacency_matrix_cache.pkl
+data/validation_results/
+secrets/
+
+# Archives
+*.tar.gz
+*.zip

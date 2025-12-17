@@ -1,0 +1,42 @@
+# Fly.io configuration for TPOT Analyzer API
+# Deploy with: fly launch (first time) or fly deploy (updates)
+
+app = "tpot-analyzer-api"
+primary_region = "sjc"  # San Jose - close to you, good for US West Coast
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  API_LOG_LEVEL = "INFO"
+  SNAPSHOT_DIR = "/app/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false   # Keep running to avoid cold starts
+  auto_start_machines = true
+  min_machines_running = 1     # Always keep 1 instance warm
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 100
+    soft_limit = 80
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512  # 512MB should be enough for 17MB snapshots + scipy
+
+# Health check configuration
+[checks]
+  [checks.health]
+    grace_period = "60s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    port = 8080
+    timeout = "10s"
+    type = "http"
