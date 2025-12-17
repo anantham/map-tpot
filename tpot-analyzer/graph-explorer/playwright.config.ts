@@ -3,7 +3,7 @@ import fs from 'node:fs';
 
 /**
  * IMPORTANT: The Python backend must be running before tests!
- * Start it with: cd tpot-analyzer && python -m src.server
+ * Start it with: cd tpot-analyzer && python -m scripts.start_api_server
  * 
  * NOTE: Cluster builds take ~57s on first load (71k nodes).
  * Tests use 180s timeout to accommodate this.

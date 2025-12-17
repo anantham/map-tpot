@@ -32,8 +32,8 @@ test.describe('Backend Health Check', () => {
     } catch (e) {
       console.error('\n⚠️  BACKEND NOT RUNNING!');
       console.error('Start the backend first:');
-      console.error('  cd tpot-analyzer && python -m src.server\n');
-      throw new Error('Backend is not running at localhost:5001. Start it with: cd tpot-analyzer && python -m src.server');
+      console.error('  cd tpot-analyzer && python -m scripts.start_api_server\n');
+      throw new Error('Backend is not running at localhost:5001. Start it with: cd tpot-analyzer && python -m scripts.start_api_server');
     }
   });
 });
