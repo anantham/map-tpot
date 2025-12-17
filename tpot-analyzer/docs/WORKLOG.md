@@ -133,6 +133,20 @@
         - `tpot-analyzer/docs/FEATURES_INTENT.md:1` Align “Disk-friendly E2E” note with system-browser approach.
     - **Verification**
         - `cd tpot-analyzer && python3 -m pytest -q tests/test_seed_profile_counts.py tests/test_shadow_store_migration.py` → `3 passed, 1 xfailed`
+- [2025-12-17] **Bugfix: /api/seeds 500 + GraphExplorer crash**
+    - **Root cause**
+        - `tpot-analyzer/src/api/routes/accounts.py:329` was returning a Python `set` (`load_seed_candidates()` result) through `jsonify`, causing `TypeError: Object of type set is not JSON serializable` and repeated `GET /api/seeds 500` in the UI.
+        - `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx:1216` rendered `graphStats.totalNodes`, which could become an array/object when `/api/graph-data` returns `directed_nodes` as a node list → React “Objects are not valid as a React child”.
+    - **Fix**
+        - `tpot-analyzer/src/api/routes/accounts.py:329` now returns the canonical seed/settings state (`get_seed_state()`), and `POST /api/seeds` supports both settings updates and seed list save/activate.
+        - `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx:415` normalizes `data.graph.nodes` arrays into `{[id]: node}` maps and coerces `directed_nodes`/`directed_edges`/`undirected_edges` into counts for safe rendering.
+        - `tpot-analyzer/graph-explorer/src/data.js:313` logs numeric counts instead of dumping arrays.
+    - **Tests & verification**
+        - `tpot-analyzer/tests/test_api_seeds_endpoint.py:1` adds unit tests for `/api/seeds` GET/POST.
+        - `tpot-analyzer/graph-explorer/src/GraphExplorer.test.jsx:1` adds a regression test ensuring GraphExplorer renders summary counts when backend returns `directed_nodes` arrays.
+        - `tpot-analyzer/scripts/verify_graph_explorer_boot.py:1` adds a ✓/✗ boot check script for `/api/seeds` and `/api/graph-data`.
+    - **Note**
+        - `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` is >300 LOC (monolith); keep future changes minimal and plan a thin-slice decomposition.
 
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.

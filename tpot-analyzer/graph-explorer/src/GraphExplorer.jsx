@@ -412,8 +412,24 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
       };
     }
 
-    const nodesMeta = data.graph?.nodes || {};
-    const edges = data.graph?.edges || [];
+    const nodesMeta = (() => {
+      const rawNodes = data.graph?.nodes;
+      if (Array.isArray(rawNodes)) {
+        const byId = {};
+        rawNodes.forEach((node) => {
+          const id = node?.id;
+          if (id === undefined || id === null) return;
+          byId[String(id)] = node;
+        });
+        return byId;
+      }
+      if (rawNodes && typeof rawNodes === "object") {
+        return rawNodes;
+      }
+      return {};
+    })();
+
+    const edges = Array.isArray(data.graph?.edges) ? data.graph.edges : [];
     const canonicalId = (value) => {
       if (value && typeof value === "object") {
         if (value.id !== undefined && value.id !== null) {
@@ -817,9 +833,27 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
         links: filteredLinks
       },
       graphStats: {
-        totalNodes: data.graph?.directed_nodes ?? nodeIds.length,
-        totalDirectedEdges: data.graph?.directed_edges ?? edges.length,
-        totalUndirectedEdges: data.graph?.undirected_edges ?? 0,
+        totalNodes: (() => {
+          const raw = data.graph?.directed_nodes;
+          if (typeof raw === "number") return raw;
+          if (Array.isArray(raw)) return raw.length;
+          if (raw && typeof raw === "object") return Object.keys(raw).length;
+          return nodeIds.length;
+        })(),
+        totalDirectedEdges: (() => {
+          const raw = data.graph?.directed_edges;
+          if (typeof raw === "number") return raw;
+          if (Array.isArray(raw)) return raw.length;
+          if (raw && typeof raw === "object") return Object.keys(raw).length;
+          return edges.length;
+        })(),
+        totalUndirectedEdges: (() => {
+          const raw = data.graph?.undirected_edges;
+          if (typeof raw === "number") return raw;
+          if (Array.isArray(raw)) return raw.length;
+          if (raw && typeof raw === "object") return Object.keys(raw).length;
+          return 0;
+        })(),
         mutualEdgeCount,
         visibleEdges: filteredLinks.length,
         visibleMutualEdges,
