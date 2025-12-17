@@ -114,6 +114,25 @@
     - **Verification**
         - `cd tpot-analyzer && .venv/bin/python -m pytest -q` (309 passed, 9 skipped)
         - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_api_observability` (requires backend running)
+- [2025-12-17] **Repo hygiene: canonical docs + E2E naming**
+    - **Docs canonicalization**
+        - Repo root: replace `docs/` with a symlink to `tpot-analyzer/docs/` (keep a single canonical doc tree).
+        - Repo root: remove legacy `graph-explorer/` folder (keep only `tpot-analyzer/graph-explorer/`).
+    - **E2E consistency (Playwright)**
+        - `tpot-analyzer/graph-explorer/e2e/cluster_real.spec.ts:1` Rename from `cluster.spec.ts`; update backend startup instructions to `python -m scripts.start_api_server`.
+        - `tpot-analyzer/graph-explorer/playwright.config.ts:1` Update backend-start comment to match `scripts.start_api_server`.
+        - `tpot-analyzer/scripts/run_e2e.sh:1` Update full-backend runner to execute `cluster_real.spec.ts`.
+        - `tpot-analyzer/graph-explorer/package.json:1` Add `test:e2e:real` convenience script.
+        - `tpot-analyzer/docs/TEST_AUDIT.md:1` Update E2E table to reference `cluster_real.spec.ts`.
+        - `tpot-analyzer/CODEX_TASK_E2E_TESTS.md:1` Update “Current State” to reference `cluster_real.spec.ts`.
+    - **Test suite consolidation**
+        - `tpot-analyzer/tests/test_seed_profile_counts.py:1` Move root test into analyzer suite; remove sys.path hacks.
+        - `tpot-analyzer/tests/test_shadow_store_migration.py:1` Move root test into analyzer suite; add `TPOT_LEGACY_DB_PATH` override + `@pytest.mark.integration`.
+    - **Browser-binary docs**
+        - `tpot-analyzer/docs/diagnostics/BROWSER_BINARIES.md:1` Document Playwright system browser usage + `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` for restricted-network installs.
+        - `tpot-analyzer/docs/FEATURES_INTENT.md:1` Align “Disk-friendly E2E” note with system-browser approach.
+    - **Verification**
+        - `cd tpot-analyzer && python3 -m pytest -q tests/test_seed_profile_counts.py tests/test_shadow_store_migration.py` → `3 passed, 1 xfailed`
 
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.
