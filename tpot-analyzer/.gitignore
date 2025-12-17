@@ -14,6 +14,17 @@ data/graph_snapshot.spectral_meta.json
 data/graph_snapshot.louvain.json
 data/clusters.db
 
+# Data outputs (generated, not committed)
+data/outputs/
+data/*.parquet
+data/*.npz
+data/*.pkl
+data/adjacency_matrix_cache.pkl
+data/holdout_clusters.json
+data/test_subset.json
+data/test_write
+data/validation_results/
+
 # Test coverage
 .coverage
 .coverage.*
@@ -34,6 +45,32 @@ data/x_api_rate_state.json
 # Temporary files
 tmpfile
 *.tmp
+*.pyc
+__pycache__/
+
+# Logs and debug artifacts
+logs/*.html
+logs/snapshot_*.html
+logs/archive/
+*.log
+!logs/.gitkeep
+
+# Test artifacts
+.pytest_cache/
+test-results/
+playwright-report/
+graph-explorer/test-results/
+graph-explorer/playwright-report/
+
+# IDE and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude/AI workspace
+.claude/
 
 # ccusage tracking
 ccusage/

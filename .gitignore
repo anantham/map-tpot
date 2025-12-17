@@ -38,8 +38,12 @@ out/
 *.local
 Thumbs.db
 
-# Project-specific
+# Archives and large data
 community-archive/
+community-archive-backup.tar.gz
+Related data/
+
+# Project-specific
 context/
 .venv/
 **/data/cache.db
