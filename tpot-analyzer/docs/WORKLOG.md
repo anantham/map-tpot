@@ -96,6 +96,24 @@
         - `cd tpot-analyzer/graph-explorer && npm run test:e2e:mock` (9 passed)
         - `cd tpot-analyzer/graph-explorer && npx vitest run` (7 passed)
         - `cd tpot-analyzer && .venv/bin/python -m pytest -q` (307 passed, 7 skipped)
+- [2025-12-17] **Observability: request-id correlation + disk-first logs**
+    - **Goal**: eliminate “paste logs into chat” by making request timings + correlation easy to inspect via `logs/api.log` and `logs/frontend.log`.
+    - **Backend**
+        - `tpot-analyzer/src/api/request_context.py:1` Add ContextVar-backed request id (`req_id`) + `RequestIdFilter` for log record injection.
+        - `tpot-analyzer/src/api/server.py:57` Add `before_request`/`after_request` hooks:
+            - Generate/accept `X-Request-ID` (or `reqId` query) and echo it in the response header.
+            - Emit access logs with `dur_ms` per request (skip `/api/log` to `DEBUG` to avoid spam).
+        - `tpot-analyzer/src/api/server.py:136` Make `api.log` location stable via `TPOT_LOG_DIR` (defaults to `tpot-analyzer/logs` regardless of CWD); keep file handler at `DEBUG` and include `req=<id>` in the formatter for grepability.
+        - `tpot-analyzer/src/api/log_routes.py:1` Write frontend log events to `${TPOT_LOG_DIR}/frontend.log` and include `req_id` in each JSONL entry.
+    - **Dev scripts**
+        - `tpot-analyzer/scripts/start_dev.sh:7` Default `API_LOG_LEVEL=DEBUG`, `CLUSTER_LOG_LEVEL=DEBUG`, `TPOT_LOG_DIR=$PROJECT_ROOT/logs`; route Vite stdout to `logs/vite.log` so `logs/frontend.log` is reserved for POST `/api/log`.
+        - `tpot-analyzer/StartGraphExplorer.command:17` Ensure `TPOT_LOG_DIR` is set for the backend launch path.
+    - **Verification & tooling**
+        - `tpot-analyzer/scripts/verify_api_observability.py:1` Add a ✓/✗ script that checks `/api/health` + `X-Request-ID` + `api.log` correlation + `/api/log` → `frontend.log`.
+        - `tpot-analyzer/scripts/tail_cluster_logs.py:1` Add a tail/filter helper (`--clusters`, `--req <id>`) for `api.log` and `frontend.log`.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest -q` (309 passed, 9 skipped)
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_api_observability` (requires backend running)
 
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.

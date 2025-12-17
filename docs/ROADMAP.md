@@ -31,6 +31,7 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
   - METRICS_PROPOSAL.md Option A fully implemented
   - Error metrics tracked for: profile fetch failures (main + profile-only mode), SQLite persistence errors
   - Can now run `python -m scripts.summarize_metrics` to see error breakdowns from real enrichment runs
+- [x] Add request-id correlation + access timing logs to `tpot-analyzer/logs/api.log` (echo `X-Request-ID`, grep-friendly `req=<id>` prefix, stable `TPOT_LOG_DIR`), plus helper scripts `verify_api_observability.py` and `tail_cluster_logs.py`. ✅ **2025-12-17**
 - [ ] Add structured JSON event logging for real-time monitoring (METRICS_PROPOSAL.md Tier 1)
 - [ ] Create web dashboard for live enrichment progress (success rate, error breakdown, ETA)
 - [ ] Add alerting for error rate thresholds (e.g., >20% failures)
@@ -74,10 +75,11 @@ A living document capturing future enhancements, testing gaps, and quality-of-li
 - [ ] Add local fixtures/bundles for offline experimentation (small subset of Community Archive).
 - [ ] Package Selenium/X API credentials handling (config templates, secrets management) and add smoke tests for enrichment pipeline.
 - [ ] Document enrichment policy knobs (default freshness, delta thresholds) and expose CLI flag to override policy file.
+- [ ] Rotate and size-cap `frontend.log` (POST `/api/log`) similar to `api.log` to avoid unbounded growth during long dev sessions.
 
 ## Documentation
 - [ ] Architecture diagrams for data pipeline and graph analysis flow.
 - [ ] Tutorial-style notebook showing how to use CLI outputs for custom analysis.
 - [ ] Inline code comments where logic is non-obvious (e.g., seed normalization).
 
-*Last updated: 2025-12-16*
+*Last updated: 2025-12-17*
