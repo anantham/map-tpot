@@ -12,10 +12,10 @@ from src.api import cluster_routes
 from src.config import get_snapshot_dir
 from src.data.account_tags import AccountTagStore
 from src.graph import (
-    load_seed_candidates,
     save_seed_list,
     set_active_seed_list,
     get_seed_state,
+    update_graph_settings,
 )
 from src.graph.hierarchy.traversal import (
     find_cluster_leaders,
@@ -327,19 +327,39 @@ def get_teleport_plan(account_id: str):
 
 @accounts_bp.route("/seeds", methods=["GET"])
 def get_seeds():
-    """Get current seed list and candidates."""
-    candidates = load_seed_candidates()
+    """Return current seed lists + settings state for the frontend."""
     state = get_seed_state()
-    return jsonify({
-        "candidates": candidates,
-        "active": state.get("active_seeds", [])
-    })
+    return jsonify(state)
 
 
 @accounts_bp.route("/seeds", methods=["POST"])
 def update_seeds():
-    """Update the active seed list."""
-    data = request.json
-    new_seeds = data.get("seeds", [])
-    set_active_seed_list(new_seeds)
-    return jsonify({"status": "updated", "count": len(new_seeds)})
+    """Update seed lists and/or graph settings."""
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
+
+    try:
+        if "settings" in data:
+            next_state = update_graph_settings(data.get("settings") or {})
+            return jsonify({"status": "ok", "state": next_state})
+
+        name = (data.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "name is required"}), 400
+
+        set_active = bool(data.get("set_active", True))
+        if "seeds" in data and data.get("seeds") is not None:
+            next_state = save_seed_list(name, data.get("seeds") or [], set_active=set_active)
+            return jsonify({"status": "ok", "state": next_state})
+
+        if set_active:
+            next_state = set_active_seed_list(name)
+            return jsonify({"status": "ok", "state": next_state})
+
+        return jsonify({"status": "ok", "state": get_seed_state()})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        logger.exception("Failed to update seed settings: %s", exc)
+        return jsonify({"error": "Failed to update seed settings"}), 500

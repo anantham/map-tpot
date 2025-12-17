@@ -312,8 +312,8 @@ export const fetchGraphData = async (options = {}) => {
 
     performanceLog.log('fetchGraphData', duration, {
       serverTime,
-      nodeCount: data.directed_nodes,
-      edgeCount: data.directed_edges,
+      nodeCount: Array.isArray(data.directed_nodes) ? data.directed_nodes.length : data.directed_nodes,
+      edgeCount: Array.isArray(data.directed_edges) ? data.directed_edges.length : data.directed_edges,
       includeShadow,
       fromCache: false,
     });

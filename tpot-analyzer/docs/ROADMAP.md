@@ -44,3 +44,4 @@ coverage gaps, or UX improvements surface.
 - Document end-to-end enrichment + explorer refresh workflow in a `docs/PLAYBOOK.md`.
 - Add `make` targets (or equivalent task runner) to standardize setup, tests,
   and verification commands.
+- Decompose `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
