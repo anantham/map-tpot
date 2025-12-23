@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import {
   fetchClusterMembers,
   fetchClusterView,
@@ -110,6 +110,22 @@ const alignLayout = (clusters, positions, prevLayout) => {
   const B = overlapIds.map(id => positions[id])
   const { stats, transform } = procrustesAlign(A, B)
 
+  // Diagnostic: log scale factors to detect extreme transforms
+  if (transform) {
+    const { scaleB, scale } = transform
+    const effectiveScale = scale / (Math.abs(scaleB) > 1e-10 ? scaleB : 1)
+    if (effectiveScale > 100 || effectiveScale < 0.01) {
+      console.warn('[Procrustes] ⚠️ Extreme scale detected:', {
+        scaleB,
+        scale,
+        effectiveScale,
+        overlap: overlapIds.length,
+        sampleA: A.slice(0, 3),
+        sampleB: B.slice(0, 3),
+      })
+    }
+  }
+
   const applyTransform = (p) => {
     if (!transform) return p
     const [meanAx, meanAy] = transform.meanA
@@ -161,7 +177,9 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const [labelDraft, setLabelDraft] = useState('')
   const [pendingAction, setPendingAction] = useState(null) // { type: 'expand' | 'collapse', clusterId: string }
   const [explodedLeaves, setExplodedLeaves] = useState(new Map()) // clusterId -> { members }
+  const [expansionStack, setExpansionStack] = useState([]) // Track expansion order for semantic zoom undo
   const collapseTraceLogged = useRef(false)
+  const expandingRef = useRef(new Set()) // Synchronous guard against duplicate expand calls
   const [selectedAccount, setSelectedAccount] = useState(null) // {id, username?, displayName?}
   const [highlightedAccountId, setHighlightedAccountId] = useState(null) // raw account id to highlight
   const [focusPoint, setFocusPoint] = useState(null) // {x,y,scale?} for ClusterCanvas camera
@@ -190,7 +208,8 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
     const nParam = toNumber(params.get('n'), 25)
-    const budgetParam = toNumber(params.get('budget'), nParam)
+    // Budget defaults to n, but if n=0, use a sensible default (25) to allow expansions
+    const budgetParam = toNumber(params.get('budget'), nParam) || 25
     setBudget(budgetParam)
     const visibleParam = toNumber(params.get('visible'), NaN)
     if (Number.isFinite(visibleParam)) {
@@ -203,7 +222,11 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     setEgo(params.get('ego') || defaultEgo || '')
     const expandedParam = params.get('expanded')
     if (expandedParam) {
-      setExpanded(new Set(expandedParam.split(',').filter(Boolean)))
+      const expandedList = expandedParam.split(',').filter(Boolean)
+      setExpanded(new Set(expandedList))
+      // Sync expansion stack for semantic zoom undo (order may not be preserved, but at least it won't be empty)
+      setExpansionStack(expandedList)
+      clusterViewLog.info('HybridZoom expansion stack initialized from URL', { stack: expandedList })
     }
     const collapsedParam = params.get('collapsed')
     if (collapsedParam) {
@@ -432,11 +455,16 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     const positions = data.positions || {}
     const weights = data.clusters.map(c => c.size || 1)
     const maxSize = Math.max(...weights, 1)
+
+    // Scale factor: backend positions are normalized ~[-1, +1], scale to reasonable world coords
+    const POSITION_SCALE = 300
+
     return data.clusters.map(c => {
       const pos = positions[c.id] || [0, 0]
       // Guard against NaN/Infinity positions from Procrustes alignment
-      const x = Number.isFinite(pos[0]) ? pos[0] : 0
-      const y = Number.isFinite(pos[1]) ? pos[1] : 0
+      // Scale from normalized to world coordinates
+      const x = Number.isFinite(pos[0]) ? pos[0] * POSITION_SCALE : 0
+      const y = Number.isFinite(pos[1]) ? pos[1] * POSITION_SCALE : 0
       const radius = 6 + Math.sqrt((c.size || 1) / maxSize) * 18
       return { ...c, x, y, radius }
     })
@@ -700,46 +728,90 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
 
   const handleExpand = async (cluster) => {
     if (!cluster) return
-    // Leaf: explode into members instead of hierarchical expand
-    if (cluster.isLeaf) {
-      await explodeLeaf(cluster)
+    
+    // Synchronous guard: prevents duplicate expand calls from rapid scroll events
+    // Using ref because React state updates are async and won't block concurrent calls
+    if (expandingRef.current.has(cluster.id) || expanded.has(cluster.id)) {
+      clusterViewLog.debug('Expand skipped: already expanding or expanded', { clusterId: cluster.id })
       return
     }
-    if (!expandPreview?.can_expand) {
-      clusterViewLog.info('Expand blocked: no children or preview denies expand', {
-        clusterId: cluster.id,
-        childrenIds: cluster.childrenIds,
-        expandPreview,
-        budgetMeta: data?.meta,
+    expandingRef.current.add(cluster.id)
+    
+    try {
+      // Leaf: explode into members instead of hierarchical expand
+      if (cluster.isLeaf) {
+        await explodeLeaf(cluster)
+        return
+      }
+      
+      // If expandPreview is not loaded (e.g. hybrid zoom without selection), fetch it first
+      let preview = expandPreview
+      if (!preview && cluster.childrenIds?.length) {
+        clusterViewLog.info('Expand: loading preview on-demand for hybrid zoom', { clusterId: cluster.id })
+        try {
+          const currentVisibleIds = (data?.clusters || []).map(c => c.id)
+          const res = await fetchClusterPreview({
+            clusterId: cluster.id,
+            n: visibleTarget,
+            expand_depth: expandDepth,
+            budget,
+            expanded: Array.from(expanded),
+            collapsed: Array.from(collapsed),
+            visible: currentVisibleIds,
+          })
+          preview = res.expand || null
+          setExpandPreview(preview)
+        } catch (err) {
+          clusterViewLog.error('Failed to load expand preview on-demand', { error: err.message })
+          return
+        }
+      }
+      
+      if (!preview?.can_expand) {
+        clusterViewLog.info('Expand blocked: no children or preview denies expand', {
+          clusterId: cluster.id,
+          childrenIds: cluster.childrenIds,
+          expandPreview: preview,
+          budgetMeta: data?.meta,
+        })
+        return
+      }
+      const budgetRemaining = data?.meta?.budget_remaining ?? (budget - (data?.clusters?.length || 0))
+      const nextVisible = (data?.clusters?.length || 0) + ((cluster.childrenIds?.length || 0) - 1)
+      if (budgetRemaining <= 0 || nextVisible > budget) {
+        clusterViewLog.info('Expand blocked: budget', {
+          clusterId: cluster.id,
+          children: cluster.childrenIds?.length,
+          budget,
+          visible: data?.clusters?.length,
+          budgetRemaining,
+          nextVisible,
+        })
+        return
+      }
+      setPendingAction({ type: 'expand', clusterId: cluster.id })
+      // If this cluster was previously collapsed, remove it from collapsed set
+      setCollapsed(prev => {
+        const next = new Set(prev)
+        next.delete(cluster.id)
+        if (cluster.parentId) next.delete(cluster.parentId)
+        return next
       })
-      return
-    }
-    const budgetRemaining = data?.meta?.budget_remaining ?? (budget - (data?.clusters?.length || 0))
-    const nextVisible = (data?.clusters?.length || 0) + ((cluster.childrenIds?.length || 0) - 1)
-    if (budgetRemaining <= 0 || nextVisible > budget) {
-      clusterViewLog.info('Expand blocked: budget', {
-        clusterId: cluster.id,
-        children: cluster.childrenIds?.length,
-        budget,
-        visible: data?.clusters?.length,
-        budgetRemaining,
-        nextVisible,
+      setExpanded(prev => new Set(prev).add(cluster.id))
+      // Track in expansion stack for semantic zoom undo
+      setExpansionStack(prev => {
+        const next = [...prev, cluster.id]
+        clusterViewLog.info('HybridZoom expansion stack after expand', { stack: next })
+        return next
       })
-      return
+      // Optimistic: clear collapse selection and previews to avoid stale data
+      setCollapseSelection(new Set())
+      setExpandPreview(null)
+      setCollapsePreview(null)
+    } finally {
+      // Always clean up the in-flight guard
+      expandingRef.current.delete(cluster.id)
     }
-    setPendingAction({ type: 'expand', clusterId: cluster.id })
-    // If this cluster was previously collapsed, remove it from collapsed set
-    setCollapsed(prev => {
-      const next = new Set(prev)
-      next.delete(cluster.id)
-      if (cluster.parentId) next.delete(cluster.parentId)
-      return next
-    })
-    setExpanded(prev => new Set(prev).add(cluster.id))
-    // Optimistic: clear collapse selection and previews to avoid stale data
-    setCollapseSelection(new Set())
-    setExpandPreview(null)
-    setCollapsePreview(null)
   }
 
   const handleCollapse = (cluster) => {
@@ -764,6 +836,37 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     setCollapsePreview(null)
   }
 
+  // Semantic collapse: undo last expansion (for hybrid zoom scroll-out)
+  const handleSemanticCollapse = (clusterId) => {
+    if (!clusterId) return
+    clusterViewLog.info('HybridZoom handleSemanticCollapse called', { clusterId })
+
+    // Find the cluster being collapsed to get its position for auto-centering
+    const collapsingCluster = (data?.clusters || []).find(c => c.id === clusterId)
+
+    // Remove from expanded set
+    setExpanded(prev => {
+      const next = new Set(prev)
+      next.delete(clusterId)
+      clusterViewLog.info('HybridZoom expanded set after collapse', { expanded: Array.from(next) })
+      return next
+    })
+
+    // Pop from expansion stack
+    setExpansionStack(prev => {
+      const next = [...prev]
+      const idx = next.lastIndexOf(clusterId)
+      if (idx >= 0) next.splice(idx, 1)
+      clusterViewLog.info('HybridZoom expansion stack after collapse', { stack: next })
+      return next
+    })
+
+    // Clear any exploded leaves for this cluster
+    clearExploded([clusterId])
+    setExpandPreview(null)
+    setCollapsePreview(null)
+  }
+
   const toggleCollapseSelection = (cluster) => {
     if (!cluster) return
     setCollapseSelection(prev => {
@@ -776,6 +879,20 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       return next
     })
   }
+
+  // Check if a node can be expanded (for hybrid zoom visual feedback)
+  const canExpandNode = useCallback((cluster) => {
+    if (!cluster) return false
+    // Leaf clusters can be "exploded" into members
+    if (cluster.isLeaf) return true
+    // Check if has children
+    if (!cluster.childrenIds?.length) return false
+    // Check budget
+    const budgetRemaining = data?.meta?.budget_remaining ?? (budget - (data?.clusters?.length || 0))
+    const nextVisible = (data?.clusters?.length || 0) + ((cluster.childrenIds?.length || 0) - 1)
+    if (budgetRemaining <= 0 || nextVisible > budget) return false
+    return true
+  }, [data, budget])
 
   const handleCollapseSelected = () => {
     if (!collapseSelection.size) return
@@ -1118,6 +1235,12 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
           highlightedIds={collapsePreview?.sibling_ids || []}
           pendingClusterId={pendingAction?.clusterId}
           theme={theme}
+          // Hybrid zoom props
+          onExpand={handleExpand}
+          onCollapse={handleSemanticCollapse}
+          expansionStack={expansionStack}
+          canExpandNode={canExpandNode}
+          onDoubleClick={handleExpand}
         />
 
         {selectedCluster && (

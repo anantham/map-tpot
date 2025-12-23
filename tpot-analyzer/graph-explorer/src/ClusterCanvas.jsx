@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { forceSimulation, forceManyBody, forceCollide, forceX, forceY } from 'd3-force'
+import { canvasLog } from './logger'
 
 const clamp = (val, min, max) => Math.min(max, Math.max(min, val))
 
@@ -36,6 +37,13 @@ const findParentPosition = (nodeId, allNodes, edges) => {
   return { x: 0, y: 0 }
 }
 
+// Hybrid zoom configuration defaults
+const ZOOM_CONFIG = {
+  BASE_FONT_SIZE: 11,
+  EXPAND_THRESHOLD: 24,   // effective font size above which scroll-in triggers expand
+  COLLAPSE_THRESHOLD: 3,  // effective font size below which scroll-out triggers collapse (when labels mush together)
+}
+
 export default function ClusterCanvas({ 
   nodes, 
   edges, 
@@ -51,7 +59,16 @@ export default function ClusterCanvas({
   highlightedIds = [],
   pendingClusterId = null,
   theme = 'light',
+  // Hybrid zoom props
+  onExpand,           // (cluster) => void - expand the given cluster
+  onCollapse,         // (clusterId) => void - collapse/undo last expansion
+  expansionStack = [],// Array of cluster IDs in expansion order (for undo)
+  canExpandNode,      // (cluster) => boolean - check if node is expandable
+  onDoubleClick,      // (cluster) => void - double-click handler
+  zoomConfig = {},    // Override zoom thresholds
 }) {
+  // Merge zoom config with defaults
+  const { BASE_FONT_SIZE, EXPAND_THRESHOLD, COLLAPSE_THRESHOLD } = { ...ZOOM_CONFIG, ...zoomConfig }
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const [transform, setTransform] = useState({ scale: 1, offset: { x: 0, y: 0 } })
@@ -69,11 +86,61 @@ export default function ClusterCanvas({
   const [selectionBox, setSelectionBox] = useState(null)
   const selectionDragRef = useRef(null)
   const transformRef = useRef(transform)
+
+  // Wrapper to update both state and ref synchronously (prevents stale ref in wheel handler)
+  const updateTransform = useCallback((newTransformOrFn) => {
+    setTransform(prev => {
+      const next = typeof newTransformOrFn === 'function' ? newTransformOrFn(prev) : newTransformOrFn
+      transformRef.current = next  // Sync ref immediately
+      return next
+    })
+  }, [])
+
   const selectedSet = useMemo(() => {
     if (selectedIds instanceof Set) return selectedIds
     return new Set(selectedIds || [])
   }, [selectedIds])
   const highlightedSet = useMemo(() => new Set(highlightedIds || []), [highlightedIds])
+  
+  // Centered node for semantic zoom (closest to viewport center)
+  const [centeredNodeId, setCenteredNodeId] = useState(null)
+  
+  // Compute zoom mode based on effective font size
+  const zoomMode = useMemo(() => {
+    const effectiveFont = BASE_FONT_SIZE * transform.scale
+    if (effectiveFont >= EXPAND_THRESHOLD) return 'expand-ready'
+    if (effectiveFont <= COLLAPSE_THRESHOLD) return 'collapse-ready'
+    return 'visual'
+  }, [transform.scale, BASE_FONT_SIZE, EXPAND_THRESHOLD, COLLAPSE_THRESHOLD])
+
+  const hybridZoomLogRef = useRef(false)
+  const logHybridZoom = useCallback((level, message, payload = {}) => {
+    if (!hybridZoomLogRef.current) return
+    const logger = canvasLog[level] || canvasLog.info
+    logger(message, payload)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const fromQuery = params.get('hz_log') === '1'
+      let fromStorage = false
+      try {
+        fromStorage = window.localStorage?.getItem('hybridZoomLog') === '1'
+      } catch (err) {
+        fromStorage = false
+      }
+      hybridZoomLogRef.current = fromQuery || fromStorage
+      if (hybridZoomLogRef.current) {
+        canvasLog.info('HybridZoom debug logging enabled', {
+          source: fromQuery ? 'query' : 'localStorage',
+        })
+      }
+    } catch (err) {
+      canvasLog.warn('HybridZoom debug logging init failed', { error: err.message })
+    }
+  }, [])
   
   // Animation state - use a single render trigger instead of complex objects in deps
   const prevNodesRef = useRef([])
@@ -439,9 +506,30 @@ export default function ClusterCanvas({
       }
 
       if (simNodes.length > 1) {
+        // Diagnostic: check target position spread
+        const targetXs = simNodes.map(n => n.targetX)
+        const targetYs = simNodes.map(n => n.targetY)
+        const xRange = Math.max(...targetXs) - Math.min(...targetXs)
+        const yRange = Math.max(...targetYs) - Math.min(...targetYs)
+        if (xRange < 1 && yRange < 1) {
+          console.warn('[ForceLayout] ⚠️ Targets clustered:', {
+            xRange: xRange.toFixed(3),
+            yRange: yRange.toFixed(3),
+            sampleTargets: simNodes.slice(0, 3).map(n => ({ id: n.id, tx: n.targetX?.toFixed(2), ty: n.targetY?.toFixed(2) })),
+            nodeCount: simNodes.length,
+          })
+        }
+
         const sim = forceSimulation(simNodes)
-          .force('charge', forceManyBody().strength(-90).distanceMax(320))
-          .force('collide', forceCollide().radius(d => (d.radius || 20) + 10).strength(0.9))
+          // Stronger charge with size-based scaling - larger nodes push harder
+          .force('charge', forceManyBody()
+            .strength(d => -120 - (d.radius || 20) * 2)
+            .distanceMax(400))
+          // Increased collision radius to account for labels below nodes
+          .force('collide', forceCollide()
+            .radius(d => (d.radius || 20) + 28)  // +28 for label clearance
+            .strength(1.0)
+            .iterations(3))  // More iterations for better separation
           .force('x', forceX(d => d.targetX).strength(0.22))
           .force('y', forceY(d => d.targetY).strength(0.22))
           .alpha(1)
@@ -734,6 +822,7 @@ export default function ClusterCanvas({
       const isExiting = transitionState.exiting.has(node.id)
       const isPending = node.id === pendingClusterId
       const isDragged = draggedNodeRef.current?.id === node.id
+      const isCenteredForExpand = centeredNodeId === node.id && zoomMode === 'expand-ready' && canExpandNode?.(node)
 
       const pos = positionFor(node) || { x: node.x, y: node.y }
 
@@ -779,6 +868,23 @@ export default function ClusterCanvas({
         ctx.shadowBlur = 15 + pulseGlow * 15
         ctx.fillStyle = 'rgba(14, 165, 233, 0.3)'
         ctx.fill()
+        ctx.restore()
+      }
+      
+      // Draw expand-ready indicator for centered node in semantic zoom mode
+      if (isCenteredForExpand) {
+        ctx.save()
+        // Dashed ring outside the node
+        ctx.setLineDash([4, 4])
+        ctx.strokeStyle = 'rgba(34, 197, 94, 0.7)'  // Green
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, radius + 8, 0, Math.PI * 2)
+        ctx.stroke()
+        // Inner glow
+        ctx.shadowColor = 'rgba(34, 197, 94, 0.5)'
+        ctx.shadowBlur = 12
+        ctx.setLineDash([])
         ctx.restore()
       }
       
@@ -1034,6 +1140,21 @@ export default function ClusterCanvas({
     onSelect?.(hit || null)
   }, [hitTest, memberNodes, processedNodes, onMemberSelect, onSelect, onSelectionChange, selectedSet, selectionMode])
 
+  // Double-click handler for direct expand
+  const handleDoubleClick = useCallback((evt) => {
+    if (!canvasRef.current) return
+    const rect = canvasRef.current.getBoundingClientRect()
+    const x = evt.clientX - rect.left
+    const y = evt.clientY - rect.top
+    const hit = hitTest(x, y)
+    
+    canvasLog.info('Double-click', { x: x.toFixed(0), y: y.toFixed(0), hitNode: hit?.id || 'none', hitLabel: hit?.label })
+    if (hit && onDoubleClick) {
+      canvasLog.info('Triggering EXPAND via double-click', { clusterId: hit.id, label: hit.label })
+      onDoubleClick(hit)
+    }
+  }, [hitTest, onDoubleClick])
+
   const handleMouseMove = useCallback((evt) => {
     if (selectionDragRef.current) {
       const rect = canvasRef.current.getBoundingClientRect()
@@ -1261,33 +1382,266 @@ export default function ClusterCanvas({
     dragRef.current = null
   }, [processedNodes, onSelectionChange, selectedSet])
 
-  // Native wheel handler to prevent passive event issues
+  // Find the node closest to viewport center
+  const findCenteredNode = useCallback((options = {}) => {
+    if (!canvasRef.current || !processedNodes.length) return null
+
+    const { expandableOnly = false } = options
+
+    const canvas = canvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const centerX = rect.width / 2
+    const centerY = rect.height / 2
+
+    // Convert screen center to world coordinates
+    const t = transformRef.current
+    const worldX = (centerX - t.offset.x) / t.scale
+    const worldY = (centerY - t.offset.y) / t.scale
+
+    // Find closest node to world center
+    let closest = null
+    let minDist = Infinity
+
+    for (const node of processedNodes) {
+      // If expandableOnly, skip nodes that can't be expanded
+      if (expandableOnly && canExpandNode && !canExpandNode(node)) {
+        continue
+      }
+
+      const pos = settledPositionsRef.current.get(node.id) || { x: node.x, y: node.y }
+      const dist = Math.hypot(pos.x - worldX, pos.y - worldY)
+      if (dist < minDist) {
+        minDist = dist
+        closest = node
+      }
+    }
+
+    return closest
+  }, [processedNodes, canExpandNode])
+
+  // Update centered node on transform changes (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const centered = findCenteredNode()
+      if (centered?.id !== centeredNodeId) {
+        logHybridZoom('debug', 'HybridZoom centered node changed', {
+          from: centeredNodeId,
+          to: centered?.id || null,
+          label: centered?.label || null,
+        })
+      }
+      setCenteredNodeId(centered?.id || null)
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [transform, findCenteredNode, centeredNodeId, logHybridZoom])
+
+  // Log zoom mode changes
+  useEffect(() => {
+    const effectiveFont = BASE_FONT_SIZE * transform.scale
+    logHybridZoom('debug', 'HybridZoom mode', {
+      mode: zoomMode,
+      scale: transform.scale.toFixed(2),
+      effectiveFont: effectiveFont.toFixed(1),
+      thresholds: {
+        expand: EXPAND_THRESHOLD,
+        collapse: COLLAPSE_THRESHOLD,
+      },
+    })
+  }, [zoomMode, transform.scale, BASE_FONT_SIZE, EXPAND_THRESHOLD, COLLAPSE_THRESHOLD, logHybridZoom])
+
+  // Zoom-to-cursor helper: computes new offset to keep point under cursor fixed
+  const zoomToCursor = useCallback((evt, newScale) => {
+    const container = containerRef.current
+    if (!container) return { scale: newScale, offset: transformRef.current.offset }
+
+    const rect = container.getBoundingClientRect()
+    const mouseX = evt.clientX - rect.left
+    const mouseY = evt.clientY - rect.top
+    const oldScale = transformRef.current.scale
+    const oldOffset = transformRef.current.offset
+
+    // World point under cursor before zoom
+    const worldX = (mouseX - oldOffset.x) / oldScale
+    const worldY = (mouseY - oldOffset.y) / oldScale
+
+    // New offset to keep same world point under cursor
+    const newOffsetX = mouseX - worldX * newScale
+    const newOffsetY = mouseY - worldY * newScale
+
+    return { scale: newScale, offset: { x: newOffsetX, y: newOffsetY } }
+  }, [])
+
+  // Native wheel handler with hybrid zoom
   useEffect(() => {
     const container = containerRef.current
-    if (!container) return
-    
+    if (!container) {
+      console.warn('[HybridZoom] No container ref - wheel handler NOT registered')
+      return
+    }
+    console.log('[HybridZoom] Registering wheel handler on container', container)
+
     const handleWheel = (evt) => {
       evt.preventDefault()
       evt.stopPropagation()
-      
-      if (evt.metaKey || evt.ctrlKey) {
-        // Geometric zoom
-        const factor = evt.deltaY > 0 ? 0.9 : 1.1
-        const newScale = clamp(transformRef.current.scale * factor, 0.1, 10)
-        setTransform(t => ({
-          scale: newScale,
-          offset: t.offset,
-        }))
+
+      const currentScale = transformRef.current.scale
+      const effectiveFont = BASE_FONT_SIZE * currentScale
+      const scrollingIn = evt.deltaY < 0
+      const scrollingOut = evt.deltaY > 0
+      const computedMode = effectiveFont >= EXPAND_THRESHOLD
+        ? 'expand-ready'
+        : effectiveFont <= COLLAPSE_THRESHOLD
+          ? 'collapse-ready'
+          : 'visual'
+      const debugHybridZoom = hybridZoomLogRef.current
+      if (debugHybridZoom) {
+        logHybridZoom('debug', 'HybridZoom wheel', {
+          deltaY: evt.deltaY,
+          deltaMode: evt.deltaMode,
+          ctrlKey: evt.ctrlKey,
+          metaKey: evt.metaKey,
+          scrollingIn,
+          scrollingOut,
+          zoomMode,
+          computedMode,
+          scale: currentScale.toFixed(2),
+          effectiveFont: effectiveFont.toFixed(1),
+        })
+      }
+
+      // Force visual zoom with Cmd key only (NOT Ctrl - trackpad pinch sends ctrlKey:true)
+      // Note: On Mac trackpad, pinch-to-zoom sends ctrlKey:true, so we ignore it
+      if (evt.metaKey) {
+        if (debugHybridZoom) {
+          logHybridZoom('debug', 'HybridZoom modifier zoom (Cmd held)', {
+            metaKey: evt.metaKey,
+            scrollingIn,
+            scrollingOut,
+          })
+        }
+        const factor = scrollingOut ? 0.9 : 1.1
+        const newScale = clamp(currentScale * factor, 0.1, 10)
+        updateTransform(zoomToCursor(evt, newScale))
+        return
+      }
+
+      // Hybrid zoom logic
+      const centered = findCenteredNode()
+      const canExpand = centered && canExpandNode?.(centered)
+      if (debugHybridZoom) {
+        const rect = container.getBoundingClientRect()
+        const centerX = rect.width / 2
+        const centerY = rect.height / 2
+        const pos = centered
+          ? (settledPositionsRef.current.get(centered.id) || { x: centered.x, y: centered.y })
+          : null
+        const screenX = pos ? pos.x * currentScale + transformRef.current.offset.x : null
+        const screenY = pos ? pos.y * currentScale + transformRef.current.offset.y : null
+        const distToCenter = (screenX != null && screenY != null)
+          ? Math.hypot(screenX - centerX, screenY - centerY)
+          : null
+        const inViewport = (screenX != null && screenY != null)
+          ? screenX >= 0 && screenX <= rect.width && screenY >= 0 && screenY <= rect.height
+          : null
+        logHybridZoom('debug', 'HybridZoom centered diagnostics', {
+          centeredId: centered?.id || null,
+          label: centered?.label || null,
+          isLeaf: centered?.isLeaf || false,
+          childCount: centered?.childrenIds?.length || 0,
+          canExpand,
+          screen: screenX != null && screenY != null
+            ? { x: screenX.toFixed(1), y: screenY.toFixed(1) }
+            : null,
+          viewport: { width: rect.width, height: rect.height },
+          distToCenterPx: distToCenter != null ? distToCenter.toFixed(1) : null,
+          inViewport,
+        })
+      }
+
+      if (scrollingIn) {
+        if (effectiveFont >= EXPAND_THRESHOLD) {
+          // Semantic zoom: expand centered node
+          const childCount = centered?.childrenIds?.length || 0
+          const isLeaf = centered?.isLeaf
+          console.log('[HybridZoom] EXPAND PATH REACHED', {
+            centered: centered?.id || 'NONE',
+            label: centered?.label || 'NONE',
+            canExpand,
+            onExpand: !!onExpand,
+            childCount,
+            isLeaf
+          })
+          canvasLog.info('HybridZoom EXPAND-READY', {
+            target: centered?.label || centered?.id || 'none',
+            isLeaf,
+            childCount,
+            canExpand,
+            scale: currentScale.toFixed(2),
+            effectiveFont: effectiveFont.toFixed(1),
+          })
+
+          if (centered && onExpand && canExpand) {
+            canvasLog.info('HybridZoom EXPANDING', {
+              clusterId: centered.id,
+              label: centered.label,
+              action: isLeaf ? 'explode members' : `${childCount} children`,
+            })
+            onExpand(centered)
+            // Reset scale to a reasonable level so user can zoom out to collapse
+            // Target: effectiveFont ~16px (between collapse 9px and expand 24px thresholds)
+            const targetScale = 16 / BASE_FONT_SIZE  // ~1.45
+            updateTransform(t => ({ ...t, scale: clamp(targetScale, 0.5, 3) }))
+          } else {
+            // Can't expand - visual zoom to cursor
+            const reason = !centered ? 'no centered node' : !canExpand ? (isLeaf ? 'leaf with no members' : 'budget exceeded') : 'unknown'
+            canvasLog.info('HybridZoom cannot expand', { reason, fallback: 'visual zoom' })
+            const factor = 1.1
+            const newScale = clamp(currentScale * factor, 0.1, 10)
+            updateTransform(zoomToCursor(evt, newScale))
+          }
+        } else {
+          // Visual zoom in (to cursor)
+          canvasLog.info('HybridZoom visual zoom IN', {
+            scale: `${currentScale.toFixed(2)} → ${(currentScale * 1.1).toFixed(2)}`,
+            effectiveFont: effectiveFont.toFixed(0),
+            expandThreshold: EXPAND_THRESHOLD,
+          })
+          const factor = 1.1
+          const newScale = clamp(currentScale * factor, 0.1, 10)
+          updateTransform(zoomToCursor(evt, newScale))
+        }
       } else {
-        // Semantic zoom: change granularity
-        const step = evt.deltaY > 0 ? 3 : -3
-        onGranularityChange?.(step)
+        // Scrolling out
+        if (effectiveFont <= COLLAPSE_THRESHOLD && expansionStack.length > 0) {
+          // Semantic zoom: collapse last expanded
+          const lastExpanded = expansionStack[expansionStack.length - 1]
+          canvasLog.info('HybridZoom COLLAPSE-READY', {
+            willMerge: lastExpanded,
+            stack: expansionStack,
+          })
+          canvasLog.info('HybridZoom COLLAPSING', { clusterId: lastExpanded })
+          if (onCollapse) {
+            onCollapse(lastExpanded)
+          }
+        } else {
+          // Visual zoom out (to cursor)
+          const reason = effectiveFont > COLLAPSE_THRESHOLD
+            ? `font too big (${effectiveFont.toFixed(0)}px > ${COLLAPSE_THRESHOLD}px threshold)`
+            : `no expansions to undo (stack empty)`
+          canvasLog.info('HybridZoom visual zoom OUT', {
+            scale: `${currentScale.toFixed(2)} → ${(currentScale * 0.9).toFixed(2)}`,
+            reason,
+          })
+          const factor = 0.9
+          const newScale = clamp(currentScale * factor, 0.1, 10)
+          updateTransform(zoomToCursor(evt, newScale))
+        }
       }
     }
-    
+
     container.addEventListener('wheel', handleWheel, { passive: false })
     return () => container.removeEventListener('wheel', handleWheel)
-  }, [onGranularityChange])
+  }, [onGranularityChange, onExpand, onCollapse, expansionStack, findCenteredNode, canExpandNode, zoomToCursor, updateTransform, BASE_FONT_SIZE, EXPAND_THRESHOLD, COLLAPSE_THRESHOLD])
 
   return (
     <div
@@ -1298,6 +1652,7 @@ export default function ClusterCanvas({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
     >
       <canvas 
         ref={canvasRef} 
@@ -1332,20 +1687,116 @@ export default function ClusterCanvas({
           }}
         />
       )}
-      <div style={{ 
-        position: 'absolute', 
-        bottom: 12, 
-        left: 12, 
-        background: 'rgba(255,255,255,0.9)', 
-        padding: '8px 12px', 
-        borderRadius: 6,
-        fontSize: 11,
-        color: '#475569'
-      }}>
-        {selectionMode 
-          ? 'Selection mode: drag to box-select clusters for collapse. Click toggles selection.'
-          : 'Scroll: split/merge | Ctrl+Scroll: zoom | Drag canvas: pan | Drag node: reposition'}
-      </div>
+      {/* Zoom indicator with progress bar */}
+      {(() => {
+        const effectiveFont = BASE_FONT_SIZE * transform.scale
+        const centeredNode = centeredNodeId ? processedNodes.find(n => n.id === centeredNodeId) : null
+        const canExpand = centeredNode && canExpandNode?.(centeredNode)
+        const canCollapse = expansionStack.length > 0
+
+        // Calculate progress: 0 = collapse threshold, 1 = expand threshold
+        // Map effectiveFont from [COLLAPSE_THRESHOLD, EXPAND_THRESHOLD] to [0, 1]
+        const range = EXPAND_THRESHOLD - COLLAPSE_THRESHOLD
+        const progress = Math.max(0, Math.min(1, (effectiveFont - COLLAPSE_THRESHOLD) / range))
+
+        // Determine action text
+        let actionText = ''
+        let actionColor = '#64748b'
+        if (zoomMode === 'expand-ready' && centeredNode) {
+          actionText = canExpand
+            ? `⬆ Scroll to expand "${centeredNode.label?.slice(0, 30) || centeredNode.id}"`
+            : `Cannot expand (budget full)`
+          actionColor = canExpand ? '#16a34a' : '#dc2626'
+        } else if (zoomMode === 'collapse-ready') {
+          const lastId = expansionStack[expansionStack.length - 1]
+          actionText = canCollapse
+            ? `⬇ Scroll to collapse "${lastId}"`
+            : 'No expansions to undo'
+          actionColor = canCollapse ? '#ea580c' : '#64748b'
+        } else {
+          // In visual zone - show how close to thresholds
+          const toExpand = EXPAND_THRESHOLD - effectiveFont
+          const toCollapse = effectiveFont - COLLAPSE_THRESHOLD
+          if (centeredNode && canExpand && toExpand < toCollapse) {
+            actionText = `↑ ${toExpand.toFixed(0)}px to expand "${centeredNode.label?.slice(0, 20) || centeredNode.id}"`
+          } else if (canCollapse && toCollapse < toExpand) {
+            const lastId = expansionStack[expansionStack.length - 1]
+            actionText = `↓ ${toCollapse.toFixed(0)}px to collapse "${lastId}"`
+          } else {
+            actionText = centeredNode ? `Centered: ${centeredNode.label?.slice(0, 25) || centeredNode.id}` : 'Pan to center a node'
+          }
+        }
+
+        return (
+          <div style={{
+            position: 'absolute',
+            bottom: 12,
+            left: 12,
+            background: 'rgba(255,255,255,0.95)',
+            padding: '10px 14px',
+            borderRadius: 8,
+            fontSize: 11,
+            color: '#475569',
+            minWidth: 280,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          }}>
+            {/* Progress bar */}
+            <div style={{
+              height: 6,
+              background: '#e2e8f0',
+              borderRadius: 3,
+              marginBottom: 8,
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Collapse zone (left) */}
+              <div style={{
+                position: 'absolute',
+                left: 0,
+                width: '15%',
+                height: '100%',
+                background: canCollapse ? 'rgba(249, 115, 22, 0.3)' : 'rgba(100, 116, 139, 0.2)',
+              }} />
+              {/* Expand zone (right) */}
+              <div style={{
+                position: 'absolute',
+                right: 0,
+                width: '15%',
+                height: '100%',
+                background: canExpand ? 'rgba(34, 197, 94, 0.3)' : 'rgba(100, 116, 139, 0.2)',
+              }} />
+              {/* Current position marker */}
+              <div style={{
+                position: 'absolute',
+                left: `${progress * 100}%`,
+                top: -2,
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                background: zoomMode === 'expand-ready' ? '#16a34a'
+                          : zoomMode === 'collapse-ready' ? '#ea580c'
+                          : '#64748b',
+                transform: 'translateX(-50%)',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+              }} />
+            </div>
+            {/* Action text */}
+            <div style={{
+              color: actionColor,
+              fontWeight: 500,
+              marginBottom: 4
+            }}>
+              {actionText}
+            </div>
+            {/* Help text */}
+            <div style={{ fontSize: 10, color: '#94a3b8' }}>
+              {selectionMode
+                ? 'Selection mode: drag to box-select'
+                : 'Dbl-click: expand | Ctrl+Scroll: force zoom'}
+            </div>
+          </div>
+        )
+      })()}
       {/* Edge tooltip */}
       {hoveredEdge && (
         <div style={{

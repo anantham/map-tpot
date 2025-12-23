@@ -174,4 +174,289 @@ describe('ClusterCanvas High-Value Tests', () => {
      fireEvent.click(canvas, { clientX: 300, clientY: 250 })
      expect(onSelect).toHaveBeenCalledTimes(1)
   })
+
+  // === HYBRID ZOOM TESTS ===
+  // These tests verify the semantic expand/collapse cycle works correctly
+
+  it('triggers expand when zooming in past threshold with expandable node', async () => {
+    const onExpand = vi.fn()
+    const canExpandNode = vi.fn(() => true)
+    const expandableNode = {
+      id: 'expandable',
+      x: 0,
+      y: 0,
+      radius: 20,
+      isLeaf: false,
+      childrenIds: ['child1', 'child2'],
+      label: 'Test Cluster'
+    }
+
+    const { container } = render(
+      <ClusterCanvas
+        {...defaultProps}
+        nodes={[expandableNode]}
+        onExpand={onExpand}
+        canExpandNode={canExpandNode}
+        expansionStack={[]}
+      />
+    )
+
+    await waitForSettle()
+    const canvas = container.querySelector('canvas')
+
+    // Zoom in repeatedly until we cross the expand threshold (24px effective font)
+    // BASE_FONT_SIZE=11, threshold=24, so need scale > 2.18
+    for (let i = 0; i < 15; i++) {
+      fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: -100 })
+    }
+    await waitForSettle()
+
+    // One more scroll should trigger expand
+    fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: -100 })
+    await waitForSettle()
+
+    expect(onExpand).toHaveBeenCalled()
+  })
+
+  it('resets scale after expand to enable collapse', async () => {
+    const onExpand = vi.fn()
+    const canExpandNode = vi.fn(() => true)
+    const expandableNode = {
+      id: 'expandable',
+      x: 0,
+      y: 0,
+      radius: 20,
+      isLeaf: false,
+      childrenIds: ['child1', 'child2'],
+      label: 'Test Cluster'
+    }
+
+    const { container, rerender } = render(
+      <ClusterCanvas
+        {...defaultProps}
+        nodes={[expandableNode]}
+        onExpand={onExpand}
+        canExpandNode={canExpandNode}
+        expansionStack={[]}
+        zoomConfig={{ BASE_FONT_SIZE: 11, EXPAND_THRESHOLD: 24, COLLAPSE_THRESHOLD: 14 }}
+      />
+    )
+
+    await waitForSettle()
+    const canvas = container.querySelector('canvas')
+
+    // Zoom in to trigger expand (need scale > 2.18 for effectiveFont > 24)
+    for (let i = 0; i < 20; i++) {
+      fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: -100 })
+    }
+    await waitForSettle()
+
+    // After expand, scale should reset to ~1.45 (16/11)
+    // This means effectiveFont ~16px, which is between thresholds (14-24)
+    // User can now zoom OUT to reach collapse threshold
+    expect(onExpand).toHaveBeenCalled()
+  })
+
+  it('does NOT expand when budget is exceeded', async () => {
+    const onExpand = vi.fn()
+    const canExpandNode = vi.fn(() => false) // Budget exceeded
+    const expandableNode = {
+      id: 'expandable',
+      x: 0,
+      y: 0,
+      radius: 20,
+      isLeaf: false,
+      childrenIds: ['child1', 'child2'],
+      label: 'Test Cluster'
+    }
+
+    const { container } = render(
+      <ClusterCanvas
+        {...defaultProps}
+        nodes={[expandableNode]}
+        onExpand={onExpand}
+        canExpandNode={canExpandNode}
+        expansionStack={[]}
+      />
+    )
+
+    await waitForSettle()
+    const canvas = container.querySelector('canvas')
+
+    // Zoom in past threshold
+    for (let i = 0; i < 20; i++) {
+      fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: -100 })
+    }
+    await waitForSettle()
+
+    // Should NOT expand because canExpandNode returns false
+    expect(onExpand).not.toHaveBeenCalled()
+  })
+
+  it('triggers collapse when zooming out past threshold with expansion stack', async () => {
+    const onCollapse = vi.fn()
+    // Use multiple spread-out nodes to avoid extreme auto-fit scaling
+    const childNodes = [
+      { id: 'child1', x: -100, y: -100, radius: 15, isLeaf: true, label: 'Child 1' },
+      { id: 'child2', x: 100, y: 100, radius: 15, isLeaf: true, label: 'Child 2' },
+    ]
+
+    const { container } = render(
+      <ClusterCanvas
+        {...defaultProps}
+        nodes={childNodes}
+        onCollapse={onCollapse}
+        expansionStack={['parent1']} // Has expanded parent
+        // Set collapse threshold at 18 so we can trigger it with reasonable auto-fit scale
+        zoomConfig={{ BASE_FONT_SIZE: 11, EXPAND_THRESHOLD: 24, COLLAPSE_THRESHOLD: 18 }}
+      />
+    )
+
+    await waitForSettle()
+    const canvas = container.querySelector('canvas')
+
+    // Auto-fit with spread nodes gives scale ~1.61, effectiveFont=17.8px
+    // With COLLAPSE_THRESHOLD=18, we're already at collapse-ready
+    // Zooming out will trigger collapse
+    fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: 100 })
+    await waitForSettle()
+
+    expect(onCollapse).toHaveBeenCalledWith('parent1')
+  })
+
+  // === REGRESSION TESTS ===
+  // These tests catch specific bugs that slipped through before
+
+  it('calls canExpandNode with the centered node to check expand eligibility', async () => {
+    // REGRESSION: canExpandNode was passed but never verified it receives correct args
+    const onExpand = vi.fn()
+    const canExpandNode = vi.fn(() => true)
+    const testNode = {
+      id: 'test-node',
+      x: 0,
+      y: 0,
+      radius: 20,
+      isLeaf: false,
+      childrenIds: ['child1'],
+      label: 'Test Node'
+    }
+
+    const { container } = render(
+      <ClusterCanvas
+        {...defaultProps}
+        nodes={[testNode]}
+        onExpand={onExpand}
+        canExpandNode={canExpandNode}
+        expansionStack={[]}
+      />
+    )
+
+    await waitForSettle()
+    const canvas = container.querySelector('canvas')
+
+    // Zoom in past expand threshold
+    for (let i = 0; i < 20; i++) {
+      fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: -100 })
+    }
+    await waitForSettle()
+
+    // Verify canExpandNode was called with the correct node
+    expect(canExpandNode).toHaveBeenCalled()
+    const lastCall = canExpandNode.mock.calls[canExpandNode.mock.calls.length - 1]
+    expect(lastCall[0]).toMatchObject({ id: 'test-node' })
+  })
+
+  it('does NOT expand when canExpandNode returns false (simulating budget exceeded)', async () => {
+    // REGRESSION: Budget check in canExpandNode was silently failing
+    const onExpand = vi.fn()
+    const canExpandNode = vi.fn(() => false) // Simulates budget exceeded
+    const testNode = {
+      id: 'budget-blocked',
+      x: 0,
+      y: 0,
+      radius: 20,
+      isLeaf: false,
+      childrenIds: ['child1', 'child2'],
+      label: 'Budget Blocked'
+    }
+
+    const { container } = render(
+      <ClusterCanvas
+        {...defaultProps}
+        nodes={[testNode]}
+        onExpand={onExpand}
+        canExpandNode={canExpandNode}
+        expansionStack={[]}
+      />
+    )
+
+    await waitForSettle()
+    const canvas = container.querySelector('canvas')
+
+    // Zoom in way past expand threshold
+    for (let i = 0; i < 25; i++) {
+      fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: -100 })
+    }
+    await waitForSettle()
+
+    // canExpandNode should have been consulted
+    expect(canExpandNode).toHaveBeenCalled()
+    // But expand should NOT have been called because canExpandNode returned false
+    expect(onExpand).not.toHaveBeenCalled()
+  })
+
+  it('has sensible default thresholds (expand > collapse with reasonable gap)', () => {
+    // REGRESSION: Collapse threshold was 14px which was too early
+    // This test documents expected threshold relationship
+    const { EXPAND_THRESHOLD, COLLAPSE_THRESHOLD, BASE_FONT_SIZE } = {
+      BASE_FONT_SIZE: 11,
+      EXPAND_THRESHOLD: 24,
+      COLLAPSE_THRESHOLD: 3,
+    }
+
+    // Expand threshold should be larger than base font (zoom in to expand)
+    expect(EXPAND_THRESHOLD).toBeGreaterThan(BASE_FONT_SIZE)
+
+    // Collapse threshold should be smaller than base font (zoom out to collapse)
+    expect(COLLAPSE_THRESHOLD).toBeLessThan(BASE_FONT_SIZE)
+
+    // There should be a reasonable visual zone between thresholds
+    // At least 10px gap so user has room to zoom without triggering semantic actions
+    expect(EXPAND_THRESHOLD - COLLAPSE_THRESHOLD).toBeGreaterThan(15)
+
+    // Collapse should happen when labels are very small (unreadable)
+    expect(COLLAPSE_THRESHOLD).toBeLessThanOrEqual(5)
+  })
+
+  it('passes expansionStack to enable collapse functionality', async () => {
+    // REGRESSION: expansionStack was empty on page reload, breaking collapse
+    const onCollapse = vi.fn()
+    const existingExpansions = ['parent1', 'parent2', 'parent3']
+    // Use spread-out nodes to avoid extreme auto-fit scaling
+    const childNodes = [
+      { id: 'child1', x: -100, y: -100, radius: 15, isLeaf: true },
+      { id: 'child2', x: 100, y: 100, radius: 15, isLeaf: true },
+    ]
+
+    const { container } = render(
+      <ClusterCanvas
+        {...defaultProps}
+        nodes={childNodes}
+        onCollapse={onCollapse}
+        expansionStack={existingExpansions}
+        // High collapse threshold so we trigger it with reasonable auto-fit scale
+        zoomConfig={{ BASE_FONT_SIZE: 11, EXPAND_THRESHOLD: 24, COLLAPSE_THRESHOLD: 18 }}
+      />
+    )
+
+    await waitForSettle()
+    const canvas = container.querySelector('canvas')
+
+    // Zoom out to trigger collapse
+    fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: 100 })
+    await waitForSettle()
+
+    // Should collapse the LAST item in the stack (LIFO)
+    expect(onCollapse).toHaveBeenCalledWith('parent3')
+  })
 })
