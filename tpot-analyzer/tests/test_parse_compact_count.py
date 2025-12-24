@@ -24,7 +24,7 @@ class TestParseCompactCount:
 
     def test_parse_compact_count_with_label_text(self):
         """Should parse counts with trailing label text (e.g., 'Followers', 'Following')."""
-        # This is the bug - currently fails!
+        # Regression test: Ensures label text after numbers is stripped correctly
         assert SeleniumWorker._parse_compact_count("90.5K Followers") == 90500
         assert SeleniumWorker._parse_compact_count("1,064 Following") == 1064
         assert SeleniumWorker._parse_compact_count("123,456 Following") == 123456

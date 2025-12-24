@@ -1,4 +1,11 @@
-"""Tests seed profile record behavior when header totals are missing."""
+"""Tests seed profile record behavior when header totals are missing.
+
+WARNING: This file uses object.__new__() to bypass HybridShadowEnricher.__init__,
+directly setting internal attributes. This is brittle and tightly coupled to
+implementation details. If the enricher's internal structure changes, these tests
+may pass while actual behavior differs. Consider refactoring to use proper
+dependency injection or factory methods.
+"""
 from __future__ import annotations
 
 import logging
@@ -18,6 +25,7 @@ class _StubSelenium:  # stub for selenium to handle _save_page_snapshot calls
 
 
 def _build_enricher() -> HybridShadowEnricher:
+    """Build enricher bypassing __init__ - BRITTLE, see module docstring."""
     enricher = object.__new__(HybridShadowEnricher)
     enricher._store = _StubStore()  # type: ignore[attr-defined]
     enricher._config = None  # type: ignore[attr-defined]
