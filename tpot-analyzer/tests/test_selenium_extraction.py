@@ -378,8 +378,7 @@ class TestExtractBio:
 class TestExtractWebsite:
     """Test website extraction from UserCell.
 
-    Bug fix: a8eec0d - Changed to prefer link text over href for clean URLs.
-    Note: The current implementation still uses href, not text. This test documents expected behavior.
+    The implementation uses href attribute from the UserUrl link.
     """
 
     def test_extract_from_user_url_testid(self):

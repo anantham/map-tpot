@@ -748,6 +748,11 @@ class TestZeroCoverageEdgeCase:
     treated as 100% coverage (captured all 0 items), not 0% coverage.
 
     Fix: Coverage calculation now returns 100.0 for 0/0 case.
+
+    WARNING: This test reimplements inline logic from enricher.py rather than
+    calling a testable function. If the enricher logic changes, this test may
+    still pass while the actual behavior differs. Consider refactoring enricher
+    to expose a testable _compute_skip_coverage() helper.
     """
 
     def test_zero_following_zero_captured_should_skip(self):
@@ -755,19 +760,17 @@ class TestZeroCoverageEdgeCase:
 
         This is a regression test for the @373staff bug where accounts with
         0 following/followers were not being skipped despite having complete data.
-        """
-        # This test validates the logic at enricher.py:768-774
-        # When following_count = 0 and following_captured = 0:
-        #   following_coverage should be 100.0 (not 0)
-        #   has_sufficient_following should be True (100.0 >= 10.0)
 
-        # Simulate the calculation
+        NOTE: This test duplicates logic from enricher.py:1171-1175. It documents
+        expected behavior but is brittle - if enricher changes, update this test.
+        """
+        # Simulate the calculation (duplicated from enricher.py:1171-1175)
         account_following_count = 0
         last_scrape_following_captured = 0
         MIN_COVERAGE_PCT = 10.0
         MIN_RAW_COUNT = 20
 
-        # Replicate the fixed logic from enricher.py:769-774
+        # Replicate the logic from enricher.py:1171-1175
         if account_following_count and account_following_count > 0 and last_scrape_following_captured is not None:
             following_coverage = (last_scrape_following_captured / account_following_count * 100)
         elif account_following_count == 0 and (last_scrape_following_captured or 0) == 0:
