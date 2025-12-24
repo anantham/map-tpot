@@ -5,50 +5,25 @@ NOTE: fetch_list_members() is complex to unit test because it requires:
 - Browser automation
 - Network requests to Twitter
 
-Instead, we focus on:
-1. Behavioral tests for list ID detection logic
-2. Integration test placeholders (to be implemented with real browser)
-3. Static method tests (if any are added)
+This file contains:
+1. Placeholder integration tests (skipped, require real browser)
+2. Documentation of expected test plans
+
+The "list ID detection" logic is inline in scripts/enrich_shadow_graph.py:324
+using `args.center.strip().isdigit()`. Since this is a single-line check using
+Python's built-in str.isdigit(), dedicated unit tests would just test Python
+itself (test theater). The logic is covered by the integration test placeholders
+below which test the full workflow.
 """
 from __future__ import annotations
 
 import pytest
 
 
-# ==============================================================================
-# List ID Detection Tests (Behavioral)
-# ==============================================================================
-@pytest.mark.unit
-class TestListIDDetection:
-    """Test list ID detection logic in enrich_shadow_graph.py."""
-
-    def test_numeric_string_is_list_id(self):
-        """Numeric strings should be detected as list IDs."""
-        test_input = "1788441465326064008"
-        assert test_input.strip().isdigit() is True
-
-    def test_alphanumeric_string_is_username(self):
-        """Alphanumeric strings should be detected as usernames."""
-        test_input = "adityaarpitha"
-        assert test_input.strip().isdigit() is False
-
-    def test_username_with_numbers_is_not_list_id(self):
-        """Usernames containing numbers should not be detected as list IDs."""
-        test_input = "user123"
-        assert test_input.strip().isdigit() is False
-
-    def test_pure_numeric_with_whitespace_is_list_id(self):
-        """Numeric strings with whitespace should be detected as list IDs."""
-        test_input = "  1788441465326064008  "
-        assert test_input.strip().isdigit() is True
-
-    def test_list_id_url_format(self):
-        """List URLs should contain /i/lists/{list_id}/members format."""
-        list_id = "1788441465326064008"
-        expected_url = f"https://twitter.com/i/lists/{list_id}/members"
-        assert "/i/lists/" in expected_url
-        assert "/members" in expected_url
-        assert list_id in expected_url
+# NOTE: TestListIDDetection class was removed (2024-12 cleanup).
+# It only tested Python's str.isdigit() without calling production code.
+# The actual detection happens inline in scripts/enrich_shadow_graph.py:324.
+# See TestListIDDetectionEndToEnd below for proper integration test placeholders.
 
 
 # ==============================================================================

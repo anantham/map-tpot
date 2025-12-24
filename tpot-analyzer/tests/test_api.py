@@ -201,13 +201,14 @@ def test_presets_endpoint(client):
 
 def test_error_handling_invalid_payload(client):
     """Test error handling for invalid requests."""
-    # Send invalid JSON
+    # Send invalid JSON - should get 400 Bad Request, not 500 Internal Server Error
     response = client.post(
         "/api/metrics/compute",
         data="not-json",
         content_type="application/json",
     )
-    assert response.status_code == 400 or response.status_code == 500
+    # 400 is correct (client error); 500 would indicate missing error handling (bug)
+    assert response.status_code == 400, f"Expected 400 Bad Request, got {response.status_code}"
 
 
 if __name__ == "__main__":
