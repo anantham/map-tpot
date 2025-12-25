@@ -25,3 +25,10 @@ from src.graph.hierarchy.expansion_strategy import (
     execute_bridge_extraction,
     execute_sample_individuals,
 )
+from src.graph.hierarchy.expansion_scoring import (
+    StructureScoreWeights,
+    StructureScoreBreakdown,
+    ScoredStrategy,
+    compute_structure_score,
+    rank_strategies,
+)
