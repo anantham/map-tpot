@@ -402,3 +402,226 @@ class TestExecuteSampleIndividuals:
             all_nodes.update(cluster)
 
         assert all_nodes == set(node_ids)
+
+
+class TestEvaluateAllStrategies:
+    """Tests for self-evaluating strategy selection."""
+
+    @pytest.fixture
+    def community_graph(self):
+        """Create a graph with two clear communities."""
+        n = 30
+        rows, cols = [], []
+        rng = np.random.RandomState(42)
+
+        # Community 1: nodes 0-14 (dense connections)
+        for i in range(15):
+            for j in range(i + 1, 15):
+                if rng.random() < 0.5:
+                    rows.extend([i, j])
+                    cols.extend([j, i])
+
+        # Community 2: nodes 15-29 (dense connections)
+        for i in range(15, 30):
+            for j in range(i + 1, 30):
+                if rng.random() < 0.5:
+                    rows.extend([i, j])
+                    cols.extend([j, i])
+
+        # Few cross-community edges
+        rows.extend([7, 22, 3, 25])
+        cols.extend([22, 7, 25, 3])
+
+        data = [1.0] * len(rows)
+        adjacency = sp.csr_matrix((data, (rows, cols)), shape=(n, n))
+
+        node_ids = [f"node_{i}" for i in range(n)]
+        node_id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+
+        return adjacency, node_ids, node_id_to_idx
+
+    def test_returns_ranked_strategies(self, community_graph):
+        """Should return multiple strategies ranked by score."""
+        from src.graph.hierarchy.expansion_strategy import evaluate_all_strategies
+
+        adjacency, node_ids, node_id_to_idx = community_graph
+
+        ranked = evaluate_all_strategies(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+
+        assert len(ranked) >= 1
+        # Should be sorted by score descending
+        for i in range(len(ranked) - 1):
+            assert ranked[i].score.total_score >= ranked[i + 1].score.total_score
+
+    def test_louvain_scores_well_on_community_graph(self, community_graph):
+        """Louvain should score highly on graph with clear communities."""
+        from src.graph.hierarchy.expansion_strategy import evaluate_all_strategies
+
+        adjacency, node_ids, node_id_to_idx = community_graph
+
+        ranked = evaluate_all_strategies(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+
+        # Find Louvain in results
+        louvain_strategies = [s for s in ranked if s.strategy_name == "louvain"]
+
+        # Louvain should be present and have reasonable score
+        assert len(louvain_strategies) >= 1
+        assert louvain_strategies[0].score.total_score > 0.4
+
+    def test_tag_split_ranks_high_with_good_tags(self, community_graph):
+        """Tag split should rank highly when tags match communities."""
+        from src.graph.hierarchy.expansion_strategy import evaluate_all_strategies
+
+        adjacency, node_ids, node_id_to_idx = community_graph
+
+        # Tags that match the community structure
+        node_tags = {}
+        for i, nid in enumerate(node_ids):
+            if i < 15:
+                node_tags[nid] = {"Community-A"}
+            else:
+                node_tags[nid] = {"Community-B"}
+
+        ranked = evaluate_all_strategies(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            node_tags=node_tags,
+        )
+
+        # Find tag split in results
+        tag_strategies = [s for s in ranked if s.strategy_name == "tag_split"]
+
+        # Tag split should be present
+        assert len(tag_strategies) >= 1
+        # With perfect tags, it should score very well on tag coherence
+        assert tag_strategies[0].score.tag_coherence_score == 1.0
+
+    def test_small_cluster_includes_individuals(self):
+        """Small clusters should include INDIVIDUALS strategy."""
+        from src.graph.hierarchy.expansion_strategy import evaluate_all_strategies
+
+        n = 10
+        adjacency = sp.csr_matrix((n, n))
+        node_ids = [f"node_{i}" for i in range(n)]
+        node_id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+
+        ranked = evaluate_all_strategies(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+
+        strategy_names = [s.strategy_name for s in ranked]
+        assert "individuals" in strategy_names
+
+    def test_includes_execution_time(self, community_graph):
+        """Each strategy should have execution time recorded."""
+        from src.graph.hierarchy.expansion_strategy import evaluate_all_strategies
+
+        adjacency, node_ids, node_id_to_idx = community_graph
+
+        ranked = evaluate_all_strategies(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+
+        for strategy in ranked:
+            assert strategy.execution_time_ms >= 0
+
+    def test_get_best_expansion_returns_top(self, community_graph):
+        """get_best_expansion should return the top-ranked strategy."""
+        from src.graph.hierarchy.expansion_strategy import (
+            evaluate_all_strategies,
+            get_best_expansion,
+        )
+
+        adjacency, node_ids, node_id_to_idx = community_graph
+
+        ranked = evaluate_all_strategies(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+
+        best = get_best_expansion(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+
+        assert best is not None
+        assert best.strategy_name == ranked[0].strategy_name
+        assert best.score.total_score == ranked[0].score.total_score
+
+
+class TestExecuteLouvainLocal:
+    """Tests for local Louvain execution."""
+
+    def test_finds_communities(self):
+        """Should find communities in a graph with structure."""
+        from src.graph.hierarchy.expansion_strategy import execute_louvain_local
+
+        n = 20
+        rows, cols = [], []
+
+        # Two dense cliques
+        for i in range(10):
+            for j in range(i + 1, 10):
+                rows.extend([i, j])
+                cols.extend([j, i])
+
+        for i in range(10, 20):
+            for j in range(i + 1, 20):
+                rows.extend([i, j])
+                cols.extend([j, i])
+
+        # One cross-edge
+        rows.extend([0, 10])
+        cols.extend([10, 0])
+
+        data = [1.0] * len(rows)
+        adjacency = sp.csr_matrix((data, (rows, cols)), shape=(n, n))
+
+        node_ids = [f"node_{i}" for i in range(n)]
+        node_id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+
+        result = execute_louvain_local(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+
+        # Should find 2 communities
+        assert len(result) == 2
+
+        # Each community should have roughly 10 nodes
+        sizes = sorted([len(c) for c in result])
+        assert sizes == [10, 10]
+
+    def test_returns_single_cluster_for_no_edges(self):
+        """Should return single cluster when no edges."""
+        from src.graph.hierarchy.expansion_strategy import execute_louvain_local
+
+        n = 10
+        adjacency = sp.csr_matrix((n, n))
+        node_ids = [f"node_{i}" for i in range(n)]
+        node_id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+
+        result = execute_louvain_local(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+
+        assert len(result) == 1
+        assert set(result[0]) == set(node_ids)

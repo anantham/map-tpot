@@ -595,3 +595,363 @@ def execute_sample_individuals(
         result.append(overflow)
 
     return result
+
+
+def execute_louvain_local(
+    member_node_ids: List[str],
+    adjacency: sparse.spmatrix,
+    node_id_to_idx: Dict[str, int],
+    resolution: float = 1.0,
+) -> List[List[str]]:
+    """Execute local Louvain community detection on the induced subgraph.
+
+    Args:
+        member_node_ids: All members of the cluster
+        adjacency: Full adjacency matrix
+        node_id_to_idx: Node ID to index mapping
+        resolution: Louvain resolution parameter
+
+    Returns:
+        List of community member lists
+    """
+    from community import community_louvain
+
+    # Build induced subgraph
+    member_indices = [node_id_to_idx[nid] for nid in member_node_ids if nid in node_id_to_idx]
+    idx_set = set(member_indices)
+    idx_to_nid = {node_id_to_idx[nid]: nid for nid in member_node_ids if nid in node_id_to_idx}
+
+    G = nx.Graph()
+    G.add_nodes_from(member_node_ids)
+
+    adj_coo = adjacency.tocoo()
+    for i, j, w in zip(adj_coo.row, adj_coo.col, adj_coo.data):
+        if i in idx_set and j in idx_set and i < j:
+            src = idx_to_nid.get(i)
+            tgt = idx_to_nid.get(j)
+            if src and tgt:
+                G.add_edge(src, tgt, weight=float(w))
+
+    if G.number_of_edges() == 0:
+        return [member_node_ids]
+
+    # Run Louvain
+    try:
+        partition = community_louvain.best_partition(G, resolution=resolution, random_state=42)
+    except Exception as e:
+        logger.warning("Louvain failed: %s", e)
+        return [member_node_ids]
+
+    # Group by community
+    communities: Dict[int, List[str]] = {}
+    for nid, comm_id in partition.items():
+        if comm_id not in communities:
+            communities[comm_id] = []
+        communities[comm_id].append(nid)
+
+    result = list(communities.values())
+    result.sort(key=len, reverse=True)
+
+    return result
+
+
+def evaluate_all_strategies(
+    member_node_ids: List[str],
+    adjacency: sparse.spmatrix,
+    node_id_to_idx: Dict[str, int],
+    node_tags: Optional[Dict[str, Set[str]]] = None,
+    soft_memberships: Optional[Dict[str, List[Tuple[str, float]]]] = None,
+    linkage_matrix: Optional[np.ndarray] = None,
+    dendrogram_node: int = -1,
+    n_micro: int = 0,
+    weights: Optional["StructureScoreWeights"] = None,
+) -> List["ScoredStrategy"]:
+    """Execute all applicable strategies and score their results.
+
+    This is the core "self-evaluating" expansion function. Rather than using
+    heuristics to guess which strategy will work, we actually run each candidate
+    and score how much meaningful structure it reveals.
+
+    Args:
+        member_node_ids: All members of the cluster
+        adjacency: Full adjacency matrix
+        node_id_to_idx: Node ID to index mapping
+        node_tags: Optional tag data for tag-based scoring
+        soft_memberships: Optional soft membership data
+        linkage_matrix: Optional Ward linkage matrix
+        dendrogram_node: Dendrogram node index
+        n_micro: Number of micro-clusters
+        weights: Optional custom scoring weights
+
+    Returns:
+        List of ScoredStrategy objects, ranked by score (best first)
+    """
+    from src.graph.hierarchy.expansion_scoring import (
+        StructureScoreWeights,
+        ScoredStrategy,
+        compute_structure_score,
+        rank_strategies,
+    )
+
+    import time
+
+    if weights is None:
+        weights = StructureScoreWeights()
+
+    n = len(member_node_ids)
+    total_members = n
+    scored_strategies: List[ScoredStrategy] = []
+
+    # Compute local metrics to determine which strategies are applicable
+    metrics = compute_local_metrics(
+        member_node_ids=member_node_ids,
+        adjacency=adjacency,
+        node_id_to_idx=node_id_to_idx,
+        node_tags=node_tags,
+        soft_memberships=soft_memberships,
+        linkage_matrix=linkage_matrix,
+        dendrogram_node=dendrogram_node,
+        n_micro=n_micro,
+    )
+
+    # Strategy 1: INDIVIDUALS (only for small clusters)
+    if n <= 20:
+        start = time.time()
+        sub_clusters = [[nid] for nid in member_node_ids]
+        elapsed = int((time.time() - start) * 1000)
+
+        score = compute_structure_score(
+            sub_clusters=sub_clusters,
+            total_members=total_members,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            node_tags=node_tags,
+            weights=weights,
+        )
+
+        scored_strategies.append(ScoredStrategy(
+            strategy_name=ExpansionStrategy.INDIVIDUALS.value,
+            sub_clusters=sub_clusters,
+            score=score,
+            execution_time_ms=elapsed,
+        ))
+
+    # Strategy 2: SAMPLE_INDIVIDUALS (for larger clusters without structure)
+    if n > 15:
+        start = time.time()
+        sub_clusters = execute_sample_individuals(
+            member_node_ids=member_node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            sample_size=15,
+            method="by_degree",
+        )
+        elapsed = int((time.time() - start) * 1000)
+
+        score = compute_structure_score(
+            sub_clusters=sub_clusters,
+            total_members=total_members,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            node_tags=node_tags,
+            weights=weights,
+        )
+
+        scored_strategies.append(ScoredStrategy(
+            strategy_name=ExpansionStrategy.SAMPLE_INDIVIDUALS.value,
+            sub_clusters=sub_clusters,
+            score=score,
+            execution_time_ms=elapsed,
+        ))
+
+    # Strategy 3: TAG_SPLIT (if tags exist with diversity)
+    if node_tags and metrics.n_distinct_tags >= 2:
+        tag_counts: Dict[str, int] = {}
+        for nid in member_node_ids:
+            for tag in node_tags.get(nid, set()):
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+        if tag_counts:
+            start = time.time()
+            sub_clusters = execute_tag_split(
+                member_node_ids=member_node_ids,
+                node_tags=node_tags,
+                tag_counts=tag_counts,
+            )
+            elapsed = int((time.time() - start) * 1000)
+
+            score = compute_structure_score(
+                sub_clusters=sub_clusters,
+                total_members=total_members,
+                adjacency=adjacency,
+                node_id_to_idx=node_id_to_idx,
+                node_tags=node_tags,
+                weights=weights,
+            )
+
+            scored_strategies.append(ScoredStrategy(
+                strategy_name=ExpansionStrategy.TAG_SPLIT.value,
+                sub_clusters=sub_clusters,
+                score=score,
+                execution_time_ms=elapsed,
+            ))
+
+    # Strategy 4: CORE_PERIPHERY (if degree variance is high)
+    if n > 10 and metrics.degree_cv > 0.5:
+        start = time.time()
+        sub_clusters = execute_core_periphery(
+            member_node_ids=member_node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            degree_threshold=metrics.degree_mean,
+        )
+        elapsed = int((time.time() - start) * 1000)
+
+        score = compute_structure_score(
+            sub_clusters=sub_clusters,
+            total_members=total_members,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            node_tags=node_tags,
+            weights=weights,
+        )
+
+        scored_strategies.append(ScoredStrategy(
+            strategy_name=ExpansionStrategy.CORE_PERIPHERY.value,
+            sub_clusters=sub_clusters,
+            score=score,
+            execution_time_ms=elapsed,
+        ))
+
+    # Strategy 5: MUTUAL_COMPONENTS (if mutual edges exist)
+    if metrics.mutual_ratio > 0.1 and n > 5:
+        start = time.time()
+        sub_clusters = execute_mutual_components(
+            member_node_ids=member_node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+        elapsed = int((time.time() - start) * 1000)
+
+        # Only score if it actually split
+        if len(sub_clusters) > 1:
+            score = compute_structure_score(
+                sub_clusters=sub_clusters,
+                total_members=total_members,
+                adjacency=adjacency,
+                node_id_to_idx=node_id_to_idx,
+                node_tags=node_tags,
+                weights=weights,
+            )
+
+            scored_strategies.append(ScoredStrategy(
+                strategy_name=ExpansionStrategy.MUTUAL_COMPONENTS.value,
+                sub_clusters=sub_clusters,
+                score=score,
+                execution_time_ms=elapsed,
+            ))
+
+    # Strategy 6: BRIDGE_EXTRACTION (if bridge nodes exist)
+    if metrics.bridge_ratio > 0.1 and soft_memberships:
+        bridge_nodes = []
+        for nid in member_node_ids:
+            memberships = soft_memberships.get(nid, [])
+            if len(memberships) >= 2:
+                probs = [p for _, p in memberships]
+                if probs:
+                    entropy = -sum(p * np.log2(p) for p in probs if p > 0)
+                    max_entropy = np.log2(len(probs))
+                    if max_entropy > 0 and entropy / max_entropy > 0.7:
+                        bridge_nodes.append(nid)
+
+        if bridge_nodes:
+            start = time.time()
+            sub_clusters = execute_bridge_extraction(
+                member_node_ids=member_node_ids,
+                bridge_nodes=bridge_nodes,
+            )
+            elapsed = int((time.time() - start) * 1000)
+
+            score = compute_structure_score(
+                sub_clusters=sub_clusters,
+                total_members=total_members,
+                adjacency=adjacency,
+                node_id_to_idx=node_id_to_idx,
+                node_tags=node_tags,
+                weights=weights,
+            )
+
+            scored_strategies.append(ScoredStrategy(
+                strategy_name=ExpansionStrategy.BRIDGE_EXTRACTION.value,
+                sub_clusters=sub_clusters,
+                score=score,
+                execution_time_ms=elapsed,
+            ))
+
+    # Strategy 7: LOUVAIN (if edges exist)
+    if metrics.n_edges > 0 and n > 5:
+        resolution = 1.0 + np.log10(max(10, n)) / 2
+
+        start = time.time()
+        sub_clusters = execute_louvain_local(
+            member_node_ids=member_node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            resolution=resolution,
+        )
+        elapsed = int((time.time() - start) * 1000)
+
+        # Only score if it actually split
+        if len(sub_clusters) > 1:
+            score = compute_structure_score(
+                sub_clusters=sub_clusters,
+                total_members=total_members,
+                adjacency=adjacency,
+                node_id_to_idx=node_id_to_idx,
+                node_tags=node_tags,
+                weights=weights,
+            )
+
+            scored_strategies.append(ScoredStrategy(
+                strategy_name=ExpansionStrategy.LOUVAIN.value,
+                sub_clusters=sub_clusters,
+                score=score,
+                execution_time_ms=elapsed,
+            ))
+
+    # Rank by score
+    return rank_strategies(scored_strategies)
+
+
+def get_best_expansion(
+    member_node_ids: List[str],
+    adjacency: sparse.spmatrix,
+    node_id_to_idx: Dict[str, int],
+    node_tags: Optional[Dict[str, Set[str]]] = None,
+    soft_memberships: Optional[Dict[str, List[Tuple[str, float]]]] = None,
+    linkage_matrix: Optional[np.ndarray] = None,
+    dendrogram_node: int = -1,
+    n_micro: int = 0,
+    weights: Optional["StructureScoreWeights"] = None,
+) -> Optional["ScoredStrategy"]:
+    """Get the best expansion strategy for a cluster.
+
+    Convenience wrapper around evaluate_all_strategies that returns
+    just the top-ranked strategy.
+
+    Returns:
+        Best ScoredStrategy, or None if no strategies are applicable
+    """
+    ranked = evaluate_all_strategies(
+        member_node_ids=member_node_ids,
+        adjacency=adjacency,
+        node_id_to_idx=node_id_to_idx,
+        node_tags=node_tags,
+        soft_memberships=soft_memberships,
+        linkage_matrix=linkage_matrix,
+        dendrogram_node=dendrogram_node,
+        n_micro=n_micro,
+        weights=weights,
+    )
+
+    return ranked[0] if ranked else None

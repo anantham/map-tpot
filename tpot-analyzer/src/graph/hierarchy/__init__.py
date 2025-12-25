@@ -24,6 +24,9 @@ from src.graph.hierarchy.expansion_strategy import (
     execute_mutual_components,
     execute_bridge_extraction,
     execute_sample_individuals,
+    execute_louvain_local,
+    evaluate_all_strategies,
+    get_best_expansion,
 )
 from src.graph.hierarchy.expansion_scoring import (
     StructureScoreWeights,
@@ -31,4 +34,13 @@ from src.graph.hierarchy.expansion_scoring import (
     ScoredStrategy,
     compute_structure_score,
     rank_strategies,
+)
+from src.graph.hierarchy.expansion_cache import (
+    ExpansionCache,
+    CachedExpansion,
+    ExpansionPrecomputer,
+    get_expansion_cache,
+    reset_expansion_cache,
+    compute_and_cache_expansion,
+    trigger_precompute_for_visible_clusters,
 )
