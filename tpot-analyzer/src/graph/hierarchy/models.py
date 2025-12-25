@@ -23,7 +23,9 @@ class HierarchicalCluster:
     label_source: str
     representative_handles: List[str]
     contains_ego: bool = False
-    is_leaf: bool = False  # True if this is a micro-cluster (can't expand further)
+    is_leaf: bool = False  # True if cannot expand further (no internal structure)
+    is_individual: bool = False  # True if this represents a single account, not a cluster
+    expansion_strategy: Optional[str] = None  # How this cluster was created (for UI hints)
 
 
 @dataclass 
