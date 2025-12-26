@@ -27,6 +27,14 @@ from src.graph.hierarchy.layout import (
     compute_hierarchical_edges,
     compute_positions,
 )
+from src.graph.hierarchy.local_expand import (
+    expand_cluster_locally,
+    should_use_local_expansion,
+)
+from src.graph.hierarchy.expansion_cache import (
+    compute_and_cache_expansion,
+    get_expansion_cache,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +136,34 @@ def build_hierarchical_view(
         except Exception as exc:
             logger.warning("Failed to apply focus leaf %s: %s", focus_leaf_id, exc)
     
+    # Build node_id_to_idx early for local expansion
+    node_id_to_idx = {str(nid): i for i, nid in enumerate(node_ids)}
+
+    # Track locally-expanded clusters (their sub-clusters are stored separately)
+    # Maps original exp_id -> list of LocalExpansionResult sub-cluster node lists
+    local_expansions: Dict[str, List[List[str]]] = {}
+
+    # Track which expansion strategy was used for each cluster (for UI display)
+    # Maps exp_id -> strategy name (e.g., "louvain", "tag_split", "core_periphery")
+    local_expansion_strategies: Dict[str, str] = {}
+
+    # Also track which local clusters we need to expand (for recursive local expansion)
+    # Maps local_cluster_id -> member_node_ids
+    pending_local_expansions: Dict[str, List[str]] = {}
+
     for exp_id in expanded_ids:
         t_exp_start = time.time()
+
+        # Check if this is a local cluster ID (e.g., "d_179_local_0")
+        if "_local_" in exp_id:
+            # This is a request to expand a previously-created local cluster
+            # We'll handle these after processing dendrogram expansions
+            # For now, just note that we need to expand it
+            logger.info("Queuing local cluster for recursive expansion: %s", exp_id)
+            # The member list will be populated from the parent's local_expansions
+            pending_local_expansions[exp_id] = []  # Placeholder, filled below
+            continue
+
         try:
             node_idx = get_node_idx(exp_id)
         except Exception as e:
@@ -138,6 +172,7 @@ def build_hierarchical_view(
         if node_idx not in visible_nodes:
             logger.info("Skipping expand %s (node %d not in visible_nodes)", exp_id, node_idx)
             continue
+
         # Target child count grows with size, controlled by expand_depth
         # expand_depth 0.0 = exponent 0.4 (conservative, ~4 children for size 50)
         # expand_depth 1.0 = exponent 0.7 (aggressive, ~14 children for size 50)
@@ -146,6 +181,66 @@ def build_hierarchical_view(
         target_children = max(3, int(subtree_sz ** exponent))
         budget_remaining = budget - len(visible_nodes) + 1  # removing 1 node
         target_children = min(target_children, budget_remaining + 1)  # cannot exceed budget
+
+        # Get member count for this cluster to check if it's "large"
+        micro_leaves = get_subtree_leaves(linkage_matrix, node_idx, n_micro)
+
+        # Build member list to get actual node count (not just micro-cluster count)
+        micro_to_nodes_temp: Dict[int, List[int]] = {}
+        for node_i, micro_i in enumerate(micro_labels):
+            if micro_i not in micro_to_nodes_temp:
+                micro_to_nodes_temp[micro_i] = []
+            micro_to_nodes_temp[micro_i].append(node_i)
+
+        member_node_indices = []
+        for micro_i in micro_leaves:
+            member_node_indices.extend(micro_to_nodes_temp.get(micro_i, []))
+        member_node_ids_list = [str(node_ids[i]) for i in member_node_indices]
+        actual_node_count = len(member_node_ids_list)
+
+        # Use self-evaluating expansion: try all strategies, pick best by score
+        # Only use for clusters large enough to benefit from strategy selection
+        if actual_node_count >= 10:
+            # Get cached or compute expansion strategies
+            cached_expansion = compute_and_cache_expansion(
+                cluster_id=exp_id,
+                member_node_ids=member_node_ids_list,
+                adjacency=adjacency,
+                node_id_to_idx=node_id_to_idx,
+                node_tags=None,  # TODO: pass account tags when available
+            )
+
+            if cached_expansion and cached_expansion.best_strategy:
+                best = cached_expansion.best_strategy
+                sub_clusters = best.sub_clusters
+
+                # Only use if it actually splits into multiple clusters
+                if len(sub_clusters) > 1:
+                    # Store the expansion result with strategy metadata
+                    local_expansions[exp_id] = sub_clusters
+                    # Track which strategy was used (for UI display)
+                    if exp_id not in local_expansion_strategies:
+                        local_expansion_strategies[exp_id] = best.strategy_name
+
+                    visible_nodes.discard(node_idx)
+                    logger.info(
+                        "SCORED expansion for %s: strategy=%s, score=%.2f, %d sub-clusters, "
+                        "reason=%s (computed in %dms)",
+                        exp_id,
+                        best.strategy_name,
+                        best.score.total_score,
+                        len(sub_clusters),
+                        best.score.reason,
+                        cached_expansion.computation_ms,
+                    )
+                    continue  # Skip dendrogram expansion
+                else:
+                    logger.info(
+                        "SCORED expansion for %s produced single cluster, falling back to dendrogram",
+                        exp_id
+                    )
+
+        # Standard dendrogram-based expansion
         # Greedy split: replace node with its children iteratively
         current = {node_idx}
         while len(current) < target_children:
@@ -215,8 +310,7 @@ def build_hierarchical_view(
         if len(ego_indices):
             ego_micro = micro_labels[ego_indices[0]]
     
-    # Create node_id -> index mapping for in-degree lookups
-    node_id_to_idx = {str(nid): i for i, nid in enumerate(node_ids)}
+    # node_id_to_idx already created above for local expansion
     in_degrees = None
     if adjacency is not None:
         try:
@@ -280,6 +374,141 @@ def build_hierarchical_view(
             contains_ego=contains_ego,
             is_leaf=is_leaf,
         ))
+
+    # Step 4b: Build cluster info for locally-expanded clusters
+    # These are virtual clusters created by Louvain that don't exist in the dendrogram
+    # Also handle recursive local expansions (expanding a local cluster further)
+
+    # First, collect all local cluster member lists so we can look them up for recursive expansion
+    local_cluster_members: Dict[str, List[str]] = {}
+
+    for parent_exp_id, sub_cluster_lists in local_expansions.items():
+        for sub_idx, sub_member_ids in enumerate(sub_cluster_lists):
+            virtual_id = f"{parent_exp_id}_local_{sub_idx}"
+            local_cluster_members[virtual_id] = sub_member_ids
+
+    # Now handle any pending recursive local expansions
+    for local_exp_id in list(pending_local_expansions.keys()):
+        # Find the member list for this local cluster
+        # It might be from a previous expansion in this same request, or from an earlier request
+        if local_exp_id in local_cluster_members:
+            member_ids = local_cluster_members[local_exp_id]
+        else:
+            # This local cluster was created in an earlier request - we need to find its members
+            # The ID format is like "d_179_local_0" - we need to trace back
+            logger.warning(
+                "Local cluster %s not found in current expansion - may need to re-expand parent first",
+                local_exp_id
+            )
+            continue
+
+        # Check if this local cluster is large enough to expand further
+        if len(member_ids) < 100:  # Don't expand very small clusters
+            logger.info("Skipping recursive expansion of %s - too small (%d members)", local_exp_id, len(member_ids))
+            continue
+
+        # Compute target children based on size
+        target_children = max(3, int(len(member_ids) ** 0.5))  # sqrt-based target
+        budget_remaining = budget - len(visible_nodes) - len(local_expansions)
+        target_children = min(target_children, max(3, budget_remaining))
+
+        logger.info(
+            "Recursive LOCAL expansion for %s: %d members, target_children=%d",
+            local_exp_id, len(member_ids), target_children
+        )
+
+        local_result = expand_cluster_locally(
+            member_node_ids=member_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            target_children=target_children,
+        )
+
+        if local_result.success and len(local_result.sub_clusters) > 1:
+            # Store the recursive expansion result
+            local_expansions[local_exp_id] = local_result.sub_clusters
+            # Update local_cluster_members with the new sub-clusters
+            for sub_idx, sub_member_ids in enumerate(local_result.sub_clusters):
+                nested_id = f"{local_exp_id}_local_{sub_idx}"
+                local_cluster_members[nested_id] = sub_member_ids
+            logger.info(
+                "Recursive LOCAL expansion success for %s: %d sub-clusters in %dms",
+                local_exp_id, len(local_result.sub_clusters), local_result.compute_time_ms
+            )
+        else:
+            logger.warning("Recursive LOCAL expansion failed for %s: %s", local_exp_id, local_result.reason)
+
+    # Now build HierarchicalCluster objects for all local clusters
+    for parent_exp_id, sub_cluster_lists in local_expansions.items():
+        for sub_idx, sub_member_ids in enumerate(sub_cluster_lists):
+            virtual_id = f"{parent_exp_id}_local_{sub_idx}"
+
+            # Skip if this cluster was further expanded (its children will be shown instead)
+            if virtual_id in local_expansions:
+                continue
+
+            # Get member indices for centroid computation
+            member_indices_for_centroid = []
+            for nid in sub_member_ids:
+                idx = node_id_to_idx.get(nid)
+                if idx is not None:
+                    member_indices_for_centroid.append(idx)
+
+            # Compute centroid from member embeddings (via micro-cluster centroids)
+            if member_indices_for_centroid:
+                member_micros = set(micro_labels[member_indices_for_centroid])
+                if member_micros:
+                    centroid = micro_centroids[list(member_micros)].mean(axis=0)
+                else:
+                    centroid = np.zeros(micro_centroids.shape[1])
+            else:
+                centroid = np.zeros(micro_centroids.shape[1])
+
+            # Check if contains ego
+            contains_ego = ego_node_id is not None and ego_node_id in sub_member_ids
+
+            # Representative handles
+            reps = _get_representative_handles(
+                sub_member_ids,
+                node_metadata,
+                in_degrees=in_degrees,
+                node_id_to_idx=node_id_to_idx,
+            )
+
+            # Label
+            user_label = user_labels.get(virtual_id)
+            auto_label = f"Sub-cluster {sub_idx + 1}: " + ", ".join(f"@{h}" for h in reps[:3]) if reps else f"Sub-cluster {sub_idx + 1}"
+
+            # Local clusters CAN be expanded further if they're large enough
+            # is_leaf=True only for small clusters
+            is_expandable = len(sub_member_ids) >= 100
+
+            # Get the strategy that was used to create this cluster
+            strategy_used = local_expansion_strategies.get(parent_exp_id)
+
+            clusters.append(HierarchicalCluster(
+                id=virtual_id,
+                dendrogram_node=-1,  # Virtual node, not in dendrogram
+                parent_id=parent_exp_id,  # Points back to the expanded cluster
+                children_ids=None,  # Children determined dynamically via Louvain
+                member_micro_indices=[],  # Not meaningful for virtual clusters
+                member_node_ids=sub_member_ids,
+                centroid=centroid,
+                size=len(sub_member_ids),
+                label=user_label or auto_label,
+                label_source="user" if user_label else "auto",
+                representative_handles=reps,
+                contains_ego=contains_ego,
+                is_leaf=not is_expandable,  # Can expand if >=100 members
+                expansion_strategy=strategy_used,  # How this cluster was created
+            ))
+
+        logger.info(
+            "Created %d virtual clusters for local expansion of %s",
+            len([1 for i, _ in enumerate(sub_cluster_lists) if f"{parent_exp_id}_local_{i}" not in local_expansions]),
+            parent_exp_id
+        )
+
     logger.info("hierarchy timing: cluster_info=%.2fs clusters=%d", time.time() - t_cluster_info, len(clusters))
 
     # Step 5: Compute edges with connectivity metric (with optional Louvain fusion)
