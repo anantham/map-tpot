@@ -182,8 +182,11 @@
         - `tpot-analyzer/tests/test_expansion_cache.py:1` (NEW) 21 tests for cache infrastructure
     - **Dependencies**
         - Added `python-louvain` package for local community detection
-    - **Pending**
-        - Integration into `builder.py` to use `compute_and_cache_expansion()` instead of current `should_use_local_expansion()` + `expand_cluster_locally()` pattern
+    - **Builder integration**
+        - `tpot-analyzer/src/graph/hierarchy/builder.py:197` Replaced `should_use_local_expansion()` with `compute_and_cache_expansion()` for clusters >= 10 members
+        - Added `local_expansion_strategies` dict to track which strategy was used for each expansion
+        - Virtual clusters now include `expansion_strategy` field for UI display (e.g., "louvain", "core_periphery", "tag_split")
+        - Falls back to dendrogram expansion if scored expansion produces single cluster
 
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.
