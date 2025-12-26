@@ -147,6 +147,43 @@
         - `tpot-analyzer/scripts/verify_graph_explorer_boot.py:1` adds a ✓/✗ boot check script for `/api/seeds` and `/api/graph-data`.
     - **Note**
         - `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` is >300 LOC (monolith); keep future changes minimal and plan a thin-slice decomposition.
+- [2025-12-22] **Hybrid zoom diagnostics: scroll-to-expand instrumentation**
+    - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:106,1417,1431,1484,1532` Add opt-in HybridZoom debug logging (`?hz_log=1` or `localStorage.hybridZoomLog=1`) capturing wheel inputs, modifier-zoom path, zoom-mode transitions, and centered-node screen diagnostics for hypothesis falsification.
+    - `tpot-analyzer/scripts/verify_hybrid_zoom_logging.py:1` Add a ✓/✗ verification script that scans `logs/frontend.log` for HybridZoom diagnostics and summarizes last payloads.
+    - `tpot-analyzer/docs/ROADMAP.md:48` Track follow-up to decompose `ClusterCanvas.jsx` into smaller components.
+- [2025-12-26] **Self-evaluating expansion with strategy scoring and caching**
+    - **Goal / Design**
+        - Replace deterministic expansion heuristics with a "self-evaluating" system that tries all applicable strategies and scores their outputs
+        - Weights are on **evaluation signals** (size entropy, collapse ratio, fragmentation, edge separation, tag coherence), NOT on strategy selection
+        - Enables user-tunable weights to define what "good structure" means
+        - Precomputation + caching delivers instant expansion clicks
+    - **Backend (expansion scoring)**
+        - `tpot-analyzer/src/graph/hierarchy/expansion_scoring.py:1` (NEW, 465 LOC) Structure-aware scoring:
+            - `compute_structure_score()` - evaluates expansion outputs on 5 weighted signals
+            - `StructureScoreWeights` - user-tunable weights (default equal)
+            - `StructureScoreBreakdown` - detailed component scores + human-readable reason
+            - `compute_size_entropy()`, `compute_collapse_ratio()`, `compute_fragmentation_ratio()`, `compute_edge_separation_fast()`, `compute_tag_coherence()` - individual signal computations
+            - `ScoredStrategy` and `rank_strategies()` for ranking strategies by score
+        - `tpot-analyzer/src/graph/hierarchy/expansion_strategy.py:600` Added:
+            - `execute_louvain_local()` - local Louvain community detection on induced subgraph
+            - `evaluate_all_strategies()` - runs all applicable strategies and scores results
+            - `get_best_expansion()` - convenience wrapper returning top-ranked strategy
+    - **Backend (expansion caching)**
+        - `tpot-analyzer/src/graph/hierarchy/expansion_cache.py:1` (NEW, 277 LOC) Caching infrastructure:
+            - `ExpansionCache` - LRU cache with configurable TTL-based expiry
+            - `CachedExpansion` - stores ranked strategies with metadata (compute time, member count)
+            - `ExpansionPrecomputer` - background thread for ahead-of-time computation
+            - `compute_and_cache_expansion()` - on-demand compute + cache
+            - `trigger_precompute_for_visible_clusters()` - queue visible clusters for background precompute
+        - `tpot-analyzer/src/graph/hierarchy/__init__.py` - exports all new symbols
+    - **Tests**
+        - `tpot-analyzer/tests/test_expansion_scoring.py:1` (NEW) 23 tests for scoring components
+        - `tpot-analyzer/tests/test_expansion_strategy.py:407` Added 10 tests for `evaluate_all_strategies()`
+        - `tpot-analyzer/tests/test_expansion_cache.py:1` (NEW) 21 tests for cache infrastructure
+    - **Dependencies**
+        - Added `python-louvain` package for local community detection
+    - **Pending**
+        - Integration into `builder.py` to use `compute_and_cache_expansion()` instead of current `should_use_local_expansion()` + `expand_cluster_locally()` pattern
 
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.
