@@ -38,7 +38,7 @@ const findParentPosition = (nodeId, allNodes, edges) => {
 }
 
 // Hybrid zoom configuration defaults
-const ZOOM_CONFIG = {
+export const ZOOM_CONFIG = {
   BASE_FONT_SIZE: 11,
   EXPAND_THRESHOLD: 24,   // effective font size above which scroll-in triggers expand
   COLLAPSE_THRESHOLD: 3,  // effective font size below which scroll-out triggers collapse (when labels mush together)
@@ -66,6 +66,14 @@ export default function ClusterCanvas({
   canExpandNode,      // (cluster) => boolean - check if node is expandable
   onDoubleClick,      // (cluster) => void - double-click handler
   zoomConfig = {},    // Override zoom thresholds
+  // Physics settings (configurable from Settings panel)
+  jerkThreshold: jerkThresholdProp = 50,
+  velocityThreshold: velocityThresholdProp = 30,
+  repulsionStrength: repulsionStrengthProp = 120,
+  collisionPadding: collisionPaddingProp = 28,
+  // Zoom limits
+  minZoom: minZoomProp = 0.3,  // Prevent zooming out too far (causes label overlap)
+  maxZoom: maxZoomProp = 10,
 }) {
   // Merge zoom config with defaults
   const { BASE_FONT_SIZE, EXPAND_THRESHOLD, COLLAPSE_THRESHOLD } = { ...ZOOM_CONFIG, ...zoomConfig }
@@ -194,13 +202,24 @@ export default function ClusterCanvas({
   const pulseAnimationRef = useRef(null)
   const overlapRatioRef = useRef(1)
   const hasAutofitRef = useRef(false)
+  // Throttle diagnostic logging to prevent memory leaks from excessive fetch() calls
+  const lastOverlapLogRef = useRef(0)
+  const lastSlowRenderLogRef = useRef(0)
+  const lastMemoryLogRef = useRef(0)
+  const DIAGNOSTIC_LOG_THROTTLE_MS = 2000 // Only log diagnostics every 2 seconds
+  const MEMORY_LOG_INTERVAL_MS = 10000 // Log memory every 10 seconds
+  const renderCountRef = useRef(0) // Track total renders for leak detection
+  const memoryBaselineRef = useRef(null) // Initial memory reading
+  // Transition lock to prevent zoom race conditions during expand/collapse
+  const isTransitioningRef = useRef(false)
+  const [isTransitioning, setIsTransitioning] = useState(false)
 
   // Focus camera on a specific world point (teleport)
   useEffect(() => {
     if (!focusPoint || !containerRef.current) return
     const width = containerRef.current.clientWidth || 800
     const height = containerRef.current.clientHeight || 600
-    const targetScale = typeof focusPoint.scale === 'number' ? clamp(focusPoint.scale, 0.1, 10) : transformRef.current.scale
+    const targetScale = typeof focusPoint.scale === 'number' ? clamp(focusPoint.scale, minZoomProp, maxZoomProp) : transformRef.current.scale
     const targetOffset = {
       x: width / 2 - focusPoint.x * targetScale,
       y: height / 2 - focusPoint.y * targetScale,
@@ -433,6 +452,15 @@ export default function ClusterCanvas({
       }
       animProgressRef.current = 0
 
+      // Set transition lock to prevent zoom race conditions
+      isTransitioningRef.current = true
+      setIsTransitioning(true)
+      canvasLog.debug('Transition STARTED - zoom locked', {
+        entering: entering.size,
+        exiting: exiting.size,
+        moving: moving.size,
+      })
+
       // Cancel any existing animation
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
@@ -506,28 +534,77 @@ export default function ClusterCanvas({
       }
 
       if (simNodes.length > 1) {
-        // Diagnostic: check target position spread
-        const targetXs = simNodes.map(n => n.targetX)
-        const targetYs = simNodes.map(n => n.targetY)
-        const xRange = Math.max(...targetXs) - Math.min(...targetXs)
-        const yRange = Math.max(...targetYs) - Math.min(...targetYs)
-        if (xRange < 1 && yRange < 1) {
-          console.warn('[ForceLayout] ⚠️ Targets clustered:', {
-            xRange: xRange.toFixed(3),
-            yRange: yRange.toFixed(3),
-            sampleTargets: simNodes.slice(0, 3).map(n => ({ id: n.id, tx: n.targetX?.toFixed(2), ty: n.targetY?.toFixed(2) })),
+        // ========== DIAGNOSTIC: Position spread analysis ==========
+        const computeSpreadMetrics = (nodes, getX, getY, label) => {
+          const xs = nodes.map(getX)
+          const ys = nodes.map(getY)
+          const meanX = xs.reduce((a, b) => a + b, 0) / xs.length
+          const meanY = ys.reduce((a, b) => a + b, 0) / ys.length
+          const xRange = Math.max(...xs) - Math.min(...xs)
+          const yRange = Math.max(...ys) - Math.min(...ys)
+          // Variance: average squared distance from mean
+          const variance = nodes.reduce((sum, n) => {
+            const dx = getX(n) - meanX
+            const dy = getY(n) - meanY
+            return sum + dx * dx + dy * dy
+          }, 0) / nodes.length
+          const stdDev = Math.sqrt(variance)
+          // Mean distance from centroid
+          const meanDistFromCenter = nodes.reduce((sum, n) => {
+            const dx = getX(n) - meanX
+            const dy = getY(n) - meanY
+            return sum + Math.sqrt(dx * dx + dy * dy)
+          }, 0) / nodes.length
+          return { meanX, meanY, xRange, yRange, variance, stdDev, meanDistFromCenter, label }
+        }
+
+        const startMetrics = computeSpreadMetrics(simNodes, n => n.x, n => n.y, 'START')
+        const targetMetrics = computeSpreadMetrics(simNodes, n => n.targetX, n => n.targetY, 'TARGET')
+
+        // FAILURE MODE: All nodes clustered at center of mass
+        const MIN_SPREAD_THRESHOLD = 50 // pixels - if mean distance < this, nodes are too clustered
+        const isClustered = (metrics) => metrics.meanDistFromCenter < MIN_SPREAD_THRESHOLD && simNodes.length > 3
+
+        if (isClustered(targetMetrics)) {
+          canvasLog.warn('FAILURE MODE: Target positions clustered at center of mass', {
             nodeCount: simNodes.length,
+            centroid: { x: targetMetrics.meanX.toFixed(1), y: targetMetrics.meanY.toFixed(1) },
+            meanDistFromCenter: targetMetrics.meanDistFromCenter.toFixed(1),
+            stdDev: targetMetrics.stdDev.toFixed(1),
+            xRange: targetMetrics.xRange.toFixed(1),
+            yRange: targetMetrics.yRange.toFixed(1),
+            sampleTargets: simNodes.slice(0, 5).map(n => ({
+              id: n.id,
+              target: `(${n.targetX?.toFixed(0)}, ${n.targetY?.toFixed(0)})`,
+              start: `(${n.x?.toFixed(0)}, ${n.y?.toFixed(0)})`
+            })),
           })
         }
 
+        if (isClustered(startMetrics)) {
+          canvasLog.warn('START positions also clustered', {
+            meanDistFromCenter: startMetrics.meanDistFromCenter.toFixed(1),
+            stdDev: startMetrics.stdDev.toFixed(1),
+          })
+        }
+
+        canvasLog.debug('ForceLayout simulation starting', {
+          nodeCount: simNodes.length,
+          entering: entering.size,
+          exiting: exiting.size,
+          startSpread: { meanDist: startMetrics.meanDistFromCenter.toFixed(1), stdDev: startMetrics.stdDev.toFixed(1) },
+          targetSpread: { meanDist: targetMetrics.meanDistFromCenter.toFixed(1), stdDev: targetMetrics.stdDev.toFixed(1) },
+        })
+
         const sim = forceSimulation(simNodes)
           // Stronger charge with size-based scaling - larger nodes push harder
+          // repulsionStrengthProp is stored as positive, negate for forceManyBody
           .force('charge', forceManyBody()
-            .strength(d => -120 - (d.radius || 20) * 2)
+            .strength(d => -repulsionStrengthProp - (d.radius || 20) * 2)
             .distanceMax(400))
           // Increased collision radius to account for labels below nodes
           .force('collide', forceCollide()
-            .radius(d => (d.radius || 20) + 28)  // +28 for label clearance
+            .radius(d => (d.radius || 20) + collisionPaddingProp)
             .strength(1.0)
             .iterations(3))  // More iterations for better separation
           .force('x', forceX(d => d.targetX).strength(0.22))
@@ -538,7 +615,69 @@ export default function ClusterCanvas({
 
         forceSimRef.current = sim
 
+        let tickCount = 0
+        const prevPositions = new Map() // Track previous positions for velocity calculation
+        const velocityHistory = new Map() // Track velocity for jerk calculation
+        // Use configurable thresholds from props
+        const JERK_THRESHOLD = jerkThresholdProp
+        const VELOCITY_THRESHOLD = velocityThresholdProp
+
         sim.on('tick', () => {
+          tickCount++
+
+          // ========== JERK/VELOCITY DETECTION ==========
+          let maxVelocity = 0
+          let maxJerk = 0
+          let jerkyNode = null
+          let fastNode = null
+
+          simNodes.forEach(sn => {
+            const prev = prevPositions.get(sn.id)
+            if (prev) {
+              const dx = sn.x - prev.x
+              const dy = sn.y - prev.y
+              const velocity = Math.sqrt(dx * dx + dy * dy)
+
+              // Track max velocity
+              if (velocity > maxVelocity) {
+                maxVelocity = velocity
+                fastNode = sn.id
+              }
+
+              // Calculate jerk (change in velocity)
+              const prevVel = velocityHistory.get(sn.id) || 0
+              const jerk = Math.abs(velocity - prevVel)
+              if (jerk > maxJerk) {
+                maxJerk = jerk
+                jerkyNode = sn.id
+              }
+
+              velocityHistory.set(sn.id, velocity)
+            }
+            prevPositions.set(sn.id, { x: sn.x, y: sn.y })
+          })
+
+          // Log warnings for sudden/fast movements (throttle to every 20 ticks to prevent memory leaks)
+          // At ~60 ticks/sec, this logs at most 3 times per second
+          if (tickCount % 20 === 0) {
+            if (maxJerk > JERK_THRESHOLD) {
+              canvasLog.warn('JERK DETECTED: Sudden movement change', {
+                tick: tickCount,
+                maxJerk: maxJerk.toFixed(1),
+                nodeId: jerkyNode,
+                threshold: JERK_THRESHOLD,
+              })
+            }
+            if (maxVelocity > VELOCITY_THRESHOLD) {
+              canvasLog.info('Fast node movement detected', {
+                tick: tickCount,
+                maxVelocity: maxVelocity.toFixed(1),
+                nodeId: fastNode,
+                threshold: VELOCITY_THRESHOLD,
+              })
+            }
+          }
+
           simNodes.forEach(sn => {
             settledPositionsRef.current.set(sn.id, { x: sn.x, y: sn.y })
           })
@@ -546,6 +685,28 @@ export default function ClusterCanvas({
 
           const elapsed = performance.now() - startTime
           if (elapsed >= durationMs || sim.alpha() < 0.03) {
+            // Log final spread metrics
+            const finalMetrics = computeSpreadMetrics(simNodes, n => n.x, n => n.y, 'FINAL')
+            const improved = finalMetrics.meanDistFromCenter > startMetrics.meanDistFromCenter
+            const stillClustered = isClustered(finalMetrics)
+
+            if (stillClustered) {
+              canvasLog.warn('ForceLayout STILL CLUSTERED after simulation', {
+                ticks: tickCount,
+                alpha: sim.alpha().toFixed(3),
+                finalSpread: { meanDist: finalMetrics.meanDistFromCenter.toFixed(1), stdDev: finalMetrics.stdDev.toFixed(1) },
+                improved,
+                improvement: (finalMetrics.meanDistFromCenter - startMetrics.meanDistFromCenter).toFixed(1),
+              })
+            } else {
+              canvasLog.debug('ForceLayout simulation complete', {
+                ticks: tickCount,
+                alpha: sim.alpha().toFixed(3),
+                finalSpread: { meanDist: finalMetrics.meanDistFromCenter.toFixed(1), stdDev: finalMetrics.stdDev.toFixed(1) },
+                improved,
+              })
+            }
+
             stopSim(sim)
           }
         })
@@ -592,6 +753,67 @@ export default function ClusterCanvas({
           Array.from(settledPositionsRef.current.keys()).forEach((id) => {
             if (!keep.has(id)) settledPositionsRef.current.delete(id)
           })
+
+          // ========== POST-TRANSITION SETTLE PASS ==========
+          // Run a collision-only simulation (no centering forces) to let nodes
+          // spread out naturally and avoid label overlaps. This mimics the
+          // "drag and release" behavior that users noticed works better.
+          if (processedNodes.length > 1) {
+            const settleNodes = processedNodes.map(n => {
+              const pos = settledPositionsRef.current.get(n.id) || { x: n.x, y: n.y }
+              return {
+                id: n.id,
+                x: pos.x,
+                y: pos.y,
+                radius: n.radius || 20,
+              }
+            })
+
+            const settleSim = forceSimulation(settleNodes)
+              // Repulsion only - no centering forces, so nodes can spread freely
+              .force('charge', forceManyBody()
+                .strength(-repulsionStrengthProp * 0.8) // Slightly weaker than main sim
+                .distanceMax(250))
+              .force('collide', forceCollide()
+                .radius(d => d.radius + collisionPaddingProp + 5) // Extra padding for labels
+                .strength(0.9)
+                .iterations(2))
+              .alpha(0.4) // Lower starting energy
+              .alphaDecay(0.03)
+              .velocityDecay(0.4)
+
+            forceSimRef.current = settleSim
+
+            let settleTickCount = 0
+            settleSim.on('tick', () => {
+              settleTickCount++
+              settleNodes.forEach(sn => {
+                settledPositionsRef.current.set(sn.id, { x: sn.x, y: sn.y })
+              })
+              setRenderTrigger(t => t + 1)
+
+              // Run for up to 40 ticks or until settled
+              if (settleTickCount >= 40 || settleSim.alpha() < 0.02) {
+                canvasLog.debug('Post-transition settle complete', {
+                  ticks: settleTickCount,
+                  alpha: settleSim.alpha().toFixed(3),
+                  nodeCount: settleNodes.length,
+                })
+                settleSim.stop()
+                forceSimRef.current = null
+
+                // Clear transition lock - zoom is now allowed
+                isTransitioningRef.current = false
+                setIsTransitioning(false)
+                canvasLog.debug('Transition COMPLETE - zoom unlocked')
+              }
+            })
+          } else {
+            // No settle pass needed (single node) - clear lock immediately
+            isTransitioningRef.current = false
+            setIsTransitioning(false)
+            canvasLog.debug('Transition COMPLETE (no settle) - zoom unlocked')
+          }
         }
       }
 
@@ -610,7 +832,7 @@ export default function ClusterCanvas({
         forceSimRef.current = null
       }
     }
-  }, [processedNodes, edges])
+  }, [processedNodes, edges, repulsionStrengthProp, collisionPaddingProp, jerkThresholdProp, velocityThresholdProp])
 
   // Auto-fit transform when processedNodes change (first load or big mismatch)
   // Now with smooth camera tween instead of snap
@@ -1021,13 +1243,138 @@ export default function ClusterCanvas({
 	      ctx.globalAlpha = prevAlpha
 	    })
 
-    // Log render performance
+    // ========== LABEL OVERLAP DETECTION ==========
+    // Check for overlapping labels (bounding boxes intersecting)
+    const labelBounds = []
+    const LABEL_HEIGHT = 24 // approximate height of label + size text
+    const CHAR_WIDTH = 6.5 // approximate width per character at 11px font
+
+    allNodes.forEach(node => {
+      const pos = positionFor(node) || { x: node.x, y: node.y }
+      const p = toScreen(pos)
+      const label = node.label || node.id
+      const labelWidth = Math.min(label.length, 24) * CHAR_WIDTH
+      const labelY = p.y + (node.radius || 20) + 4
+
+      labelBounds.push({
+        id: node.id,
+        left: p.x - labelWidth / 2,
+        right: p.x + labelWidth / 2,
+        top: labelY,
+        bottom: labelY + LABEL_HEIGHT,
+      })
+    })
+
+    // Find overlapping pairs
+    const overlaps = []
+    for (let i = 0; i < labelBounds.length; i++) {
+      for (let j = i + 1; j < labelBounds.length; j++) {
+        const a = labelBounds[i]
+        const b = labelBounds[j]
+        // Check AABB intersection
+        if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) {
+          overlaps.push({ nodeA: a.id, nodeB: b.id })
+        }
+      }
+    }
+
+    // Throttled diagnostic logging to prevent memory leaks from excessive fetch() calls
+    const now = performance.now()
+
+    if (overlaps.length > 0 && now - lastOverlapLogRef.current > DIAGNOSTIC_LOG_THROTTLE_MS) {
+      lastOverlapLogRef.current = now
+      if (overlaps.length <= 10) {
+        canvasLog.warn('Label overlaps detected', {
+          overlapCount: overlaps.length,
+          nodeCount: allNodes.length,
+          samples: overlaps.slice(0, 5),
+        })
+      } else {
+        canvasLog.warn('Many label overlaps detected', {
+          overlapCount: overlaps.length,
+          nodeCount: allNodes.length,
+          overlapPercent: ((overlaps.length / allNodes.length) * 100).toFixed(1),
+        })
+      }
+    }
+
+    // Log render performance (throttled)
     const renderEnd = performance.now()
     const renderTime = Math.round(renderEnd - renderStart)
-    if (renderTime > 16) { // Only log if slower than 60fps (16ms)
-      console.warn(`[ClusterCanvas] ⚠️  Slow render: ${renderTime}ms (nodes: ${processedNodes.length}, edges: ${edges.length})`)
-    } else if (transitionState.entering.size > 0 || transitionState.exiting.size > 0) {
-      console.log(`[ClusterCanvas] 🎬 Animation frame: ${renderTime}ms (progress: ${Math.round(animationProgress * 100)}%)`)
+    if (renderTime > 16 && now - lastSlowRenderLogRef.current > DIAGNOSTIC_LOG_THROTTLE_MS) {
+      lastSlowRenderLogRef.current = now
+      canvasLog.warn('Slow render detected', {
+        renderTimeMs: renderTime,
+        nodeCount: processedNodes.length,
+        edgeCount: edges.length,
+        targetFps: 60,
+      })
+    }
+
+    // ========== MEMORY LEAK DETECTION ==========
+    renderCountRef.current++
+
+    // Track internal data structure sizes
+    const internalSizes = {
+      settledPositions: settledPositionsRef.current.size,
+      transitionEntering: transitionRef.current.entering?.size || 0,
+      transitionExiting: transitionRef.current.exiting?.size || 0,
+      transitionExitingNodes: transitionRef.current.exitingNodes?.length || 0,
+      transitionParentPositions: transitionRef.current.parentPositions?.size || 0,
+      transitionStaggerDelays: transitionRef.current.staggerDelays?.size || 0,
+      transitionMoving: transitionRef.current.moving?.size || 0,
+      prevNodes: prevNodesRef.current.length,
+      renderCount: renderCountRef.current,
+    }
+
+    // Log memory stats periodically (every 10 seconds)
+    if (now - lastMemoryLogRef.current > MEMORY_LOG_INTERVAL_MS) {
+      lastMemoryLogRef.current = now
+
+      // Get JS heap size if available (Chrome/Chromium only)
+      const memory = performance.memory ? {
+        usedJSHeapSize: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
+        totalJSHeapSize: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024),
+        jsHeapSizeLimit: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024),
+      } : null
+
+      // Set baseline on first reading
+      if (memoryBaselineRef.current === null && memory) {
+        memoryBaselineRef.current = memory.usedJSHeapSize
+      }
+
+      const memoryGrowth = memory && memoryBaselineRef.current
+        ? memory.usedJSHeapSize - memoryBaselineRef.current
+        : null
+
+      canvasLog.info('MEMORY_STATS', {
+        ...internalSizes,
+        memory,
+        memoryGrowthMB: memoryGrowth,
+        baselineMB: memoryBaselineRef.current,
+        nodeCount: processedNodes.length,
+        edgeCount: edges.length,
+        memberNodeCount: memberNodes.length,
+      })
+
+      // Warn if memory growth is concerning (>100MB from baseline)
+      if (memoryGrowth && memoryGrowth > 100) {
+        canvasLog.warn('MEMORY_LEAK_WARNING: Significant heap growth detected', {
+          growthMB: memoryGrowth,
+          currentMB: memory.usedJSHeapSize,
+          baselineMB: memoryBaselineRef.current,
+          internalSizes,
+        })
+      }
+
+      // Warn if internal structures are larger than expected
+      if (internalSizes.settledPositions > processedNodes.length * 2) {
+        canvasLog.warn('LEAK_SUSPECT: settledPositions larger than expected', {
+          settledPositions: internalSizes.settledPositions,
+          expectedMax: processedNodes.length,
+          ratio: (internalSizes.settledPositions / processedNodes.length).toFixed(1),
+        })
+      }
     }
   }, [processedNodes, edges, memberNodes, transform, hoveredNode, hoveredEdge, hoveredMember, selectedSet, highlightedSet, pendingClusterId, renderTrigger])
 
@@ -1484,6 +1831,12 @@ export default function ClusterCanvas({
       evt.preventDefault()
       evt.stopPropagation()
 
+      // Block zoom during transitions to prevent race conditions
+      if (isTransitioningRef.current) {
+        canvasLog.debug('Zoom BLOCKED - transition in progress')
+        return
+      }
+
       const currentScale = transformRef.current.scale
       const effectiveFont = BASE_FONT_SIZE * currentScale
       const scrollingIn = evt.deltaY < 0
@@ -1520,7 +1873,7 @@ export default function ClusterCanvas({
           })
         }
         const factor = scrollingOut ? 0.9 : 1.1
-        const newScale = clamp(currentScale * factor, 0.1, 10)
+        const newScale = clamp(currentScale * factor, minZoomProp, maxZoomProp)
         updateTransform(zoomToCursor(evt, newScale))
         return
       }
@@ -1590,13 +1943,25 @@ export default function ClusterCanvas({
             // Reset scale to a reasonable level so user can zoom out to collapse
             // Target: effectiveFont ~16px (between collapse 9px and expand 24px thresholds)
             const targetScale = 16 / BASE_FONT_SIZE  // ~1.45
-            updateTransform(t => ({ ...t, scale: clamp(targetScale, 0.5, 3) }))
+
+            // Keep the expanded cluster centered under cursor after scale reset
+            // Get cluster's world position
+            const centeredPos = settledPositionsRef.current.get(centered.id) || { x: centered.x, y: centered.y }
+            const rect = container.getBoundingClientRect()
+            const mouseX = evt.clientX - rect.left
+            const mouseY = evt.clientY - rect.top
+
+            // Calculate new offset to keep cluster under cursor at new scale
+            const newOffsetX = mouseX - centeredPos.x * targetScale
+            const newOffsetY = mouseY - centeredPos.y * targetScale
+
+            updateTransform({ scale: clamp(targetScale, 0.5, 3), offset: { x: newOffsetX, y: newOffsetY } })
           } else {
             // Can't expand - visual zoom to cursor
             const reason = !centered ? 'no centered node' : !canExpand ? (isLeaf ? 'leaf with no members' : 'budget exceeded') : 'unknown'
             canvasLog.info('HybridZoom cannot expand', { reason, fallback: 'visual zoom' })
             const factor = 1.1
-            const newScale = clamp(currentScale * factor, 0.1, 10)
+            const newScale = clamp(currentScale * factor, minZoomProp, maxZoomProp)
             updateTransform(zoomToCursor(evt, newScale))
           }
         } else {
@@ -1607,7 +1972,7 @@ export default function ClusterCanvas({
             expandThreshold: EXPAND_THRESHOLD,
           })
           const factor = 1.1
-          const newScale = clamp(currentScale * factor, 0.1, 10)
+          const newScale = clamp(currentScale * factor, minZoomProp, maxZoomProp)
           updateTransform(zoomToCursor(evt, newScale))
         }
       } else {
@@ -1620,8 +1985,34 @@ export default function ClusterCanvas({
             stack: expansionStack,
           })
           canvasLog.info('HybridZoom COLLAPSING', { clusterId: lastExpanded })
+
+          // Find position of a node to center on after collapse
+          // Use the centered node (which may become part of the collapsed cluster)
+          const centerOnNode = centered
+          const centerPos = centerOnNode
+            ? (settledPositionsRef.current.get(centerOnNode.id) || { x: centerOnNode.x, y: centerOnNode.y })
+            : null
+
           if (onCollapse) {
             onCollapse(lastExpanded)
+          }
+
+          // Reset scale to a level where user can zoom in to expand again
+          // Target: effectiveFont ~10px (between collapse 3px and expand 24px)
+          const targetScale = 10 / BASE_FONT_SIZE  // ~0.91
+
+          if (centerPos) {
+            const rect = container.getBoundingClientRect()
+            const mouseX = evt.clientX - rect.left
+            const mouseY = evt.clientY - rect.top
+
+            // Calculate new offset to keep position under cursor at new scale
+            const newOffsetX = mouseX - centerPos.x * targetScale
+            const newOffsetY = mouseY - centerPos.y * targetScale
+
+            updateTransform({ scale: clamp(targetScale, 0.5, 3), offset: { x: newOffsetX, y: newOffsetY } })
+          } else {
+            updateTransform(t => ({ ...t, scale: clamp(targetScale, 0.5, 3) }))
           }
         } else {
           // Visual zoom out (to cursor)
@@ -1633,7 +2024,7 @@ export default function ClusterCanvas({
             reason,
           })
           const factor = 0.9
-          const newScale = clamp(currentScale * factor, 0.1, 10)
+          const newScale = clamp(currentScale * factor, minZoomProp, maxZoomProp)
           updateTransform(zoomToCursor(evt, newScale))
         }
       }
@@ -1780,6 +2171,29 @@ export default function ClusterCanvas({
                 boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
               }} />
             </div>
+            {/* Transition lock indicator */}
+            {isTransitioning && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 0',
+                marginBottom: 4,
+                color: '#7c3aed',
+                fontWeight: 500,
+              }}>
+                <div style={{
+                  width: 14,
+                  height: 14,
+                  border: '2px solid #7c3aed',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                }} />
+                <span>Transitioning... (zoom paused)</span>
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              </div>
+            )}
             {/* Action text */}
             <div style={{
               color: actionColor,
