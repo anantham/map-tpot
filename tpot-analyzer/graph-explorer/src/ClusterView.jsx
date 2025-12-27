@@ -195,6 +195,12 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const teleportAppliedRef = useRef(null) // `${leaf}|${accountId}`
   const focusAppliedRef = useRef(null) // `${accountId}`
   const [showSettings, setShowSettings] = useState(false)
+  // Physics settings for force simulation (exposed to Settings panel)
+  const [jerkThreshold, setJerkThreshold] = useState(50)
+  const [velocityThreshold, setVelocityThreshold] = useState(30)
+  const [repulsionStrength, setRepulsionStrength] = useState(120)
+  const [collisionPadding, setCollisionPadding] = useState(28)
+  const [minZoom, setMinZoom] = useState(0.3) // Prevent excessive zoom-out causing label overlap
   const expandedKey = useMemo(() => Array.from(expanded).sort().join(','), [expanded])
   const collapsedKey = useMemo(() => Array.from(collapsed).sort().join(','), [collapsed])
   const focusLeafKey = focusLeaf || ''
@@ -1215,6 +1221,78 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
                 </button>
               </div>
             )}
+            {/* Physics settings section */}
+            <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--panel-border)', paddingTop: 10, marginTop: 4 }}>
+              <div style={{ fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>Physics Settings</div>
+              <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <label style={{ fontWeight: 600, minWidth: 100 }} title="Threshold for detecting sudden jerky movements (lower = more sensitive)">
+                    Jerk threshold
+                  </label>
+                  <input
+                    type="range"
+                    min={10}
+                    max={100}
+                    value={jerkThreshold}
+                    onChange={e => setJerkThreshold(Number(e.target.value))}
+                  />
+                  <span style={{ minWidth: 32 }}>{jerkThreshold}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <label style={{ fontWeight: 600, minWidth: 100 }} title="Threshold for detecting fast movements (lower = more sensitive)">
+                    Velocity threshold
+                  </label>
+                  <input
+                    type="range"
+                    min={10}
+                    max={80}
+                    value={velocityThreshold}
+                    onChange={e => setVelocityThreshold(Number(e.target.value))}
+                  />
+                  <span style={{ minWidth: 32 }}>{velocityThreshold}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <label style={{ fontWeight: 600, minWidth: 100 }} title="How strongly nodes push each other apart (higher = more spread out)">
+                    Repulsion force
+                  </label>
+                  <input
+                    type="range"
+                    min={50}
+                    max={300}
+                    value={repulsionStrength}
+                    onChange={e => setRepulsionStrength(Number(e.target.value))}
+                  />
+                  <span style={{ minWidth: 32 }}>{repulsionStrength}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <label style={{ fontWeight: 600, minWidth: 100 }} title="Extra padding around nodes for collision detection (prevents label overlap)">
+                    Collision padding
+                  </label>
+                  <input
+                    type="range"
+                    min={10}
+                    max={60}
+                    value={collisionPadding}
+                    onChange={e => setCollisionPadding(Number(e.target.value))}
+                  />
+                  <span style={{ minWidth: 32 }}>{collisionPadding}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <label style={{ fontWeight: 600, minWidth: 100 }} title="Minimum zoom level (higher = can't zoom out as far, reduces label overlap)">
+                    Min zoom level
+                  </label>
+                  <input
+                    type="range"
+                    min={0.1}
+                    max={1.0}
+                    step={0.05}
+                    value={minZoom}
+                    onChange={e => setMinZoom(Number(e.target.value))}
+                  />
+                  <span style={{ minWidth: 32 }}>{minZoom.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1241,6 +1319,12 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
           expansionStack={expansionStack}
           canExpandNode={canExpandNode}
           onDoubleClick={handleExpand}
+          // Physics settings
+          jerkThreshold={jerkThreshold}
+          velocityThreshold={velocityThreshold}
+          repulsionStrength={repulsionStrength}
+          collisionPadding={collisionPadding}
+          minZoom={minZoom}
         />
 
         {selectedCluster && (
