@@ -129,6 +129,16 @@ def _load_user_state() -> Dict:
     }
 
 
+def _ensure_serializable(obj: any) -> any:
+    if isinstance(obj, set):
+        return list(obj)
+    if isinstance(obj, dict):
+        return {k: _ensure_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_ensure_serializable(x) for x in obj]
+    return obj
+
+
 def _merge_seed_state() -> Dict[str, any]:
     presets = _load_presets()
     user_state = _load_user_state()
@@ -140,14 +150,14 @@ def _merge_seed_state() -> Dict[str, any]:
     if active not in lists and lists:
         active = next(iter(lists.keys()))
 
-    return {
+    return _ensure_serializable({
         "active_list": active,
         "lists": lists,
         "updated_at": user_state.get("updated_at"),
         "preset_names": list(presets.keys()),
         "user_list_names": list(user_state["lists"].keys()),
         "settings": user_state.get("settings", _DEFAULT_SETTINGS),
-    }
+    })
 
 
 def get_seed_state() -> Dict[str, any]:
