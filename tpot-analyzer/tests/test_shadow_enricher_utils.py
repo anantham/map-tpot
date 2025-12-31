@@ -748,82 +748,22 @@ class TestZeroCoverageEdgeCase:
     treated as 100% coverage (captured all 0 items), not 0% coverage.
 
     Fix: Coverage calculation now returns 100.0 for 0/0 case.
-
-    WARNING: This test reimplements inline logic from enricher.py rather than
-    calling a testable function. If the enricher logic changes, this test may
-    still pass while the actual behavior differs. Consider refactoring enricher
-    to expose a testable _compute_skip_coverage() helper.
     """
 
-    def test_zero_following_zero_captured_should_skip(self):
-        """Test that 0 following, 0 captured is treated as complete (100% coverage).
-
-        This is a regression test for the @373staff bug where accounts with
-        0 following/followers were not being skipped despite having complete data.
-
-        NOTE: This test duplicates logic from enricher.py:1171-1175. It documents
-        expected behavior but is brittle - if enricher changes, update this test.
-        """
-        # Simulate the calculation (duplicated from enricher.py:1171-1175)
-        account_following_count = 0
-        last_scrape_following_captured = 0
-        MIN_COVERAGE_PCT = 10.0
-        MIN_RAW_COUNT = 20
-
-        # Replicate the logic from enricher.py:1171-1175
-        if account_following_count and account_following_count > 0 and last_scrape_following_captured is not None:
-            following_coverage = (last_scrape_following_captured / account_following_count * 100)
-        elif account_following_count == 0 and (last_scrape_following_captured or 0) == 0:
-            following_coverage = 100.0  # Captured all 0 items = complete coverage
-        else:
-            following_coverage = 0
-
-        has_sufficient_following = (following_coverage >= MIN_COVERAGE_PCT or (last_scrape_following_captured or 0) > MIN_RAW_COUNT)
-
-        # Assertions
-        assert following_coverage == 100.0, (
-            f"0 following, 0 captured should give 100% coverage, got {following_coverage}%"
-        )
-        assert has_sufficient_following is True, (
-            "Account with 0 following and 0 captured should be considered sufficiently covered"
-        )
+    def test_zero_following_zero_captured_returns_full_coverage(self):
+        """0 following, 0 captured should return 100% coverage."""
+        following_coverage = HybridShadowEnricher._compute_skip_coverage_percent(0, 0)
+        assert following_coverage == 100.0
 
     def test_small_count_still_uses_percentage(self):
         """Test that accounts with small non-zero counts use percentage calculation."""
-        # Account with 5 following, captured all 5
-        account_following_count = 5
-        last_scrape_following_captured = 5
-        MIN_COVERAGE_PCT = 10.0
-
-        # Replicate the fixed logic
-        if account_following_count and account_following_count > 0 and last_scrape_following_captured is not None:
-            following_coverage = (last_scrape_following_captured / account_following_count * 100)
-        elif account_following_count == 0 and (last_scrape_following_captured or 0) == 0:
-            following_coverage = 100.0
-        else:
-            following_coverage = 0
-
-        has_sufficient = (following_coverage >= MIN_COVERAGE_PCT)
-
-        # 5/5 = 100% coverage, which is > 10%
+        following_coverage = HybridShadowEnricher._compute_skip_coverage_percent(5, 5)
         assert following_coverage == 100.0
-        assert has_sufficient is True
 
     def test_zero_following_nonzero_captured_is_corruption(self):
         """Test that 0 following but >0 captured is detected as data corruption."""
-        # This shouldn't happen in practice, but if it does, coverage should be 0
-        account_following_count = 0
-        last_scrape_following_captured = 5  # Corruption: captured 5 but claimed is 0
+        following_coverage = HybridShadowEnricher._compute_skip_coverage_percent(0, 5)
 
-        # Replicate the fixed logic
-        if account_following_count and account_following_count > 0 and last_scrape_following_captured is not None:
-            following_coverage = (last_scrape_following_captured / account_following_count * 100)
-        elif account_following_count == 0 and (last_scrape_following_captured or 0) == 0:
-            following_coverage = 100.0
-        else:
-            following_coverage = 0  # Falls through to default
-
-        # Should fall through to else (neither condition met)
         assert following_coverage == 0, (
             "Capturing 5 when profile says 0 should be treated as invalid data"
         )

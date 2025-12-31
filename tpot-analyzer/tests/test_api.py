@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
 
 import pytest
 
@@ -11,28 +9,36 @@ from src.api.server import create_app
 
 
 @pytest.fixture
-def client(tmp_path):
-    """Create test client with existing cache DB."""
-    # Try multiple common locations for cache.db
-    potential_paths = [
-        Path("tpot-analyzer/data/cache.db"),  # Run from repo root
-        Path("data/cache.db"),                # Run from tpot-analyzer dir
-        Path("../data/cache.db"),             # Run from tests dir
-    ]
-    
-    cache_path = None
-    for p in potential_paths:
-        if p.exists():
-            cache_path = p.resolve()
-            break
-            
-    if not cache_path:
-        pytest.skip(f"cache.db not found in {potential_paths} - run data pipeline first")
-
-    app = create_app({"CACHE_DB_PATH": str(cache_path), "TESTING": True})
-
+def client(temp_snapshot_dir):
+    """Create test client using a deterministic cache.db fixture."""
+    app = create_app({"TESTING": True})
     with app.test_client() as client:
         yield client
+
+
+def _assert_graph_data_payload(data):
+    assert isinstance(data, dict)
+    assert "nodes" in data
+    assert "edges" in data
+    assert "directed_nodes" in data
+    assert "directed_edges" in data
+    assert "meta" in data
+
+    assert isinstance(data["nodes"], list)
+    assert isinstance(data["edges"], list)
+    assert isinstance(data["directed_nodes"], list)
+    assert isinstance(data["directed_edges"], list)
+    assert isinstance(data["meta"], dict)
+
+    if data["nodes"]:
+        node = data["nodes"][0]
+        assert "id" in node
+        assert "username" in node or "account_display_name" in node
+
+    if data["edges"]:
+        edge = data["edges"][0]
+        assert "source" in edge
+        assert "target" in edge
 
 
 def test_health_endpoint(client):
@@ -43,32 +49,20 @@ def test_health_endpoint(client):
     assert data["status"] == "ok"
 
 
-@pytest.mark.skipif(
-    not (
-        os.environ.get("SUPABASE_URL")
-        and os.environ.get("SUPABASE_KEY")
-        and os.environ.get("ALLOW_NETWORK_TESTS") == "1"
-    ),
-    reason="Supabase/network not enabled for tests",
-)
 def test_graph_data_endpoint(client):
     """Test graph data endpoint returns valid structure."""
     response = client.get("/api/graph-data?include_shadow=true")
     assert response.status_code == 200
 
     data = json.loads(response.data)
-    assert "nodes" in data
-    assert "edges" in data
-    assert "directed_nodes" in data
-    assert "directed_edges" in data
+    _assert_graph_data_payload(data)
 
     # Verify we got some data
     assert len(data["nodes"]) > 0
     assert len(data["edges"]) > 0
 
     # Verify node structure
-    first_node_id = next(iter(data["nodes"]))
-    node = data["nodes"][first_node_id]
+    node = data["nodes"][0]
     assert "username" in node or "display_name" in node
     assert "provenance" in node
 
@@ -79,6 +73,7 @@ def test_graph_data_filters(client):
     response = client.get("/api/graph-data?mutual_only=true")
     assert response.status_code == 200
     data = json.loads(response.data)
+    _assert_graph_data_payload(data)
 
     # All edges should be mutual
     for edge in data["edges"]:
@@ -93,6 +88,7 @@ def test_compute_metrics_endpoint(client):
         pytest.skip("Could not fetch graph data to find seeds")
         
     graph_data = json.loads(graph_resp.data)
+    _assert_graph_data_payload(graph_data)
     if not graph_data["nodes"]:
         pytest.skip("Graph is empty, cannot test metrics")
         
@@ -145,6 +141,7 @@ def test_compute_metrics_with_weights(client):
     # 1. Get a valid seed
     graph_resp = client.get("/api/graph-data")
     graph_data = json.loads(graph_resp.data)
+    _assert_graph_data_payload(graph_data)
     if not graph_data["nodes"]:
         pytest.skip("Graph is empty")
     

@@ -1167,18 +1167,14 @@ class HybridShadowEnricher:
 
                     # Calculate edge coverage from last scrape
                     # Special case: 0/0 means we captured all 0 items = 100% coverage
-                    if account and account.following_count and account.following_count > 0 and last_scrape.following_captured is not None:
-                        following_coverage = (last_scrape.following_captured / account.following_count * 100)
-                    elif account and account.following_count == 0 and (last_scrape.following_captured or 0) == 0:
-                        following_coverage = 100.0  # Captured all 0 items = complete coverage
-                    else:
-                        following_coverage = 0
-                    if account and account.followers_count and account.followers_count > 0 and last_scrape.followers_captured is not None:
-                        followers_coverage = (last_scrape.followers_captured / account.followers_count * 100)
-                    elif account and account.followers_count == 0 and (last_scrape.followers_captured or 0) == 0:
-                        followers_coverage = 100.0  # Captured all 0 items = complete coverage
-                    else:
-                        followers_coverage = 0
+                    following_coverage = self._compute_skip_coverage_percent(
+                        account.following_count if account else None,
+                        last_scrape.following_captured,
+                    )
+                    followers_coverage = self._compute_skip_coverage_percent(
+                        account.followers_count if account else None,
+                        last_scrape.followers_captured,
+                    )
 
                     # Only skip if we have complete metadata AND sufficient edge coverage (by percent or raw count)
                     MIN_COVERAGE_PCT = 10.0
@@ -2371,6 +2367,15 @@ class HybridShadowEnricher:
                     list_types=set(entry.list_types),
                 )
         return list(combined.values())
+
+    @staticmethod
+    def _compute_skip_coverage_percent(claimed_total: Optional[int], captured: Optional[int]) -> float:
+        """Compute coverage percent used for skip gating (0/0 treated as 100%)."""
+        if claimed_total is not None and claimed_total > 0 and captured is not None:
+            return (captured / claimed_total) * 100
+        if claimed_total == 0 and (captured or 0) == 0:
+            return 100.0
+        return 0.0
 
     @staticmethod
     def _compute_coverage(captured: int, claimed_total: Optional[int]) -> Optional[float]:

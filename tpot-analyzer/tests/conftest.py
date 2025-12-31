@@ -241,6 +241,26 @@ def temp_shadow_db():
 
 
 # ==============================================================================
+# Snapshot DB Fixtures
+# ==============================================================================
+
+@pytest.fixture
+def temp_snapshot_dir(tmp_path, monkeypatch):
+    """Create a temp snapshot dir with a deterministic cache.db for API tests."""
+    from tests.fixtures.create_test_cache_db import create_test_cache_db
+
+    snapshot_dir = tmp_path / "snapshot"
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = snapshot_dir / "cache.db"
+    create_test_cache_db(cache_path)
+
+    monkeypatch.setenv("SNAPSHOT_DIR", str(snapshot_dir))
+    monkeypatch.setenv("CACHE_DB_PATH", str(cache_path))
+
+    return snapshot_dir
+
+
+# ==============================================================================
 # Helper Fixtures for Common Test Data
 # ==============================================================================
 
