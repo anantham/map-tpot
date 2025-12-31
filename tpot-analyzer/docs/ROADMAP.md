@@ -11,6 +11,10 @@ coverage gaps, or UX improvements surface.
   (implemented 2025-10-11; maintains marker block in README).
 - Add Playwright smoke tests for graph-explorer front end (load graph, adjust
   weights, inspect node detail panel).
+- Refactor shadow enricher orchestration tests to assert persisted outcomes
+  (recording store or sqlite-backed fixtures) instead of mock call counts.
+- Replace production-data dependent tests (e.g., shadow coverage + archive
+  consistency) with deterministic fixture datasets.
 
 ## Features & Analysis
 
@@ -46,3 +50,4 @@ coverage gaps, or UX improvements surface.
   and verification commands.
 - Decompose `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
+- Add ADR documenting testability refactor decisions (fixtures, helper extraction, verification scripts).

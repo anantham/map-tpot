@@ -183,10 +183,45 @@
     - **Dependencies**
         - Added `python-louvain` package for local community detection
     - **Builder integration**
-        - `tpot-analyzer/src/graph/hierarchy/builder.py:197` Replaced `should_use_local_expansion()` with `compute_and_cache_expansion()` for clusters >= 10 members
-        - Added `local_expansion_strategies` dict to track which strategy was used for each expansion
-        - Virtual clusters now include `expansion_strategy` field for UI display (e.g., "louvain", "core_periphery", "tag_split")
-        - Falls back to dendrogram expansion if scored expansion produces single cluster
+    - `tpot-analyzer/src/graph/hierarchy/builder.py:197` Replaced `should_use_local_expansion()` with `compute_and_cache_expansion()` for clusters >= 10 members
+    - Added `local_expansion_strategies` dict to track which strategy was used for each expansion
+    - Virtual clusters now include `expansion_strategy` field for UI display (e.g., "louvain", "core_periphery", "tag_split")
+    - Falls back to dendrogram expansion if scored expansion produces single cluster
+
+- [2025-12-30] **Test coverage hardening (goodhart audit + steelman plan) — WIP**
+    - **Pre-flight review**
+        - Read: `tpot-analyzer/docs/TEST_AUDIT.md`, `tpot-analyzer/docs/tasks/fix-goodharted-tests.md`, `tpot-analyzer/docs/TESTING_METHODOLOGY.md`, `tpot-analyzer/docs/ROADMAP.md`, `tpot-analyzer/docs/index.md`.
+        - Hypotheses:
+            - H1: Logic reimplementation in tests (e.g., ClusterView utilities, skip-coverage logic) allows behavior regressions to pass.
+            - H2: Mock-call assertions in enricher orchestration tests hide missing side effects (upserts/metrics).
+            - H3: Cache-internal assertions in cluster route tests bypass response contracts and miss payload regressions.
+            - H4: Production-data dependencies and skip markers reduce determinism and inflate green counts.
+            - H5: Oversized UI modules suppress granular tests; modularity will improve coverage focus.
+    - **Completed changes (line numbers)**
+        - `tpot-analyzer/scripts/verify_test_inventory.py:1`: add goodhart inventory script with ✓/✗ output + samples.
+        - `tpot-analyzer/scripts/verify_backend_intent.py:1`: add backend verification script for fixtures + helper checks.
+        - `tpot-analyzer/tests/fixtures/create_test_cache_db.py:1`: deterministic cache.db builder for API tests.
+        - `tpot-analyzer/tests/fixtures/__init__.py:1`: mark fixtures as a package for imports.
+        - `tpot-analyzer/tests/conftest.py:243`: add `temp_snapshot_dir` fixture wiring SNAPSHOT_DIR/CACHE_DB_PATH.
+        - `tpot-analyzer/tests/test_api.py:11`: use deterministic cache fixture + stronger payload assertions.
+        - `tpot-analyzer/src/shadow/enricher.py:1168` and `tpot-analyzer/src/shadow/enricher.py:2371`: use + expose `_compute_skip_coverage_percent`.
+        - `tpot-analyzer/tests/test_shadow_enricher_utils.py:743`: assert skip coverage via helper (no reimplementation).
+        - `tpot-analyzer/tests/test_cluster_routes.py:362`: assert cache hit returns identical payload; label tests use real store.
+        - `tpot-analyzer/docs/ROADMAP.md:14`: capture pending test-hardening gaps (shadow enricher + fixture data).
+        - `tpot-analyzer/tests/helpers/recording_shadow_store.py:1`: add recording store to assert enrichment side effects without mock-call checks.
+        - `tpot-analyzer/tests/helpers/__init__.py:1`: add helper package for test utilities.
+        - `tpot-analyzer/tests/test_shadow_enricher_orchestration.py:22`: switch orchestration tests to recording store + persisted outcome assertions.
+        - `tpot-analyzer/tests/test_shadow_enricher_orchestration.py:443`: align delta refresh test with list-specific policy (only following refreshes).
+        - `tpot-analyzer/src/graph/builder.py:76`: default archive node provenance for graph payloads.
+    - **Remaining planned changes**
+        - `tpot-analyzer/graph-explorer/src/ClusterView.test.jsx`: remove reimplementation tests, replace with user-flow assertions.
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.memoryleak.test.jsx`: make leak checks deterministic via test hooks.
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx`, `tpot-analyzer/graph-explorer/src/ClusterView.jsx`, `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx`: decompose into <300 LOC modules.
+        - `tpot-analyzer/docs/index.md`: update doc index for new ADR/scripts once created.
+        - `tpot-analyzer/docs/adr/006-testability-refactor.md` (NEW): record decisions on testability and modularization.
+    - **Verification**
+        - `cd tpot-analyzer && python3 -m pytest tests/test_shadow_enricher_orchestration.py -q` → ERROR `ModuleNotFoundError: No module named 'sqlalchemy'`.
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_shadow_enricher_orchestration.py tests/test_shadow_enricher_utils.py::TestZeroCoverageEdgeCase tests/test_cluster_routes.py::TestClusterLabelEndpoints tests/test_api.py -q` → `28 passed, 1 warning` (LibreSSL warning).
 
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.

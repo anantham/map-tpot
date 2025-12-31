@@ -27,6 +27,7 @@ from src.api.cluster_routes import (
     _serialize_hierarchical_view,
     cluster_bp,
 )
+from src.graph.clusters import ClusterLabelStore
 from src.graph.hierarchy.models import (
     HierarchicalCluster,
     HierarchicalEdge,
@@ -382,6 +383,10 @@ class TestGetClustersEndpoint:
             data2 = resp2.get_json()
 
             assert data2.get("cache_hit") is True
+            assert data1["clusters"] == data2["clusters"]
+            assert data1["edges"] == data2["edges"]
+            assert data1["positions"] == data2["positions"]
+            assert data1["meta"]["budget"] == data2["meta"]["budget"]
 
 
 class TestGetClusterMembersEndpoint:
@@ -407,13 +412,10 @@ class TestGetClusterMembersEndpoint:
              patch("src.api.cluster_routes._node_id_to_idx", {}), \
              patch("src.api.cluster_routes._cache", cache):
 
-            # First get clusters to populate cache
-            client.get("/api/clusters?n=2&budget=10")
-
-            # Get the cluster IDs from the cached view
-            cached_key = list(cache._entries.keys())[0]
-            view = cache._entries[cached_key].view
-            cluster_id = view["clusters"][0]["id"]
+            cluster_resp = client.get("/api/clusters?n=2&budget=10")
+            assert cluster_resp.status_code == 200
+            cluster_data = cluster_resp.get_json()
+            cluster_id = cluster_data["clusters"][0]["id"]
 
             resp = client.get(f"/api/clusters/{cluster_id}/members?n=2&budget=10")
             assert resp.status_code == 200
@@ -436,20 +438,20 @@ class TestClusterLabelEndpoints:
             )
             assert resp.status_code == 503
 
-    def test_post_label_400_when_empty(self, client):
+    def test_post_label_400_when_empty(self, client, tmp_path):
         """Returns 400 when label is empty."""
-        mock_store = MagicMock()
-        with patch("src.api.cluster_routes._label_store", mock_store):
+        store = ClusterLabelStore(tmp_path / "clusters.db")
+        with patch("src.api.cluster_routes._label_store", store):
             resp = client.post(
                 "/api/clusters/d_0/label",
                 json={"label": "   "}
             )
             assert resp.status_code == 400
 
-    def test_post_label_success(self, client):
+    def test_post_label_success(self, client, tmp_path):
         """Successfully sets cluster label."""
-        mock_store = MagicMock()
-        with patch("src.api.cluster_routes._label_store", mock_store):
+        store = ClusterLabelStore(tmp_path / "clusters.db")
+        with patch("src.api.cluster_routes._label_store", store):
             resp = client.post(
                 "/api/clusters/d_0/label",
                 json={"label": "My Label"}
@@ -459,15 +461,18 @@ class TestClusterLabelEndpoints:
             data = resp.get_json()
             assert data["label"] == "My Label"
             assert data["labelSource"] == "user"
-            mock_store.set_label.assert_called_once()
+            labels = store.get_all_labels()
+            assert labels.get("spectral_d_0") == "My Label"
 
-    def test_delete_label_success(self, client):
+    def test_delete_label_success(self, client, tmp_path):
         """Successfully deletes cluster label."""
-        mock_store = MagicMock()
-        with patch("src.api.cluster_routes._label_store", mock_store):
+        store = ClusterLabelStore(tmp_path / "clusters.db")
+        store.set_label("spectral_d_0", "My Label")
+        with patch("src.api.cluster_routes._label_store", store):
             resp = client.delete("/api/clusters/d_0/label")
             assert resp.status_code == 200
-            mock_store.delete_label.assert_called_once()
+            labels = store.get_all_labels()
+            assert "spectral_d_0" not in labels
 
 
 class TestPreviewEndpoint:

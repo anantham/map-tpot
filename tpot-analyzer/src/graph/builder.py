@@ -77,7 +77,9 @@ def build_graph_from_frames(
             directed = nx.DiGraph()
             for account_id, attrs in account_lookup.items():
                 profile_attrs = profile_lookup.get(account_id, {})
-                directed.add_node(account_id, **attrs, **profile_attrs)
+                node_attrs = {**attrs, **profile_attrs}
+                node_attrs.setdefault("provenance", "archive")
+                directed.add_node(account_id, **node_attrs)
 
         with profile_phase("add_edges", "build_graph_from_frames", {"mutual_only": mutual_only}):
             directed = _add_edges(
