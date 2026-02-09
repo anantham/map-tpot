@@ -186,11 +186,13 @@ export function useAccountManager({ initialInput = '', initialValid = false, onA
     accountSuggestions,
     showAccountSuggestions,
     accountSuggestionIndex,
+    setAccountSuggestionIndex,
     // Handlers
     handleAccountInputChange,
     handleAccountKeyDown,
     handleAccountBlur,
     validateAccountInput,
     selectAccountSuggestion,
+    clearAccount,
   }
 }
