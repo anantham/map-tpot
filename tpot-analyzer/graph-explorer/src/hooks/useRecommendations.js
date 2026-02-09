@@ -244,7 +244,7 @@ export function useRecommendations({
     }
     setError(null)
 
-    const allSeeds = [...seeds]
+    const allSeeds = [...(seeds || [])]
     if (activeAccount && !allSeeds.some((seed) => normalizeHandle(seed) === normalizeHandle(activeAccount))) {
       allSeeds.unshift(activeAccount)
     }
