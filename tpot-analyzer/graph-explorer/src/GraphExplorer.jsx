@@ -6,8 +6,9 @@ import React, {
   useCallback
 } from "react";
 import ForceGraph2D from "react-force-graph-2d";
-import { fetchGraphData, fetchGraphSettings, checkHealth, computeMetrics, saveSeedList } from "./data";
-import { DEFAULT_PRESETS, DEFAULT_WEIGHTS as DEFAULT_DISCOVERY_WEIGHTS } from "./config";
+import { DEFAULT_WEIGHTS as DEFAULT_DISCOVERY_WEIGHTS } from "./config";
+import { useGraphData } from "./hooks/useGraphData";
+import { useGraphSeeds } from "./hooks/useGraphSeeds";
 
 const COLORS = {
   baseNode: "#a5b4fc",
@@ -63,23 +64,12 @@ const BRIDGE_CONFIG = {
 };
 
 export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.json" }) {
-  const [graphStructure, setGraphStructure] = useState(null);
-  const [metrics, setMetrics] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [computing, setComputing] = useState(false);
-  const [backendAvailable, setBackendAvailable] = useState(null);
-  const metricsInFlightRef = useRef(false); // Guard against concurrent metric computations
   const [panelOpen, setPanelOpen] = useState(true);
   const [mutualOnly, setMutualOnly] = useState(false);
-  const [graphSettings, setGraphSettings] = useState(null);
   const [linkDistance, setLinkDistance] = useState(140);
   const [chargeStrength, setChargeStrength] = useState(-220);
   const [edgeOpacity, setEdgeOpacity] = useState(0.25); // Default opacity for edges
   const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [seedTextarea, setSeedTextarea] = useState("");
-  const [customSeeds, setCustomSeeds] = useState([]);
-  const [presetName, setPresetName] = useState("Adi's Seeds");
   const [includeShadows, setIncludeShadows] = useState(true);
   const [subgraphSize, setSubgraphSize] = useState(50);
   const [contextMenu, setContextMenu] = useState(null);
@@ -87,104 +77,33 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
   const [excludeFollowing, setExcludeFollowing] = useState(false); // Filter out accounts I follow
   const [weights, setWeights] = useState({ pr: 0.4, bt: 0.3, eng: 0.3 });
 
-  const availablePresets = useMemo(() => {
-    const lists = graphSettings?.lists;
-    if (lists && Object.keys(lists).length > 0) {
-      return lists;
-    }
-    return DEFAULT_PRESETS;
-  }, [graphSettings]);
+  // --- Seed / preset management ---
+  const {
+    graphSettings, seedTextarea, setSeedTextarea, presetName,
+    availablePresets, activeSeedList, customSeedHandleSet,
+    applyCustomSeedList, persistSeedsToServer,
+    handlePresetChange, handleApplyCustomSeeds,
+  } = useGraphSeeds({
+    onSettingsLoaded: useCallback((state) => {
+      const autoShadow = state?.settings?.auto_include_shadow;
+      if (typeof autoShadow === 'boolean') setIncludeShadows(autoShadow);
+    }, []),
+  });
+
+  // --- Data pipeline (health → structure → metrics) ---
+  const {
+    graphStructure, metrics, error, loading, computing,
+    backendAvailable, recomputeMetrics,
+  } = useGraphData({
+    activeSeedList,
+    includeShadows,
+    weights,
+  });
 
   // Placeholder for future fallback mode using a static analysis JSON blob.
   void _dataUrl;
 
-  // Check backend health on mount
-  useEffect(() => {
-    const checkBackend = async () => {
-      const isHealthy = await checkHealth();
-      setBackendAvailable(isHealthy);
-      if (!isHealthy) {
-        console.warn("Backend API not available. Some features will be limited.");
-      }
-    };
-    checkBackend();
-  }, []);
-
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const state = await fetchGraphSettings();
-        setGraphSettings(state);
-        const autoShadow = state?.settings?.auto_include_shadow;
-        if (typeof autoShadow === "boolean") {
-          setIncludeShadows(autoShadow);
-        }
-      } catch (err) {
-        console.error("Failed to load graph settings:", err);
-      }
-    };
-    loadSettings();
-  }, []);
-
-  useEffect(() => {
-    if (!graphSettings || customSeeds.length > 0) return;
-    const active = graphSettings.active_list;
-    if (!active || !availablePresets[active]) return;
-    if (presetName !== active) {
-      setPresetName(active);
-    }
-    setSeedTextarea((availablePresets[active] || []).join("\n"));
-  }, [graphSettings, availablePresets, customSeeds.length, presetName]);
-
-  const determineEditableSeedListName = useCallback(() => {
-    const presetNames = new Set(graphSettings?.preset_names || []);
-    const userListNames = new Set(graphSettings?.user_list_names || []);
-    const existingLists = new Set(Object.keys(graphSettings?.lists || {}));
-
-    let active = graphSettings?.active_list || presetName || "graph_explorer";
-    if (!presetNames.has(active) || userListNames.has(active)) {
-      return active;
-    }
-
-    let candidate = `${active}_custom`;
-    let counter = 1;
-    while (existingLists.has(candidate)) {
-      candidate = `${active}_custom_${counter++}`;
-    }
-    return candidate;
-  }, [graphSettings, presetName]);
-
-  const persistSeedsToServer = useCallback(async (nextSeeds) => {
-    if (!Array.isArray(nextSeeds) || nextSeeds.length === 0) {
-      throw new Error("Add at least one account before saving seeds.");
-    }
-    const sanitized = sanitizeSeedList(nextSeeds);
-    if (!sanitized.length) {
-      throw new Error("None of the handles were valid.");
-    }
-    const targetName = determineEditableSeedListName();
-    const state = await saveSeedList({
-      name: targetName,
-      seeds: sanitized,
-      setActive: true
-    });
-    if (state) {
-      setGraphSettings(state);
-      setPresetName(state.active_list || targetName);
-    }
-    return state;
-  }, [determineEditableSeedListName]);
-
   const graphRef = useRef(null);
-
-  const applyCustomSeedList = useCallback((nextSeeds, { keepPresetName = false } = {}) => {
-    const sanitized = sanitizeSeedList(Array.isArray(nextSeeds) ? nextSeeds : []);
-    setCustomSeeds(sanitized);
-    setSeedTextarea(sanitized.join("\n"));
-    if (!keepPresetName) {
-      setPresetName("Custom");
-    }
-  }, []);
 
   // Dismiss context menu on outside click or ESC key
   useEffect(() => {
@@ -207,79 +126,6 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
       document.removeEventListener('keydown', handleEscape);
     };
   }, [contextMenu]);
-
-  const activeSeedList = useMemo(() => {
-    if (customSeeds.length > 0) {
-      return customSeeds;
-    }
-    return availablePresets[presetName] || [];
-  }, [customSeeds, presetName, availablePresets]);
-
-  // Load initial graph structure
-  useEffect(() => {
-    const loadGraph = async () => {
-      if (!backendAvailable) return;
-
-      try {
-        console.log('[GraphExplorer] Loading graph structure...');
-        setLoading(true);
-        const structure = await fetchGraphData({
-          includeShadow: includeShadows,
-          mutualOnly: false, // Load all edges, filter in UI
-          minFollowers: 0,
-        });
-        setGraphStructure(structure);
-        console.log('[GraphExplorer] Graph structure loaded - graph can now display!');
-      } catch (err) {
-        console.error("Failed to load graph structure:", err);
-        setError(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadGraph();
-  }, [backendAvailable, includeShadows]);
-
-  // Compute metrics when seeds or weights change
-  const recomputeMetrics = useCallback(async () => {
-    if (!backendAvailable || !graphStructure) return;
-
-    // Guard: prevent concurrent calls (React StrictMode protection)
-    if (metricsInFlightRef.current) {
-      console.log('[GraphExplorer] Metrics computation already in progress, skipping...');
-      return;
-    }
-
-    try {
-      metricsInFlightRef.current = true;
-      setComputing(true);
-      console.log(`[GraphExplorer] Computing base metrics with ${activeSeedList.length} seeds...`);
-      const weightVector = [weights.pr, weights.bt, weights.eng];
-      const result = await computeMetrics({
-        seeds: activeSeedList,
-        weights: weightVector,
-        alpha: 0.85,
-        resolution: 1.0,
-        includeShadow: includeShadows,
-        mutualOnly: false,
-        minFollowers: 0,
-      });
-
-      setMetrics(result);
-      console.log('[GraphExplorer] Metrics computed! Tooltips and node sizing updated.');
-    } catch (err) {
-      console.error("Failed to compute metrics:", err);
-      setError(err);
-    } finally {
-      setComputing(false);
-      metricsInFlightRef.current = false;
-    }
-  }, [backendAvailable, graphStructure, activeSeedList, includeShadows, weights]);
-
-  // Trigger metric recomputation when dependencies change
-  useEffect(() => {
-    recomputeMetrics();
-  }, [recomputeMetrics]);
 
   // Discovery ranking now piggybacks on computeMetrics; no separate fetch needed.
 
@@ -313,7 +159,7 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
   }, [data]);
 
   const activeSeedHandleSet = useMemo(() => toLowerSet(activeSeedList), [activeSeedList]);
-  const customSeedHandleSet = useMemo(() => toLowerSet(customSeeds), [customSeeds]);
+
   const effectiveSeedSet = useMemo(() => new Set([...resolvedSeeds, ...activeSeedHandleSet]), [resolvedSeeds, activeSeedHandleSet]);
 
   const metricsData = data?.metrics ?? EMPTY_METRICS;
@@ -1112,25 +958,6 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
   const handleWeightChange = (key) => (event) => {
     const value = Number(event.target.value);
     setWeights((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handlePresetChange = (event) => {
-    const name = event.target.value;
-    setPresetName(name);
-    if (name === "Custom") {
-      applyCustomSeedList(customSeeds, { keepPresetName: true });
-      return;
-    }
-    const presetSeeds = availablePresets[name] || [];
-    applyCustomSeedList(presetSeeds, { keepPresetName: true });
-  };
-
-  const handleApplyCustomSeeds = () => {
-    const lines = seedTextarea
-      .split(/[,\n]/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    applyCustomSeedList(lines);
   };
 
   const handleDownloadCsv = () => {
