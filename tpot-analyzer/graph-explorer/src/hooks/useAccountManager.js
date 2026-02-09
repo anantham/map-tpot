@@ -23,8 +23,8 @@ export function useAccountManager({ initialInput = '', initialValid = false, onA
   // Use ref for callback to avoid stale closures — callers can pass a callback
   // that isn't stable yet (e.g., depends on state defined after this hook call)
   const onChangeRef = useRef(onAccountChange)
-  useEffect(() => { onChangeRef.current = onAccountChange }, [fireChange])
   const fireChange = useCallback(() => { onChangeRef.current?.() }, [])
+  useEffect(() => { onChangeRef.current = onAccountChange }, [onAccountChange])
 
   const [validatedAccount, setValidatedAccount] = useState(initialValid ? initialInput : '')
   const [myAccountInput, setMyAccountInput] = useState(initialInput)
@@ -63,7 +63,7 @@ export function useAccountManager({ initialInput = '', initialValid = false, onA
       setMyAccountValid(false)
       fireChange()
     }
-  }, [validatedAccount, myAccountValid, onAccountChange])
+  }, [validatedAccount, myAccountValid, fireChange])
 
   const clearAccount = useCallback(() => {
     setMyAccountInput('')
