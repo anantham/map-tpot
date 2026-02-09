@@ -79,7 +79,8 @@ class DiscoveryCache:
             'weights': request.weights,
             'filters': request.filters,
             'limit': request.limit,
-            'offset': request.offset
+            'offset': request.offset,
+            'debug': request.debug,
         }
 
         # Include snapshot version if available
