@@ -18,6 +18,7 @@ from src.api import snapshot_loader
 from src.api.request_context import RequestIdFilter, clear_req_id, get_req_id, set_req_id
 from src.api.services.analysis_manager import AnalysisManager
 from src.api.services.cache_manager import CacheManager
+from src.api.services.signal_feedback_store import SignalFeedbackStore
 from src.api.routes.core import core_bp
 from src.api.routes.graph import graph_bp
 from src.api.routes.analysis import analysis_bp
@@ -102,6 +103,7 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     # These replace the old module-level globals
     app.config["ANALYSIS_MANAGER"] = AnalysisManager()
     app.config["CACHE_MANAGER"] = CacheManager()
+    app.config["SIGNAL_FEEDBACK_STORE"] = SignalFeedbackStore()
 
     # 2b. Load snapshot graph (used by search/autocomplete endpoints).
     # Tests patch src.api.snapshot_loader.get_snapshot_loader to inject a lightweight graph.
