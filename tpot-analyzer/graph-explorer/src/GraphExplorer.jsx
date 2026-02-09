@@ -7,35 +7,7 @@ import React, {
 } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { fetchGraphData, fetchGraphSettings, checkHealth, computeMetrics, saveSeedList } from "./data";
-const DEFAULT_PRESETS = {
-  "Adi's Seeds": [
-    "prerationalist",
-    "gptbrooke",
-    "the_wilderless",
-    "nosilverv",
-    "qorprate",
-    "vividvoid_",
-    "pli_cachete",
-    "goblinodds",
-    "eigenrobot",
-    "pragueyerrr",
-    "exgenesis",
-    "becomingcritter",
-    "astridwilde1",
-    "malcolm_ocean",
-    "m_ashcroft",
-    "visakanv",
-    "drmaciver",
-    "tasshinfogleman"
-  ]
-};
-
-const DEFAULT_DISCOVERY_WEIGHTS = {
-  neighbor_overlap: 0.4,
-  pagerank: 0.3,
-  community: 0.2,
-  path_distance: 0.1,
-};
+import { DEFAULT_PRESETS, DEFAULT_WEIGHTS as DEFAULT_DISCOVERY_WEIGHTS } from "./config";
 
 const COLORS = {
   baseNode: "#a5b4fc",
