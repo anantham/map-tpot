@@ -1,38 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import './Discovery.css'
-
-const API_BASE_URL = 'http://localhost:5001'
-const DEFAULT_ACCOUNT = 'adityaarpitha'
-
-// Default seed accounts
-const DEFAULT_SEEDS = [
-  "prerationalist",
-  "gptbrooke",
-  "the_wilderless",
-  "nosilverv",
-  "qorprate",
-  "vividvoid_",
-  "pli_cachete",
-  "goblinodds",
-  "eigenrobot",
-  "pragueyerrr",
-  "exgenesis",
-  "becomingcritter",
-  "astridwilde1",
-  "malcolm_ocean",
-  "m_ashcroft",
-  "visakanv",
-  "drmaciver",
-  "tasshinfogleman"
-]
-
-// Default weight values
-const DEFAULT_WEIGHTS = {
-  neighbor_overlap: 0.4,
-  pagerank: 0.3,
-  community: 0.2,
-  path_distance: 0.1
-}
+import { DEFAULT_ACCOUNT, DEFAULT_SEEDS, DEFAULT_WEIGHTS } from './config'
+import * as storage from './storage'
+import * as discoveryApi from './discoveryApi'
+import { useAccountManager } from './hooks/useAccountManager'
+import { useSeedInput } from './hooks/useSeedInput'
 
 const DEFAULT_BATCH_SIZE = 50
 const MIN_BATCH_SIZE = 10
@@ -157,21 +129,22 @@ const normalizeHandle = (value) => {
 }
 
 function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) {
-  const savedAccount = typeof window !== 'undefined'
-    ? (localStorage.getItem('discovery_my_account') || initialAccount || '')
-    : initialAccount || ''
-  const savedValid = typeof window !== 'undefined'
-    ? localStorage.getItem('discovery_my_account_valid') === 'true'
-    : Boolean(initialAccount)
+  const { handle: savedAccountHandle, valid: savedAccountValid } = storage.getAccount()
+  const savedAccount = savedAccountHandle || initialAccount || ''
+  const savedValid = savedAccountHandle ? savedAccountValid : Boolean(initialAccount)
 
-  // State
-  const [validatedAccount, setValidatedAccount] = useState(savedValid ? savedAccount : '')
-  const [myAccountInput, setMyAccountInput] = useState(savedAccount)
-  const [myAccountValid, setMyAccountValid] = useState(Boolean(savedAccount) && savedValid)
-  const [myAccountError, setMyAccountError] = useState(null)
-  const [accountSuggestions, setAccountSuggestions] = useState([])
-  const [showAccountSuggestions, setShowAccountSuggestions] = useState(false)
-  const [accountSuggestionIndex, setAccountSuggestionIndex] = useState(-1)
+  // Account management (hook uses ref-based callback, safe to call before resetRecommendationState)
+  const account = useAccountManager({
+    initialInput: savedAccount,
+    initialValid: savedValid,
+    onAccountChange: () => resetRecommendationState(),
+  })
+  const {
+    validatedAccount, myAccountInput, myAccountValid, myAccountError,
+    accountSuggestions, showAccountSuggestions, accountSuggestionIndex,
+    handleAccountInputChange, handleAccountKeyDown, handleAccountBlur,
+    validateAccountInput, selectAccountSuggestion,
+  } = account
 
   const [seeds, setSeeds] = useState(DEFAULT_SEEDS)
   const [seedCollections, setSeedCollections] = useState({
@@ -186,16 +159,19 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     if (typeof window === 'undefined') {
       return DEFAULT_BATCH_SIZE
     }
-    const stored = Number(window.localStorage.getItem('discovery_batch_size'))
-    if (Number.isFinite(stored) && stored >= MIN_BATCH_SIZE && stored <= MAX_BATCH_SIZE) {
+    const stored = storage.getBatchSize(MIN_BATCH_SIZE, MAX_BATCH_SIZE)
+    if (stored != null) {
       return stored
     }
     return DEFAULT_BATCH_SIZE
   })
-  const [seedInput, setSeedInput] = useState('')
-  const [autocompleteResults, setAutocompleteResults] = useState([])
-  const [showAutocomplete, setShowAutocomplete] = useState(false)
-  const [selectedAutocompleteIndex, setSelectedAutocompleteIndex] = useState(-1)
+  // Seed input management (autocomplete, add/remove, keyboard nav)
+  const seedInputHook = useSeedInput({ seeds, setSeeds })
+  const {
+    seedInput, autocompleteResults, showAutocomplete, selectedAutocompleteIndex,
+    handleInputChange, handleKeyDown, addSeed, removeSeed, selectAutocompleteItem,
+  } = seedInputHook
+
   const [weights, setWeights] = useState(DEFAULT_WEIGHTS)
   const [filters, setFilters] = useState({
     max_distance: 3,
@@ -254,8 +230,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   const hydratedFromCacheRef = useRef(false)
   const skipNextFetchRef = useRef(false)
   const searchTimeoutRef = useRef(null)
-  const autocompleteTimeoutRef = useRef(null)
-  const accountAutocompleteTimeoutRef = useRef(null)
+
   const inputRef = useRef(null)
   useEffect(() => {
     queryStateRef.current = queryState
@@ -454,18 +429,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     const payload = normalizeSettingsPayload(modelSettingsDraft)
     setSavingModelSettings(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/seeds`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ settings: payload })
-      })
-      if (!response.ok) {
-        const data = await response.json().catch(() => null)
-        throw new Error(data?.error || 'Failed to save settings')
-      }
-      const data = await response.json()
+      const data = await discoveryApi.saveModelSettings(payload)
       const updated = data?.state?.settings || payload
       setModelSettings(updated)
       setModelSettingsDraft(updated)
@@ -479,38 +443,23 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     }
   }
 
-  const fetchAnalysisStatus = useCallback(async () => {
+  const fetchAnalysisStatusCb = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analysis/status`)
-      if (!response.ok) {
-        // Suppress 404 errors - endpoint not implemented yet
-        if (response.status !== 404) {
-          console.error(`Analysis status error: ${response.status}`)
-        }
-        return
-      }
-      const data = await response.json()
-      setAnalysisStatus(data)
+      const data = await discoveryApi.fetchAnalysisStatusCb()
+      if (data) setAnalysisStatus(data)
     } catch {
       // Suppress network errors for analysis status
-      // console.error('Failed to fetch analysis status:', err)
     }
   }, [])
 
   const handleRunAnalysis = async () => {
     setAnalysisPolling(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analysis/run`, {
-        method: 'POST'
-      })
-      if (!response.ok) {
-        const data = await response.json().catch(() => null)
-        window.alert(data?.error || 'Unable to start analysis.')
-      }
-      await fetchAnalysisStatus()
+      await discoveryApi.runAnalysis()
+      await fetchAnalysisStatusCb()
     } catch (err) {
       console.error('Failed to run analysis:', err)
-      window.alert('Unable to start analysis.')
+      window.alert(err.message || 'Unable to start analysis.')
     } finally {
       setAnalysisPolling(false)
     }
@@ -564,11 +513,10 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
 
   // Load saved state from localStorage
   useEffect(() => {
-    const savedMyAccount = localStorage.getItem('discovery_my_account')
-    const savedValidFlag = localStorage.getItem('discovery_my_account_valid') === 'true'
-    const savedSeeds = localStorage.getItem('discovery_seeds')
-    const savedWeights = localStorage.getItem('discovery_weights')
-    const savedFilters = localStorage.getItem('discovery_filters')
+    const { handle: savedMyAccount, valid: savedValidFlag } = storage.getAccount()
+    const savedSeeds = storage.getSeeds()
+    const savedWeights = storage.getWeights()
+    const savedFilters = storage.getFilters()
 
     console.log('[DISCOVERY] Loading from localStorage:', {
       myAccount: savedMyAccount,
@@ -590,45 +538,28 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     }
 
     if (savedSeeds) {
-      try {
-        const parsedSeeds = JSON.parse(savedSeeds)
-        console.log('[DISCOVERY] Loaded seeds:', parsedSeeds)
-        // Only use saved seeds if they're non-empty, otherwise keep DEFAULT_SEEDS
-        if (parsedSeeds.length > 0) {
-          setSeeds(parsedSeeds)
-        } else {
-          console.log('[DISCOVERY] Saved seeds empty, using DEFAULT_SEEDS')
-        }
-      } catch (e) {
-        console.error('Failed to load saved seeds:', e)
+      console.log('[DISCOVERY] Loaded seeds:', savedSeeds)
+      // Only use saved seeds if they're non-empty, otherwise keep DEFAULT_SEEDS
+      if (savedSeeds.length > 0) {
+        setSeeds(savedSeeds)
+      } else {
+        console.log('[DISCOVERY] Saved seeds empty, using DEFAULT_SEEDS')
       }
     }
 
     if (savedWeights) {
-      try {
-        setWeights(JSON.parse(savedWeights))
-      } catch (e) {
-        console.error('Failed to load saved weights:', e)
-      }
+      setWeights(savedWeights)
     }
 
     if (savedFilters) {
-      try {
-        setFilters(JSON.parse(savedFilters))
-      } catch (e) {
-        console.error('Failed to load saved filters:', e)
-      }
+      setFilters(savedFilters)
     }
   }, [])
 
   useEffect(() => {
     const loadSeedState = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/seeds`)
-        if (!response.ok) {
-          return
-        }
-        const data = await response.json()
+        const data = await discoveryApi.fetchSeedState()
         applySeedStateFromServer(data)
       } catch (err) {
         console.error('Failed to load saved seed list from server:', err)
@@ -639,19 +570,16 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
 
   // Save state changes
   useEffect(() => {
-    localStorage.setItem('discovery_my_account', validatedAccount || myAccountInput || '')
-    localStorage.setItem('discovery_my_account_valid', validatedAccount && myAccountValid ? 'true' : 'false')
+    storage.setAccount(validatedAccount || myAccountInput || '', validatedAccount && myAccountValid)
   }, [validatedAccount, myAccountInput, myAccountValid])
 
   useEffect(() => {
     console.log('[DISCOVERY] Saving seeds to localStorage:', seeds)
-    localStorage.setItem('discovery_seeds', JSON.stringify(seeds))
+    storage.setSeeds(seeds)
   }, [seeds])
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('discovery_batch_size', String(batchSize))
-    }
+    storage.setBatchSize(batchSize)
   }, [batchSize])
   useEffect(() => {
     const canonical = seedCollections.lists[selectedSeedList] || []
@@ -659,11 +587,11 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   }, [seedCollections, selectedSeedList, seeds])
 
   useEffect(() => {
-    localStorage.setItem('discovery_weights', JSON.stringify(weights))
+    storage.setWeights(weights)
   }, [weights])
 
   useEffect(() => {
-    localStorage.setItem('discovery_filters', JSON.stringify(filters))
+    storage.setFilters(filters)
   }, [filters])
 
   useEffect(() => {
@@ -694,70 +622,16 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   }, [validatedAccount, myAccountValid, onAccountStatusChange])
 
   useEffect(() => {
-    fetchAnalysisStatus()
-    const interval = setInterval(fetchAnalysisStatus, 5000)
+    fetchAnalysisStatusCb()
+    const interval = setInterval(fetchAnalysisStatusCb, 5000)
     return () => clearInterval(interval)
-  }, [fetchAnalysisStatus])
-
-  useEffect(() => {
-    return () => {
-      if (accountAutocompleteTimeoutRef.current) {
-        clearTimeout(accountAutocompleteTimeoutRef.current)
-      }
-    }
-  }, [])
+  }, [fetchAnalysisStatusCb])
 
 
-  const applyValidatedAccount = useCallback((username) => {
-    const cleaned = stripShadowPrefix(username || '')
-    setValidatedAccount(cleaned)
-    setMyAccountInput(cleaned)
-    setMyAccountValid(true)
-    setMyAccountError(null)
-    setAccountSuggestions([])
-    setShowAccountSuggestions(false)
-    setAccountSuggestionIndex(-1)
-    resetRecommendationState()
-  }, [resetRecommendationState])
 
-  const markAccountPending = useCallback(() => {
-    if (validatedAccount || myAccountValid) {
-      setValidatedAccount('')
-      setMyAccountValid(false)
-      resetRecommendationState()
-    }
-  }, [validatedAccount, myAccountValid, resetRecommendationState])
 
-  const clearAccount = useCallback(() => {
-    setMyAccountInput('')
-    setMyAccountError(null)
-    setAccountSuggestions([])
-    setShowAccountSuggestions(false)
-    setAccountSuggestionIndex(-1)
-    setValidatedAccount('')
-    setMyAccountValid(false)
-    resetRecommendationState()
-  }, [resetRecommendationState])
-
-  const persistSeedList = useCallback(async ({ name, seedsPayload }) => {
-    const targetName = (name || 'discovery_active').toString().trim() || 'discovery_active'
-    const body = {
-      name: targetName,
-      set_active: true
-    }
-    if (Array.isArray(seedsPayload)) {
-      body.seeds = seedsPayload
-    }
-
-    const response = await fetch(`${API_BASE_URL}/api/seeds`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    })
-    const payload = await response.json()
-    if (!response.ok) {
-      throw new Error(payload?.error || 'Failed to update seed list')
-    }
+  const persistSeedListCb = useCallback(async ({ name, seedsPayload }) => {
+    const payload = await discoveryApi.persistSeedList({ name, seeds: seedsPayload })
     if (payload?.state) {
       applySeedStateFromServer(payload.state)
     }
@@ -783,7 +657,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     setSeeds([...nextSeeds])
 
     try {
-      await persistSeedList({ name: nextList })
+      await persistSeedListCb({ name: nextList })
     } catch (err) {
       console.error('Failed to activate seed list:', err)
       window.alert('Failed to set this Part of Twitter as active on the server. Local view updated only.')
@@ -801,7 +675,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
 
     setSavingSeedList(true)
     try {
-      await persistSeedList({ name: selectedSeedList, seedsPayload: seeds })
+      await persistSeedListCb({ name: selectedSeedList, seedsPayload: seeds })
     } catch (err) {
       console.error('Failed to save seed list:', err)
       window.alert('Could not save this Part of Twitter. Please try again.')
@@ -829,7 +703,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
 
     setSavingSeedList(true)
     try {
-      await persistSeedList({ name: cleaned, seedsPayload: seeds })
+      await persistSeedListCb({ name: cleaned, seedsPayload: seeds })
     } catch (err) {
       console.error('Failed to save new seed list:', err)
       window.alert('Could not save this Part of Twitter. Please try again.')
@@ -847,117 +721,6 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     setBatchSize(clamped)
   }
 
-  const fetchAccountSuggestions = useCallback(async (query) => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/accounts/search?q=${encodeURIComponent(query)}&limit=10`
-      )
-      if (response.ok) {
-        const results = await response.json()
-        setAccountSuggestions(results)
-        setShowAccountSuggestions(results.length > 0)
-      } else {
-        setAccountSuggestions([])
-        setShowAccountSuggestions(false)
-      }
-    } catch (err) {
-      console.error('Account autocomplete error:', err)
-      setAccountSuggestions([])
-      setShowAccountSuggestions(false)
-    }
-  }, [])
-
-  const handleAccountInputChange = (e) => {
-    const raw = e.target.value.replace(/^@/, '')
-    setMyAccountInput(raw)
-    setMyAccountError(null)
-    setAccountSuggestionIndex(-1)
-    if (!raw.trim()) {
-      markAccountPending()
-      setAccountSuggestions([])
-      setShowAccountSuggestions(false)
-      return
-    }
-    markAccountPending()
-    if (accountAutocompleteTimeoutRef.current) {
-      clearTimeout(accountAutocompleteTimeoutRef.current)
-    }
-    accountAutocompleteTimeoutRef.current = setTimeout(() => {
-      fetchAccountSuggestions(raw.trim())
-    }, 200)
-  }
-
-  const selectAccountSuggestion = (item) => {
-    if (!item) return
-    applyValidatedAccount(item.username)
-  }
-
-  const validateAccountInput = useCallback(async (value) => {
-    const candidate = stripShadowPrefix((value || '').trim())
-    if (!candidate) {
-      setMyAccountError('Enter your Twitter handle')
-      clearAccount()
-      return false
-    }
-
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/accounts/search?q=${encodeURIComponent(candidate)}&limit=10`
-      )
-      if (response.ok) {
-        const results = await response.json()
-        const match = results.find((item) => normalizeHandle(item.username) === candidate.toLowerCase())
-        if (match) {
-          applyValidatedAccount(match.username)
-          return true
-        }
-      }
-      setMyAccountError(`@${candidate} is not part of this snapshot yet.`)
-      markAccountPending()
-      return false
-    } catch (err) {
-      console.error('Account validation error:', err)
-      setMyAccountError('Unable to validate handle. Please try again.')
-      markAccountPending()
-      return false
-    }
-  }, [applyValidatedAccount, markAccountPending, clearAccount])
-
-  const handleAccountKeyDown = (e) => {
-    if (showAccountSuggestions && accountSuggestions.length > 0) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        setAccountSuggestionIndex((prev) =>
-          prev < accountSuggestions.length - 1 ? prev + 1 : prev
-        )
-        return
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        setAccountSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1))
-        return
-      }
-      if (e.key === 'Enter' && accountSuggestionIndex >= 0) {
-        e.preventDefault()
-        selectAccountSuggestion(accountSuggestions[accountSuggestionIndex])
-        return
-      }
-      if (e.key === 'Escape') {
-        setShowAccountSuggestions(false)
-        setAccountSuggestionIndex(-1)
-        return
-      }
-    }
-
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      validateAccountInput(myAccountInput)
-    }
-  }
-
-  const handleAccountBlur = () => {
-    setTimeout(() => setShowAccountSuggestions(false), 150)
-  }
 
   // Client-side filtering - apply filters without refetching (memoized)
   const filteredRecommendations = useMemo(() => {
@@ -1035,24 +798,15 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     try {
       console.log(`[DISCOVERY] Using subgraph/discover endpoint with ${allSeeds.length} seeds (limit=${requestLimit}, offset=${offset})`)
 
-      const response = await fetch(`${API_BASE_URL}/api/subgraph/discover`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          seeds: allSeeds,
-          weights,
-          filters: buildFilterPayload(),
-          limit: requestLimit,
-          offset,
-          debug: true
-        })
+      const { data, ok, status } = await discoveryApi.fetchDiscoverRecommendations({
+        seeds: allSeeds,
+        weights,
+        filters: buildFilterPayload(),
+        limit: requestLimit,
+        offset,
       })
 
-      const data = await response.json()
-
-      if (response.ok) {
+      if (ok) {
         if (data.error) {
           setError(data.error.message || 'Unknown error occurred')
           if (!append) {
@@ -1101,7 +855,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
           console.log(`[DISCOVERY] Subgraph page loaded (${added} candidates, next offset ${paginationRef.current.offset}, has_more=${moreAvailable})`)
         }
       } else {
-        setError(`API Error: ${response.status} - ${data.error?.message || 'Unknown error'}`)
+        setError(`API Error: ${status} - ${data.error?.message || 'Unknown error'}`)
         if (!append) {
           setAllRecommendations([])
           setMeta(null)
@@ -1131,90 +885,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     }
   }, [validatedAccount, seeds, weights, serverFilters, batchSize, advanceQueryState, persistCacheSnapshot])
 
-  // Fetch autocomplete suggestions
-  const fetchAutocomplete = useCallback(async (query) => {
-    if (!query || query.length < 1) {
-      setAutocompleteResults([])
-      setShowAutocomplete(false)
-      return
-    }
 
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/accounts/search?q=${encodeURIComponent(query)}&limit=10`
-      )
-
-      if (response.ok) {
-        const data = await response.json()
-        setAutocompleteResults(data)
-        setShowAutocomplete(data.length > 0)
-      } else {
-        setAutocompleteResults([])
-        setShowAutocomplete(false)
-      }
-    } catch (err) {
-      console.error('Autocomplete error:', err)
-      setAutocompleteResults([])
-      setShowAutocomplete(false)
-    }
-  }, [])
-
-  // Handle input change with autocomplete
-  const handleInputChange = (e) => {
-    const value = e.target.value
-    setSeedInput(value)
-    setSelectedAutocompleteIndex(-1)
-
-    // Debounce autocomplete
-    if (autocompleteTimeoutRef.current) {
-      clearTimeout(autocompleteTimeoutRef.current)
-    }
-
-    if (value.trim()) {
-      autocompleteTimeoutRef.current = setTimeout(() => {
-        fetchAutocomplete(value.trim())
-      }, 200)
-    } else {
-      setAutocompleteResults([])
-      setShowAutocomplete(false)
-    }
-  }
-
-  // Handle keyboard navigation
-  const handleKeyDown = (e) => {
-    if (!showAutocomplete) return
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setSelectedAutocompleteIndex(prev =>
-        prev < autocompleteResults.length - 1 ? prev + 1 : prev
-      )
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setSelectedAutocompleteIndex(prev => prev > -1 ? prev - 1 : -1)
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      if (selectedAutocompleteIndex >= 0) {
-        selectAutocompleteItem(autocompleteResults[selectedAutocompleteIndex])
-      } else {
-        addSeed(e)
-      }
-    } else if (e.key === 'Escape') {
-      setShowAutocomplete(false)
-      setSelectedAutocompleteIndex(-1)
-    }
-  }
-
-  // Select autocomplete item
-  const selectAutocompleteItem = (item) => {
-    if (item && !seeds.includes(item.username)) {
-      setSeeds([...seeds, item.username])
-      setSeedInput('')
-      setAutocompleteResults([])
-      setShowAutocomplete(false)
-      setSelectedAutocompleteIndex(-1)
-    }
-  }
 
   // Debounced search
   useEffect(() => {
@@ -1237,23 +908,6 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     }
   }, [fetchRecommendations])
 
-  // Add seed
-  const addSeed = (e) => {
-    e.preventDefault()
-    const trimmed = seedInput.trim()
-    if (trimmed && !seeds.includes(trimmed)) {
-      setSeeds([...seeds, trimmed])
-      setSeedInput('')
-      setAutocompleteResults([])
-      setShowAutocomplete(false)
-      setSelectedAutocompleteIndex(-1)
-    }
-  }
-
-  // Remove seed
-  const removeSeed = (seed) => {
-    setSeeds(seeds.filter(s => s !== seed))
-  }
 
   // Update weight
   const updateWeight = (key, value) => {
@@ -1297,37 +951,19 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   }
 
   // Submit feedback for a signal
-  const submitSignalFeedback = async (accountId, userLabel, rec) => {
+  const submitSignalFeedbackHandler = async (accountId, userLabel, rec) => {
     try {
-      // Submit feedback for each signal
       const signals = ['neighbor_overlap', 'pagerank', 'community', 'path_distance']
-
       for (const signalName of signals) {
-        const score = rec.scores?.[signalName] || 0
-
-        await fetch(`${API_BASE_URL}/api/signals/feedback`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            account_id: accountId,
-            signal_name: signalName,
-            score: score,
-            user_label: userLabel,
-            context: {
-              composite_score: rec.composite_score,
-              seeds: seeds
-            }
-          })
+        await discoveryApi.submitSignalFeedback({
+          accountId,
+          signalName,
+          score: rec.scores?.[signalName] || 0,
+          userLabel,
+          context: { composite_score: rec.composite_score, seeds },
         })
       }
-
-      // Update local state
-      setSignalFeedback(prev => ({
-        ...prev,
-        [accountId]: userLabel
-      }))
-
-      // Show confirmation
+      setSignalFeedback(prev => ({ ...prev, [accountId]: userLabel }))
       console.log(`Feedback submitted: ${accountId} is ${userLabel}`)
     } catch (err) {
       console.error('Failed to submit feedback:', err)
@@ -1335,14 +971,11 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   }
 
   // Fetch signal quality report
-  const fetchSignalQualityReport = async () => {
+  const fetchSignalQualityReportHandler = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/signals/quality`)
-      if (response.ok) {
-        const report = await response.json()
-        setSignalQualityReport(report)
-        setShowSignalQuality(true)
-      }
+      const report = await discoveryApi.fetchSignalQualityReport()
+      setSignalQualityReport(report)
+      setShowSignalQuality(true)
     } catch (err) {
       console.error('Failed to fetch signal quality report:', err)
     }
@@ -1833,7 +1466,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
               {analysisStatus?.status === 'running' || analysisPolling ? 'Rebuilding…' : 'Rebuild graph snapshot'}
             </button>
             <button
-              onClick={fetchSignalQualityReport}
+              onClick={fetchSignalQualityReportHandler}
               title="View signal quality metrics based on user feedback"
             >
               View Signal Quality
@@ -2080,14 +1713,14 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
                       <div className="signal-feedback-buttons">
                         <button
                           className={`feedback-btn ${signalFeedback[rec.handle] === 'tpot' ? 'active-tpot' : ''}`}
-                          onClick={() => submitSignalFeedback(rec.handle || rec.account_id, 'tpot', rec)}
+                          onClick={() => submitSignalFeedbackHandler(rec.handle || rec.account_id, 'tpot', rec)}
                           title="This is TPOT"
                         >
                           👍 TPOT
                         </button>
                         <button
                           className={`feedback-btn ${signalFeedback[rec.handle] === 'not_tpot' ? 'active-not-tpot' : ''}`}
-                          onClick={() => submitSignalFeedback(rec.handle || rec.account_id, 'not_tpot', rec)}
+                          onClick={() => submitSignalFeedbackHandler(rec.handle || rec.account_id, 'not_tpot', rec)}
                           title="This is not TPOT"
                         >
                           👎 Not TPOT

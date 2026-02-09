@@ -1,6 +1,6 @@
-const LOG_ENDPOINT = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/log`
-  : 'http://localhost:5001/api/log';
+import { API_BASE_URL } from './config';
+
+const LOG_ENDPOINT = `${API_BASE_URL}/api/log`;
 
 const LEVELS = ['debug', 'info', 'warn', 'error'];
 

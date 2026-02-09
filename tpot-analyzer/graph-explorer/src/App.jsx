@@ -3,16 +3,10 @@ import './App.css'
 import GraphExplorer from './GraphExplorer'
 import Discovery from './Discovery'
 import ClusterView from './ClusterView'
+import { getAccount, getTheme as loadTheme, setTheme as saveTheme } from './storage'
 
 function App() {
-  const getSavedAccount = () => {
-    if (typeof window === 'undefined') {
-      return { handle: '', valid: false }
-    }
-    const handle = localStorage.getItem('discovery_my_account') || ''
-    const valid = localStorage.getItem('discovery_my_account_valid') === 'true'
-    return { handle, valid: Boolean(handle) && valid }
-  }
+  const getSavedAccount = () => getAccount()
 
   const getInitialView = () => {
     if (typeof window === 'undefined') return 'discovery'
@@ -28,15 +22,12 @@ function App() {
     setAccountStatus(getSavedAccount())
   }, [])
 
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === 'undefined') return 'light'
-    return localStorage.getItem('ge_theme') || 'light'
-  })
+  const [theme, setTheme] = useState(() => loadTheme())
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-theme', theme)
-      localStorage.setItem('ge_theme', theme)
+      saveTheme(theme)
     }
   }, [theme])
 

@@ -5,9 +5,9 @@
  * to fetch graph data and compute metrics dynamically.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-const API_TIMEOUT_MS = 8000; // Default timeout for fast endpoints
-const API_TIMEOUT_SLOW_MS = 30000; // Timeout for slow endpoints (health, clusters, seeds during init)
+import { API_BASE_URL, API_TIMEOUT_MS, API_TIMEOUT_SLOW_MS } from './config';
+import { IndexedDBCache } from './cache/IndexedDBCache';
+import { fetchWithRetry } from './fetchClient';
 
 /**
  * Performance tracking utility.
@@ -67,197 +67,18 @@ if (typeof window !== 'undefined') {
   window.apiPerformance = performanceLog;
 }
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-const fetchWithRetry = async (url, options = {}, { retries = 2, backoffMs = 400, timeoutMs = API_TIMEOUT_MS } = {}) => {
-  // Extract external signal (e.g., from caller's AbortController)
-  const externalSignal = options.signal;
-  
-  // If already aborted before we start, bail immediately
-  if (externalSignal?.aborted) {
-    const err = new Error('Aborted');
-    err.name = 'AbortError';
-    throw err;
-  }
-
-  let attempt = 0;
-  let lastError;
-  const start = performance.now();
-  const attemptsMeta = [];
-  
-  while (attempt <= retries) {
-    // Check external abort before each attempt
-    if (externalSignal?.aborted) {
-      const err = new Error('Aborted');
-      err.name = 'AbortError';
-      throw err;
-    }
-
-    const attemptStart = performance.now();
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    
-    // Listen to external signal and propagate abort
-    const externalAbortHandler = () => controller.abort();
-    externalSignal?.addEventListener('abort', externalAbortHandler);
-    
-    try {
-      console.debug('[API] fetch start', { url, attempt: attempt + 1, timeoutMs });
-      const res = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeout);
-      externalSignal?.removeEventListener('abort', externalAbortHandler);
-      const dur = Math.round(performance.now() - attemptStart);
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      }
-      console.debug('[API] fetch ok', { url, attempt: attempt + 1, durationMs: dur, totalMs: Math.round(performance.now() - start) });
-      attemptsMeta.push({ attempt: attempt + 1, durationMs: dur, totalMs: Math.round(performance.now() - start), success: true, aborted: false, error: null });
-      res._timing = { attempt: attempt + 1, durationMs: dur, totalMs: Math.round(performance.now() - start), attempts: [...attemptsMeta] }; // attach timing for consumers
-      return res;
-    } catch (err) {
-      clearTimeout(timeout);
-      externalSignal?.removeEventListener('abort', externalAbortHandler);
-      lastError = err;
-      const dur = Math.round(performance.now() - attemptStart);
-      const total = Math.round(performance.now() - start);
-      const wasExternalAbort = externalSignal?.aborted;
-      attemptsMeta.push({ attempt: attempt + 1, durationMs: dur, totalMs: total, success: false, aborted: err.name === 'AbortError', externalAbort: wasExternalAbort, error: err.message });
-      
-      // If externally aborted, don't retry - propagate immediately
-      if (wasExternalAbort) {
-        console.debug('[API] fetch aborted by caller', { url, attempt: attempt + 1, durationMs: dur, totalMs: total });
-        throw err;
-      }
-      
-      if (attempt === retries) {
-        console.error('[API] fetch failed (no retries left)', { url, attempt: attempt + 1, durationMs: dur, totalMs: total, error: err.message, aborted: err.name === 'AbortError' });
-        break;
-      }
-      const delay = backoffMs * Math.pow(2, attempt);
-      console.warn('[API] retrying', { url, attempt: attempt + 1, durationMs: dur, totalMs: total, nextDelayMs: delay, error: err.message, aborted: err.name === 'AbortError' });
-      await sleep(delay);
-    }
-    attempt += 1;
-  }
-  throw lastError;
-};
-
 /**
- * IndexedDB cache for graph data with TTL.
+ * IndexedDB cache for graph data with 5-minute TTL.
  * Uses stale-while-revalidate pattern.
- * Much larger quota than localStorage (~50MB+ vs 5-10MB).
  */
-const graphCache = {
-  dbName: 'tpot-graph-cache',
-  storeName: 'graph-data',
-  db: null,
+const graphCache = new IndexedDBCache('tpot-graph-cache', 'graph-data', {
+  maxAgeMs: 5 * 60 * 1000,
+  label: 'Cache',
+  clearOnSetError: true,
+});
 
-  async init() {
-    if (this.db) return this.db;
-
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, 1);
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        this.db = request.result;
-        resolve(this.db);
-      };
-
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(this.storeName)) {
-          db.createObjectStore(this.storeName);
-        }
-      };
-    });
-  },
-
-  getCacheKey(options) {
-    const { includeShadow, mutualOnly, minFollowers } = options;
-    return `graph_data_${includeShadow}_${mutualOnly}_${minFollowers}`;
-  },
-
-  async get(options) {
-    try {
-      await this.init();
-      const key = this.getCacheKey(options);
-
-      return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction([this.storeName], 'readonly');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.get(key);
-
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const cached = request.result;
-          if (!cached) {
-            resolve(null);
-            return;
-          }
-
-          const { data, timestamp } = cached;
-          const age = Date.now() - timestamp;
-          const maxAge = 5 * 60 * 1000; // 5 minutes
-
-          resolve({
-            data,
-            isStale: age > maxAge,
-            age: Math.floor(age / 1000)
-          });
-        };
-      });
-    } catch (error) {
-      console.warn('[Cache] Failed to read cache:', error);
-      return null;
-    }
-  },
-
-  async set(options, data) {
-    try {
-      await this.init();
-      const key = this.getCacheKey(options);
-      const cached = {
-        data,
-        timestamp: Date.now()
-      };
-
-      return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction([this.storeName], 'readwrite');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.put(cached, key);
-
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          console.log(`[Cache] Saved graph data to IndexedDB: ${key}`);
-          resolve();
-        };
-      });
-    } catch (error) {
-      console.warn('[Cache] Failed to write cache:', error);
-      await this.clear();
-    }
-  },
-
-  async clear() {
-    try {
-      await this.init();
-      return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction([this.storeName], 'readwrite');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.clear();
-
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          console.log('[Cache] Cleared IndexedDB graph cache');
-          resolve();
-        };
-      });
-    } catch (error) {
-      console.warn('[Cache] Failed to clear cache:', error);
-    }
-  }
-};
+const graphCacheKey = ({ includeShadow, mutualOnly, minFollowers }) =>
+  `graph_data_${includeShadow}_${mutualOnly}_${minFollowers}`;
 
 /**
  * Fetch raw graph structure (nodes and edges) from backend.
@@ -275,7 +96,7 @@ export const fetchGraphData = async (options = {}) => {
 
   // Check cache first (unless skipCache is true)
   if (!skipCache) {
-    const cached = await graphCache.get({ includeShadow, mutualOnly, minFollowers });
+    const cached = await graphCache.get(graphCacheKey({ includeShadow, mutualOnly, minFollowers }));
     if (cached) {
       console.log(
         `[Cache] ${cached.isStale ? 'Stale' : 'Fresh'} cache hit (age: ${cached.age}s) - returning immediately`
@@ -318,7 +139,7 @@ export const fetchGraphData = async (options = {}) => {
       fromCache: false,
     });
 
-    graphCache.set({ includeShadow, mutualOnly, minFollowers }, data).catch(err => {
+    graphCache.set(graphCacheKey({ includeShadow, mutualOnly, minFollowers }), data).catch(err => {
       console.warn('[Cache] Failed to save to cache:', err);
     });
 
@@ -331,121 +152,20 @@ export const fetchGraphData = async (options = {}) => {
 };
 
 /**
- * IndexedDB cache for metrics with TTL and request deduplication.
+ * IndexedDB cache for metrics with 1-hour TTL.
  */
-const metricsCache = {
-  dbName: 'tpot-metrics-cache',
-  storeName: 'metrics-data',
-  db: null,
-  inFlightRequests: new Map(), // Request deduplication
+const metricsCache = new IndexedDBCache('tpot-metrics-cache', 'metrics-data', {
+  maxAgeMs: 60 * 60 * 1000,
+  label: 'MetricsCache',
+});
 
-  async init() {
-    if (this.db) return this.db;
+/** Request deduplication for concurrent metric computations. */
+const metricsInFlight = new Map();
 
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, 1);
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        this.db = request.result;
-        resolve(this.db);
-      };
-
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(this.storeName)) {
-          db.createObjectStore(this.storeName);
-        }
-      };
-    });
-  },
-
-  getCacheKey(options) {
-    const { seeds, weights, alpha, resolution, includeShadow, mutualOnly, minFollowers } = options;
-    // Sort seeds to ensure consistent cache key
-    const sortedSeeds = [...seeds].sort().join(',');
-    const weightsStr = weights.join(',');
-    return `metrics_${sortedSeeds}_${weightsStr}_${alpha}_${resolution}_${includeShadow}_${mutualOnly}_${minFollowers}`;
-  },
-
-  async get(options) {
-    try {
-      await this.init();
-      const key = this.getCacheKey(options);
-
-      return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction([this.storeName], 'readonly');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.get(key);
-
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const cached = request.result;
-          if (!cached) {
-            resolve(null);
-            return;
-          }
-
-          const { data, timestamp } = cached;
-          const age = Date.now() - timestamp;
-          const maxAge = 60 * 60 * 1000; // 1 hour - metrics are stable for same seeds
-
-          resolve({
-            data,
-            isStale: age > maxAge,
-            age: Math.floor(age / 1000)
-          });
-        };
-      });
-    } catch (error) {
-      console.warn('[MetricsCache] Failed to read cache:', error);
-      return null;
-    }
-  },
-
-  async set(options, data) {
-    try {
-      await this.init();
-      const key = this.getCacheKey(options);
-      const cached = {
-        data,
-        timestamp: Date.now()
-      };
-
-      return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction([this.storeName], 'readwrite');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.put(cached, key);
-
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          console.log(`[MetricsCache] Saved metrics to IndexedDB: ${key.substring(0, 80)}...`);
-          resolve();
-        };
-      });
-    } catch (error) {
-      console.warn('[MetricsCache] Failed to write cache:', error);
-    }
-  },
-
-  async clear() {
-    try {
-      await this.init();
-      return new Promise((resolve, reject) => {
-        const transaction = this.db.transaction([this.storeName], 'readwrite');
-        const store = transaction.objectStore(this.storeName);
-        const request = store.clear();
-
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          console.log('[MetricsCache] Cleared IndexedDB metrics cache');
-          resolve();
-        };
-      });
-    } catch (error) {
-      console.warn('[MetricsCache] Failed to clear cache:', error);
-    }
-  }
+const metricsCacheKey = ({ seeds, weights, alpha, resolution, includeShadow, mutualOnly, minFollowers }) => {
+  const sortedSeeds = [...seeds].sort().join(',');
+  const weightsStr = weights.join(',');
+  return `metrics_${sortedSeeds}_${weightsStr}_${alpha}_${resolution}_${includeShadow}_${mutualOnly}_${minFollowers}`;
 };
 
 /**
@@ -467,7 +187,7 @@ export const computeMetrics = async (options = {}) => {
     skipCache = false,
   } = options;
 
-  const cacheKey = metricsCache.getCacheKey({
+  const cacheKey = metricsCacheKey({
     seeds,
     weights,
     alpha,
@@ -478,10 +198,10 @@ export const computeMetrics = async (options = {}) => {
   });
 
   // Request deduplication: If identical request is in-flight, wait for it
-  if (metricsCache.inFlightRequests.has(cacheKey)) {
+  if (metricsInFlight.has(cacheKey)) {
     console.log('[MetricsCache] Deduplicating concurrent request, waiting for in-flight request...');
     try {
-      return await metricsCache.inFlightRequests.get(cacheKey);
+      return await metricsInFlight.get(cacheKey);
     } catch (error) {
       // If in-flight request failed, fall through to retry
       console.warn('[MetricsCache] In-flight request failed, retrying:', error);
@@ -490,7 +210,7 @@ export const computeMetrics = async (options = {}) => {
 
   // Check cache first (unless skipCache is true)
   if (!skipCache) {
-    const cached = await metricsCache.get({ seeds, weights, alpha, resolution, includeShadow, mutualOnly, minFollowers });
+    const cached = await metricsCache.get(metricsCacheKey({ seeds, weights, alpha, resolution, includeShadow, mutualOnly, minFollowers }));
     if (cached) {
       console.log(
         `[MetricsCache] ${cached.isStale ? 'Stale' : 'Fresh'} cache hit (age: ${cached.age}s) - returning immediately`
@@ -543,7 +263,7 @@ export const computeMetrics = async (options = {}) => {
       });
 
       // Cache the result
-      metricsCache.set({ seeds, weights, alpha, resolution, includeShadow, mutualOnly, minFollowers }, data).catch(err => {
+      metricsCache.set(metricsCacheKey({ seeds, weights, alpha, resolution, includeShadow, mutualOnly, minFollowers }), data).catch(err => {
         console.warn('[MetricsCache] Failed to save to cache:', err);
       });
 
@@ -554,12 +274,12 @@ export const computeMetrics = async (options = {}) => {
       throw error;
     } finally {
       // Remove from in-flight requests
-      metricsCache.inFlightRequests.delete(cacheKey);
+      metricsInFlight.delete(cacheKey);
     }
   })();
 
   // Store in-flight request
-  metricsCache.inFlightRequests.set(cacheKey, requestPromise);
+  metricsInFlight.set(cacheKey, requestPromise);
 
   return requestPromise;
 };
