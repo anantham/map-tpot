@@ -91,8 +91,8 @@ export function useAccountManager({ initialInput = '', initialValid = false, onA
   const validateAccountInput = useCallback(async (value) => {
     const candidate = stripShadowPrefix((value || '').trim())
     if (!candidate) {
-      setMyAccountError('Enter your Twitter handle')
       clearAccount()
+      setMyAccountError('Enter your Twitter handle')
       return false
     }
 

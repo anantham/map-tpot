@@ -860,28 +860,22 @@ describe('useRecommendations', () => {
       expect(result.current.allRecommendations).toHaveLength(2)
     })
 
-    it('throws unhandled error for null seeds (spread outside try/catch)', async () => {
-      // The hook does `const allSeeds = [...seeds]` outside the try/catch
-      // block (line 247), so null seeds cause an unhandled TypeError.
-      // This documents a real edge case in the hook. The normalizedSeedSignature
-      // memo handles null gracefully via `(seeds || [])`, but fetchRecommendations
-      // spreads the raw seeds prop.
-      //
-      // We verify the hook doesn't crash on render (the normalizedSeedSignature
-      // memo is fine), but we don't trigger the debounced fetch since it would
-      // cause an unhandled rejection.
+    it('handles null seeds gracefully (treats as empty array)', async () => {
       const props = {
         ...defaultProps,
         seeds: null,
         validatedAccount: 'user',
       }
-      const { result } = await renderWithoutFetch(props)
+      const { result } = await renderAndSettle(props, {
+        ok: true,
+        data: { recommendations: [{ id: 'r1' }], meta: null },
+      })
 
-      // The hook renders successfully -- the memo handles null
-      expect(result.current.allRecommendations).toEqual([])
-      expect(result.current.error).toBeNull()
-      // NOTE: triggering the debounced fetch would cause an unhandled TypeError
-      // because `[...null]` is not iterable. This is a known limitation.
+      // validatedAccount is prepended as the sole seed
+      expect(discoveryApi.fetchDiscoverRecommendations).toHaveBeenCalledWith(
+        expect.objectContaining({ seeds: ['user'] }),
+      )
+      expect(result.current.allRecommendations).toEqual([{ id: 'r1' }])
     })
 
     it('handles empty string validatedAccount', async () => {

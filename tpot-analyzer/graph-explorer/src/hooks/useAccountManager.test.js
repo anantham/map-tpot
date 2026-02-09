@@ -220,7 +220,7 @@ describe('useAccountManager', () => {
   // ---------- 4. validateAccountInput ----------
 
   describe('validateAccountInput', () => {
-    it('empty input: clears account and returns false', async () => {
+    it('empty input: sets error, clears account and returns false', async () => {
       const { result } = renderManager()
 
       let returnValue
@@ -229,13 +229,14 @@ describe('useAccountManager', () => {
       })
 
       expect(returnValue).toBe(false)
+      expect(result.current.myAccountError).toBe('Enter your Twitter handle')
       expect(result.current.validatedAccount).toBe('')
       expect(result.current.myAccountValid).toBe(false)
       expect(result.current.myAccountInput).toBe('')
       expect(onAccountChange).toHaveBeenCalled()
     })
 
-    it('whitespace-only input: clears account and returns false', async () => {
+    it('whitespace-only input: sets error, clears account and returns false', async () => {
       const { result } = renderManager()
 
       let returnValue
@@ -244,6 +245,7 @@ describe('useAccountManager', () => {
       })
 
       expect(returnValue).toBe(false)
+      expect(result.current.myAccountError).toBe('Enter your Twitter handle')
       expect(result.current.validatedAccount).toBe('')
       expect(result.current.myAccountValid).toBe(false)
     })
