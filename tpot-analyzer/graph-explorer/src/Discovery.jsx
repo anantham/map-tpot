@@ -3,7 +3,7 @@ import './Discovery.css'
 import { DEFAULT_ACCOUNT, DEFAULT_SEEDS, DEFAULT_WEIGHTS } from './config'
 import * as storage from './storage'
 import * as discoveryApi from './discoveryApi'
-import { normalizeHandle } from './discoveryCache'
+import { normalizeHandle, stripShadowPrefix } from './discoveryCache'
 import { useAccountManager } from './hooks/useAccountManager'
 import { useSeedInput } from './hooks/useSeedInput'
 import { useModelSettings } from './hooks/useModelSettings'
@@ -44,8 +44,9 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   const {
     validatedAccount, myAccountInput, myAccountValid, myAccountError,
     accountSuggestions, showAccountSuggestions, accountSuggestionIndex,
+    setAccountSuggestionIndex,
     handleAccountInputChange, handleAccountKeyDown, handleAccountBlur,
-    validateAccountInput, selectAccountSuggestion,
+    validateAccountInput, selectAccountSuggestion, clearAccount,
   } = account
 
   const [seeds, setSeeds] = useState(DEFAULT_SEEDS)
@@ -158,46 +159,19 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
     }
   }, [applyServerSettings])
 
-  // Load saved state from localStorage
+  // Load saved seeds/weights/filters from localStorage
+  // (Account state is initialized via useAccountManager's initialInput/initialValid params)
   useEffect(() => {
-    const { handle: savedMyAccount, valid: savedValidFlag } = storage.getAccount()
     const savedSeeds = storage.getSeeds()
     const savedWeights = storage.getWeights()
     const savedFilters = storage.getFilters()
 
-    console.log('[DISCOVERY] Loading from localStorage:', {
-      myAccount: savedMyAccount,
-      myAccountValid: savedValidFlag,
-      seeds: savedSeeds,
-      weights: savedWeights,
-      filters: savedFilters
-    })
-
-    if (savedMyAccount) {
-      setMyAccountInput(savedMyAccount)
-      if (savedValidFlag) {
-        setValidatedAccount(savedMyAccount)
-        setMyAccountValid(true)
-      } else {
-        setValidatedAccount('')
-        setMyAccountValid(false)
-      }
+    if (savedSeeds && savedSeeds.length > 0) {
+      setSeeds(savedSeeds)
     }
-
-    if (savedSeeds) {
-      console.log('[DISCOVERY] Loaded seeds:', savedSeeds)
-      // Only use saved seeds if they're non-empty, otherwise keep DEFAULT_SEEDS
-      if (savedSeeds.length > 0) {
-        setSeeds(savedSeeds)
-      } else {
-        console.log('[DISCOVERY] Saved seeds empty, using DEFAULT_SEEDS')
-      }
-    }
-
     if (savedWeights) {
       setWeights(savedWeights)
     }
-
     if (savedFilters) {
       setFilters(savedFilters)
     }
