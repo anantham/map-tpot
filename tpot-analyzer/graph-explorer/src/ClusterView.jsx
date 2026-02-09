@@ -10,148 +10,10 @@ import {
 import ClusterCanvas from './ClusterCanvas'
 import { clusterViewLog } from './logger'
 import AccountSearch from './AccountSearch'
-import AccountTagPanel from './AccountTagPanel'
 import { fetchTeleportPlan } from './accountsApi'
-
-const clamp = (val, min, max) => Math.min(max, Math.max(min, val))
-const toNumber = (value, fallback) => {
-  const n = Number(value)
-  return Number.isFinite(n) ? n : fallback
-}
-
-const computeBaseCut = (budget) => {
-  const capped = clamp(budget, 5, 500)
-  const headroomCut = Math.round(capped * 0.45)
-  return clamp(headroomCut, 8, capped - 1 >= 8 ? capped - 1 : capped)
-}
-
-const center = (points) => {
-  const n = points.length
-  if (!n) return { centered: [], mean: [0, 0], scale: 1 }
-  const meanX = points.reduce((s, p) => s + p[0], 0) / n
-  const meanY = points.reduce((s, p) => s + p[1], 0) / n
-  const centered = points.map(p => [p[0] - meanX, p[1] - meanY])
-  const scale = Math.sqrt(centered.reduce((s, p) => s + p[0] * p[0] + p[1] * p[1], 0)) || 1
-  return { centered: centered.map(p => [p[0] / scale, p[1] / scale]), mean: [meanX, meanY], scale }
-}
-
-const procrustesAlign = (A, B) => {
-  // Align B onto A with rotation+scale, returning aligned B and stats
-  if (A.length !== B.length || A.length < 2) {
-    return { aligned: B, stats: { aligned: false, overlap: A.length, rmsBefore: null, rmsAfter: null, scale: 1 } }
-  }
-
-  const { centered: Ac, mean: meanA } = center(A)
-  const { centered: Bc, mean: meanB, scale: scaleB } = center(B)
-
-  // 2x2 cross-covariance
-  const m00 = Bc.reduce((s, p, i) => s + p[0] * Ac[i][0], 0)
-  const m01 = Bc.reduce((s, p, i) => s + p[0] * Ac[i][1], 0)
-  const m10 = Bc.reduce((s, p, i) => s + p[1] * Ac[i][0], 0)
-  const m11 = Bc.reduce((s, p, i) => s + p[1] * Ac[i][1], 0)
-
-  // SVD of 2x2 manually
-  const T = m00 + m11
-  const D = m00 * m11 - m01 * m10
-  const S = Math.sqrt((m00 - m11) * (m00 - m11) + (m01 + m10) * (m01 + m10))
-  const trace = Math.sqrt((T + S) / 2) + Math.sqrt((T - S) / 2)
-  const scale = trace / (scaleB || 1)
-
-  // Rotation matrix R = U V^T for 2x2 via polar decomposition
-  const det = D >= 0 ? 1 : -1
-  const denom = Math.hypot(m00 + m11, m01 - m10) || 1
-  const r00 = (m00 + m11) / denom
-  const r01 = (m01 - m10) / denom
-  const r10 = (m10 - m01) / denom
-  const r11 = (m00 + m11) / denom
-  const R = [[r00, r01], [r10 * det, r11 * det]]
-
-  const aligned = B.map(p => {
-    const x = (p[0] - meanB[0]) / scaleB
-    const y = (p[1] - meanB[1]) / scaleB
-    const rx = x * R[0][0] + y * R[0][1]
-    const ry = x * R[1][0] + y * R[1][1]
-    return [
-      rx * scale + meanA[0],
-      ry * scale + meanA[1],
-    ]
-  })
-
-  const rmsBefore = Math.sqrt(A.reduce((s, p, i) => {
-    const dx = p[0] - B[i][0]
-    const dy = p[1] - B[i][1]
-    return s + dx * dx + dy * dy
-  }, 0) / A.length)
-
-  const rmsAfter = Math.sqrt(A.reduce((s, p, i) => {
-    const dx = p[0] - aligned[i][0]
-    const dy = p[1] - aligned[i][1]
-    return s + dx * dx + dy * dy
-  }, 0) / A.length)
-
-  return {
-    aligned,
-    stats: { aligned: true, overlap: A.length, rmsBefore, rmsAfter, scale },
-    transform: { meanA, meanB, scaleB, scale, R },
-  }
-}
-
-const alignLayout = (clusters, positions, prevLayout) => {
-  const prevPositions = prevLayout?.positions || {}
-  const overlapIds = clusters
-    .map(c => c.id)
-    .filter(id => positions?.[id] && prevPositions[id])
-
-  if (overlapIds.length < 2) {
-    return { positions, stats: { aligned: false, overlap: overlapIds.length, rmsBefore: null, rmsAfter: null, scale: 1 } }
-  }
-
-  const A = overlapIds.map(id => prevPositions[id])
-  const B = overlapIds.map(id => positions[id])
-  const { stats, transform } = procrustesAlign(A, B)
-
-  // Diagnostic: log scale factors to detect extreme transforms
-  if (transform) {
-    const { scaleB, scale } = transform
-    const effectiveScale = scale / (Math.abs(scaleB) > 1e-10 ? scaleB : 1)
-    if (effectiveScale > 100 || effectiveScale < 0.01) {
-      console.warn('[Procrustes] ⚠️ Extreme scale detected:', {
-        scaleB,
-        scale,
-        effectiveScale,
-        overlap: overlapIds.length,
-        sampleA: A.slice(0, 3),
-        sampleB: B.slice(0, 3),
-      })
-    }
-  }
-
-  const applyTransform = (p) => {
-    if (!transform) return p
-    const [meanAx, meanAy] = transform.meanA
-    const [meanBx, meanBy] = transform.meanB
-    const { scaleB, scale, R } = transform
-    // Guard against division by zero or tiny scales
-    const safeDenom = Math.abs(scaleB) > 1e-10 ? scaleB : 1
-    const x = (p[0] - meanBx) / safeDenom
-    const y = (p[1] - meanBy) / safeDenom
-    const rx = x * R[0][0] + y * R[0][1]
-    const ry = x * R[1][0] + y * R[1][1]
-    const resultX = rx * scale + meanAx
-    const resultY = ry * scale + meanAy
-    // Final NaN check
-    if (!Number.isFinite(resultX) || !Number.isFinite(resultY)) {
-      return p  // Fall back to original position
-    }
-    return [resultX, resultY]
-  }
-
-  const alignedPositions = {}
-  Object.entries(positions || {}).forEach(([id, pos]) => {
-    alignedPositions[id] = applyTransform(pos)
-  })
-  return { positions: alignedPositions, stats }
-}
+import ClusterDetailsSidebar from './ClusterDetailsSidebar'
+import ClusterSettingsPanel from './ClusterSettingsPanel'
+import { clamp, toNumber, computeBaseCut, alignLayout } from './clusterGeometry'
 
 export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeChange }) {
   const [budget, setBudget] = useState(25) // Max clusters allowed (slider)
@@ -694,6 +556,18 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     }
   }
 
+  const handleApplySuggestedLabel = async () => {
+    if (!selectedCluster || !tagSummary?.suggestedLabel?.tag) return
+    try {
+      setLabelDraft(tagSummary.suggestedLabel.tag)
+      await setClusterLabel({ clusterId: selectedCluster.id, n: visibleTarget, wl, label: tagSummary.suggestedLabel.tag })
+      await refreshClusterView(selectedCluster.id)
+    } catch (err) {
+      clusterViewLog.error('Failed to apply suggested label', { clusterId: selectedCluster.id, error: err.message })
+      setError(err.message || 'Failed to apply suggested label')
+    }
+  }
+
   const handleSelect = (cluster) => {
     if (!cluster) {
       setSelectedCluster(null)
@@ -1147,153 +1021,29 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
           Pan: drag · Zoom: scroll · Split/merge: scroll on a node · Multi-select: toggle above
         </div>
         {showSettings && (
-          <div style={{
-            marginTop: 4,
-            padding: 12,
-            border: '1px solid var(--panel-border)',
-            borderRadius: 10,
-            background: 'var(--bg-muted)',
-            display: 'grid',
-            gap: 10,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))'
-          }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ fontWeight: 600 }}>Base cut</label>
-              <input
-                type="range"
-                min={5}
-                max={budget}
-                value={visibleTarget}
-                onChange={e => setVisibleTarget(clamp(Number(e.target.value), 5, budget))}
-              />
-              <span style={{ minWidth: 32 }}>{visibleTarget}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <label style={{ fontWeight: 600 }}>Louvain weight</label>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.1}
-                value={wl}
-                onChange={e => setWl(clamp(Number(e.target.value), 0, 1))}
-              />
-              <span style={{ minWidth: 32 }}>{wl.toFixed(1)}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <label style={{ fontWeight: 600 }} title="Controls how many children appear when expanding a cluster. Low = conservative (sqrt), High = aggressive (more children)">
-                Expand depth
-              </label>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.1}
-                value={expandDepth}
-                onChange={e => setExpandDepth(clamp(Number(e.target.value), 0, 1))}
-              />
-              <span style={{ minWidth: 32 }}>{expandDepth.toFixed(1)}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <label style={{ fontWeight: 600 }}>Ego</label>
-              <input
-                type="text"
-                value={ego}
-                onChange={e => setEgo(e.target.value)}
-                placeholder="node id or handle"
-                style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--panel-border)', width: '100%' }}
-              />
-            </div>
-            {onThemeChange && (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <label style={{ fontWeight: 600 }}>Theme</label>
-                <button
-                  onClick={onThemeChange}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    border: '1px solid var(--panel-border)',
-                    background: 'var(--panel)',
-                    color: 'var(--text)'
-                  }}
-                >
-                  {theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
-                </button>
-              </div>
-            )}
-            {/* Physics settings section */}
-            <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--panel-border)', paddingTop: 10, marginTop: 4 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>Physics Settings</div>
-              <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <label style={{ fontWeight: 600, minWidth: 100 }} title="Threshold for detecting sudden jerky movements (lower = more sensitive)">
-                    Jerk threshold
-                  </label>
-                  <input
-                    type="range"
-                    min={10}
-                    max={100}
-                    value={jerkThreshold}
-                    onChange={e => setJerkThreshold(Number(e.target.value))}
-                  />
-                  <span style={{ minWidth: 32 }}>{jerkThreshold}</span>
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <label style={{ fontWeight: 600, minWidth: 100 }} title="Threshold for detecting fast movements (lower = more sensitive)">
-                    Velocity threshold
-                  </label>
-                  <input
-                    type="range"
-                    min={10}
-                    max={80}
-                    value={velocityThreshold}
-                    onChange={e => setVelocityThreshold(Number(e.target.value))}
-                  />
-                  <span style={{ minWidth: 32 }}>{velocityThreshold}</span>
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <label style={{ fontWeight: 600, minWidth: 100 }} title="How strongly nodes push each other apart (higher = more spread out)">
-                    Repulsion force
-                  </label>
-                  <input
-                    type="range"
-                    min={50}
-                    max={300}
-                    value={repulsionStrength}
-                    onChange={e => setRepulsionStrength(Number(e.target.value))}
-                  />
-                  <span style={{ minWidth: 32 }}>{repulsionStrength}</span>
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <label style={{ fontWeight: 600, minWidth: 100 }} title="Extra padding around nodes for collision detection (prevents label overlap)">
-                    Collision padding
-                  </label>
-                  <input
-                    type="range"
-                    min={10}
-                    max={60}
-                    value={collisionPadding}
-                    onChange={e => setCollisionPadding(Number(e.target.value))}
-                  />
-                  <span style={{ minWidth: 32 }}>{collisionPadding}</span>
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <label style={{ fontWeight: 600, minWidth: 100 }} title="Minimum zoom level (higher = can't zoom out as far, reduces label overlap)">
-                    Min zoom level
-                  </label>
-                  <input
-                    type="range"
-                    min={0.1}
-                    max={1.0}
-                    step={0.05}
-                    value={minZoom}
-                    onChange={e => setMinZoom(Number(e.target.value))}
-                  />
-                  <span style={{ minWidth: 32 }}>{minZoom.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ClusterSettingsPanel
+            visibleTarget={visibleTarget}
+            budget={budget}
+            wl={wl}
+            expandDepth={expandDepth}
+            ego={ego}
+            onVisibleTargetChange={setVisibleTarget}
+            onWlChange={setWl}
+            onExpandDepthChange={setExpandDepth}
+            onEgoChange={setEgo}
+            theme={theme}
+            onThemeChange={onThemeChange}
+            jerkThreshold={jerkThreshold}
+            velocityThreshold={velocityThreshold}
+            repulsionStrength={repulsionStrength}
+            collisionPadding={collisionPadding}
+            minZoom={minZoom}
+            onJerkThresholdChange={setJerkThreshold}
+            onVelocityThresholdChange={setVelocityThreshold}
+            onRepulsionStrengthChange={setRepulsionStrength}
+            onCollisionPaddingChange={setCollisionPadding}
+            onMinZoomChange={setMinZoom}
+          />
         )}
       </div>
 
@@ -1327,152 +1077,29 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
           minZoom={minZoom}
         />
 
-        {selectedCluster && (
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            width: 360,
-            height: '100%',
-            borderLeft: '1px solid #e2e8f0',
-            padding: 16,
-            overflow: 'auto',
-            background: 'var(--panel, #fff)',
-            boxShadow: '0 0 20px rgba(0,0,0,0.08)'
-          }}>
-            <h3 style={{ margin: '0 0 12px 0' }}>Cluster details</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontWeight: 700 }}>{selectedCluster.label}</div>
-              <div style={{ color: '#475569' }}>
-                Size {selectedCluster.size} • Reps {(selectedCluster.representativeHandles || []).join(', ')}
-              </div>
-              <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: '#475569' }}>
-                <input
-                  type="checkbox"
-                  checked={collapseSelection.has(selectedCluster.id)}
-                  onChange={() => toggleCollapseSelection(selectedCluster)}
-                />
-                Select for collapse
-              </label>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button
-                  onClick={() => handleExpand(selectedCluster)}
-                  disabled={!expandPreview?.can_expand || selectedCluster.isLeaf}
-                  style={{ padding: '8px 12px', borderRadius: 6, background: '#0ea5e9', color: 'white', border: 'none', opacity: (!expandPreview?.can_expand || selectedCluster.isLeaf) ? 0.6 : 1 }}
-                  title={expandPreview?.reason || ''}
-                >
-                  Expand {expandPreview?.can_expand ? `(+${expandPreview.budget_impact} → ${expandPreview.predicted_children} clusters)` : (selectedCluster.isLeaf ? '(leaf)' : '')}
-                </button>
-                <button
-                  onClick={() => handleCollapse(selectedCluster)}
-                  disabled={!collapsePreview?.can_collapse}
-                  style={{ padding: '8px 12px', borderRadius: 6, background: '#334155', color: 'white', border: 'none', opacity: collapsePreview?.can_collapse ? 1 : 0.6 }}
-                  title={collapsePreview?.can_collapse ? `Merges ${collapsePreview.sibling_ids?.length || 0} clusters` : (collapsePreview?.reason || '')}
-                >
-                  Collapse {collapsePreview?.can_collapse ? `(frees ${collapsePreview.nodes_freed})` : ''}
-                </button>
-              </div>
-              <label style={{ fontWeight: 600, marginTop: 8 }}>Rename</label>
-              <input
-                value={labelDraft}
-                onChange={e => setLabelDraft(e.target.value)}
-                style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #cbd5e1' }}
-              />
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={handleRename} style={{ padding: '8px 12px', borderRadius: 6, background: '#1d4ed8', color: 'white', border: 'none' }}>
-                  Save
-                </button>
-                <button onClick={handleDeleteLabel} style={{ padding: '8px 12px', borderRadius: 6, background: '#e11d48', color: 'white', border: 'none' }}>
-                  Delete
-                </button>
-              </div>
-              <div style={{ fontWeight: 600, marginTop: 12 }}>Tag summary</div>
-              {!ego.trim() && (
-                <div style={{ color: '#94a3b8' }}>Set `ego` in Settings to compute tag summary.</div>
-              )}
-              {ego.trim() && tagSummaryLoading && <div style={{ color: '#94a3b8' }}>Loading tag summary…</div>}
-              {ego.trim() && tagSummaryError && <div style={{ color: '#b91c1c' }}>{tagSummaryError}</div>}
-              {ego.trim() && !tagSummaryLoading && !tagSummaryError && tagSummary && (
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: 'rgba(148,163,184,0.08)' }}>
-                  <div style={{ color: '#475569', fontSize: 13 }}>
-                    Tagged members: {tagSummary.taggedMembers}/{tagSummary.totalMembers} • Assignments: {tagSummary.tagAssignments} • Compute: {tagSummary.computeMs}ms
-                  </div>
-                  {tagSummary.suggestedLabel?.tag && (
-                    <div style={{ marginTop: 8 }}>
-                      <div style={{ fontWeight: 700 }}>Suggested label</div>
-                      <div style={{ color: '#475569', fontSize: 13 }}>
-                        {tagSummary.suggestedLabel.tag} (score {tagSummary.suggestedLabel.score})
-                      </div>
-	                      <button
-	                        onClick={async () => {
-	                          try {
-	                            setLabelDraft(tagSummary.suggestedLabel.tag)
-	                            await setClusterLabel({ clusterId: selectedCluster.id, n: visibleTarget, wl, label: tagSummary.suggestedLabel.tag })
-	                            await refreshClusterView(selectedCluster.id)
-	                          } catch (err) {
-	                            clusterViewLog.error('Failed to apply suggested label', { clusterId: selectedCluster.id, error: err.message })
-	                            setError(err.message || 'Failed to apply suggested label')
-	                          }
-	                        }}
-	                        style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: '#16a34a', color: 'white', border: 'none' }}
-	                      >
-	                        Apply suggested label
-	                      </button>
-                    </div>
-                  )}
-                  <div style={{ marginTop: 10, fontWeight: 700 }}>Top tags</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflow: 'auto', marginTop: 6 }}>
-                    {(tagSummary.tagCounts || []).slice(0, 12).map((row) => (
-                      <div
-                        key={row.tag}
-                        style={{ display: 'flex', justifyContent: 'space-between', gap: 10, border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 8px', background: 'white' }}
-                      >
-                        <div style={{ fontWeight: 700 }}>{row.tag}</div>
-                        <div style={{ color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>
-                          IN {row.inCount} · NOT {row.notInCount} · score {row.score}
-                        </div>
-                      </div>
-                    ))}
-                    {(!tagSummary.tagCounts || tagSummary.tagCounts.length === 0) && (
-                      <div style={{ color: '#94a3b8' }}>No tags found for members in this cluster.</div>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div style={{ fontWeight: 600, marginTop: 12 }}>Members ({membersTotal})</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflow: 'auto' }}>
-                {members.map(m => (
-                  <div
-                    key={m.id}
-                    onClick={() => handleMemberSelect({ accountId: m.id, parentId: selectedCluster.id, username: m.username, displayName: m.displayName })}
-                    style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 8, cursor: 'pointer' }}
-                    title="Select account to tag"
-                  >
-                    <div style={{ fontWeight: 600 }}>{m.username || m.id}</div>
-                    <div style={{ color: '#475569', fontSize: 13 }}>Followers: {m.numFollowers ?? '–'}</div>
-                  </div>
-                ))}
-                {!members.length && <div style={{ color: '#94a3b8' }}>No members loaded</div>}
-              </div>
-              <div style={{ fontWeight: 700, marginTop: 14 }}>Selected account</div>
-              {!selectedAccount && <div style={{ color: '#94a3b8' }}>Click a member to tag.</div>}
-              {selectedAccount && (
-                <>
-	                  <div style={{ color: '#475569' }}>
-	                    @{selectedAccount.username || selectedAccount.id}{selectedAccount.displayName ? ` · ${selectedAccount.displayName}` : ''}
-	                  </div>
-	                  <AccountTagPanel
-	                    ego={ego.trim()}
-	                    account={selectedAccount}
-	                    onTagChanged={() => {
-	                      if (selectedCluster?.id) loadTagSummary(selectedCluster.id)
-	                    }}
-	                  />
-	                </>
-	              )}
-            </div>
-          </div>
-        )}
+        <ClusterDetailsSidebar
+          cluster={selectedCluster}
+          expandPreview={expandPreview}
+          collapsePreview={collapsePreview}
+          collapseSelected={collapseSelection.has(selectedCluster?.id)}
+          onExpand={() => handleExpand(selectedCluster)}
+          onCollapse={() => handleCollapse(selectedCluster)}
+          onToggleCollapseSelection={() => toggleCollapseSelection(selectedCluster)}
+          labelDraft={labelDraft}
+          onLabelDraftChange={setLabelDraft}
+          onRename={handleRename}
+          onDeleteLabel={handleDeleteLabel}
+          ego={ego.trim()}
+          tagSummary={tagSummary}
+          tagSummaryLoading={tagSummaryLoading}
+          tagSummaryError={tagSummaryError}
+          onApplySuggestedLabel={handleApplySuggestedLabel}
+          members={members}
+          membersTotal={membersTotal}
+          onMemberSelect={handleMemberSelect}
+          selectedAccount={selectedAccount}
+          onTagChanged={() => { if (selectedCluster?.id) loadTagSummary(selectedCluster.id) }}
+        />
       </div>
     </div>
   )
