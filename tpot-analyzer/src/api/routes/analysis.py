@@ -6,6 +6,8 @@ import time
 from flask import Blueprint, jsonify, request, current_app
 
 from src.api.services.analysis_manager import AnalysisManager
+from src.api.services.cache_manager import CacheManager
+from src.api.services.signal_feedback_store import SignalFeedbackStore
 from src.graph import (
     compute_betweenness,
     compute_louvain_communities,
@@ -116,6 +118,79 @@ def get_presets():
     candidates = load_seed_candidates()
     # Return as dict for extensibility and to match test expectation
     return jsonify({"candidates": list(candidates)})
+
+
+@analysis_bp.route("/metrics/performance", methods=["GET"])
+def get_performance_metrics():
+    """Return lightweight backend performance diagnostics for UI status panels."""
+    analysis_manager: AnalysisManager = current_app.config["ANALYSIS_MANAGER"]
+    cache_manager: CacheManager = current_app.config["CACHE_MANAGER"]
+    start_time = float(current_app.config.get("STARTUP_TIME", time.time()))
+    uptime_seconds = max(0.0, time.time() - start_time)
+    return jsonify(
+        {
+            "uptime_seconds": round(uptime_seconds, 3),
+            "analysis_status": analysis_manager.get_status().get("status", "unknown"),
+            "cache": {
+                "graph_entries": cache_manager.graph_cache_size(),
+                "discovery_entries": cache_manager.discovery_cache_size(),
+            },
+        }
+    )
+
+
+def _parse_signal_feedback_payload(payload):
+    if not isinstance(payload, dict):
+        return None, "Request body must be a JSON object"
+    account_id = str(payload.get("account_id") or "").strip()
+    signal_name = str(payload.get("signal_name") or "").strip()
+    user_label = str(payload.get("user_label") or "").strip()
+    if not account_id:
+        return None, "account_id is required"
+    if not signal_name:
+        return None, "signal_name is required"
+    if user_label not in {"tpot", "not_tpot"}:
+        return None, "user_label must be one of: tpot, not_tpot"
+    score = payload.get("score", 0.0)
+    try:
+        parsed_score = float(score)
+    except (TypeError, ValueError):
+        return None, "score must be numeric"
+    context = payload.get("context") or {}
+    if not isinstance(context, dict):
+        return None, "context must be an object"
+    return {
+        "account_id": account_id,
+        "signal_name": signal_name,
+        "user_label": user_label,
+        "score": parsed_score,
+        "context": context,
+    }, None
+
+
+@analysis_bp.route("/signals/feedback", methods=["POST"])
+def submit_signal_feedback():
+    """Store user feedback events used for discovery signal-quality diagnostics."""
+    parsed, error = _parse_signal_feedback_payload(request.get_json(silent=True))
+    if error:
+        return jsonify({"error": error}), 400
+
+    feedback_store: SignalFeedbackStore = current_app.config["SIGNAL_FEEDBACK_STORE"]
+    feedback_store.add_feedback(**parsed)
+    return jsonify(
+        {
+            "status": "ok",
+            "stored": True,
+            "total_feedback": feedback_store.event_count(),
+        }
+    )
+
+
+@analysis_bp.route("/signals/quality", methods=["GET"])
+def get_signal_quality_report():
+    """Return aggregate quality metrics over captured signal feedback events."""
+    feedback_store: SignalFeedbackStore = current_app.config["SIGNAL_FEEDBACK_STORE"]
+    return jsonify(feedback_store.quality_report())
 
 
 @analysis_bp.route("/analysis/status", methods=["GET"])

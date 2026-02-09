@@ -45,6 +45,14 @@ class CacheManager:
         self._discovery_cache.clear()
         logger.info("Discovery cache cleared")
 
+    def graph_cache_size(self) -> int:
+        """Return number of graph response entries currently cached."""
+        return len(self._graph_response_cache)
+
+    def discovery_cache_size(self) -> int:
+        """Return number of discovery entries currently cached."""
+        return len(self._discovery_cache)
+
     def clear_all(self) -> None:
         """Clear all caches."""
         self.clear_graph_cache()
