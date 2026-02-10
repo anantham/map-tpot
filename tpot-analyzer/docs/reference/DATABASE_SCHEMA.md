@@ -360,6 +360,107 @@ When building the graph (`src/graph/builder.py`):
 
 ---
 
+## Extension Feed Signal Tables
+
+These tables persist browser-extension feed impressions so we can model account
+semantics from observed content/exposure, not only follow edges.
+
+### `feed_events`
+
+Raw impression events from extension captures (deduped by `event_key`).
+
+**Schema:**
+```sql
+event_key     TEXT   PRIMARY KEY         -- Deterministic hash for idempotent ingest
+workspace_id  TEXT                        -- Logical workspace scope (default: "default")
+ego           TEXT                        -- Ego account scope
+account_id    TEXT                        -- Account shown in feed
+username      TEXT                        -- Optional handle snapshot at capture time
+tweet_id      TEXT                        -- Optional tweet id (if extractable)
+tweet_text    TEXT                        -- Optional tweet text snippet
+surface       TEXT                        -- Feed surface (e.g., home/following/search)
+position      INTEGER                     -- Ranking position within captured viewport
+language      TEXT                        -- Optional language code
+tweet_url     TEXT                        -- Optional URL/permalink
+seen_at       TEXT                        -- Impression timestamp (ISO-8601 UTC)
+raw_payload   TEXT                        -- Original event payload for traceability
+created_at    TEXT                        -- Ingest timestamp
+```
+
+### `feed_tweet_rollup`
+
+Per-account/per-tweet rollup derived during ingest for fast summaries.
+
+**Schema:**
+```sql
+workspace_id   TEXT   PRIMARY KEY (1/4)
+ego            TEXT   PRIMARY KEY (2/4)
+account_id     TEXT   PRIMARY KEY (3/4)
+tweet_id       TEXT   PRIMARY KEY (4/4)
+username       TEXT
+latest_text    TEXT
+first_seen_at  TEXT
+last_seen_at   TEXT
+seen_count     INTEGER
+last_surface   TEXT
+updated_at     TEXT
+```
+
+**Purpose:**
+- Track repeated feed exposure for the same tweet/account pair
+- Build fast account summaries (`impressions`, `uniqueTweetsSeen`, `tweetSamples`)
+- Support active-learning prioritization by real feed exposure
+
+### `feed_scope_policy`
+
+Scoped ingestion/firehose policy for extension clients.
+
+**Schema:**
+```sql
+workspace_id            TEXT   PRIMARY KEY (1/2)
+ego                     TEXT   PRIMARY KEY (2/2)
+ingestion_mode          TEXT                       -- "open" | "guarded"
+retention_mode          TEXT                       -- currently "infinite"
+processing_mode         TEXT                       -- currently "continuous"
+allowlist_enabled       INTEGER                    -- 0/1 toggle
+allowlist_accounts_json TEXT                       -- JSON array of account ids
+allowlist_tags_json     TEXT                       -- JSON array of positive tag keys
+firehose_enabled        INTEGER                    -- 0/1 toggle
+firehose_path           TEXT                       -- Optional override path for NDJSON stream
+updated_at              TEXT
+```
+
+**Purpose:**
+- Keep local extension behavior explicit and inspectable (open ingestion, retention, continuous processing).
+- Provide manual privacy boundary controls via allowlist accounts and allowlist tags.
+- Persist firehose controls so raw events can be forwarded to Indra’s Net continuously.
+
+### Firehose Stream File
+
+Raw events are continuously mirrored to an append-only NDJSON file:
+
+`<SNAPSHOT_DIR>/indra_net/feed_events.ndjson`
+
+This path can be overridden with either:
+- policy setting `firehosePath` (per workspace/ego), or
+- env var `TPOT_EXTENSION_FIREHOSE_PATH` (global default).
+
+### Relay Checkpoint File
+
+When running the relay worker (`scripts/relay_firehose_to_indra.py`), progress is
+persisted to:
+
+`<SNAPSHOT_DIR>/indra_net/relay_checkpoint.json`
+
+Checkpoint fields include:
+- `byte_offset` (resume cursor in NDJSON firehose file)
+- `events_read_total`, `events_forwarded_total`
+- `events_skipped_participant_total` (participant events intentionally filtered)
+- `parse_errors_total`, `batches_sent_total`, `batches_failed_total`, `retries_total`
+- `last_success_at`, `last_error`, `updated_at`
+
+---
+
 ## Legacy/REST API Tables
 
 ### `account`

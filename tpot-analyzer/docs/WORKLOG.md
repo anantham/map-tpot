@@ -360,7 +360,132 @@
         - `cd tpot-analyzer && .venv/bin/python scripts/fetch_recent_activity.py --dry-run --usernames user_a` → dry-run query preview works after script staging.
         - `cd tpot-analyzer && .venv/bin/python scripts/verify_docs_hygiene.py` → docs hygiene verifier still passes.
 
+- [2026-02-10 02:57 UTC] **Observability hardening: frequent checkpoints + runtime diagnostics for twitterapi.io audit (Codex GPT-5)**
+    - **Hypothesis**
+        - Per-account-only checkpoints hide progress/failure cause during long runs; we need request-level observability and persisted runtime state so interruptions/failures are diagnosable.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/scripts/verify_shadow_subset_against_twitterapiio.py:29`: keep entrypoint thin and add robust failure/interruption checkpoint persistence in `main()` while delegating audit loop logic.
+        - `tpot-analyzer/scripts/shadow_subset_audit/runner.py:19`: extract main account/relation loop and trigger periodic + boundary checkpoints during in-flight remote fetches.
+        - `tpot-analyzer/scripts/shadow_subset_audit/console.py:61`: centralize checkpoint writes so each write includes progress + runtime metadata and emits explicit checkpoint reason.
+        - `tpot-analyzer/scripts/shadow_subset_audit/observability.py:42`: add `AuditRuntime` state model (status, current account/relation, remote request counters, failure reason, recent event history) plus logger wiring.
+        - `tpot-analyzer/scripts/shadow_subset_audit/remote.py:103`: add structured remote events (`request_start`, `response`, `request_exception`, `rate_limit_wait`, `page_complete`, `relation_*`) via callback for live checkpoint triggers and diagnostics.
+        - `tpot-analyzer/scripts/shadow_subset_audit/reporting.py:47`: add optional `runtime` payload in report JSON so checkpoint files preserve run-state observability.
+        - `tpot-analyzer/scripts/shadow_subset_audit/cli.py:52`: add runtime observability flags (`--checkpoint-every-requests`, `--checkpoint-min-seconds`, `--max-event-history`, `--log-level`, `--log-file`).
+        - `tpot-analyzer/scripts/shadow_subset_audit/constants.py:14`: include `API_KEY` in env fallback candidates to match current local `.env` key naming.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python - <<'PY' ... ast.parse(...) ... PY` → syntax parse passed for updated/new audit modules.
+        - `cd tpot-analyzer && set -a && source .env >/dev/null 2>&1 && .venv/bin/python scripts/verify_shadow_subset_against_twitterapiio.py --usernames adityaarpitha --max-pages 1 --page-size 50 --sample-output-count 3 --wait-on-rate-limit --checkpoint-every-requests 1 --checkpoint-min-seconds 1 --max-event-history 20 --output data/outputs/twitterapiio_shadow_audit/checkpoint_observability_smoke.json` → emitted multiple in-flight checkpoints and wrote runtime metadata + `.log` file.
+        - `cd tpot-analyzer && jq '.runtime | keys' data/outputs/twitterapiio_shadow_audit/checkpoint_observability_smoke.json` → runtime observability fields present (`status`, request counters, checkpoint counters, recent events, failure/termination fields).
+    - **Constraints**
+        - Sandbox DNS cannot resolve `api.twitterapi.io` in this session, so smoke verification confirmed observability behavior on request exceptions rather than successful remote payload fetches.
+
+- [2026-02-10 03:39 UTC] **Resume support: avoid redundant twitterapi.io calls after interruption (Codex GPT-5)**
+    - **Hypothesis**
+        - Interrupted audits currently restart from account 1 and re-fetch already completed accounts; loading prior output and skipping completed usernames will reduce wasted API spend.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/scripts/shadow_subset_audit/cli.py:82`: add `--resume-from-output` flag to opt into resumable execution.
+        - `tpot-analyzer/scripts/shadow_subset_audit/resume.py:50` (NEW): add robust resume-state loader that parses prior output JSON, filters rows to current target set, de-duplicates usernames, and derives carried-forward request totals from saved per-account remote metadata.
+        - `tpot-analyzer/scripts/verify_shadow_subset_against_twitterapiio.py:72`: load resume state when requested, pre-seed `results` + `total_remote_requests`, and skip completed usernames before remote calls.
+        - `tpot-analyzer/scripts/verify_shadow_subset_against_twitterapiio.py:98`: add `resume_noop_complete` path when all targets are already complete, writing a final checkpoint without issuing new API requests.
+        - `tpot-analyzer/scripts/shadow_subset_audit/runner.py:19`: accept `total_targets`, `completed_offset`, and `starting_total_remote_requests` so progress/index/checkpoint math remains correct across resumed runs.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python - <<'PY' ... ast.parse(...) ... PY` → syntax parse passed for updated files (`verify_shadow_subset_against_twitterapiio.py`, `runner.py`, `resume.py`, `cli.py`).
+        - `cd tpot-analyzer && set -a && source .env >/dev/null 2>&1 && .venv/bin/python scripts/verify_shadow_subset_against_twitterapiio.py --usernames adityaarpitha --resume-from-output --output data/outputs/twitterapiio_shadow_audit/checkpoint_smoke.json --max-pages 1 --page-size 20 --timeout-seconds 10` → resume no-op path triggered (`remaining=0`, checkpoint reason `resume_noop_complete`).
+        - `cd tpot-analyzer && set -a && source .env >/dev/null 2>&1 && .venv/bin/python scripts/verify_shadow_subset_against_twitterapiio.py --usernames adityaarpitha eigenrobot --resume-from-output --output data/outputs/twitterapiio_shadow_audit/checkpoint_smoke.json --max-pages 1 --page-size 20 --timeout-seconds 10` → skipped pre-completed `adityaarpitha`; resumed at `[2/2] @eigenrobot` and preserved carried-forward request count.
+
+- [2026-02-10 05:15 UTC] **ADR draft: shared tagging + anchor-conditioned TPOT membership (Codex GPT-5)**
+    - **Hypothesis**
+        - Current local-only tagging is sufficient for single-user exploration but cannot support collaborative active learning or Chrome-extension labeling workflows.
+        - A shared backend and explicit membership formulation are required before implementation can proceed safely.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/docs/adr/006-shared-tagging-and-tpot-membership.md:1`: add a proposed ADR defining the two-surface architecture (graph navigation + feed labeling), shared tag storage decision, anchor-conditioned TPOT probability model, migration outline, and blocking questions.
+        - `tpot-analyzer/docs/index.md:6`: update last-reviewed date to keep doc-index freshness explicit.
+        - `tpot-analyzer/docs/index.md:45`: add direct link to ADR 006 under Architecture and Specs for discoverability.
+        - `tpot-analyzer/docs/ROADMAP.md:33`: add feature backlog items for anchor-conditioned TPOT scoring and uncertainty-driven active learning.
+        - `tpot-analyzer/docs/ROADMAP.md:57`: add infrastructure backlog items for shared tag storage migration and Chrome-extension integration.
+        - `tpot-analyzer/docs/WORKLOG.md:396`: add this timestamped entry for ADR intent and traceability.
+    - **Verification**
+        - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `9/9` checks passing.
+
+- [2026-02-10 05:30 UTC] **Phase 1 implementation: extension feed ingestion + account exposure summaries (Codex GPT-5)**
+    - **Hypothesis**
+        - Capturing in-feed tweet impressions gives stronger semantic signal than follow edges alone for "who is this account?" modeling.
+        - A thin ingestion + summary layer can ship safely now and feed later TPOT membership scoring iterations.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/src/data/feed_signals.py:1` (NEW): add SQLite store for extension event ingest with idempotent event keys, validation, raw payload retention, and tweet rollup upserts.
+        - `tpot-analyzer/src/data/feed_signals_queries.py:1` (NEW): extract summary/top-exposure query + keyword extraction helpers to keep `feed_signals.py` under 300 LOC and preserve modularity.
+        - `tpot-analyzer/src/api/routes/extension.py:1` (NEW): add `/api/extension/feed_events`, `/api/extension/accounts/<id>/summary`, and `/api/extension/exposure/top` endpoints with scope validation (`ego`, `workspace_id`) and explicit error handling.
+        - `tpot-analyzer/src/api/server.py:26`: register `extension_bp` so extension APIs are available in app factory startup paths.
+        - `tpot-analyzer/tests/test_feed_signals_store.py:1` (NEW): add store-level tests for dedupe, rollup counts, keyword extraction, and invalid day windows.
+        - `tpot-analyzer/tests/test_extension_routes.py:1` (NEW): add route-level tests for validation, ingest roundtrip, account summary, and top exposure listing.
+        - `tpot-analyzer/scripts/verify_extension_feed_ingest.py:1` (NEW): add human-friendly ✓/✗ verifier for extension ingestion + summary endpoints.
+        - `tpot-analyzer/docs/reference/DATABASE_SCHEMA.md:363`: document `feed_events` and `feed_tweet_rollup` schemas and intent.
+        - `tpot-analyzer/docs/ROADMAP.md:37`: capture follow-up for embedding + recency/ranking-bias normalization on extension-captured content.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_feed_signals_store.py tests/test_extension_routes.py tests/test_api_contract_routes.py -q` → `7 passed`.
+    - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_extension_feed_ingest --help` → CLI usage renders.
+    - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `9/9` checks passing.
+
+- [2026-02-10 06:17 UTC] **Phase 1.1 implementation: open-mode policy controls + continuous firehose + tag-scope purge (Codex GPT-5)**
+    - **Hypothesis**
+        - We can safely keep localhost ingestion in open mode while still making privacy boundaries explicit via allowlist toggles and tag-scoped purge.
+        - Continuous append-only firehose mirroring gives Indra's Net-compatible raw telemetry without blocking existing summary APIs.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/src/data/feed_scope_policy.py:101` (NEW): add scoped policy table/store with defaults (`open`, `infinite`, `continuous`) plus allowlist/firehose toggles.
+        - `tpot-analyzer/src/data/feed_firehose.py:14` (NEW): add append-only NDJSON firehose writer for continuous raw event mirroring.
+        - `tpot-analyzer/src/data/feed_signals_admin.py:49` (NEW): add admin queries for raw event paging, inserted-key fetch, and scoped deletion.
+        - `tpot-analyzer/src/data/feed_signals.py:148`: extend ingest to optionally return inserted event keys for downstream firehose selection.
+        - `tpot-analyzer/src/data/account_tags.py:110`: add positive-tag account-id lookup helpers for tag-based allowlist and purge.
+        - `tpot-analyzer/src/api/routes/extension.py:35`: add `/api/extension/settings`, `/feed_events/raw`, `/feed_events/purge_by_tag`, and ingest policy/firehose orchestration.
+        - `tpot-analyzer/src/api/routes/extension_runtime.py:26` (NEW): extract extension route singleton dependency wiring to keep route module <300 LOC.
+        - `tpot-analyzer/src/api/routes/extension_utils.py:13` (NEW): extract shared request validation + ingest auth helpers.
+        - `tpot-analyzer/src/api/routes/extension_read_routes.py:14` (NEW): extract summary/top read routes to preserve modularity.
+        - `tpot-analyzer/tests/test_extension_routes.py:40`: add route coverage for settings updates, firehose filtering, raw-event reads, tag-scope purge, and guarded mode auth.
+        - `tpot-analyzer/tests/test_feed_scope_policy_store.py:9` (NEW): add policy-store behavior/validation tests.
+        - `tpot-analyzer/tests/test_feed_signals_admin_store.py:10` (NEW): add admin-store raw/purge tests.
+        - `tpot-analyzer/tests/test_feed_signals_store.py:9`: assert inserted-event-key collection during ingest.
+        - `tpot-analyzer/tests/test_account_tags_store.py:9`: assert new tag-to-account lookup helpers.
+        - `tpot-analyzer/scripts/verify_extension_feed_ingest.py:95`: extend verifier to check settings API, raw-event API, firehose output, and tag-scope purge.
+        - `tpot-analyzer/docs/reference/DATABASE_SCHEMA.md:414`: document `feed_scope_policy` table and firehose stream path semantics.
+        - `tpot-analyzer/docs/ROADMAP.md:65`: add follow-up items for firehose relay worker and storage/privacy-boundary verification.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_extension_routes.py tests/test_feed_signals_store.py tests/test_feed_signals_admin_store.py tests/test_feed_scope_policy_store.py tests/test_account_tags_store.py tests/test_api_contract_routes.py -q` → `17 passed`.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_extension_feed_ingest --help` → CLI usage renders.
+        - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `9/9` checks passing.
+
+- [2026-02-10 07:05 UTC] **Phase 1.2 implementation: spectator firehose relay worker (Codex GPT-5)**
+    - **Hypothesis**
+        - Spectator-mode raw streams (X, YouTube shorts, Instagram, etc.) should remain outside main prayer-detection DB and be relayed via a checkpointed firehose worker.
+        - A byte-offset checkpoint + retry/backoff transport is sufficient to keep relay durable under local restarts and endpoint hiccups.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/scripts/relay_firehose_to_indra.py:1` (NEW): add thin CLI for continuous/once relay execution with batching, retry, and participant filtering controls.
+        - `tpot-analyzer/scripts/firehose_relay/models.py:1` (NEW): add typed models for records/read results/send results/checkpoint state.
+        - `tpot-analyzer/scripts/firehose_relay/state.py:1` (NEW): add atomic checkpoint load/save helpers for `relay_checkpoint.json`.
+        - `tpot-analyzer/scripts/firehose_relay/reader.py:1` (NEW): add incremental NDJSON reader with truncation/rotation handling + parse-error accounting.
+        - `tpot-analyzer/scripts/firehose_relay/transport.py:1` (NEW): add HTTP POST transport with explicit retry/backoff behavior.
+        - `tpot-analyzer/scripts/firehose_relay/worker.py:20` (NEW): add relay loop that skips participant events by default, forwards spectator batches, tracks lag, and persists checkpoint metrics.
+        - `tpot-analyzer/scripts/verify_firehose_relay.py:1` (NEW): add human-friendly ✓/✗ verifier with local mock endpoint and concrete forwarding metrics.
+        - `tpot-analyzer/tests/test_firehose_relay_worker.py:8` (NEW): add relay tests for spectator-only forwarding and checkpoint resume semantics.
+        - `tpot-analyzer/docs/ROADMAP.md:65`: mark firehose relay worker item complete and record implementation artifacts.
+        - `tpot-analyzer/docs/reference/DATABASE_SCHEMA.md:450`: document relay checkpoint file contract and metrics fields.
+        - `tpot-analyzer/docs/PLAYBOOK.md:84`: document relay verification/run commands for operations.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_firehose_relay_worker.py tests/test_extension_routes.py tests/test_feed_scope_policy_store.py tests/test_feed_signals_admin_store.py tests/test_feed_signals_store.py tests/test_account_tags_store.py tests/test_api_contract_routes.py -q` → `19 passed`.
+        - `cd tpot-analyzer && .venv/bin/python scripts/verify_firehose_relay.py` → all checks passed (`events_forwarded_total=2`, `events_skipped_participant_total=1`).
+        - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `9/9` checks passing.
+
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.
 2.  **Documentation Update**: `docs/reference/BACKEND_IMPLEMENTATION.md` needs to be updated to reflect the new modular architecture.
 3.  **Frontend Alignment**: Ensure `graph-explorer` API calls match the new route structure (URLs remained mostly the same, but need verification).
+
+- [2026-02-10 15:15 UTC] **Relay default endpoint alignment: localhost firehose ingest (Codex GPT-5)**
+    - **Hypothesis**
+        - Relay ergonomics improve if the CLI defaults to the now-live Indra endpoint (`http://localhost:7777/api/firehose/ingest`) instead of requiring a mandatory flag/env setup each run.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/scripts/relay_firehose_to_indra.py:21`: add `DEFAULT_INDRA_FIREHOSE_ENDPOINT` constant and `_default_endpoint_url()` helper.
+        - `tpot-analyzer/scripts/relay_firehose_to_indra.py:43`: switch `--endpoint-url` default to `_default_endpoint_url()` so unset/blank env falls back to localhost ingest path.
+        - `tpot-analyzer/tests/test_relay_firehose_cli.py:1` (NEW): add unit tests for default endpoint, env override, and blank-env fallback behavior.
+        - `tpot-analyzer/docs/PLAYBOOK.md:96`: update operator command to use no-flag default relay run; keep explicit override example for non-default endpoints.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_relay_firehose_cli.py tests/test_firehose_relay_worker.py -q` → `5 passed` (plus existing LibreSSL urllib3 warning).
