@@ -16,6 +16,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Verify docs hygiene
+        run: |
+          python3 tpot-analyzer/scripts/verify_docs_hygiene.py
+      - name: Verify frontend/backend API contracts
+        run: |
+          PYTHONPATH=tpot-analyzer python3 tpot-analyzer/scripts/verify_api_contracts.py
       - name: Verify clusters (small)
         run: |
           PYTHONPATH=tpot-analyzer python3 tpot-analyzer/scripts/verify_clusters.py \
