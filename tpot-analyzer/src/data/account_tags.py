@@ -107,6 +107,48 @@ class AccountTagStore:
             rows = cur.fetchall()
         return [row[0] for row in rows]
 
+    def list_account_ids_for_tag(self, *, ego: str, tag: str) -> List[str]:
+        """Return account ids positively tagged with the provided tag."""
+        tag_key, _ = _normalize_tag(tag)
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT account_id
+                FROM account_tags
+                WHERE ego = ? AND tag_key = ? AND polarity = 1
+                ORDER BY account_id ASC
+                """,
+                (ego, tag_key),
+            ).fetchall()
+        return [str(row[0]) for row in rows]
+
+    def list_account_ids_for_tags(self, *, ego: str, tags: List[str]) -> List[str]:
+        """Return unique account ids positively tagged with any of the given tags."""
+        normalized_tag_keys = []
+        seen_tag_keys = set()
+        for raw_tag in tags:
+            if raw_tag is None:
+                continue
+            tag_key, _ = _normalize_tag(str(raw_tag))
+            if tag_key in seen_tag_keys:
+                continue
+            seen_tag_keys.add(tag_key)
+            normalized_tag_keys.append(tag_key)
+        if not normalized_tag_keys:
+            return []
+        placeholders = ",".join(["?"] * len(normalized_tag_keys))
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                f"""
+                SELECT DISTINCT account_id
+                FROM account_tags
+                WHERE ego = ? AND polarity = 1 AND tag_key IN ({placeholders})
+                ORDER BY account_id ASC
+                """,
+                (ego, *normalized_tag_keys),
+            ).fetchall()
+        return [str(row[0]) for row in rows]
+
     def list_tags_for_accounts(self, *, ego: str, account_ids: List[str]) -> List[AccountTag]:
         """List all tags for the given accounts (scoped by ego).
 

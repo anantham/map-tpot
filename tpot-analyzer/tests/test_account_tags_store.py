@@ -43,6 +43,15 @@ def test_account_tag_store_roundtrip(tmp_path) -> None:
     distinct = store.list_distinct_tags(ego="ego1")
     assert "ai alignment" in distinct
 
+    store.upsert_tag(ego="ego1", account_id="abc", tag="trusted", polarity=1)
+    store.upsert_tag(ego="ego1", account_id="xyz", tag="trusted", polarity=1)
+    store.upsert_tag(ego="ego1", account_id="xyz", tag="noise", polarity=-1)
+    assert store.list_account_ids_for_tag(ego="ego1", tag="TRUSTED") == ["abc", "xyz"]
+    assert store.list_account_ids_for_tags(ego="ego1", tags=["trusted", "missing"]) == [
+        "abc",
+        "xyz",
+    ]
+
     deleted = store.delete_tag(ego="ego1", account_id="123", tag="AI ALIGNMENT")
     assert deleted is True
     assert store.list_tags(ego="ego1", account_id="123") == []
@@ -57,4 +66,3 @@ def test_account_tag_store_validates_inputs(tmp_path) -> None:
         store.upsert_tag(ego="ego", account_id="1", tag="x", polarity=0)
     with pytest.raises(ValueError, match="confidence must be in"):
         store.upsert_tag(ego="ego", account_id="1", tag="x", polarity=1, confidence=2.0)
-
