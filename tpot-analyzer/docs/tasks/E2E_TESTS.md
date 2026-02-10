@@ -33,13 +33,48 @@ Test helpers available in ClusterCanvas.jsx:
 
 ---
 
+## Modernization Note (2026-02-09)
+
+This document is preserved as a historical implementation brief. Current repo
+entrypoints differ from several original script names in this plan.
+
+Current fixture bootstrap (from `tpot-analyzer/`):
+
+```bash
+python - <<'PY'
+from pathlib import Path
+from tests.fixtures.create_test_cache_db import create_test_cache_db
+
+target = Path("tests/fixtures/test_cache.db")
+counts = create_test_cache_db(target)
+print(f"Created {target} with rows: {counts.as_dict()}")
+PY
+```
+
+Current backend start for real E2E:
+
+```bash
+SNAPSHOT_DIR="$PWD/tests/fixtures" \
+CACHE_DB_PATH="$PWD/tests/fixtures/test_cache.db" \
+.venv/bin/python -m scripts.start_api_server
+```
+
+Current E2E runner entrypoint:
+
+```bash
+./scripts/run_e2e.sh full
+```
+
+---
+
 ## Task 1: Create Test Fixture Database
 
 Create a deterministic SQLite database with 50 accounts for testing.
 
 ### 1.1 Create Fixture Script
 
-**File**: `scripts/create_test_fixtures.py`
+**File (historical proposal, superseded)**: `scripts/create_test_fixtures.py`  
+**Current implementation**: `tests/fixtures/create_test_cache_db.py`
 
 ```python
 #!/usr/bin/env python3
@@ -52,7 +87,7 @@ This creates a minimal but realistic database that:
 - Is completely deterministic (same output every run)
 
 Usage:
-    python scripts/create_test_fixtures.py
+    Use the modernization bootstrap snippet above.
     # Creates: tests/fixtures/test_cache.db
 """
 import sqlite3
@@ -305,7 +340,14 @@ if __name__ == "__main__":
 
 ```bash
 cd tpot-analyzer
-python scripts/create_test_fixtures.py
+python - <<'PY'
+from pathlib import Path
+from tests.fixtures.create_test_cache_db import create_test_cache_db
+
+target = Path("tests/fixtures/test_cache.db")
+counts = create_test_cache_db(target)
+print(f"Created {target} with rows: {counts.as_dict()}")
+PY
 
 # Verify
 sqlite3 tests/fixtures/test_cache.db "SELECT COUNT(*) FROM shadow_account"
@@ -326,7 +368,7 @@ Create a script that starts the Flask backend with test fixtures.
 
 ### 2.1 Create Test Server Script
 
-**File**: `scripts/start_test_backend.sh`
+**File (historical proposal, superseded)**: `scripts/start_test_backend.sh`
 
 ```bash
 #!/bin/bash
@@ -371,7 +413,7 @@ fi
 # Check if test fixtures exist
 if [ ! -f "$TEST_DB" ]; then
     echo "❌ Test database not found at $TEST_DB"
-    echo "   Run: python scripts/create_test_fixtures.py"
+    echo "   Run fixture bootstrap from docs/tasks/E2E_TESTS.md modernization note."
     exit 1
 fi
 
@@ -462,7 +504,7 @@ import fs from 'node:fs';
  * REAL BACKEND MODE:
  *   npm run test:e2e:real
  *   - Runs against real Flask backend with test fixtures
- *   - Requires: scripts/start_test_backend.sh running on port 5001
+ *   - Requires backend running on port 5001
  *   - Slower but tests full integration
  */
 
@@ -552,7 +594,7 @@ export default defineConfig({
         ...(!isMockOnly
           ? [
               {
-                command: `cd .. && ./scripts/start_test_backend.sh`,
+                command: `cd .. && SNAPSHOT_DIR="$PWD/tests/fixtures" CACHE_DB_PATH="$PWD/tests/fixtures/test_cache.db" .venv/bin/python -m scripts.start_api_server`,
                 url: `http://127.0.0.1:${backendPort}/api/health`,
                 reuseExistingServer: true,
                 timeout: 120 * 1000,
@@ -593,7 +635,7 @@ async function globalSetup(config: FullConfig) {
     }
   } catch (error) {
     console.error('   ❌ Backend not reachable:', error);
-    throw new Error('Backend must be running for real E2E tests. Run: ./scripts/start_test_backend.sh');
+    throw new Error('Backend must be running for real E2E tests. Run: .venv/bin/python -m scripts.start_api_server');
   }
 }
 
@@ -631,8 +673,8 @@ import { test, expect, Page } from '@playwright/test';
  * E2E tests for ClusterView with REAL backend.
  * 
  * These tests require:
- * - Test fixture database (run: python scripts/create_test_fixtures.py)
- * - Backend running on port 5001 (run: ./scripts/start_test_backend.sh)
+ * - Test fixture database (run the modernization fixture bootstrap snippet)
+ * - Backend running on port 5001 (`.venv/bin/python -m scripts.start_api_server`)
  * 
  * Run with: npm run test:e2e:real
  */
@@ -1012,7 +1054,7 @@ Add these scripts:
 
 Create a comprehensive test runner for CI.
 
-**File**: `scripts/run_all_tests.sh`
+**File (historical proposal, superseded)**: `scripts/run_all_tests.sh`
 
 ```bash
 #!/bin/bash
@@ -1115,16 +1157,26 @@ if [ "$QUICK_MODE" = false ]; then
   
   # Create test database if not exists
   if [ ! -f "tests/fixtures/test_cache.db" ]; then
-    python scripts/create_test_fixtures.py
+    python - <<'PY'
+from pathlib import Path
+from tests.fixtures.create_test_cache_db import create_test_cache_db
+
+target = Path("tests/fixtures/test_cache.db")
+counts = create_test_cache_db(target)
+print(f"Created {target} with rows: {counts.as_dict()}")
+PY
   fi
   
   info "Starting test backend..."
-  ./scripts/start_test_backend.sh
+  SNAPSHOT_DIR="$PROJECT_DIR/tests/fixtures" \
+  CACHE_DB_PATH="$PROJECT_DIR/tests/fixtures/test_cache.db" \
+  python -m scripts.start_api_server &
+  BACKEND_PID=$!
   
   # Trap to ensure cleanup
   cleanup() {
     info "Cleaning up test backend..."
-    ./scripts/start_test_backend.sh --stop
+    kill "$BACKEND_PID" 2>/dev/null || true
   }
   trap cleanup EXIT
   
@@ -1161,15 +1213,24 @@ Run these commands to verify each task:
 
 ```bash
 # Task 1: Test fixtures
-python scripts/create_test_fixtures.py
+python - <<'PY'
+from pathlib import Path
+from tests.fixtures.create_test_cache_db import create_test_cache_db
+
+target = Path("tests/fixtures/test_cache.db")
+counts = create_test_cache_db(target)
+print(f"Created {target} with rows: {counts.as_dict()}")
+PY
 sqlite3 tests/fixtures/test_cache.db "SELECT COUNT(*) FROM shadow_account"
 # Expected: 50
 
 # Task 2: Test backend
-./scripts/start_test_backend.sh
+SNAPSHOT_DIR="$PWD/tests/fixtures" \
+CACHE_DB_PATH="$PWD/tests/fixtures/test_cache.db" \
+.venv/bin/python -m scripts.start_api_server
 curl http://127.0.0.1:5001/api/health
-# Expected: {"status":"ok","test_mode":true}
-./scripts/start_test_backend.sh --stop
+# Expected: {"service":"tpot-analyzer","status":"ok"}
+pkill -f "scripts.start_api_server"
 
 # Task 3: Playwright config
 cd graph-explorer
@@ -1193,7 +1254,9 @@ npm run test:e2e:mock
 
 # Task 7: Full test suite
 cd tpot-analyzer
-./scripts/run_all_tests.sh --quick
+.venv/bin/python -m pytest tests/ -q
+cd graph-explorer && npx vitest run && cd ..
+./scripts/run_e2e.sh mock
 # Should run pytest + vitest + mock E2E
 ```
 
@@ -1203,8 +1266,8 @@ cd tpot-analyzer
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `scripts/create_test_fixtures.py` | CREATE | Generates deterministic test database |
-| `scripts/start_test_backend.sh` | CREATE | Starts backend with test fixtures |
+| `tests/fixtures/create_test_cache_db.py` | CREATE | Generates deterministic test database |
+| `scripts/start_test_backend.sh` | SUPERSEDED | Replaced by direct `scripts.start_api_server` launch |
 | `graph-explorer/playwright.config.ts` | UPDATE | Dual-mode support (mock/real) |
 | `graph-explorer/e2e/global-setup.ts` | CREATE | Backend verification |
 | `graph-explorer/e2e/global-teardown.ts` | CREATE | Cleanup hook |
@@ -1213,7 +1276,7 @@ cd tpot-analyzer
 | `graph-explorer/e2e/discovery.spec.ts` | CREATE | Discovery page tests |
 | `graph-explorer/src/Discovery.jsx` | UPDATE | Add data-testid attributes |
 | `graph-explorer/package.json` | UPDATE | Add test scripts |
-| `scripts/run_all_tests.sh` | CREATE | CI test runner |
+| `scripts/run_all_tests.sh` | SUPERSEDED | Replaced by `scripts/run_e2e.sh` + pytest/vitest commands |
 
 ---
 
@@ -1221,10 +1284,10 @@ cd tpot-analyzer
 
 1. **System browsers**: Config prefers system Brave/Chrome to avoid Playwright browser downloads in restricted networks.
 
-2. **Test isolation**: Each test file can run independently. Mock tests don't need backend. Real tests need `start_test_backend.sh`.
+2. **Test isolation**: Each test file can run independently. Mock tests don't need backend. Real tests need `scripts.start_api_server`.
 
 3. **Determinism**: Test fixtures use seeded random (seed=42) for reproducible data.
 
 4. **Timeouts**: Real backend tests use 180s timeout because initial cluster build is ~57s.
 
-5. **CI compatibility**: `run_all_tests.sh` handles setup/teardown and can run in `--quick` mode for fast feedback.
+5. **CI compatibility**: `scripts/run_e2e.sh` plus pytest/vitest commands now cover the practical CI workflow.

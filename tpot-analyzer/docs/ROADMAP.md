@@ -15,6 +15,9 @@ coverage gaps, or UX improvements surface.
   (recording store or sqlite-backed fixtures) instead of mock call counts.
 - Replace production-data dependent tests (e.g., shadow coverage + archive
   consistency) with deterministic fixture datasets.
+- [x] Add discovery endpoint regression matrix + smoke verifier
+  (`tests/test_discovery_endpoint_matrix.py`, `scripts/verify_discovery_endpoint.py`)
+  (implemented 2026-02-09).
 
 ## Features & Analysis
 
@@ -37,15 +40,21 @@ coverage gaps, or UX improvements surface.
   entry point for Phase 2.
 - Add housekeeping task to expire or refresh list snapshots that exceed
   `list_refresh_days` so cache stays accurate.
+- [x] Add frontend/backend API contract verifier (`scripts/verify_api_contracts.py`)
+  and wire it into CI workflow checks (implemented 2026-02-09).
 - Instrument Selenium/enricher phases with timing metrics so slow steps are
   visible in summaries and `ScrapeRunMetrics`.
 - Add GPU-aware execution path: at startup detect CUDA-capable hardware
   (e.g., via `nvidia-smi` or PyTorch), route heavy graph metrics to cuGraph /
   RAPIDS when available, and fall back to CPU when no dGPU is present.
+- Standardize third-party relationship audit wiring (`twitterapi.io`): document
+  canonical env var names, pagination/identifier parameters, and JSON shape
+  adapters so subset-verification scripts remain stable across provider changes.
 
 ## Developer Experience
 
-- Document end-to-end enrichment + explorer refresh workflow in a `docs/PLAYBOOK.md`.
+- [x] Document end-to-end enrichment + explorer refresh workflow in `docs/PLAYBOOK.md`
+  (implemented 2026-02-09).
 - Add `make` targets (or equivalent task runner) to standardize setup, tests,
   and verification commands.
 - Decompose `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.

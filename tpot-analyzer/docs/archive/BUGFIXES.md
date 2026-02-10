@@ -2,8 +2,11 @@
 
 ## Date: 2025-10-07
 
+> Historical note (updated 2026-02-09): this archive records an earlier backend
+> layout. Current runtime entrypoint is `.venv/bin/python -m scripts.start_api_server`.
+
 ### Bug #1: Edge Schema Mismatch (FIXED)
-**File:** `scripts/api_server.py`
+**File (at the time):** `scripts/api_server.py`
 **Lines:** 28-60
 
 #### Problem
@@ -113,8 +116,8 @@ nodeIds.forEach((rawId) => {
 
 ## Testing Checklist
 
-### Backend (api_server.py)
-- [ ] Run the API server: `.venv/bin/python3 scripts/api_server.py`
+### Backend (current entrypoint)
+- [ ] Run the API server: `.venv/bin/python -m scripts.start_api_server`
 - [ ] Check that edges have the correct format in the response
 - [ ] Verify that mutual edges are detected (look for `mutual: true`)
 - [ ] Check logs for any errors during edge processing

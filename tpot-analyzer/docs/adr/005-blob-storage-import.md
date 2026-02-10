@@ -174,5 +174,5 @@ python -m scripts.import_blob_archives --all --dry-run --max 10
 
 - Implementation: `src/data/blob_importer.py`
 - Graph integration: `src/graph/builder.py:124-135`
-- Schema documentation: `docs/DATABASE_SCHEMA.md`
+- Schema documentation: `docs/reference/DATABASE_SCHEMA.md`
 - Blob storage URL: `https://fabxmporizzqflnftavs.supabase.co/storage/v1/object/public/archives/{username}/archive.json`
