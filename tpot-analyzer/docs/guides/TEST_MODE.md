@@ -1,78 +1,54 @@
-# Test Mode Usage Guide
+# Test Backend Workflow
 
 ## Overview
 
-The API server now supports a **test mode** that uses a small subset of 100 nodes instead of the full database. This allows for fast iteration during UI development.
+The old one-file API bootstrap script was an early prototype and is no longer the canonical backend.
+Use `python -m scripts.start_api_server` for all current API routes.
 
-## Performance Comparison
+If you want deterministic, small test data for local UI iteration, run the
+backend against a generated fixture `cache.db`.
 
-| Mode | Nodes | Edges | Response Time |
-|------|-------|-------|---------------|
-| **Production** | 3,931 | 9,516 | ~33 seconds |
-| **Test** | 100 | 269 | ~0.4 seconds |
+## Start a Deterministic Test Backend
 
-## Running in Test Mode
-
-### Option 1: Using the `--test` flag (recommended)
+From `tpot-analyzer/`:
 
 ```bash
-.venv/bin/python3 scripts/api_server.py --test
+# 1) Create a small deterministic cache database
+python - <<'PY'
+from pathlib import Path
+from tests.fixtures.create_test_cache_db import create_test_cache_db
+
+snapshot_dir = Path("data/test_mode")
+snapshot_dir.mkdir(parents=True, exist_ok=True)
+cache_db = snapshot_dir / "cache.db"
+counts = create_test_cache_db(cache_db)
+print(f"Created {cache_db} with rows: {counts.as_dict()}")
+PY
+
+# 2) Start backend using that fixture DB
+SNAPSHOT_DIR="$PWD/data/test_mode" \
+CACHE_DB_PATH="$PWD/data/test_mode/cache.db" \
+python -m scripts.start_api_server
 ```
 
-### Option 2: Using environment variable
+## Verify Backend
+
+In another terminal:
 
 ```bash
-TEST_MODE=1 .venv/bin/python3 scripts/api_server.py
+curl http://localhost:5001/api/health
 ```
 
-## Running in Production Mode
+Expected response:
 
-Just run the server normally (without flags):
-
-```bash
-.venv/bin/python3 scripts/api_server.py
+```json
+{"service":"tpot-analyzer","status":"ok"}
 ```
 
-## Creating Custom Test Subsets
+## Notes
 
-You can create a test subset with a different number of nodes:
-
-```bash
-# Create a 200-node test subset
-.venv/bin/python3 scripts/create_test_subset.py 200
-
-# Create a 50-node test subset
-.venv/bin/python3 scripts/create_test_subset.py 50
-```
-
-The subset will be saved to `data/test_subset.json` and automatically loaded when running in test mode.
-
-## Test Subset Details
-
-- **Seed accounts**: Starts with Adi's 18 seed accounts
-- **Expansion**: Uses BFS (Breadth-First Search) to find connected nodes
-- **Result**: A connected subgraph with exactly N nodes + their edges
-
-## Workflow Recommendation
-
-1. **During UI development**: Use test mode (`--test`) for fast iteration
-2. **Before committing**: Test with production mode to ensure it works with the full dataset
-3. **Demo/presentation**: Use test mode for quick loading
-
-## Logs
-
-When running in test mode, you'll see:
-
-```
-2025-10-07 11:28:39,021 [INFO] __main__: Test mode: ENABLED
-2025-10-07 11:28:39,021 [INFO] __main__: Using test subset from: /path/to/data/test_subset.json
-2025-10-07 11:29:10,226 [INFO] __main__: Loaded 100 accounts and 269 edges from test subset
-```
-
-When running in production mode:
-
-```
-2025-10-07 11:28:39,021 [INFO] __main__: Test mode: DISABLED
-2025-10-07 11:28:39,037 [INFO] __main__: Using database at: /path/to/shadow_cache.db
-2025-10-07 11:28:44,127 [INFO] __main__: Fetched 3931 accounts and 9516 edges
-```
+- This workflow exercises the same modern backend entrypoint as production.
+- Cluster-specific endpoints may still require spectral snapshot sidecars
+  (`graph_snapshot.spectral.npz`) depending on which UI flows you test.
+- For full-stack operational workflow (backend + frontend + verification),
+  use `docs/PLAYBOOK.md`.

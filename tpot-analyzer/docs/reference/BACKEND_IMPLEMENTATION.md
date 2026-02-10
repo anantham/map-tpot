@@ -345,7 +345,7 @@ CHANGES:
 - Created `src/api/routes/{core,graph,analysis,discovery,accounts}.py`.
 - Rewrote `src/api/server.py` to use `create_app`.
 - Split `src/graph/hierarchy.py` into `models.py`, `traversal.py`, `layout.py`, `builder.py`.
-- Updated docs/WORKLOG.md and docs/BACKEND_IMPLEMENTATION.md.
+- Updated docs/WORKLOG.md and docs/reference/BACKEND_IMPLEMENTATION.md.
 
 IMPACT:
 - Server code is now modular and testable.

@@ -223,7 +223,114 @@
         - `cd tpot-analyzer && python3 -m pytest tests/test_shadow_enricher_orchestration.py -q` → ERROR `ModuleNotFoundError: No module named 'sqlalchemy'`.
         - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_shadow_enricher_orchestration.py tests/test_shadow_enricher_utils.py::TestZeroCoverageEdgeCase tests/test_cluster_routes.py::TestClusterLabelEndpoints tests/test_api.py -q` → `28 passed, 1 warning` (LibreSSL warning).
 
+- [2026-02-09 11:26 UTC] **Bugfix: Discovery crash from hook initialization order (Codex GPT-5)**
+    - **Hypothesis**
+        - `Discovery` crashes because `useAccountManager` references `fireChange` in a dependency array before `fireChange` is initialized, triggering a Temporal Dead Zone `ReferenceError` during render.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/graph-explorer/src/hooks/useAccountManager.js:26`: move `fireChange` declaration before first use so render-time dependency evaluation cannot read an uninitialized `const`.
+        - `tpot-analyzer/graph-explorer/src/hooks/useAccountManager.js:27`: update effect dependency to `[onAccountChange]` so callback-ref sync tracks the real input prop, not the internal notifier.
+        - `tpot-analyzer/graph-explorer/src/hooks/useAccountManager.js:66`: change `markAccountPending` dependencies from `onAccountChange` to `fireChange` to match the closure and avoid stale/misleading deps.
+    - **Verification**
+        - `cd tpot-analyzer/graph-explorer && npm run build` → success (Vite production build completed; existing non-blocking chunk-size/import warnings remain).
+
+- [2026-02-09 11:54 UTC] **Bugfix: `/api/subgraph/discover` 500 from route/signature drift (Codex GPT-5)**
+    - **Hypothesis**
+        - Discovery route refactor drifted from `src.api.discovery` contracts: `validate_request` tuple output was not unpacked and `discover_subgraph` was invoked without required `graph`/`pagerank_scores`, producing deterministic HTTP 500.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/src/api/routes/discovery.py:22`: add `_load_graph_result()` to restore route-side graph loading (in-memory snapshot -> snapshot loader -> `cache.db` fallback) so discovery has a directed graph input.
+        - `tpot-analyzer/src/api/routes/discovery.py:45`: add `_resolve_seed_handles()` to resolve frontend username seeds to graph node ids before discovery scoring.
+        - `tpot-analyzer/src/api/routes/discovery.py:71`: fix request validation flow by unpacking `(parsed_request, errors)` and returning structured 400 validation responses.
+        - `tpot-analyzer/src/api/routes/discovery.py:108`: compute PageRank and call `discover_subgraph(directed_graph, parsed_request, pagerank_scores)` with the required signature to remove the route-level `TypeError`.
+        - `tpot-analyzer/tests/test_api.py:199`: add regression test covering username-seed discovery success path (`POST /api/subgraph/discover` returns ranked payload).
+        - `tpot-analyzer/tests/test_api.py:235`: add regression test covering invalid discovery payload path (400 with validation details instead of 500).
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_api.py -q` → `9 passed`.
+
+- [2026-02-09 17:24 UTC] **Docs hygiene cleanup pass (Codex GPT-5)**
+    - **Hypothesis**
+        - Active docs still had stale references to retired scripts/paths and a missing canonical runbook, causing onboarding drift and broken local commands.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/docs/guides/TEST_MODE.md:5`: remove literal legacy script path from active docs while preserving migration guidance.
+        - `tpot-analyzer/docs/WORKLOG.md:261`: update stale future-task path from `docs/BACKEND_IMPLEMENTATION.md` to `docs/reference/BACKEND_IMPLEMENTATION.md`.
+        - `tpot-analyzer/docs/WORKLOG.md:249`: add this timestamped cleanup entry to preserve doc-hygiene rationale and verification trace.
+    - **Verification**
+        - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `6/6` checks passing.
+
+- [2026-02-09 17:45 UTC] **Docs hygiene cleanup pass #2: historical docs modernization (Codex GPT-5)**
+    - **Hypothesis**
+        - Historical docs still contained runnable stale commands/scripts (`create_test_fixtures.py`, `start_test_backend.sh`, `run_all_tests.sh`, `scripts/api_server.py`) that could mislead operators despite canonical docs being fixed.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/docs/tasks/E2E_TESTS.md:36`: add modernization note with current runnable fixture/bootstrap/backend commands.
+        - `tpot-analyzer/docs/tasks/E2E_TESTS.md:76`: mark legacy task-script filenames as historical/superseded and map to current implementations.
+        - `tpot-analyzer/docs/tasks/E2E_TESTS.md:339`: replace stale fixture/backend verification commands with `create_test_cache_db` bootstrap + `scripts.start_api_server` workflow.
+        - `tpot-analyzer/docs/archive/BUGFIXES.md:5`: add historical context banner clarifying current backend entrypoint.
+        - `tpot-analyzer/docs/archive/BUGFIXES.md:119`: update backend checklist command to `.venv/bin/python -m scripts.start_api_server`.
+        - `tpot-analyzer/docs/index.md:58`: add explicit historical-note bullets for `docs/tasks/E2E_TESTS.md` and `docs/archive/BUGFIXES.md`.
+    - **Verification**
+        - `cd tpot-analyzer && rg -n "python scripts/create_test_fixtures\\.py|\\.venv/bin/python3 scripts/api_server\\.py" docs/tasks/E2E_TESTS.md docs/archive/BUGFIXES.md` → no direct stale runnable commands remain.
+        - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `6/6` checks passing.
+
+- [2026-02-09 17:55 UTC] **Docs hygiene cleanup pass #3: CI gate + broad historical sweep (Codex GPT-5)**
+    - **Hypothesis**
+        - Docs hygiene checks should run in CI, and historical-doc drift should be enforced across all `docs/tasks/*.md` and `docs/archive/*.md`, not only two specific files.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/.github/workflows/test.yml:19`: add `Verify docs hygiene` step so PRs fail when docs drift regressions are introduced.
+        - `tpot-analyzer/scripts/verify_docs_hygiene.py:43`: expand historical sweep to all markdown files under `docs/tasks/` and `docs/archive/`.
+        - `tpot-analyzer/scripts/verify_docs_hygiene.py:154`: add contextualization check so legacy script references are required to be marked as historical/superseded.
+        - `tpot-analyzer/docs/PLAYBOOK.md:122`: add `Docs Release Checklist` with required verification and doc-index/worklog hygiene steps.
+    - **Verification**
+        - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `9/9` checks passing.
+        - `cd tpot-analyzer && rg -n "api_server\\.py|create_test_fixtures\\.py|start_test_backend\\.sh|run_all_tests\\.sh" docs/tasks docs/archive` → only contextualized historical/superseded references remain.
+
+- [2026-02-09 18:12 UTC] **Phase A-D sprint: discovery reliability + API contracts + service tests (Codex GPT-5)**
+    - **Hypothesis**
+        - Discovery had edge-case contract drift (non-object JSON shape handling, unknown seed reporting, debug cache leakage), and frontend contract paths required explicit backend parity and repeatable verification tooling.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/src/api/routes/discovery.py:45`: extend seed resolver to return unresolved inputs so unknown handles can be surfaced deterministically.
+        - `tpot-analyzer/src/api/routes/discovery.py:90`: fix request-shape validation to reject non-object JSON bodies instead of coercing to `{}`.
+        - `tpot-analyzer/src/api/routes/discovery.py:128`: return `NO_VALID_SEEDS` with concrete `unknown_handles` when no valid seeds remain after resolution.
+        - `tpot-analyzer/src/api/discovery.py:75`: add `debug` into discovery cache key to prevent debug payload leakage across requests.
+        - `tpot-analyzer/tests/test_discovery_endpoint_matrix.py:42`: add discovery regression matrix for seed normalization, unknown-seed behavior, request-shape validation, caching, and pagination.
+        - `tpot-analyzer/scripts/verify_discovery_endpoint.py:70`: add human-friendly discovery verifier (`✓/✗`, metrics, next steps).
+        - `tpot-analyzer/scripts/restart_and_smoke_backend.sh:1`: add backend restart + discovery smoke helper for local operator workflows.
+        - `tpot-analyzer/src/api/services/signal_feedback_store.py:21`: add in-memory feedback service for discovery signal feedback and quality aggregation.
+        - `tpot-analyzer/src/api/server.py:106`: inject `SIGNAL_FEEDBACK_STORE` into app config for route access.
+        - `tpot-analyzer/src/api/routes/analysis.py:123`: add `/api/metrics/performance` contract endpoint used by frontend API wrappers.
+        - `tpot-analyzer/src/api/routes/analysis.py:171`: add `/api/signals/feedback` and `/api/signals/quality` endpoints to match Discovery UI calls.
+        - `tpot-analyzer/src/api/services/cache_manager.py:48`: expose cache-size helpers for performance diagnostics endpoint.
+        - `tpot-analyzer/tests/test_api_contract_routes.py:18`: add contract tests for new performance/signals endpoints.
+        - `tpot-analyzer/tests/test_signal_feedback_store.py:7`: add service behavior tests for feedback aggregation math.
+        - `tpot-analyzer/tests/test_cache_manager.py:7`: add service behavior tests for graph/discovery cache storage + clear semantics.
+        - `tpot-analyzer/scripts/verify_api_contracts.py:75`: add frontend/backend API route parity verifier.
+        - `tpot-analyzer/scripts/verify_api_services_tests.py:29`: add route/service regression verification bundle script.
+        - `tpot-analyzer/.github/workflows/test.yml:22`: add API contract verification step in CI.
+        - `tpot-analyzer/docs/PLAYBOOK.md:72`: document new discovery/API verification commands.
+        - `tpot-analyzer/docs/ROADMAP.md:18`: mark discovery regression verifier and API contract verifier work as implemented.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_api_contract_routes.py tests/test_discovery_endpoint_matrix.py tests/test_api.py::test_subgraph_discover_endpoint_resolves_username_seed tests/test_api.py::test_subgraph_discover_endpoint_rejects_invalid_payload -q` → `14 passed`.
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_cache_manager.py tests/test_signal_feedback_store.py tests/test_api_contract_routes.py tests/test_discovery_endpoint_matrix.py -q` → `18 passed`.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_api_services_tests` → regression bundle passed (18 tests).
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_api_contracts` → `Contract gaps: 0`.
+    - **Constraints**
+        - Local sandbox denied port binding for live backend start (`Operation not permitted`) while validating `scripts/restart_and_smoke_backend.sh`; static/syntax checks and test-client verification were used instead.
+
+- [2026-02-09 23:17 UTC] **Recent-activity + twitterapi.io subset verifier (Codex GPT-5)**
+    - **Hypothesis**
+        - Given current X app gating on follows endpoints, post recency/cadence is still high-signal and available.
+        - We need an external relationship-audit comparator to quantify whether local `shadow_edge` is complete, incorrect, or a strict subset for sampled accounts.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/scripts/fetch_recent_activity.py:1` (NEW): adds batched `search/recent` harvesting for selected accounts; computes `last_tweet_at`, 7d/30d volume, median/mean post gap, engagement means, and logs request/rate-limit + estimated Post:Read spend.
+        - `tpot-analyzer/scripts/verify_shadow_subset_against_twitterapiio.py:1` (NEW): adds subset audit against `twitterapi.io` followers/followings endpoints with explicit overlap/coverage/precision metrics and missing/extra samples per account.
+        - `tpot-analyzer/docs/ROADMAP.md:39` records follow-up for standardizing third-party relationship-audit key wiring and adapter behavior.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python scripts/fetch_recent_activity.py --usernames adityaarpitha eigenrobot --dry-run` → query batching preview succeeded.
+        - `cd tpot-analyzer && .venv/bin/python scripts/verify_shadow_subset_against_twitterapiio.py --sample-size 1` → expected key-missing diagnostic with concrete env var names.
+        - `cd tpot-analyzer && .venv/bin/python - <<'PY' ... ast.parse(...) ... PY` → syntax parse passed for both new scripts.
+    - **Discovered constraints**
+        - `tpot-analyzer/.env` currently includes `X_BEARER_TOKEN` but no `twitterapi.io` key variable; verifier now fails loudly with remediation steps.
+        - Live X tests continue to show follows endpoint enrollment gating for the current app/token.
+
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.
-2.  **Documentation Update**: `docs/BACKEND_IMPLEMENTATION.md` needs to be updated to reflect the new modular architecture.
+2.  **Documentation Update**: `docs/reference/BACKEND_IMPLEMENTATION.md` needs to be updated to reflect the new modular architecture.
 3.  **Frontend Alignment**: Ensure `graph-explorer` API calls match the new route structure (URLs remained mostly the same, but need verification).

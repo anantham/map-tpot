@@ -73,8 +73,15 @@ The analyzer needs either:
 # If you have a data dump:
 cp /path/to/your/shadow.db data/shadow.db
 
-# Or create minimal test fixtures:
-python scripts/create_test_fixtures.py
+# Or generate a deterministic local cache.db fixture:
+python - <<'PY'
+from pathlib import Path
+from tests.fixtures.create_test_cache_db import create_test_cache_db
+
+target = Path("data/cache.db")
+counts = create_test_cache_db(target)
+print(f"Created {target} with row counts: {counts.as_dict()}")
+PY
 ```
 
 ### Option B: Build Graph from Twitter (Slow)
@@ -116,7 +123,7 @@ python -m scripts.start_api_server
 
 # Verify it's running
 curl http://localhost:5001/api/health
-# Expected: {"status": "ok"}
+# Expected: {"service":"tpot-analyzer","status":"ok"}
 ```
 
 Keep this terminal open. The API logs will appear here.
@@ -212,7 +219,7 @@ npm run dev
 ### Database locked errors
 ```bash
 # Stop all Python processes
-pkill -f "python.*api_server"
+pkill -f "scripts.start_api_server"
 # Remove WAL files
 rm -f data/*.db-shm data/*.db-wal
 ```

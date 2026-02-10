@@ -58,6 +58,6 @@ frontend now calls these endpoints via the `graph-explorer/src/data.js` client.
 
 ## References
 
-- `docs/BACKEND_IMPLEMENTATION.md` — implementation log and acceptance criteria.
+- `docs/reference/BACKEND_IMPLEMENTATION.md` — implementation log and acceptance criteria.
 - `graph-explorer/README.md` — architecture and setup instructions.
 - `tests/test_api.py` — regression coverage for the new API surface.

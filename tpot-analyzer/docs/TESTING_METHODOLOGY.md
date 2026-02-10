@@ -19,23 +19,26 @@ Living document capturing how we test, why, and lessons learned from human feedb
 
 ### Current Coverage
 
-**Backend (pytest):** 321 tests collected
-- Account status tracking, tags, search, teleport
-- Cluster hierarchy, layout, members
-- Shadow store, enrichment, seeds
-- API endpoints, serialization
+**Backend (pytest):** broad coverage across account/tag APIs, cluster hierarchy,
+shadow enrichment/store, and API serialization.
 
-**Frontend (vitest):** 8 tests
-- ClusterCanvas hit detection, zoom, selection modes
-- AccountSearch debounce
-- AccountTagPanel CRUD
-- GraphExplorer rendering
+**Frontend (vitest):** focused coverage for core UI behavior (ClusterCanvas
+interaction primitives, AccountSearch, AccountTagPanel, GraphExplorer rendering).
 
-**E2E (Playwright):** 4 spec files
+**E2E (Playwright):** current spec files
 - `cluster_mock.spec.ts` - Cluster expand/collapse with mocked backend
 - `cluster_real.spec.ts` - Full integration with real backend
 - `teleport_tagging_mock.spec.ts` - Search → teleport → tag flow
-- `hybrid-zoom.spec.ts` - Semantic zoom (NEW, untracked)
+- `hybrid-zoom.spec.ts` - Semantic zoom regression coverage
+
+Use these commands to inspect current counts in your environment:
+
+```bash
+cd tpot-analyzer
+.venv/bin/python -m pytest tests/ --collect-only -q
+cd graph-explorer
+npx vitest run --reporter=basic
+```
 
 ## Manual Testing Gaps → Automated Coverage Mapping
 
@@ -110,6 +113,6 @@ npm run test:e2e:mock
 
 # E2E (real backend - start backend first)
 cd tpot-analyzer
-python -m scripts.start_api_server  # terminal 1
-cd graph-explorer && npm run test:e2e:real  # terminal 2
+.venv/bin/python -m scripts.start_api_server  # terminal 1
+cd tpot-analyzer/graph-explorer && npm run test:e2e:real  # terminal 2
 ```
