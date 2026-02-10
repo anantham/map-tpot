@@ -196,6 +196,55 @@ def test_presets_endpoint(client):
     assert len(data) > 0
 
 
+def test_subgraph_discover_endpoint_resolves_username_seed(client):
+    """Discovery endpoint should accept username seeds and return ranked output."""
+    payload = {
+        "seeds": ["user_a"],
+        "weights": {
+            "neighbor_overlap": 0.4,
+            "pagerank": 0.3,
+            "community": 0.2,
+            "path_distance": 0.1,
+        },
+        "filters": {
+            "max_distance": 3,
+            "min_overlap": 0,
+            "min_followers": 0,
+            "max_followers": 1_000_000,
+            "include_shadow": True,
+        },
+        "limit": 50,
+        "offset": 0,
+        "debug": True,
+    }
+    response = client.post(
+        "/api/subgraph/discover",
+        data=json.dumps(payload),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert "error" not in data
+    assert "recommendations" in data
+    assert "meta" in data
+    assert isinstance(data["recommendations"], list)
+    assert data["meta"]["seed_count"] == 1
+    assert data["meta"]["recommendation_count"] >= 1
+
+
+def test_subgraph_discover_endpoint_rejects_invalid_payload(client):
+    """Discovery endpoint should return 400 for invalid request bodies."""
+    response = client.post(
+        "/api/subgraph/discover",
+        data=json.dumps({"seeds": []}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert data["error"]["code"] == "VALIDATION_ERROR"
+    assert any("seeds:" in detail for detail in data["error"]["details"])
+
+
 def test_error_handling_invalid_payload(client):
     """Test error handling for invalid requests."""
     # Send invalid JSON - should get 400 Bad Request, not 500 Internal Server Error
