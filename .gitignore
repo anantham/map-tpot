@@ -48,6 +48,7 @@ context/
 .venv/
 **/data/cache.db
 **/.claude/
+.serena/
 tpot-analyzer/secrets/
 secrets/
 tpot-analyzer/analysis_output.json
@@ -62,6 +63,10 @@ tpot-analyzer/graph-explorer/.eslintcache
 test-results/
 tpot-analyzer/data/account_tags.db*
 CLAUDE.md
+
+# Root-level package files (not part of the project)
+/package.json
+/package-lock.json
 
 # Local experiments (not ready for git yet)
 tpot-analyzer/data/holdout_clusters.json
