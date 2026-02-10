@@ -52,6 +52,7 @@ def write_report(
     total_remote_requests: int,
     results: Sequence[Dict[str, object]],
     is_complete: bool,
+    runtime: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
     follower_cov = _mean_coverage(results, "followers")
     following_cov = _mean_coverage(results, "followings")
@@ -71,6 +72,8 @@ def write_report(
         },
         "results": list(results),
     }
+    if runtime:
+        report["runtime"] = runtime
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2))
     return report
