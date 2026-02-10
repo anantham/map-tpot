@@ -1,74 +1,31 @@
 #!/usr/bin/env python3
-"""Verify shadow edge completeness against twitterapi.io followers/followings.
-
-Compares local `shadow_edge` coverage to remote followers/followings snapshots
-for a selected subset of accounts and prints human-friendly diagnostics.
-"""
+"""Verify shadow edge completeness against twitterapi.io followers/followings."""
 from __future__ import annotations
 
 import sqlite3
-from typing import Dict, List
+from typing import Dict, List, Optional, Set, Tuple
 
 import requests
 from dotenv import load_dotenv
 
 try:
     from scripts.shadow_subset_audit.cli import parse_args, resolve_api_key
-    from scripts.shadow_subset_audit.constants import (
-        CHECK,
-        CROSS,
-        KEY_ENV_CANDIDATES,
-        PROJECT_ROOT,
-        now_utc,
-    )
-    from scripts.shadow_subset_audit.local_db import (
-        load_id_to_username,
-        load_targets,
-        local_relation_usernames,
-    )
-    from scripts.shadow_subset_audit.remote import fetch_remote_relation
-    from scripts.shadow_subset_audit.reporting import summarize_overlap, write_report
+    from scripts.shadow_subset_audit.console import print_footer, write_checkpoint
+    from scripts.shadow_subset_audit.constants import CHECK, CROSS, KEY_ENV_CANDIDATES, PROJECT_ROOT
+    from scripts.shadow_subset_audit.local_db import load_id_to_username, load_targets
+    from scripts.shadow_subset_audit.observability import AuditRuntime, configure_logger, resolve_log_path
+    from scripts.shadow_subset_audit.resume import load_resume_state
+    from scripts.shadow_subset_audit.runner import run_audit
 except ImportError:  # pragma: no cover - supports direct script execution from scripts/
     from shadow_subset_audit.cli import parse_args, resolve_api_key
-    from shadow_subset_audit.constants import CHECK, CROSS, KEY_ENV_CANDIDATES, PROJECT_ROOT, now_utc
-    from shadow_subset_audit.local_db import load_id_to_username, load_targets, local_relation_usernames
-    from shadow_subset_audit.remote import fetch_remote_relation
-    from shadow_subset_audit.reporting import summarize_overlap, write_report
+    from shadow_subset_audit.console import print_footer, write_checkpoint
+    from shadow_subset_audit.constants import CHECK, CROSS, KEY_ENV_CANDIDATES, PROJECT_ROOT
+    from shadow_subset_audit.local_db import load_id_to_username, load_targets
+    from shadow_subset_audit.observability import AuditRuntime, configure_logger, resolve_log_path
+    from shadow_subset_audit.resume import load_resume_state
+    from shadow_subset_audit.runner import run_audit
 
-
-def _print_header(*, db_path: str, key_source: str | None, targets_count: int) -> None:
-    print("shadow_subset_vs_twitterapiio")
-    print("=" * 72)
-    print(f"Generated: {now_utc()}")
-    print(f"DB path: {db_path}")
-    print(f"Key source: {key_source}")
-    print(f"Targets: {targets_count}")
-    print("=" * 72)
-
-
-def _print_relation_summary(*, relation: str, remote_count: int, pages: int, requests_made: int, summary: Dict[str, object]) -> None:
-    print(f"{CHECK} remote {relation}={remote_count} pages={pages} requests={requests_made}")
-    print(
-        f"{CHECK} {relation} coverage={summary['coverage_pct']}% "
-        f"precision={summary['precision_pct']}% "
-        f"missing={summary['missing_in_local_count']} "
-        f"extra={summary['extra_in_local_count']}"
-    )
-
-
-def _print_footer(*, account_count: int, total_remote_requests: int, follower_cov: object, following_cov: object, output_path: str) -> None:
-    print("\n" + "=" * 72)
-    print("SUMMARY")
-    print("=" * 72)
-    print(f"{CHECK} accounts audited: {account_count}")
-    print(f"{CHECK} total remote requests: {total_remote_requests}")
-    print(f"{CHECK} avg followers coverage: {follower_cov}%")
-    print(f"{CHECK} avg followings coverage: {following_cov}%")
-    print(f"{CHECK} report written: {output_path}")
-    print("\nNext steps:")
-    print("- If coverage is low, re-scrape specific seeds with incomplete follow lists.")
-    print("- Raise --max-pages for higher confidence on large accounts.")
-    print("- Keep this script output in chat for before/after enrichment comparisons.")
+Target = Tuple[str, Optional[str], List[str]]
 
 
 def main() -> int:
@@ -86,137 +43,150 @@ def main() -> int:
         print(f"{CROSS} Database not found: {args.db_path}")
         return 2
 
+    log_path = resolve_log_path(output_path=args.output, log_file=args.log_file)
+    logger = configure_logger(log_level=args.log_level, log_path=log_path)
+    runtime = AuditRuntime(
+        checkpoint_every_requests=args.checkpoint_every_requests,
+        checkpoint_min_seconds=args.checkpoint_min_seconds,
+        max_event_history=args.max_event_history,
+        logger=logger,
+    )
+
     conn = sqlite3.connect(str(args.db_path))
     conn.row_factory = sqlite3.Row
-    id_to_username = load_id_to_username(conn)
-    targets = load_targets(conn, args.usernames, args.sample_size)
-    if not targets:
-        print(f"{CROSS} No target accounts found for audit.")
-        conn.close()
-        return 2
-
     session = requests.Session()
     session.headers.update({"X-API-Key": api_key, "User-Agent": "TPOTShadowSubsetAudit/1.0"})
 
+    all_targets: List[Target] = []
+    targets_to_run: List[Target] = []
     results: List[Dict[str, object]] = []
     total_remote_requests = 0
 
-    _print_header(db_path=str(args.db_path), key_source=key_source, targets_count=len(targets))
+    try:
+        id_to_username = load_id_to_username(conn)
+        all_targets = load_targets(conn, args.usernames, args.sample_size)
+        if not all_targets:
+            print(f"{CROSS} No target accounts found for audit.")
+            return 2
 
-    for index, (username, numeric_id, account_ids) in enumerate(targets, start=1):
-        print(f"\n[{index}/{len(targets)}] @{username} ids={account_ids}")
-        account_result: Dict[str, object] = {
-            "username": username,
-            "numeric_id": numeric_id,
-            "local_account_ids": account_ids,
-        }
+        completed_usernames: Set[str] = set()
+        if args.resume_from_output:
+            allowed_usernames = {username for username, _, _ in all_targets}
+            resume_state = load_resume_state(output_path=args.output, allowed_usernames=allowed_usernames)
+            for note in resume_state.notes:
+                logger.info(note)
+            if resume_state.results:
+                results.extend(resume_state.results)
+                completed_usernames = set(resume_state.completed_usernames)
+                total_remote_requests = resume_state.total_remote_requests
+                print(
+                    f"{CHECK} resume loaded: {len(results)} completed accounts, "
+                    f"starting request count={total_remote_requests}"
+                )
+                if resume_state.previous_generated_at:
+                    print(f"{CHECK} previous snapshot generated_at={resume_state.previous_generated_at}")
+            else:
+                print(f"{CHECK} resume requested, but no reusable completed rows found in {args.output}")
 
-        local_followers = local_relation_usernames(conn, account_ids, "followers", id_to_username)
-        local_followings = local_relation_usernames(conn, account_ids, "followings", id_to_username)
-        print(f"{CHECK} local followers={len(local_followers)} followings={len(local_followings)}")
-
-        remote_followers = fetch_remote_relation(
-            session=session,
-            base_url=args.base_url,
-            relation="followers",
-            username=username,
-            user_id=numeric_id,
-            identifier_mode=args.identifier_mode,
-            page_size=args.page_size,
-            max_pages=args.max_pages,
-            timeout_seconds=args.timeout_seconds,
-            wait_on_rate_limit=args.wait_on_rate_limit,
-        )
-        remote_followings = fetch_remote_relation(
-            session=session,
-            base_url=args.base_url,
-            relation="followings",
-            username=username,
-            user_id=numeric_id,
-            identifier_mode=args.identifier_mode,
-            page_size=args.page_size,
-            max_pages=args.max_pages,
-            timeout_seconds=args.timeout_seconds,
-            wait_on_rate_limit=args.wait_on_rate_limit,
-        )
-        total_remote_requests += remote_followers.requests_made + remote_followings.requests_made
-
-        followers_summary = summarize_overlap(local_followers, remote_followers.usernames)
-        followings_summary = summarize_overlap(local_followings, remote_followings.usernames)
-
-        if remote_followers.pages_fetched > 0:
-            _print_relation_summary(
-                relation="followers",
-                remote_count=len(remote_followers.usernames),
-                pages=remote_followers.pages_fetched,
-                requests_made=remote_followers.requests_made,
-                summary=followers_summary,
+        targets_to_run = [target for target in all_targets if target[0] not in completed_usernames]
+        if args.resume_from_output:
+            print(
+                f"{CHECK} resume targets: completed={len(completed_usernames)} "
+                f"remaining={len(targets_to_run)} total={len(all_targets)}"
             )
-        else:
-            print(f"{CROSS} remote followers fetch failed: {remote_followers.errors[:2]}")
 
-        if remote_followings.pages_fetched > 0:
-            _print_relation_summary(
-                relation="followings",
-                remote_count=len(remote_followings.usernames),
-                pages=remote_followings.pages_fetched,
-                requests_made=remote_followings.requests_made,
-                summary=followings_summary,
+        if not targets_to_run:
+            runtime.mark_complete()
+            report = write_checkpoint(
+                reason="resume_noop_complete",
+                output_path=args.output,
+                db_path=args.db_path,
+                total_targets=len(all_targets),
+                total_remote_requests=total_remote_requests,
+                results=results,
+                runtime=runtime,
+                is_complete=True,
             )
-        else:
-            print(f"{CROSS} remote followings fetch failed: {remote_followings.errors[:2]}")
+            average_coverage = report.get("average_coverage_pct", {})
+            follower_cov = average_coverage.get("followers") if isinstance(average_coverage, dict) else None
+            following_cov = average_coverage.get("followings") if isinstance(average_coverage, dict) else None
+            print_footer(
+                account_count=len(results),
+                total_remote_requests=max(total_remote_requests, runtime.remote_requests_observed),
+                follower_cov=follower_cov,
+                following_cov=following_cov,
+                output_path=str(args.output),
+            )
+            logger.info("resume_noop_complete targets=%s output=%s", len(all_targets), args.output)
+            return 0
 
-        print(f"  sample missing followers: {followers_summary['missing_in_local'][:args.sample_output_count]}")
-        print(f"  sample missing followings: {followings_summary['missing_in_local'][:args.sample_output_count]}")
+        report, total_remote_requests = run_audit(
+            args=args,
+            conn=conn,
+            id_to_username=id_to_username,
+            targets=targets_to_run,
+            session=session,
+            runtime=runtime,
+            logger=logger,
+            key_source=key_source,
+            results=results,
+            total_targets=len(all_targets),
+            completed_offset=len(results),
+            starting_total_remote_requests=total_remote_requests,
+        )
 
-        account_result["followers"] = {
-            "remote": {
-                **remote_followers.__dict__,
-                "usernames": sorted(remote_followers.usernames),
-            },
-            "summary": followers_summary,
-        }
-        account_result["followings"] = {
-            "remote": {
-                **remote_followings.__dict__,
-                "usernames": sorted(remote_followings.usernames),
-            },
-            "summary": followings_summary,
-        }
-        results.append(account_result)
+        average_coverage = report.get("average_coverage_pct", {})
+        follower_cov = average_coverage.get("followers") if isinstance(average_coverage, dict) else None
+        following_cov = average_coverage.get("followings") if isinstance(average_coverage, dict) else None
 
-        write_report(
+        print_footer(
+            account_count=len(results),
+            total_remote_requests=max(total_remote_requests, runtime.remote_requests_observed),
+            follower_cov=follower_cov,
+            following_cov=following_cov,
+            output_path=str(args.output),
+        )
+        logger.info(
+            "audit_complete accounts=%s remote_requests=%s output=%s log=%s",
+            len(results),
+            max(total_remote_requests, runtime.remote_requests_observed),
+            args.output,
+            log_path,
+        )
+        return 0
+    except KeyboardInterrupt:
+        runtime.mark_interrupted("KeyboardInterrupt")
+        target_count = len(all_targets) if all_targets else len(targets_to_run)
+        write_checkpoint(
+            reason="run_interrupted",
             output_path=args.output,
             db_path=args.db_path,
-            total_targets=len(targets),
-            total_remote_requests=total_remote_requests,
+            total_targets=target_count,
+            total_remote_requests=max(total_remote_requests, runtime.remote_requests_observed),
             results=results,
+            runtime=runtime,
             is_complete=False,
         )
-        print(f"{CHECK} checkpoint written ({len(results)}/{len(targets)}): {args.output}")
-
-    conn.close()
-
-    report = write_report(
-        output_path=args.output,
-        db_path=args.db_path,
-        total_targets=len(targets),
-        total_remote_requests=total_remote_requests,
-        results=results,
-        is_complete=True,
-    )
-    average_coverage = report.get("average_coverage_pct", {})
-    follower_cov = average_coverage.get("followers") if isinstance(average_coverage, dict) else None
-    following_cov = average_coverage.get("followings") if isinstance(average_coverage, dict) else None
-
-    _print_footer(
-        account_count=len(results),
-        total_remote_requests=total_remote_requests,
-        follower_cov=follower_cov,
-        following_cov=following_cov,
-        output_path=str(args.output),
-    )
-    return 0
+        print(f"{CROSS} Run interrupted. Checkpoint persisted to {args.output}")
+        return 130
+    except Exception as exc:  # pragma: no cover - defensive runtime guard
+        runtime.mark_failed(f"{type(exc).__name__}: {exc}")
+        logger.exception("audit_failed")
+        target_count = len(all_targets) if all_targets else len(targets_to_run)
+        write_checkpoint(
+            reason="run_failed",
+            output_path=args.output,
+            db_path=args.db_path,
+            total_targets=target_count,
+            total_remote_requests=max(total_remote_requests, runtime.remote_requests_observed),
+            results=results,
+            runtime=runtime,
+            is_complete=False,
+        )
+        print(f"{CROSS} Run failed. Checkpoint persisted to {args.output}")
+        return 1
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

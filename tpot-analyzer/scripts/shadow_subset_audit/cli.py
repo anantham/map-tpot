@@ -49,6 +49,42 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_BASE,
         help="Base URL for twitterapi.io user endpoints.",
     )
+    parser.add_argument(
+        "--checkpoint-every-requests",
+        type=int,
+        default=25,
+        help="Write a progress checkpoint at least every N remote requests.",
+    )
+    parser.add_argument(
+        "--checkpoint-min-seconds",
+        type=int,
+        default=30,
+        help="Write a progress checkpoint if this many seconds elapsed since the last checkpoint.",
+    )
+    parser.add_argument(
+        "--max-event-history",
+        type=int,
+        default=250,
+        help="Maximum number of recent remote events persisted in runtime metadata.",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        default="INFO",
+        help="Verbosity for audit logs.",
+    )
+    parser.add_argument(
+        "--log-file",
+        type=Path,
+        default=None,
+        help="Optional log file path (defaults to <output>.log).",
+    )
+    parser.add_argument(
+        "--resume-from-output",
+        action="store_true",
+        default=False,
+        help="Resume from existing output JSON by skipping already-completed usernames.",
+    )
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH, help="JSON report output path.")
     return parser.parse_args()
 
