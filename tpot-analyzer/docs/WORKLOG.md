@@ -330,6 +330,36 @@
         - `tpot-analyzer/.env` currently includes `X_BEARER_TOKEN` but no `twitterapi.io` key variable; verifier now fails loudly with remediation steps.
         - Live X tests continue to show follows endpoint enrollment gating for the current app/token.
 
+- [2026-02-10 02:20 UTC] **twitterapi.io verifier: per-account checkpoint writes (Codex GPT-5)**
+    - **Hypothesis**
+        - Full seed-list audits are long-running; writing output only at the end risks losing progress visibility and partial results if interrupted.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/scripts/verify_shadow_subset_against_twitterapiio.py:360`: add `_mean_coverage(...)` helper to compute running/final average coverage from current results safely.
+        - `tpot-analyzer/scripts/verify_shadow_subset_against_twitterapiio.py:377`: add `write_report(...)` helper to persist a full JSON report payload with explicit `progress` (`completed_accounts`, `total_accounts`, `is_complete`).
+        - `tpot-analyzer/scripts/verify_shadow_subset_against_twitterapiio.py:535`: write checkpoint report after each account and print `checkpoint written (n/total)` so humans can monitor in real time.
+        - `tpot-analyzer/scripts/verify_shadow_subset_against_twitterapiio.py:547`: reuse `write_report(...)` for final report write to keep checkpoint/final schema identical.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -u scripts/verify_shadow_subset_against_twitterapiio.py --api-key "$API_KEY" --usernames adityaarpitha --max-pages 1 --page-size 200 --wait-on-rate-limit --output data/outputs/twitterapiio_shadow_audit/checkpoint_smoke.json` → checkpoint message emitted and run succeeded.
+        - `cd tpot-analyzer && jq '{progress, targets, total_remote_requests, average_coverage_pct}' data/outputs/twitterapiio_shadow_audit/checkpoint_smoke.json` → shows `progress.completed_accounts=1`, `is_complete=true`.
+
+- [2026-02-10 02:24 UTC] **Decomposition: split twitterapi.io verifier into modular helpers (Codex GPT-5)**
+    - **Hypothesis**
+        - `scripts/verify_shadow_subset_against_twitterapiio.py` grew past maintainable size (~575 LOC), increasing review/debug overhead and violating file-size decomposition guidance.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/scripts/verify_shadow_subset_against_twitterapiio.py:1`: refactor to thin orchestrator (CLI flow + human-readable progress output) while keeping flags/output behavior stable.
+        - `tpot-analyzer/scripts/shadow_subset_audit/cli.py:1`: extract argument parsing + API key resolution to isolate entrypoint config concerns.
+        - `tpot-analyzer/scripts/shadow_subset_audit/remote.py:1`: extract remote endpoint schema parsing, pagination, and rate-limit handling logic.
+        - `tpot-analyzer/scripts/shadow_subset_audit/local_db.py:1`: extract sqlite target selection + local follower/following resolution queries.
+        - `tpot-analyzer/scripts/shadow_subset_audit/reporting.py:1`: extract overlap math and JSON report/checkpoint writer.
+        - `tpot-analyzer/scripts/shadow_subset_audit/constants.py:1`: centralize default paths/key env candidates/shared symbols.
+        - `tpot-analyzer/scripts/shadow_subset_audit/models.py:1`: extract `RemoteResult` dataclass for typed handoff between helpers.
+        - `tpot-analyzer/scripts/shadow_subset_audit/normalize.py:1`: extract username normalization helper for consistent local/remote parsing.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python scripts/verify_shadow_subset_against_twitterapiio.py --help` → usage output renders successfully with expected options.
+        - `cd tpot-analyzer && .venv/bin/python scripts/verify_shadow_subset_against_twitterapiio.py --sample-size 1` → expected missing-key diagnostic preserved (`Checked env vars: ...`).
+        - `cd tpot-analyzer && .venv/bin/python scripts/fetch_recent_activity.py --dry-run --usernames user_a` → dry-run query preview works after script staging.
+        - `cd tpot-analyzer && .venv/bin/python scripts/verify_docs_hygiene.py` → docs hygiene verifier still passes.
+
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.
 2.  **Documentation Update**: `docs/reference/BACKEND_IMPLEMENTATION.md` needs to be updated to reflect the new modular architecture.
