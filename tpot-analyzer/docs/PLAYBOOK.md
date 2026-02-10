@@ -87,6 +87,25 @@ API route/service regression bundle:
 .venv/bin/python -m scripts.verify_api_services_tests
 ```
 
+Firehose relay verifier (local mock endpoint):
+
+```bash
+.venv/bin/python scripts/verify_firehose_relay.py
+```
+
+Continuous firehose relay (spectator streams -> Indra endpoint):
+
+```bash
+.venv/bin/python scripts/relay_firehose_to_indra.py
+```
+
+Override endpoint if needed:
+
+```bash
+.venv/bin/python scripts/relay_firehose_to_indra.py \
+  --endpoint-url http://localhost:7777/api/firehose/ingest
+```
+
 Frontend unit:
 
 ```bash
