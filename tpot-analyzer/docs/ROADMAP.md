@@ -29,6 +29,14 @@ coverage gaps, or UX improvements surface.
   enrichment stabilizes.
 - Surface cached list snapshot freshness in CLI summaries and reuse them when
   prioritising seeds (now that persistence exists).
+- Implement anchor-conditioned TPOT membership scoring that combines graph
+  proximity, latent-space similarity, semantic tags/text, and missingness-aware
+  confidence.
+- Add active-learning queueing (uncertainty sampling) so users can label
+  highest-entropy accounts first and improve TPOT boundary quality over time.
+- Add embedding jobs for extension-captured tweet text and feed-exposure
+  recency weighting so TPOT membership scores can use content semantics with
+  ranking-bias normalization.
 
 ## Infrastructure & Tooling
 
@@ -50,6 +58,17 @@ coverage gaps, or UX improvements surface.
 - Standardize third-party relationship audit wiring (`twitterapi.io`): document
   canonical env var names, pagination/identifier parameters, and JSON shape
   adapters so subset-verification scripts remain stable across provider changes.
+- Migrate account tagging from local SQLite (`account_tags.db`) to shared
+  workspace-backed storage with actor/source provenance and conflict policy.
+- Ship Chrome extension labeling integration against canonical backend tag
+  endpoints with auth/workspace scoping and audit logs.
+- [x] Add a firehose relay worker that tails `indra_net/feed_events.ndjson`
+  and forwards to TemporalCoordination/Indra ingestion endpoints with retry,
+  checkpointing, and backpressure metrics
+  (`scripts/relay_firehose_to_indra.py`,
+  `scripts/verify_firehose_relay.py`, implemented 2026-02-10).
+- Add storage-growth and privacy-boundary verification for extension firehose
+  mode (e.g., allowlist coverage %, bytes/day, tag-scope purge impact).
 
 ## Developer Experience
 

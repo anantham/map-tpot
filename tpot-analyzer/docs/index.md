@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-02-09
+Last reviewed: 2026-02-10
 
 ## Start Here
 
@@ -41,6 +41,9 @@ Last reviewed: 2026-02-09
 | ADRs | [docs/adr/](adr/) |
 | Technical specs | [docs/specs/](specs/) |
 | Diagnostics | [docs/diagnostics/](diagnostics/) |
+
+Latest architecture decision:
+- [ADR 006: Shared Tagging and Anchor-Conditioned TPOT Membership](adr/006-shared-tagging-and-tpot-membership.md) (Proposed, 2026-02-10)
 
 ## Testing and QA Docs
 
