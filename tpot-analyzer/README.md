@@ -264,17 +264,22 @@ python -m scripts.analyze_graph --include-shadow --update-readme
 ## Testing
 
 ```bash
+# Canonical local entrypoints (always use project .venv interpreter)
+make verify-louvain-contract
+make test-smoke
+make test
+
 # Run all unit tests (fast)
-pytest tests/ -v -m unit
+.venv/bin/python -m pytest tests/ -v -m unit
 
 # Run integration tests (includes Selenium, slower)
-pytest tests/ -v -m integration
+.venv/bin/python -m pytest tests/ -v -m integration
 
 # Run with coverage report
-pytest --cov=src --cov-report=term-missing tests/
+.venv/bin/python -m pytest --cov=src --cov-report=term-missing tests/
 
 # Run specific test file
-pytest tests/test_shadow_enrichment_integration.py -v
+.venv/bin/python -m pytest tests/test_shadow_enrichment_integration.py -v
 ```
 
 Test coverage (~68% overall, see `docs/test-coverage-baseline.md` for module-level stats):
