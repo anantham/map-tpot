@@ -174,7 +174,7 @@ cd graph-explorer && npm run dev
 
 | Task | Command |
 |------|---------|
-| Run tests | `pytest tests/ -v` |
+| Run tests | `make test` |
 | Rebuild graph | `python scripts/refresh_graph_snapshot.py` |
 | Check API health | `curl localhost:5001/api/health` |
 | Frontend E2E tests | `cd graph-explorer && npm run test:e2e:mock` |

@@ -8,28 +8,43 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+      - name: Resolve project directory
+        run: |
+          if [ -f "tpot-analyzer/requirements.txt" ]; then
+            echo "PROJECT_DIR=tpot-analyzer" >> "$GITHUB_ENV"
+          elif [ -f "requirements.txt" ]; then
+            echo "PROJECT_DIR=." >> "$GITHUB_ENV"
+          else
+            echo "Unable to find requirements.txt in project root or tpot-analyzer/" >&2
+            exit 1
+          fi
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          python -m pip install -r "${PROJECT_DIR}/requirements.txt"
+      - name: Verify Louvain dependency contract
+        run: |
+          python "${PROJECT_DIR}/scripts/verify_louvain_dependency_contract.py"
       - name: Verify docs hygiene
         run: |
-          python3 tpot-analyzer/scripts/verify_docs_hygiene.py
+          python "${PROJECT_DIR}/scripts/verify_docs_hygiene.py"
       - name: Verify frontend/backend API contracts
         run: |
-          PYTHONPATH=tpot-analyzer python3 tpot-analyzer/scripts/verify_api_contracts.py
+          PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_api_contracts.py"
       - name: Verify clusters (small)
         run: |
-          PYTHONPATH=tpot-analyzer python3 tpot-analyzer/scripts/verify_clusters.py \
-            --base-path tpot-analyzer/data/graph_snapshot --granularity 25
+          PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_clusters.py" \
+            --base-path "${PROJECT_DIR}/data/graph_snapshot" --granularity 25
       - name: Verify clusters (medium fixture)
         run: |
-          PYTHONPATH=tpot-analyzer python3 tpot-analyzer/scripts/verify_clusters.py \
-            --base-path tpot-analyzer/tests/fixtures/medium_graph/graph_snapshot --granularity 40
+          PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_clusters.py" \
+            --base-path "${PROJECT_DIR}/tests/fixtures/medium_graph/graph_snapshot" --granularity 40
       - name: Unit tests
         run: |
-          PYTHONPATH=tpot-analyzer pytest tests/test_spectral.py tests/test_clusters.py -q
+          PYTHONPATH="${PROJECT_DIR}" python -m pytest \
+            "${PROJECT_DIR}/tests/test_spectral.py" \
+            "${PROJECT_DIR}/tests/test_clusters.py" -q

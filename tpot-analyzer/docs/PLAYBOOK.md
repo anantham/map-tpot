@@ -63,6 +63,19 @@ python -m scripts.start_api_server
 
 ## 4) Verification Commands
 
+Interpreter + dependency contract (local):
+
+```bash
+make verify-louvain-contract
+python3 -m scripts.verify_test_runner_contract
+```
+
+Backend smoke test suite (venv-enforced via `Makefile`):
+
+```bash
+make test-smoke
+```
+
 Backend API smoke:
 
 ```bash
