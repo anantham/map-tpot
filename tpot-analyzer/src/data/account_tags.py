@@ -186,6 +186,37 @@ class AccountTagStore:
                 )
         return tags
 
+    def list_anchor_polarities(self, *, ego: str) -> List[tuple[str, int]]:
+        """Return per-account anchor polarity for one ego.
+
+        Anchor polarity is sign(sum(polarity)) for each account:
+        - +1 when positive tags dominate
+        - -1 when negative tags dominate
+        Accounts with tied polarity sums are omitted.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT account_id, SUM(polarity) AS net_polarity
+                FROM account_tags
+                WHERE ego = ?
+                GROUP BY account_id
+                """,
+                (ego,),
+            ).fetchall()
+
+        anchors: List[tuple[str, int]] = []
+        for account_id, net in rows:
+            try:
+                net_value = float(net)
+            except (TypeError, ValueError):
+                continue
+            if net_value > 0:
+                anchors.append((str(account_id), 1))
+            elif net_value < 0:
+                anchors.append((str(account_id), -1))
+        return anchors
+
     def upsert_tag(
         self,
         *,

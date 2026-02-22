@@ -6,6 +6,7 @@ import logging
 import os
 import pickle
 import time
+import hashlib
 from collections import OrderedDict
 from dataclasses import dataclass
 from uuid import uuid4
@@ -24,6 +25,15 @@ from src.graph.hierarchy import (
     get_collapse_preview,
     get_expand_preview,
 )
+from src.graph.observation_model import (
+    ObservationWeightingConfig,
+    build_binary_adjacency_from_edges,
+    build_ipw_adjacency_from_edges,
+    compute_observation_completeness,
+    summarize_completeness,
+)
+from src.graph.membership_grf import GRFMembershipConfig, compute_grf_membership
+from src.graph.seeds import get_graph_settings
 from src.graph.spectral import load_spectral_result
 
 logger = logging.getLogger(__name__)
@@ -97,7 +107,11 @@ _louvain_communities: Dict[str, int] = {}  # Louvain community mapping
 _label_store: Optional[ClusterLabelStore] = None
 _tag_store: Optional[AccountTagStore] = None
 _data_dir: Optional[Path] = None
+_observation_config = ObservationWeightingConfig()
+_observation_stats: Dict[str, object] = {}
+_graph_settings: Dict[str, object] = {}
 _cache = ClusterCache()
+_membership_cache = ClusterCache(max_entries=16, ttl_seconds=300)
 
 
 def _safe_int(val, default=0) -> int:
@@ -153,63 +167,102 @@ def _load_louvain(data_dir: Path) -> Dict[str, int]:
     return {}
 
 
-def _build_adjacency(edges_df: pd.DataFrame, node_ids: np.ndarray) -> sp.csr_matrix:
-    """Build adjacency matrix using vectorized pandas operations (much faster than iterrows)."""
-    id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+def _build_adjacency(
+    edges_df: pd.DataFrame,
+    node_ids: np.ndarray,
+    *,
+    obs_config: ObservationWeightingConfig,
+    expected_following: Optional[Dict[str, float]] = None,
+) -> Tuple[sp.csr_matrix, Dict[str, object]]:
+    """Build adjacency matrix with optional observation-aware weighting."""
+    if obs_config.mode == "ipw":
+        completeness = compute_observation_completeness(
+            edges_df,
+            node_ids,
+            expected_following=expected_following,
+            completeness_floor=obs_config.completeness_floor,
+        )
+        adjacency, ipw_stats = build_ipw_adjacency_from_edges(
+            edges_df,
+            node_ids,
+            completeness,
+            p_min=obs_config.p_min,
+        )
+        stats: Dict[str, object] = {
+            **ipw_stats,
+            "completeness": summarize_completeness(completeness),
+            "p_min": obs_config.p_min,
+            "completeness_floor": obs_config.completeness_floor,
+        }
+        return adjacency, stats
 
-    # Vectorized approach: map source/target to indices
-    edges_df = edges_df.copy()
-    edges_df['src_idx'] = edges_df['source'].astype(str).map(id_to_idx)
-    edges_df['tgt_idx'] = edges_df['target'].astype(str).map(id_to_idx)
-
-    # Filter out edges with unmapped nodes
-    valid_edges = edges_df.dropna(subset=['src_idx', 'tgt_idx'])
-
-    # Forward edges
-    rows = valid_edges['src_idx'].astype(int).tolist()
-    cols = valid_edges['tgt_idx'].astype(int).tolist()
-    data = [1.0] * len(rows)
-
-    # Add backward edges for mutual connections
-    mutual_edges = valid_edges[valid_edges.get('mutual', False)]
-    if len(mutual_edges) > 0:
-        rows.extend(mutual_edges['tgt_idx'].astype(int).tolist())
-        cols.extend(mutual_edges['src_idx'].astype(int).tolist())
-        data.extend([1.0] * len(mutual_edges))
-
-    adjacency = sp.csr_matrix((data, (rows, cols)), shape=(len(node_ids), len(node_ids)))
-    return adjacency
+    adjacency = build_binary_adjacency_from_edges(edges_df, node_ids)
+    stats = {
+        "mode": "off",
+        "observed_edges": int(len(edges_df)),
+        "weighted_edges": int(adjacency.count_nonzero()),
+        "p_min": obs_config.p_min,
+        "completeness_floor": obs_config.completeness_floor,
+    }
+    return adjacency, stats
 
 
-def _load_or_build_adjacency(edges_df: pd.DataFrame, node_ids: np.ndarray, cache_path: Path) -> sp.csr_matrix:
+def _load_or_build_adjacency(
+    edges_df: pd.DataFrame,
+    node_ids: np.ndarray,
+    cache_path: Path,
+    *,
+    obs_config: ObservationWeightingConfig,
+    expected_following: Optional[Dict[str, float]] = None,
+) -> Tuple[sp.csr_matrix, Dict[str, object]]:
     """Load adjacency matrix from cache or build it (with caching)."""
     if cache_path.exists():
         try:
             logger.info("Loading cached adjacency matrix from %s", cache_path)
             with open(cache_path, 'rb') as f:
-                adjacency = pickle.load(f)
+                cached_payload = pickle.load(f)
+                if isinstance(cached_payload, dict) and "adjacency" in cached_payload:
+                    adjacency = cached_payload["adjacency"]
+                    stats = cached_payload.get("stats", {})
+                else:
+                    # Backward compatibility: old cache contained only CSR matrix.
+                    adjacency = cached_payload
+                    stats = {
+                        "mode": obs_config.mode,
+                        "cache_format": "legacy",
+                    }
                 logger.info("Cached adjacency loaded: %s edges", adjacency.count_nonzero())
-                return adjacency
+                if isinstance(stats, dict):
+                    stats["cache_hit"] = True
+                return adjacency, stats
         except Exception as e:
             logger.warning("Failed to load adjacency cache (%s), rebuilding...", e)
 
     # Build fresh adjacency matrix
     logger.info("Building adjacency matrix from %s edges...", len(edges_df))
     start_time = time.time()
-    adjacency = _build_adjacency(edges_df, node_ids)
+    adjacency, stats = _build_adjacency(
+        edges_df,
+        node_ids,
+        obs_config=obs_config,
+        expected_following=expected_following,
+    )
     duration = time.time() - start_time
     logger.info("Adjacency matrix built in %.2fs: %s edges", duration, adjacency.count_nonzero())
+    if isinstance(stats, dict):
+        stats["build_seconds"] = round(duration, 4)
+        stats["cache_hit"] = False
 
     # Save to cache
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         with open(cache_path, 'wb') as f:
-            pickle.dump(adjacency, f)
+            pickle.dump({"adjacency": adjacency, "stats": stats}, f)
         logger.info("Adjacency matrix cached to %s", cache_path)
     except Exception as e:
         logger.warning("Failed to cache adjacency matrix: %s", e)
 
-    return adjacency
+    return adjacency, stats
 
 
 def _make_cache_key(
@@ -243,6 +296,61 @@ def _get_tag_store() -> AccountTagStore:
     return _tag_store
 
 
+def _membership_engine_enabled() -> bool:
+    engine = str(_graph_settings.get("membership_engine", "off")).strip().lower()
+    return engine == "grf"
+
+
+def _resolve_anchor_indices(ego: str) -> Tuple[list[int], list[int], Dict[str, int]]:
+    store = _get_tag_store()
+    anchor_rows = store.list_anchor_polarities(ego=ego)
+    positive: list[int] = []
+    negative: list[int] = []
+    dropped = 0
+    for account_id, polarity in anchor_rows:
+        idx = _node_id_to_idx.get(str(account_id))
+        if idx is None:
+            dropped += 1
+            continue
+        if polarity > 0:
+            positive.append(int(idx))
+        elif polarity < 0:
+            negative.append(int(idx))
+    stats = {
+        "anchor_rows": int(len(anchor_rows)),
+        "anchors_in_graph": int(len(positive) + len(negative)),
+        "anchors_dropped": int(dropped),
+    }
+    return positive, negative, stats
+
+
+def _anchor_digest(positive: list[int], negative: list[int]) -> str:
+    payload = f"p:{','.join(map(str, sorted(set(positive))))}|n:{','.join(map(str, sorted(set(negative))))}"
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _estimate_account_coverage(account_id: str) -> Dict[str, float]:
+    meta = _node_metadata.get(account_id, {})
+    expected_following = _safe_int(meta.get("num_following"), default=0)
+    observed_following = 0
+    idx = _node_id_to_idx.get(account_id)
+    if idx is not None and _adjacency is not None:
+        observed_following = int(_adjacency.getrow(idx).count_nonzero())
+
+    if expected_following <= 0:
+        base_floor = max(1e-4, _observation_config.completeness_floor)
+        coverage = 1.0 if observed_following > 0 else base_floor
+    else:
+        coverage = observed_following / float(expected_following)
+        coverage = max(_observation_config.completeness_floor, min(1.0, coverage))
+
+    return {
+        "value": float(coverage),
+        "observedFollowing": float(observed_following),
+        "expectedFollowing": float(expected_following),
+    }
+
+
 def init_cluster_routes(data_dir: Path = Path("data")) -> None:
     """Initialize cluster routes state (data load + caches).
 
@@ -250,6 +358,7 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
     """
     global _spectral_result, _adjacency, _node_metadata, _node_id_to_idx, _louvain_communities, _label_store
     global _data_dir
+    global _observation_config, _observation_stats, _graph_settings
 
     try:
         _data_dir = data_dir
@@ -264,9 +373,38 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
         _node_metadata = _load_metadata(nodes_df)
         node_ids = _spectral_result.node_ids
 
+        settings_payload = get_graph_settings().get("settings", {})
+        if not isinstance(settings_payload, dict):
+            settings_payload = {}
+        _graph_settings = dict(settings_payload)
+        _observation_config = ObservationWeightingConfig.from_settings(settings_payload)
+
+        expected_following: Dict[str, float] = {}
+        if "node_id" in nodes_df.columns and "num_following" in nodes_df.columns:
+            node_following = nodes_df[["node_id", "num_following"]].copy()
+            node_following["node_id"] = node_following["node_id"].astype(str)
+            expected_following = dict(
+                zip(
+                    node_following["node_id"].tolist(),
+                    node_following["num_following"].tolist(),
+                )
+            )
+
         # Use cached adjacency matrix (saves ~12 seconds on startup)
-        adjacency_cache_path = data_dir / "adjacency_matrix_cache.pkl"
-        _adjacency = _load_or_build_adjacency(edges_df, node_ids, adjacency_cache_path)
+        if _observation_config.mode == "off":
+            adjacency_cache_path = data_dir / "adjacency_matrix_cache.pkl"
+        else:
+            p_tag = f"{_observation_config.p_min:.4f}".replace(".", "p")
+            adjacency_cache_path = data_dir / f"adjacency_matrix_cache.{_observation_config.mode}.{p_tag}.pkl"
+        _adjacency, _observation_stats = _load_or_build_adjacency(
+            edges_df,
+            node_ids,
+            adjacency_cache_path,
+            obs_config=_observation_config,
+            expected_following=expected_following,
+        )
+        _membership_cache._entries.clear()
+        _membership_cache._inflight.clear()
 
         _label_store = ClusterLabelStore(data_dir / "clusters.db")
 
@@ -279,13 +417,13 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
         if _spectral_result.micro_labels is not None:
             n_micro = len(np.unique(_spectral_result.micro_labels))
             logger.info(
-                "Cluster routes initialized (APPROXIMATE mode): %s nodes -> %s micro-clusters, %s edges",
-                len(node_ids), n_micro, _adjacency.count_nonzero()
+                "Cluster routes initialized (APPROXIMATE mode): %s nodes -> %s micro-clusters, %s edges, obs_mode=%s",
+                len(node_ids), n_micro, _adjacency.count_nonzero(), _observation_config.mode
             )
         else:
             logger.info(
-                "Cluster routes initialized (EXACT mode): %s nodes, %s edges",
-                len(node_ids), _adjacency.count_nonzero()
+                "Cluster routes initialized (EXACT mode): %s nodes, %s edges, obs_mode=%s",
+                len(node_ids), _adjacency.count_nonzero(), _observation_config.mode
             )
     except Exception as exc:
         logger.exception("Failed to initialize cluster routes: %s", exc)
@@ -703,6 +841,130 @@ def get_cluster_tag_summary(cluster_id: str):
     )
 
 
+@cluster_bp.route("/accounts/<account_id>/membership", methods=["GET"])
+def get_account_membership(account_id: str):
+    """Return TPOT-membership probability for one account using GRF anchors."""
+    if _spectral_result is None or _adjacency is None:
+        return jsonify({"error": "Cluster data not loaded"}), 503
+
+    if not _membership_engine_enabled():
+        return jsonify(
+            {
+                "error": "membership_engine is disabled; set settings.membership_engine=grf",
+                "engine": _graph_settings.get("membership_engine", "off"),
+            }
+        ), 400
+
+    ego = (request.args.get("ego", "", type=str) or "").strip()
+    if not ego:
+        return jsonify({"error": "ego query param is required"}), 400
+
+    node_id = str(account_id)
+    node_index = _node_id_to_idx.get(node_id)
+    if node_index is None:
+        return jsonify({"error": "Account not found in graph snapshot", "accountId": node_id}), 404
+
+    positive, negative, anchor_stats = _resolve_anchor_indices(ego)
+    if not positive or not negative:
+        return jsonify(
+            {
+                "error": "Need both positive and negative anchor labels for GRF membership",
+                "ego": ego,
+                "anchorCounts": {
+                    "positive": len(positive),
+                    "negative": len(negative),
+                    "rows": anchor_stats.get("anchor_rows", 0),
+                    "dropped": anchor_stats.get("anchors_dropped", 0),
+                },
+            }
+        ), 400
+
+    prior = len(positive) / float(len(positive) + len(negative))
+    cache_key = (
+        ego,
+        _anchor_digest(positive, negative),
+        _observation_config.mode,
+        int(_adjacency.count_nonzero()),
+    )
+    cached = _membership_cache.get(cache_key)
+    cache_hit = bool(cached)
+    if cached is None:
+        solve_start = time.time()
+        grf = compute_grf_membership(
+            adjacency=_adjacency,
+            positive_anchor_indices=positive,
+            negative_anchor_indices=negative,
+            config=GRFMembershipConfig(prior=prior),
+        )
+        solve_ms = int((time.time() - solve_start) * 1000)
+        cached = {
+            "probabilities": grf.probabilities,
+            "uncertainty": grf.total_uncertainty,
+            "entropy_uncertainty": grf.entropy_uncertainty,
+            "degree_uncertainty": grf.degree_uncertainty,
+            "solver": {
+                "converged": grf.converged,
+                "cg_info": grf.cg_info,
+                "cg_iterations": grf.cg_iterations,
+                "solve_ms": solve_ms,
+            },
+            "prior": grf.prior,
+            "anchor_counts": {
+                "positive": grf.n_positive_anchors,
+                "negative": grf.n_negative_anchors,
+            },
+        }
+        _membership_cache.set(cache_key, cached)
+
+    probabilities = cached["probabilities"]
+    uncertainties = cached["uncertainty"]
+    entropy_uncertainty = cached["entropy_uncertainty"]
+    degree_uncertainty = cached["degree_uncertainty"]
+
+    probability_raw = float(probabilities[node_index])
+    uncertainty_graph = float(uncertainties[node_index])
+    coverage = _estimate_account_coverage(node_id)
+    coverage_value = float(coverage["value"])
+
+    probability = (probability_raw * coverage_value) + (cached["prior"] * (1.0 - coverage_value))
+    probability = float(np.clip(probability, 0.0, 1.0))
+
+    uncertainty = (0.7 * uncertainty_graph) + (0.3 * (1.0 - coverage_value))
+    uncertainty = float(np.clip(uncertainty, 0.0, 1.0))
+    sigma = min(0.25, 0.25 * uncertainty)
+    ci_low = float(max(0.0, probability - (1.96 * sigma)))
+    ci_high = float(min(1.0, probability + (1.96 * sigma)))
+
+    meta = _node_metadata.get(node_id, {})
+    return jsonify(
+        {
+            "accountId": node_id,
+            "ego": ego,
+            "engine": "grf",
+            "cacheHit": cache_hit,
+            "probability": probability,
+            "probabilityRaw": probability_raw,
+            "confidenceInterval95": [ci_low, ci_high],
+            "uncertainty": uncertainty,
+            "evidence": {
+                "graph": float(1.0 - uncertainty_graph),
+                "entropyUncertainty": float(entropy_uncertainty[node_index]),
+                "degreeUncertainty": float(degree_uncertainty[node_index]),
+                "coverage": coverage_value,
+            },
+            "anchorCounts": {
+                **cached["anchor_counts"],
+                "rows": anchor_stats.get("anchor_rows", 0),
+                "dropped": anchor_stats.get("anchors_dropped", 0),
+            },
+            "coverage": coverage,
+            "solver": cached["solver"],
+            "prior": cached["prior"],
+            "username": meta.get("username"),
+        }
+    )
+
+
 @cluster_bp.route("/<cluster_id>/label", methods=["POST"])
 def set_cluster_label(cluster_id: str):
     """Set user label."""
@@ -825,6 +1087,10 @@ def _serialize_hierarchical_view(view) -> dict:
             "budget_remaining": view.budget_remaining,
             "expanded": view.expanded_ids,
             "collapsed": view.collapsed_ids,
+            "observation": {
+                "mode": _observation_config.mode,
+                "stats": _observation_stats,
+            },
         },
         "cache_hit": False,
     }
