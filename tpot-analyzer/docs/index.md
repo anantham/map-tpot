@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-02-10
+Last reviewed: 2026-02-18
 
 ## Start Here
 
@@ -22,6 +22,7 @@ Last reviewed: 2026-02-10
 | [Browser Binaries](diagnostics/BROWSER_BINARIES.md) | Playwright/browser setup in restricted environments |
 | [Backend API Implementation](reference/BACKEND_IMPLEMENTATION.md) | Backend architecture summary (historical context + modular layout) |
 | [Database Schema](reference/DATABASE_SCHEMA.md) | Storage model and table contracts |
+| [Engineering Guardrails](reference/ENGINEERING_GUARDRAILS.md) | Empirical bug patterns mapped to invariants, tests, and migration policy |
 | [Features Intent](reference/FEATURES_INTENT.md) | Product/architecture intent for major behaviors |
 | [Enrichment Flow](reference/ENRICHMENT_FLOW.md) | Enrichment pipeline behavior and data movement |
 
@@ -43,6 +44,7 @@ Last reviewed: 2026-02-10
 | Diagnostics | [docs/diagnostics/](diagnostics/) |
 
 Latest architecture decision:
+- [ADR 007: Observation-Aware Clustering and Membership Inference](adr/007-observation-aware-clustering-membership.md) (Proposed, 2026-02-17)
 - [ADR 006: Shared Tagging and Anchor-Conditioned TPOT Membership](adr/006-shared-tagging-and-tpot-membership.md) (Proposed, 2026-02-10)
 
 ## Testing and QA Docs

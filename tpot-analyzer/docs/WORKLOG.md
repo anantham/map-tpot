@@ -489,3 +489,140 @@
         - `tpot-analyzer/docs/PLAYBOOK.md:96`: update operator command to use no-flag default relay run; keep explicit override example for non-default endpoints.
     - **Verification**
         - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_relay_firehose_cli.py tests/test_firehose_relay_worker.py -q` → `5 passed` (plus existing LibreSSL urllib3 warning).
+
+- [2026-02-17 19:00 UTC] **Phase 0/1 foundation: observation-aware adjacency controls + diagnostics (Codex GPT-5)**
+    - **Hypothesis**
+        - The current clustering path treats unobserved edges as absent edges; introducing an optional observation-aware IPW adjacency path (behind settings flags) should improve math fidelity under incomplete graph coverage while preserving safe default behavior.
+    - **Changes (files + why)**
+        - `tpot-analyzer/src/graph/observation_model.py:1` (NEW): add observation completeness + inverse-probability weighting helpers and stats summarization.
+        - `tpot-analyzer/src/api/cluster_routes.py:1`: wire optional adjacency build path (`obs_weighting=off|ipw`), maintain legacy cache compatibility, and include observation metadata in cluster responses.
+        - `tpot-analyzer/src/graph/seeds.py:1`: add graph settings schema flags (`hierarchy_engine`, `membership_engine`, `obs_weighting`, `obs_p_min`, `obs_completeness_floor`) with value clamping/validation.
+        - `tpot-analyzer/config/graph_settings.json:1`: add matching default settings entries so behavior is explicit and operator-tunable.
+        - `tpot-analyzer/src/graph/__init__.py:1`: export observation helpers for shared graph-module usage.
+        - `tpot-analyzer/tests/test_observation_model.py:1` (NEW): test completeness math, IPW weighting behavior, clipping, and summary output.
+        - `tpot-analyzer/tests/test_graph_settings_flags.py:1` (NEW): test settings defaults/sanitization for new graph math flags.
+        - `tpot-analyzer/scripts/verify_phase0_baseline.py:1` (NEW): add baseline verifier with explicit ✓/✗ checks and next-step guidance.
+        - `tpot-analyzer/scripts/verify_observation_weighting.py:1` (NEW): add observation/IPW verifier with metrics reporting.
+        - `tpot-analyzer/docs/adr/007-observation-aware-clustering-membership.md:1` (NEW): record decision and rollout plan for observation-aware math and membership evolution.
+        - `tpot-analyzer/docs/index.md:1`: link ADR 007 and refresh docs index metadata.
+        - `tpot-analyzer/docs/ROADMAP.md:1`: track partial-observability benchmarking and uncertainty follow-ups.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_observation_model.py tests/test_graph_settings_flags.py tests/test_api_seeds_endpoint.py tests/test_cluster_routes.py -q` → `41 passed`.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_phase0_baseline` → all checks passed.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_observation_weighting --mode off` → passed.
+    - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_observation_weighting --mode ipw --p-min 0.01 --completeness-floor 0.01` → passed (`nodes=95303`, `edges=322621`, `mean_completeness=0.6907`, `clipped_pairs=63268`).
+
+- [2026-02-17 19:07 UTC] **Phase 1.1 implementation: GRF membership endpoint + anchor aggregation (Codex GPT-5)**
+    - **Hypothesis**
+        - We can ship a principled TPOT membership path now by solving a GRF/harmonic labeling system from ego-scoped account-tag anchors, while keeping existing hierarchy rendering unchanged.
+    - **Changes (files + why)**
+        - `tpot-analyzer/src/graph/membership_grf.py:1` (NEW): add sparse GRF solver (`compute_grf_membership`) with regularized Laplacian solve, uncertainty outputs, and convergence metadata.
+        - `tpot-analyzer/src/data/account_tags.py:171`: add `list_anchor_polarities(ego=...)` to aggregate per-account anchor polarity by sign of net tags.
+        - `tpot-analyzer/src/api/cluster_routes.py:149`: add membership helpers (engine gate, anchor resolution, anchor digest, coverage estimate).
+        - `tpot-analyzer/src/api/cluster_routes.py:846`: add `GET /api/clusters/accounts/<account_id>/membership` endpoint returning probability, CI, uncertainty/evidence, anchor counts, and solver metadata (cache-backed).
+        - `tpot-analyzer/src/graph/__init__.py:31`: export GRF module symbols.
+        - `tpot-analyzer/tests/test_membership_grf.py:1` (NEW): solver behavior tests (balanced chain, connectivity bias, missing-anchor validation).
+        - `tpot-analyzer/tests/test_cluster_membership_endpoint.py:1` (NEW): route contract tests for disabled engine, missing anchors, and cache-hit behavior.
+        - `tpot-analyzer/tests/test_account_tags_store.py:44`: extend store tests for anchor-polarity aggregation.
+        - `tpot-analyzer/scripts/verify_membership_grf.py:1` (NEW): add human-friendly phase verifier with ✓/✗ checks + metrics + next steps.
+        - `tpot-analyzer/docs/ROADMAP.md:30`: record shipped GRF endpoint and add calibration/UI integration follow-ups.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_membership_grf.py tests/test_cluster_membership_endpoint.py tests/test_account_tags_store.py -q` → `8 passed`.
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_cluster_routes.py tests/test_api_seeds_endpoint.py tests/test_observation_model.py tests/test_graph_settings_flags.py tests/test_membership_grf.py tests/test_cluster_membership_endpoint.py -q` → `47 passed`.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_membership_grf` → all checks passed.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_phase0_baseline && .venv/bin/python -m scripts.verify_observation_weighting --mode off` → all checks passed.
+
+- [2026-02-18 07:20 UTC] **Phase 1.2 implementation: ClusterView membership panel wiring (Codex GPT-5)**
+    - **Hypothesis**
+        - Showing account-level GRF membership in the existing right sidebar (selected account section) will add actionable TPOT context without changing cluster navigation behavior.
+    - **Changes (files + why)**
+        - `tpot-analyzer/graph-explorer/src/data.js:620`: add `fetchAccountMembership(...)` API helper for `GET /api/clusters/accounts/<id>/membership?ego=...` with explicit error propagation.
+        - `tpot-analyzer/graph-explorer/src/AccountMembershipPanel.jsx:1` (NEW): add focused presentational panel for probability, CI, uncertainty, coverage, anchor counts, and high-uncertainty warning.
+        - `tpot-analyzer/graph-explorer/src/ClusterDetailsSidebar.jsx:9`: render membership panel in selected-account block and thread loading/error/membership props.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.jsx:450`: add `loadMembership` flow, abort handling, selected-account membership effect, and refresh on tag changes.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.test.jsx:161`: update `./data` mock to include `fetchAccountMembership`.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.integration.test.jsx:651`: add end-to-end UI test for member-click → membership fetch → panel render.
+        - `tpot-analyzer/graph-explorer/src/AccountMembershipPanel.test.jsx:1` (NEW): add component tests for guidance/loading/data render states.
+        - `tpot-analyzer/scripts/verify_membership_ui.py:1` (NEW): add human-friendly verification script for frontend membership wiring and artifact presence.
+        - `tpot-analyzer/docs/ROADMAP.md:44`: mark membership-panel integration complete and add decomposition follow-up for `ClusterView.jsx`/`data.js`.
+    - **Verification**
+        - `cd tpot-analyzer/graph-explorer && npx vitest run src/AccountMembershipPanel.test.jsx src/ClusterView.test.jsx src/ClusterView.integration.test.jsx` → `41 passed`.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_membership_ui` → `12/12` checks passed.
+
+- [2026-02-18 09:30 UTC] **Phase 1 remediation kickoff: fetcher resource cleanup + real-DB test isolation (Codex GPT-5)**
+    - **Hypotheses**
+        - `CachedDataFetcher.close()` leaks SQLite handles because SQLAlchemy engine pools are never disposed.
+        - A subset of tests reads shared `data/cache.db` by default, introducing environment-coupled flakiness (`disk I/O error`) during full-suite execution.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/src/data/fetcher.py:64`: update `close()` to always dispose the SQLAlchemy engine/pool and clear owned HTTP client references; this releases SQLite file descriptors deterministically.
+        - `tpot-analyzer/tests/test_shadow_coverage.py:13`: add `_require_real_cache_db()` opt-in gate (`TPOT_RUN_REAL_DB_TESTS`) for shared-db coverage tests.
+        - `tpot-analyzer/tests/test_shadow_coverage.py:108`: gate `test_low_coverage_detection()` on explicit shared-db opt-in.
+        - `tpot-analyzer/tests/test_shadow_coverage.py:146`: gate `test_archive_vs_shadow_coverage()` on explicit shared-db opt-in.
+        - `tpot-analyzer/tests/test_shadow_coverage.py:203`: gate `test_coverage_script_runs()` on explicit shared-db opt-in.
+        - `tpot-analyzer/tests/test_shadow_enricher_utils.py:26`: add `REAL_DB_REQUIRED` skip marker for integration classes that depend on shared `data/cache.db`.
+        - `tpot-analyzer/tests/test_shadow_enricher_utils.py:666`: apply real-db opt-in marker to account-ID migration integration class.
+        - `tpot-analyzer/tests/test_shadow_enricher_utils.py:782`: apply real-db opt-in marker to multi-run freshness integration class.
+        - `tpot-analyzer/scripts/verify_test_isolation.py:1` (NEW): add human-friendly verifier with ✓/✗ checks for fetcher-handle release, default skip behavior, optional real-db smoke test, and explicit next-step guidance.
+        - `tpot-analyzer/docs/ROADMAP.md:18`: add follow-up for a dedicated opt-in shared-db regression lane to keep `TPOT_RUN_REAL_DB_TESTS` coverage visible outside default suites.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_shadow_coverage.py tests/test_shadow_enricher_utils.py -q` → `33 passed, 6 skipped`.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_test_isolation` → all checks passed (`max_handles=0`, expected skip count matched, opt-in smoke test passed).
+        - `cd tpot-analyzer && .venv/bin/python -m pytest -q --maxfail=20` → `543 passed, 12 skipped, 3 xfailed`.
+
+- [2026-02-18 09:45 UTC] **Phase 2 remediation: discovery BFS depth progression fix (Codex GPT-5)**
+    - **Hypothesis**
+        - Discovery depth expansion is capped at one hop because BFS frontier state is computed after mutating the visited-node set, causing `current_layer` to become empty before hop 2.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/src/api/discovery.py:245`: compute `next_frontier` before updating `subgraph_nodes`, break early on empty frontier, and carry frontier forward correctly so `depth>1` traverses as intended.
+        - `tpot-analyzer/tests/test_discovery_logic.py:1` (NEW): add unit regressions that verify two-hop inclusion and strict depth boundary behavior on a deterministic in-memory graph.
+        - `tpot-analyzer/scripts/verify_discovery_depth.py:1` (NEW): add phase verification script with explicit ✓/✗ checks, metrics, and next-step guidance for discovery traversal.
+        - `tpot-analyzer/docs/ROADMAP.md:27`: add follow-up item to harden expansion-test dependency handling for missing `python-louvain` (`community`) in local/CI environments.
+    - **Verification**
+        - `cd tpot-analyzer && python3 -m pytest tests/test_discovery_logic.py tests/test_discovery_endpoint_matrix.py tests/test_api.py -q` → `20 passed`.
+        - `cd tpot-analyzer && python3 -m scripts.verify_discovery_depth` → all checks passed (`checks_passed=3/3`).
+        - `cd tpot-analyzer && python3 -m pytest -q --maxfail=20` → discovery tests passed; full run reported unrelated existing failures from missing optional dependency (`ModuleNotFoundError: community`) in expansion modules (`tests/test_expansion_cache.py`, `tests/test_expansion_strategy.py`).
+
+- [2026-02-18 10:42 UTC] **Engineering guardrails doc: empirical bug patterns → enforceable invariants (Codex GPT-5)**
+    - **Hypothesis**
+        - Capturing recent failures as architecture guardrails (symptom, generator, invariant, guardrail, migration policy) will reduce repeat regressions and make future agent work more consistent under high-velocity iteration.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/docs/reference/ENGINEERING_GUARDRAILS.md:1` (NEW): add canonical guardrails document with traced entries for discovery BFS frontier collapse, fetcher resource lifecycle leak, real-DB test coupling, and optional dependency drift (`community`/python-louvain).
+        - `tpot-analyzer/docs/index.md:6`: update doc index review date.
+        - `tpot-analyzer/docs/index.md:25`: add `Engineering Guardrails` to canonical operational docs for discoverability.
+    - **Verification**
+        - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `9/9` checks passed.
+
+- [2026-02-21 09:45 UTC] **Phase 2 remediation follow-up: strict Louvain dependency contract (Codex GPT-5)**
+    - **Hypothesis**
+        - Expansion strategy failures (`ModuleNotFoundError: community`) are caused by undeclared dependency contract drift; pinning `python-louvain` in canonical requirements and adding an explicit verifier will make environments reproducible.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/requirements.txt:8`: add `python-louvain==0.16` to make the Louvain backend an explicit required dependency for environments created from project requirements.
+        - `tpot-analyzer/scripts/verify_louvain_dependency_contract.py:1` (NEW): add human-friendly verifier with ✓/✗ checks for requirements pin presence and import/execute behavior of `community_louvain.best_partition`.
+        - `tpot-analyzer/docs/ROADMAP.md:26`: mark Louvain dependency-contract hardening item complete with implementation reference.
+        - `tpot-analyzer/docs/reference/ENGINEERING_GUARDRAILS.md:142`: update optional dependency drift guardrail to reference concrete pin + verifier artifacts.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_louvain_dependency_contract` → all checks passed (`checks_passed=2/2`).
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_expansion_strategy.py::TestExecuteLouvainLocal::test_finds_communities -q` → `1 passed`.
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_expansion_strategy.py tests/test_expansion_cache.py -q` → `45 passed`.
+        - `cd tpot-analyzer && .venv/bin/python -m pytest -q --maxfail=20` → `545 passed, 12 skipped, 3 xfailed`.
+        - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `9/9` checks passed.
+
+- [2026-02-22 04:28 UTC] **Developer-experience hardening: venv-enforced local test entrypoints + CI contract gate (Codex GPT-5)**
+    - **Hypothesis**
+        - Preexisting interpreter drift (`python3` vs `.venv/bin/python`) and implicit CI path assumptions make dependency failures hard to diagnose; codifying local and CI execution contracts will keep test signals reliable.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/Makefile:1` (NEW): add canonical local test/verification targets with `.venv/bin/python` default (`verify-louvain-contract`, `test-smoke`, `test`) and explicit missing-venv diagnostics.
+        - `tpot-analyzer/.github/workflows/test.yml:15`: add project-directory resolver (`.` vs `tpot-analyzer`) to make workflow commands path-stable across checkout layouts.
+        - `tpot-analyzer/.github/workflows/test.yml:29`: add `Verify Louvain dependency contract` step before test execution.
+        - `tpot-analyzer/.github/workflows/test.yml:48`: run pytest via `python -m pytest` to enforce interpreter consistency in CI.
+        - `tpot-analyzer/scripts/verify_test_runner_contract.py:1` (NEW): add human-friendly ✓/✗ contract verifier for Makefile venv defaults and CI Louvain/pre-pytest guard wiring.
+        - `tpot-analyzer/docs/PLAYBOOK.md:66`: document new local contract/entrypoint commands (`make verify-louvain-contract`, `make test-smoke`, `verify_test_runner_contract`).
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:177`: update quick command reference to `make test`.
+        - `tpot-analyzer/README.md:267`: add canonical `make`-based test entrypoints to Testing section.
+        - `tpot-analyzer/docs/ROADMAP.md:100`: mark `make` target standardization item complete.
+    - **Verification**
+        - `cd tpot-analyzer && python3 -m scripts.verify_test_runner_contract` → all checks passed (`checks_passed=8/8`).
+        - `cd tpot-analyzer && make verify-louvain-contract` → all checks passed (`checks_passed=2/2`).
+        - `cd tpot-analyzer && make test-smoke` → `7 passed`.
+        - `cd tpot-analyzer && make test` → `545 passed, 12 skipped, 3 xfailed`.
+        - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `9/9` checks passed.
