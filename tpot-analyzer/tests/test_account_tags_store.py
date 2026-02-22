@@ -46,10 +46,16 @@ def test_account_tag_store_roundtrip(tmp_path) -> None:
     store.upsert_tag(ego="ego1", account_id="abc", tag="trusted", polarity=1)
     store.upsert_tag(ego="ego1", account_id="xyz", tag="trusted", polarity=1)
     store.upsert_tag(ego="ego1", account_id="xyz", tag="noise", polarity=-1)
+    store.upsert_tag(ego="ego1", account_id="neg_only", tag="blocked", polarity=-1)
     assert store.list_account_ids_for_tag(ego="ego1", tag="TRUSTED") == ["abc", "xyz"]
     assert store.list_account_ids_for_tags(ego="ego1", tags=["trusted", "missing"]) == [
         "abc",
         "xyz",
+    ]
+    assert sorted(store.list_anchor_polarities(ego="ego1")) == [
+        ("123", -1),
+        ("abc", 1),
+        ("neg_only", -1),
     ]
 
     deleted = store.delete_tag(ego="ego1", account_id="123", tag="AI ALIGNMENT")

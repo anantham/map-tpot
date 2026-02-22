@@ -11,6 +11,9 @@ _DEFAULT_PRESET_FILE = Path(__file__).resolve().parents[2] / "docs" / "seed_pres
 _SEED_STATE_FILE = Path(__file__).resolve().parents[2] / "config" / "graph_settings.json"
 _HANDLE_PATTERN = re.compile(r"^[A-Za-z0-9_]{1,15}$")
 _DEFAULT_PRESET_NAME = "adi_tpot"
+_VALID_HIERARCHY_ENGINES = {"v1", "v2"}
+_VALID_MEMBERSHIP_ENGINES = {"off", "grf"}
+_VALID_OBS_WEIGHTING = {"off", "ipw"}
 _DEFAULT_DISCOVERY_WEIGHTS = {
     "neighbor_overlap": 0.4,
     "pagerank": 0.3,
@@ -23,6 +26,11 @@ _DEFAULT_SETTINGS = {
     "max_distance": 3,
     "limit": 500,
     "auto_include_shadow": True,
+    "hierarchy_engine": "v1",
+    "membership_engine": "off",
+    "obs_weighting": "off",
+    "obs_p_min": 0.01,
+    "obs_completeness_floor": 0.01,
 }
 
 
@@ -104,6 +112,21 @@ def _sanitize_settings(raw: MutableMapping) -> Dict[str, any]:
         auto_shadow = raw.get("auto_include_shadow")
         if isinstance(auto_shadow, bool):
             settings["auto_include_shadow"] = auto_shadow
+        hierarchy_engine = str(raw.get("hierarchy_engine", settings["hierarchy_engine"])).strip().lower()
+        if hierarchy_engine in _VALID_HIERARCHY_ENGINES:
+            settings["hierarchy_engine"] = hierarchy_engine
+        membership_engine = str(raw.get("membership_engine", settings["membership_engine"])).strip().lower()
+        if membership_engine in _VALID_MEMBERSHIP_ENGINES:
+            settings["membership_engine"] = membership_engine
+        obs_weighting = str(raw.get("obs_weighting", settings["obs_weighting"])).strip().lower()
+        if obs_weighting in _VALID_OBS_WEIGHTING:
+            settings["obs_weighting"] = obs_weighting
+        obs_p_min = raw.get("obs_p_min")
+        if isinstance(obs_p_min, (int, float)):
+            settings["obs_p_min"] = max(1e-4, min(0.5, float(obs_p_min)))
+        obs_completeness_floor = raw.get("obs_completeness_floor")
+        if isinstance(obs_completeness_floor, (int, float)):
+            settings["obs_completeness_floor"] = max(1e-4, min(0.5, float(obs_completeness_floor)))
     return settings
 
 

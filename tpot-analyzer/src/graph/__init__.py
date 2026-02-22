@@ -27,6 +27,18 @@ from .spectral import (
     load_spectral_result,
     save_spectral_result,
 )
+from .observation_model import (
+    ObservationWeightingConfig,
+    build_binary_adjacency_from_edges,
+    build_ipw_adjacency_from_edges,
+    compute_observation_completeness,
+    summarize_completeness,
+)
+from .membership_grf import (
+    GRFMembershipConfig,
+    GRFMembershipResult,
+    compute_grf_membership,
+)
 
 __all__ = [
     "GraphBuildResult",
@@ -52,4 +64,12 @@ __all__ = [
     "compute_spectral_embedding",
     "load_spectral_result",
     "save_spectral_result",
+    "ObservationWeightingConfig",
+    "compute_observation_completeness",
+    "build_binary_adjacency_from_edges",
+    "build_ipw_adjacency_from_edges",
+    "summarize_completeness",
+    "GRFMembershipConfig",
+    "GRFMembershipResult",
+    "compute_grf_membership",
 ]
