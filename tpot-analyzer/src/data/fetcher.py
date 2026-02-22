@@ -64,6 +64,9 @@ class CachedDataFetcher(AbstractContextManager["CachedDataFetcher"]):
     def close(self) -> None:
         if self._owns_client and self._http_client is not None:
             self._http_client.close()
+            self._http_client = None
+        # Always dispose SQLAlchemy engine/pool so SQLite file descriptors are released.
+        self.engine.dispose()
 
     # ------------------------------------------------------------------
     # Public API

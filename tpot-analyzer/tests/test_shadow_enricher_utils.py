@@ -12,6 +12,7 @@ are better covered by end-to-end tests.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import os
 from unittest.mock import Mock
 
 import pytest
@@ -20,6 +21,14 @@ from src.data.shadow_store import ScrapeRunMetrics, ShadowList, ShadowListMember
 from src.shadow import SeedAccount
 from src.shadow.enricher import HybridShadowEnricher
 from src.shadow.selenium_worker import CapturedUser, UserListCapture, ProfileOverview, ListOverview
+
+
+REAL_DB_TEST_ENV = "TPOT_RUN_REAL_DB_TESTS"
+_REAL_DB_TRUE_VALUES = {"1", "true", "yes", "on"}
+REAL_DB_REQUIRED = pytest.mark.skipif(
+    os.getenv(REAL_DB_TEST_ENV, "").strip().lower() not in _REAL_DB_TRUE_VALUES,
+    reason=f"Set {REAL_DB_TEST_ENV}=1 to run integration tests that hit shared data/cache.db",
+)
 
 
 # ==============================================================================
@@ -654,6 +663,7 @@ class TestListCaching:
 # _check_list_freshness_across_runs Tests (Account ID Migration)
 # ==============================================================================
 
+@REAL_DB_REQUIRED
 @pytest.mark.integration
 class TestAccountIDMigrationCacheLookup:
     """Test that enricher finds historical scrape data when account ID changes.
@@ -769,6 +779,7 @@ class TestZeroCoverageEdgeCase:
         )
 
 
+@REAL_DB_REQUIRED
 @pytest.mark.integration
 class TestMultiRunFreshness:
     """Test that enricher finds fresh data across multiple scrape runs.
