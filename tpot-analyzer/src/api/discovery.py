@@ -242,14 +242,20 @@ def extract_subgraph(
             next_layer.update(predecessors)
             next_layer.update(successors)
 
-        subgraph_nodes.update(next_layer)
+        # Preserve only unseen neighbors as the next BFS frontier.
+        # Computing this before mutating subgraph_nodes prevents frontier collapse.
+        next_frontier = next_layer - subgraph_nodes
+        if not next_frontier:
+            break
+
+        subgraph_nodes.update(next_frontier)
 
         # Safety check
         if len(subgraph_nodes) > SUBGRAPH_MAX_NODES:
             logger.warning(f"Subgraph exceeded {SUBGRAPH_MAX_NODES} nodes, stopping at hop {hop+1}")
             break
 
-        current_layer = next_layer - subgraph_nodes
+        current_layer = next_frontier
 
     # Create subgraph
     subgraph = graph.subgraph(list(subgraph_nodes)).copy()
