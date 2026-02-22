@@ -15,9 +15,17 @@ coverage gaps, or UX improvements surface.
   (recording store or sqlite-backed fixtures) instead of mock call counts.
 - Replace production-data dependent tests (e.g., shadow coverage + archive
   consistency) with deterministic fixture datasets.
+- Add a dedicated opt-in shared-DB regression lane (`TPOT_RUN_REAL_DB_TESTS=1`)
+  so `data/cache.db` dependent tests remain monitored without destabilizing
+  default local/CI suites.
 - [x] Add discovery endpoint regression matrix + smoke verifier
   (`tests/test_discovery_endpoint_matrix.py`, `scripts/verify_discovery_endpoint.py`)
   (implemented 2026-02-09).
+- Add partial-observability censoring benchmark suite (MCAR + degree-biased
+  masking) with VI/ARI/AUC-PR/Brier/ECE thresholds and confidence intervals.
+- [x] Ensure expansion-strategy environments pin `python-louvain` (module
+  `community`) via `requirements.txt` and ship dependency-contract verifier
+  (`scripts/verify_louvain_dependency_contract.py`) (implemented 2026-02-21).
 
 ## Features & Analysis
 
@@ -32,11 +40,26 @@ coverage gaps, or UX improvements surface.
 - Implement anchor-conditioned TPOT membership scoring that combines graph
   proximity, latent-space similarity, semantic tags/text, and missingness-aware
   confidence.
+- [x] Ship Phase 1 GRF membership endpoint (`GET /api/clusters/accounts/<id>/membership`)
+  using ego-scoped account-tag anchors with cacheable graph solve
+  (`src/graph/membership_grf.py`, `tests/test_cluster_membership_endpoint.py`,
+  implemented 2026-02-17).
 - Add active-learning queueing (uncertainty sampling) so users can label
   highest-entropy accounts first and improve TPOT boundary quality over time.
 - Add embedding jobs for extension-captured tweet text and feed-exposure
   recency weighting so TPOT membership scores can use content semantics with
   ranking-bias normalization.
+- Add uncertainty decomposition for TPOT membership (`epistemic` vs
+  `coverage-driven`) and surface it in API/UI evidence cards.
+- Calibrate GRF probability outputs against held-out anchors (Platt/isotonic)
+  and persist calibration metadata in membership responses.
+- [x] Add membership endpoint integration into graph-explorer account panel so
+  users can inspect probability/CI while navigating clusters
+  (`graph-explorer/src/AccountMembershipPanel.jsx`,
+  `graph-explorer/src/ClusterView.integration.test.jsx`,
+  implemented 2026-02-18).
+- Add MNAR stress diagnostics comparing metric degradation under MCAR vs
+  degree/community-biased masking to validate MAR approximation safety.
 
 ## Infrastructure & Tooling
 
@@ -74,8 +97,10 @@ coverage gaps, or UX improvements surface.
 
 - [x] Document end-to-end enrichment + explorer refresh workflow in `docs/PLAYBOOK.md`
   (implemented 2026-02-09).
-- Add `make` targets (or equivalent task runner) to standardize setup, tests,
-  and verification commands.
+- [x] Add `make` targets to standardize test and verification entrypoints
+  (`Makefile`, implemented 2026-02-21).
 - Decompose `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
+- Decompose `tpot-analyzer/graph-explorer/src/ClusterView.jsx` and `tpot-analyzer/graph-explorer/src/data.js` into focused modules/hooks (<300 LOC each); current files exceed 1100 LOC and 700 LOC.
+- Decompose `tpot-analyzer/src/api/cluster_routes.py` into focused route/service modules (<300 LOC each); current file is >1000 LOC and now contains both hierarchy and membership endpoints.
 - Add ADR documenting testability refactor decisions (fixtures, helper extraction, verification scripts).
