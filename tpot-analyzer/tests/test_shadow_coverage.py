@@ -3,10 +3,28 @@
 These tests validate that we're tracking edge coverage properly and can
 identify nodes with low coverage that need re-scraping.
 """
+import os
 import sqlite3
 from pathlib import Path
 
 import pytest
+
+
+REAL_DB_TEST_ENV = "TPOT_RUN_REAL_DB_TESTS"
+_REAL_DB_TRUE_VALUES = {"1", "true", "yes", "on"}
+
+
+def _require_real_cache_db() -> Path:
+    raw = os.getenv(REAL_DB_TEST_ENV, "").strip().lower()
+    if raw not in _REAL_DB_TRUE_VALUES:
+        pytest.skip(
+            f"Set {REAL_DB_TEST_ENV}=1 to run tests that hit shared data/cache.db"
+        )
+
+    db_path = Path("data/cache.db")
+    if not db_path.exists():
+        pytest.skip("Database not found")
+    return db_path
 
 
 def test_coverage_tracking_exists(tmp_path):
@@ -89,9 +107,7 @@ def test_coverage_tracking_exists(tmp_path):
 
 def test_low_coverage_detection():
     """Test that we can identify nodes with coverage below threshold."""
-    db_path = Path("data/cache.db")
-    if not db_path.exists():
-        pytest.skip("Database not found")
+    db_path = _require_real_cache_db()
 
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -129,9 +145,7 @@ def test_low_coverage_detection():
 
 def test_archive_vs_shadow_coverage():
     """Test that archive nodes should have different coverage patterns than scraped nodes."""
-    db_path = Path("data/cache.db")
-    if not db_path.exists():
-        pytest.skip("Database not found")
+    db_path = _require_real_cache_db()
 
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -188,6 +202,8 @@ def test_archive_vs_shadow_coverage():
 
 def test_coverage_script_runs():
     """Test that the analyze_coverage.py script runs without errors."""
+    _require_real_cache_db()
+
     import subprocess
     import sys
     result = subprocess.run(
