@@ -20,6 +20,7 @@ vi.mock('./data', () => ({
   fetchClusterMembers: vi.fn(),
   fetchClusterPreview: vi.fn(),
   fetchClusterTagSummary: vi.fn(),
+  fetchAccountMembership: vi.fn(),
   setClusterLabel: vi.fn(),
   deleteClusterLabel: vi.fn(),
 }))
@@ -632,6 +633,87 @@ describe('ClusterView Cache and Loading', () => {
       const callArgs = fetchClusterView.mock.calls[0][0]
       expect(callArgs).toHaveProperty('expanded')
       expect(callArgs.expanded).toContain('d_6')
+    })
+  })
+})
+
+describe('ClusterView Membership Panel', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    vi.resetModules()
+    Object.defineProperty(window, 'location', {
+      value: { search: '', href: 'http://localhost/' },
+      writable: true,
+    })
+    window.history.replaceState = vi.fn()
+  })
+
+  it('loads account membership when a member is selected', async () => {
+    const {
+      fetchClusterView,
+      fetchClusterMembers,
+      fetchClusterPreview,
+      fetchClusterTagSummary,
+      fetchAccountMembership,
+    } = await import('./data')
+
+    fetchClusterView.mockResolvedValue({
+      clusters: [
+        { id: 'd_0', label: 'Cluster 0', size: 2, isLeaf: true, memberIds: ['node_1', 'node_2'] },
+      ],
+      edges: [],
+      positions: { d_0: [0, 0] },
+      meta: { budget: 25, budget_remaining: 24 },
+    })
+    fetchClusterMembers.mockResolvedValue({
+      members: [{ id: 'node_1', username: 'candidate', displayName: 'Candidate', numFollowers: 123 }],
+      total: 1,
+      hasMore: false,
+    })
+    fetchClusterPreview.mockResolvedValue({
+      expand: { can_expand: false },
+      collapse: { can_collapse: false },
+    })
+    fetchClusterTagSummary.mockResolvedValue({
+      totalMembers: 1,
+      taggedMembers: 0,
+      tagAssignments: 0,
+      tagCounts: [],
+    })
+    fetchAccountMembership.mockResolvedValue({
+      probability: 0.72,
+      confidenceInterval95: [0.61, 0.81],
+      uncertainty: 0.15,
+      engine: 'grf',
+      evidence: { coverage: 0.58 },
+      anchorCounts: { positive: 5, negative: 7 },
+    })
+
+    const ClusterView = (await import('./ClusterView')).default
+    render(<ClusterView defaultEgo="ego1" />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('node-d_0')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('select-d_0'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/candidate/i)).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByText(/candidate/i))
+
+    await waitFor(() => {
+      expect(fetchAccountMembership).toHaveBeenCalledWith(expect.objectContaining({
+        accountId: 'node_1',
+        ego: 'ego1',
+      }))
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('TPOT membership')).toBeInTheDocument()
+      expect(screen.getByText('72%')).toBeInTheDocument()
     })
   })
 })
