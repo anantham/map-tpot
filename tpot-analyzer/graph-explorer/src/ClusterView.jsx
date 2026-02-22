@@ -4,6 +4,7 @@ import {
   fetchClusterView,
   fetchClusterPreview,
   fetchClusterTagSummary,
+  fetchAccountMembership,
   setClusterLabel,
   deleteClusterLabel
 } from './data'
@@ -43,6 +44,9 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const collapseTraceLogged = useRef(false)
   const expandingRef = useRef(new Set()) // Synchronous guard against duplicate expand calls
   const [selectedAccount, setSelectedAccount] = useState(null) // {id, username?, displayName?}
+  const [membership, setMembership] = useState(null)
+  const [membershipLoading, setMembershipLoading] = useState(false)
+  const [membershipError, setMembershipError] = useState(null)
   const [highlightedAccountId, setHighlightedAccountId] = useState(null) // raw account id to highlight
   const [focusPoint, setFocusPoint] = useState(null) // {x,y,scale?} for ClusterCanvas camera
   const [focusLeaf, setFocusLeaf] = useState(null) // leaf cluster id to force-visible (teleport)
@@ -53,6 +57,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const lastGoodReqRef = useRef(null)
   const abortControllerRef = useRef(null)
   const tagSummaryAbortRef = useRef(null)
+  const membershipAbortRef = useRef(null)
   const prevLayoutRef = useRef({ positions: {}, ids: [] })
   const teleportAppliedRef = useRef(null) // `${leaf}|${accountId}`
   const focusAppliedRef = useRef(null) // `${accountId}`
@@ -303,6 +308,10 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     })
   }, [data, loading])
 
+  useEffect(() => () => {
+    if (membershipAbortRef.current) membershipAbortRef.current.abort()
+  }, [])
+
   // Drop exploded leaves that are no longer visible
   useEffect(() => {
     setExplodedLeaves(prev => {
@@ -438,6 +447,67 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     }
   }
 
+  const loadMembership = useCallback(async (accountId) => {
+    const account = String(accountId || '').trim()
+    const egoTrimmed = ego.trim()
+    if (!account) {
+      setMembership(null)
+      setMembershipError(null)
+      setMembershipLoading(false)
+      return
+    }
+    if (!egoTrimmed) {
+      setMembership(null)
+      setMembershipError(null)
+      setMembershipLoading(false)
+      return
+    }
+    if (membershipAbortRef.current) {
+      membershipAbortRef.current.abort()
+    }
+    const controller = new AbortController()
+    membershipAbortRef.current = controller
+    setMembershipLoading(true)
+    setMembershipError(null)
+    try {
+      const res = await fetchAccountMembership({
+        accountId: account,
+        ego: egoTrimmed,
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return
+      setMembership(res || null)
+      clusterViewLog.debug('Membership loaded', {
+        accountId: account,
+        ego: egoTrimmed,
+        probability: res?.probability,
+        uncertainty: res?.uncertainty,
+        timing: res?._timing,
+      })
+    } catch (err) {
+      if (err.name === 'AbortError') return
+      clusterViewLog.error('Failed to load membership', { accountId: account, ego: egoTrimmed, error: err.message })
+      setMembership(null)
+      setMembershipError(err.message || 'Failed to load membership')
+    } finally {
+      if (!controller.signal.aborted) setMembershipLoading(false)
+    }
+  }, [ego])
+
+  useEffect(() => {
+    const accountId = selectedAccount?.id
+    if (!accountId) {
+      if (membershipAbortRef.current) {
+        membershipAbortRef.current.abort()
+      }
+      setMembership(null)
+      setMembershipError(null)
+      setMembershipLoading(false)
+      return
+    }
+    loadMembership(accountId)
+  }, [selectedAccount?.id, loadMembership])
+
   const loadPreview = async (clusterId) => {
     try {
       const visibleIds = (data?.clusters || []).map(c => c.id)
@@ -571,14 +641,19 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const handleSelect = (cluster) => {
     if (!cluster) {
       setSelectedCluster(null)
+      setSelectedAccount(null)
       setMembers([])
       setMembersTotal(0)
       setTagSummary(null)
       setTagSummaryError(null)
       setTagSummaryLoading(false)
+      setMembership(null)
+      setMembershipError(null)
+      setMembershipLoading(false)
       setExpandPreview(null)
       setCollapsePreview(null)
       if (tagSummaryAbortRef.current) tagSummaryAbortRef.current.abort()
+      if (membershipAbortRef.current) membershipAbortRef.current.abort()
       return
     }
     clusterViewLog.info('Cluster selected', {
@@ -848,6 +923,9 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     setHighlightedAccountId(null)
     setFocusPoint(null)
     setSelectedAccount(null)
+    setMembership(null)
+    setMembershipError(null)
+    setMembershipLoading(false)
     setExplodedLeaves(new Map())
     setReturnSnapshot(null)
   }
@@ -1098,7 +1176,13 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
           membersTotal={membersTotal}
           onMemberSelect={handleMemberSelect}
           selectedAccount={selectedAccount}
-          onTagChanged={() => { if (selectedCluster?.id) loadTagSummary(selectedCluster.id) }}
+          membership={membership}
+          membershipLoading={membershipLoading}
+          membershipError={membershipError}
+          onTagChanged={() => {
+            if (selectedCluster?.id) loadTagSummary(selectedCluster.id)
+            if (selectedAccount?.id) loadMembership(selectedAccount.id)
+          }}
         />
       </div>
     </div>

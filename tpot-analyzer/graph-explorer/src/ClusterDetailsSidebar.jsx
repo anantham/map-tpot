@@ -6,6 +6,7 @@
  */
 
 import AccountTagPanel from './AccountTagPanel'
+import AccountMembershipPanel from './AccountMembershipPanel'
 
 export default function ClusterDetailsSidebar({
   cluster,
@@ -33,6 +34,9 @@ export default function ClusterDetailsSidebar({
   onMemberSelect,
   // Account tagging
   selectedAccount,
+  membership,
+  membershipLoading,
+  membershipError,
   onTagChanged,
 }) {
   if (!cluster) return null
@@ -162,6 +166,13 @@ export default function ClusterDetailsSidebar({
             <div style={{ color: '#475569' }}>
               @{selectedAccount.username || selectedAccount.id}{selectedAccount.displayName ? ` · ${selectedAccount.displayName}` : ''}
             </div>
+            <AccountMembershipPanel
+              ego={ego}
+              account={selectedAccount}
+              loading={membershipLoading}
+              error={membershipError}
+              membership={membership}
+            />
             <AccountTagPanel
               ego={ego}
               account={selectedAccount}

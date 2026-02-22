@@ -617,6 +617,28 @@ export const fetchClusterTagSummary = async ({ clusterId, n = 25, wl = 0, expand
   return { ...data, _timing: res._timing }
 }
 
+export const fetchAccountMembership = async ({ accountId, ego, signal }) => {
+  const account = String(accountId || '').trim()
+  if (!account) {
+    throw new Error('accountId is required to fetch membership')
+  }
+  const egoHandle = String(ego || '').trim()
+  if (!egoHandle) {
+    throw new Error('ego is required to fetch membership')
+  }
+
+  const params = new URLSearchParams()
+  params.set('ego', egoHandle)
+  const url = `${API_BASE_URL}/api/clusters/accounts/${encodeURIComponent(account)}/membership?${params.toString()}`
+  const res = await fetchWithRetry(url, { signal }, { timeoutMs: API_TIMEOUT_MS })
+  const payload = await res.json()
+  if (!res.ok) {
+    const detail = payload?.error || `Failed to fetch membership (${res.status})`
+    throw new Error(detail)
+  }
+  return { ...payload, _timing: res._timing }
+}
+
 export const setClusterLabel = async ({ clusterId, n = 25, wl = 0, label }) => {
   const params = new URLSearchParams();
   params.set('n', n);

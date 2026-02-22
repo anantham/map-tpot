@@ -158,6 +158,7 @@ describe('ClusterView Component', () => {
     fetchClusterMembers: vi.fn(),
     fetchClusterPreview: vi.fn(),
     fetchClusterTagSummary: vi.fn(),
+    fetchAccountMembership: vi.fn(),
     setClusterLabel: vi.fn(),
     deleteClusterLabel: vi.fn(),
   }))
