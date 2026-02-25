@@ -3,6 +3,7 @@ import './App.css'
 import GraphExplorer from './GraphExplorer'
 import Discovery from './Discovery'
 import ClusterView from './ClusterView'
+import Labeling from './Labeling'
 import { getAccount, getTheme as loadTheme, setTheme as saveTheme } from './storage'
 
 function App() {
@@ -12,7 +13,7 @@ function App() {
     if (typeof window === 'undefined') return 'discovery'
     const params = new URLSearchParams(window.location.search)
     const view = params.get('view')
-    if (view === 'cluster' || view === 'graph') return view
+    if (view === 'cluster' || view === 'graph' || view === 'labeling') return view
     return 'discovery'
   }
   const [currentView, setCurrentView] = useState(getInitialView)
@@ -96,6 +97,20 @@ function App() {
         >
           Cluster View
         </button>
+        <button
+          onClick={() => setCurrentView('labeling')}
+          style={{
+            padding: '8px 16px',
+            background: currentView === 'labeling' ? '#3b82f6' : 'var(--panel)',
+            color: currentView === 'labeling' ? '#fff' : 'var(--text)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          Label Tweets
+        </button>
         <div style={{ flex: 1 }} />
       </div>
 
@@ -140,6 +155,11 @@ function App() {
               theme={theme}
               onThemeChange={toggleTheme}
             />
+          </div>
+        )}
+        {currentView === 'labeling' && (
+          <div style={{ height: '100%' }}>
+            <Labeling reviewer={accountStatus.handle || 'human'} />
           </div>
         )}
       </div>
