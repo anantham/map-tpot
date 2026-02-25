@@ -30,6 +30,12 @@ coverage gaps, or UX improvements surface.
   `graph-explorer/src/ClusterCanvas.jsx` and `graph-explorer/src/ClusterView.jsx`
   so `npm run lint` is fully warning-free and hook dependency semantics are explicit
   (implemented 2026-02-25).
+- Replace ClusterView utility reimplementation tests with exported helpers or
+  behavioral flows (remove reimplementation markers in
+  `tpot-analyzer/graph-explorer/src/ClusterView.test.jsx`).
+- Replace internal-state assertions in
+  `tpot-analyzer/tests/test_parse_compact_count.py` with behavior-level tests
+  that exercise the public Selenium worker parsing path.
 
 ---
 

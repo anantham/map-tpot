@@ -1,133 +1,185 @@
-"""Tests for list scraping functionality.
-
-NOTE: fetch_list_members() is complex to unit test because it requires:
-- Real WebDriver initialization
-- Browser automation
-- Network requests to Twitter
-
-This file contains:
-1. Placeholder integration tests (skipped, require real browser)
-2. Documentation of expected test plans
-
-The "list ID detection" logic is inline in scripts/enrich_shadow_graph.py:324
-using `args.center.strip().isdigit()`. Since this is a single-line check using
-Python's built-in str.isdigit(), dedicated unit tests would just test Python
-itself (test theater). The logic is covered by the integration test placeholders
-below which test the full workflow.
-"""
+"""Unit tests for list-mode vs username-mode dispatch in enrich_shadow_graph."""
 from __future__ import annotations
 
-import pytest
+from types import SimpleNamespace
+
+import pandas as pd
+
+import scripts.enrich_shadow_graph as enrich_script
 
 
-# NOTE: TestListIDDetection class was removed (2024-12 cleanup).
-# It only tested Python's str.isdigit() without calling production code.
-# The actual detection happens inline in scripts/enrich_shadow_graph.py:324.
-# See TestListIDDetectionEndToEnd below for proper integration test placeholders.
+def _build_args(tmp_path, *, center):
+    return SimpleNamespace(
+        cookies=tmp_path / "cookies.pkl",
+        seeds=[],
+        bearer_token=None,
+        pause=0.0,
+        include_followers=True,
+        include_following=True,
+        include_followers_you_follow=True,
+        output=tmp_path / "summary.json",
+        refresh_snapshot=False,
+        headless=True,
+        chrome_binary=None,
+        max_scrolls=1,
+        delay_min=0.0,
+        delay_max=0.0,
+        retry_attempts=1,
+        auto_continue=True,
+        auto_confirm_first=True,
+        profile_only=False,
+        profile_only_all=False,
+        preview_count=1,
+        require_confirmation=False,
+        skip_if_ever_scraped=True,
+        center=center,
+        force_refresh_list=False,
+        log_level="INFO",
+        quiet=True,
+        enable_api_fallback=False,
+    )
 
 
-# ==============================================================================
-# Integration Test Markers (to be implemented with real Selenium)
-# ==============================================================================
-@pytest.mark.integration
-@pytest.mark.skip(reason="Requires real Selenium browser and Twitter auth")
-class TestFetchListMembersIntegration:
-    """Integration tests for fetch_list_members with real browser.
+class _FakeFetcher:
+    def __init__(self, accounts_df):
+        self._accounts_df = accounts_df
+        self.engine = object()
 
-    These tests require:
-    - Valid Twitter cookies in secrets/twitter_cookies.pkl
-    - Chrome/Chromium browser installed
-    - Network access to Twitter
-    - Known public Twitter list ID for testing
-    """
+    def __enter__(self):
+        return self
 
-    def test_fetch_real_list_members(self):
-        """Should fetch members from a real Twitter list.
+    def __exit__(self, exc_type, exc, tb):
+        return False
 
-        Test Plan:
-        1. Setup SeleniumWorker with real cookies
-        2. Call fetch_list_members with known public list ID
-        3. Verify returned UserListCapture structure:
-           - list_type == "list_members"
-           - entries is a non-empty list
-           - claimed_total is None (lists don't show count)
-           - profile_overview is None
-        4. Verify each entry contains:
-           - username (string, non-empty)
-           - display_name (string or None)
-           - bio (string or None)
-           - profile_url (matches https://x.com/{username})
-        5. Verify no duplicate usernames in entries
-        """
-        pytest.skip("Integration test not implemented yet")
-
-    def test_fetch_list_with_lazy_loading(self):
-        """Should handle Twitter's lazy loading on list member pages.
-
-        Test Plan:
-        1. Use a list with 50+ members (requires scrolling)
-        2. Verify scrolling triggers new UserCell loads
-        3. Check that captured count > initial viewport count
-        4. Verify stagnant scroll detection stops correctly
-        """
-        pytest.skip("Integration test not implemented yet")
-
-    def test_fetch_private_list_requires_auth(self):
-        """Should handle private lists that require authentication.
-
-        Test Plan:
-        1. Attempt to fetch private list without auth cookies
-        2. Verify empty result or timeout
-        3. Retry with valid auth cookies
-        4. Verify successful fetch
-        """
-        pytest.skip("Integration test not implemented yet")
-
-    def test_list_scraping_end_to_end_workflow(self):
-        """Should complete full workflow: list ID → seeds → enrichment.
-
-        Test Plan:
-        1. Run: python -m scripts.enrich_shadow_graph --center <list_id> --quiet
-        2. Verify list members are scraped first
-        3. Verify enrichment prioritizes list members as seeds
-        4. Check database for:
-           - shadow_account entries for list members
-           - shadow_edge entries for their connections
-           - scrape_run_metrics recording the scrape
-        5. Verify enrichment_summary.json contains list members
-        """
-        pytest.skip("Integration test not implemented yet")
+    def fetch_accounts(self):
+        return self._accounts_df
 
 
-# ==============================================================================
-# List ID Detection in enrich_shadow_graph.py (End-to-End)
-# ==============================================================================
-@pytest.mark.integration
-@pytest.mark.skip(reason="Requires full enrichment setup")
-class TestListIDDetectionEndToEnd:
-    """Test list ID detection in the enrichment script.
+class _FakeStore:
+    def __init__(self, following_usernames):
+        self.following_usernames = following_usernames
+        self.following_calls = []
 
-    These tests verify the full workflow from CLI to database.
-    """
+    def get_following_usernames(self, username):
+        self.following_calls.append(username)
+        return self.following_usernames
 
-    def test_numeric_center_triggers_list_mode(self):
-        """--center with numeric ID should trigger list scraping mode.
 
-        Test Plan:
-        1. Mock enricher._selenium.fetch_list_members
-        2. Call enrich_shadow_graph with --center 1234567890
-        3. Verify fetch_list_members was called with "1234567890"
-        4. Verify username mode was NOT triggered
-        """
-        pytest.skip("Integration test not implemented yet")
+class _FakeEnricher:
+    def __init__(self, list_entries):
+        self.list_entries = list_entries
+        self.list_calls = []
+        self.enrich_calls = []
 
-    def test_alphanumeric_center_triggers_username_mode(self):
-        """--center with username should trigger username mode.
+    def fetch_list_members_with_cache(self, list_id, force_refresh=False):
+        self.list_calls.append((list_id, force_refresh))
+        return SimpleNamespace(entries=self.list_entries)
 
-        Test Plan:
-        1. Mock enricher.enrich and store.get_following_usernames
-        2. Call enrich_shadow_graph with --center testuser
-        3. Verify username mode was triggered (enrich called with testuser)
-        4. Verify list mode was NOT triggered
-        """
-        pytest.skip("Integration test not implemented yet")
+    def enrich(self, seeds):
+        self.enrich_calls.append(list(seeds))
+        return {"status": "ok"}
+
+    def quit(self):
+        return None
+
+
+def _install_common_fakes(monkeypatch, tmp_path, *, args, accounts_df, preset_seeds, store):
+    monkeypatch.setattr(enrich_script, "parse_args", lambda: args)
+    monkeypatch.setattr(enrich_script, "_resolve_cookie_path", lambda _: args.cookies)
+    monkeypatch.setattr(enrich_script, "setup_enrichment_logging", lambda **_: None)
+    monkeypatch.setattr(
+        enrich_script,
+        "get_cache_settings",
+        lambda: SimpleNamespace(path=tmp_path / "cache.db"),
+    )
+
+    def fake_load_seed_candidates(additional=None):
+        base = list(preset_seeds)
+        if additional:
+            return base + list(additional)
+        return base
+
+    monkeypatch.setattr(enrich_script, "load_seed_candidates", fake_load_seed_candidates)
+    monkeypatch.setattr(
+        enrich_script,
+        "CachedDataFetcher",
+        lambda cache_db=None: _FakeFetcher(accounts_df),
+    )
+    monkeypatch.setattr(enrich_script, "get_shadow_store", lambda engine: store)
+
+
+def test_center_numeric_triggers_list_mode(monkeypatch, tmp_path):
+    accounts_df = pd.DataFrame(
+        [
+            {"account_id": "1", "username": "preset"},
+            {"account_id": "2", "username": "archive_user"},
+        ]
+    )
+    args = _build_args(tmp_path, center="1234567890")
+    store = _FakeStore(following_usernames=[])
+    _install_common_fakes(
+        monkeypatch,
+        tmp_path,
+        args=args,
+        accounts_df=accounts_df,
+        preset_seeds=["preset"],
+        store=store,
+    )
+
+    list_entries = [SimpleNamespace(username="list_user")]
+    holder = {}
+
+    def fake_enricher_factory(store, config, policy):
+        enricher = _FakeEnricher(list_entries=list_entries)
+        holder["instance"] = enricher
+        return enricher
+
+    monkeypatch.setattr(enrich_script, "HybridShadowEnricher", fake_enricher_factory)
+
+    enrich_script.main()
+
+    enricher = holder["instance"]
+    assert enricher.list_calls == [("1234567890", False)]
+    assert len(enricher.enrich_calls) == 1
+    usernames = [seed.username for seed in enricher.enrich_calls[0]]
+    assert usernames == ["preset", "list_user", "archive_user"]
+
+
+def test_center_username_triggers_enrich_first(monkeypatch, tmp_path):
+    accounts_df = pd.DataFrame(
+        [
+            {"account_id": "1", "username": "center_user"},
+            {"account_id": "2", "username": "preset"},
+            {"account_id": "3", "username": "archive_user"},
+        ]
+    )
+    args = _build_args(tmp_path, center="center_user")
+    store = _FakeStore(following_usernames={"followed_user"})
+    _install_common_fakes(
+        monkeypatch,
+        tmp_path,
+        args=args,
+        accounts_df=accounts_df,
+        preset_seeds=["preset"],
+        store=store,
+    )
+
+    holder = {}
+
+    def fake_enricher_factory(store, config, policy):
+        enricher = _FakeEnricher(list_entries=[])
+        holder["instance"] = enricher
+        return enricher
+
+    monkeypatch.setattr(enrich_script, "HybridShadowEnricher", fake_enricher_factory)
+
+    enrich_script.main()
+
+    enricher = holder["instance"]
+    assert enricher.list_calls == []
+    assert len(enricher.enrich_calls) == 2
+    first_call = [seed.username for seed in enricher.enrich_calls[0]]
+    second_call = [seed.username for seed in enricher.enrich_calls[1]]
+    assert first_call == ["center_user"]
+    assert second_call == ["center_user", "preset", "followed_user", "archive_user"]
+    assert store.following_calls == ["center_user"]

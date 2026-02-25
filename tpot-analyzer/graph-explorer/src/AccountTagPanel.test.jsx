@@ -16,8 +16,12 @@ describe('AccountTagPanel', () => {
   })
 
   it('loads tags and supports add/remove', async () => {
+    let fetchArgs = null
     fetchAccountTags
-      .mockResolvedValueOnce({ tags: [] })
+      .mockImplementationOnce(async (payload) => {
+        fetchArgs = payload
+        return { tags: [] }
+      })
       .mockResolvedValueOnce({
         tags: [
           {
@@ -32,16 +36,25 @@ describe('AccountTagPanel', () => {
       })
       .mockResolvedValueOnce({ tags: [] })
 
-    upsertAccountTag.mockResolvedValue({ status: 'ok' })
-    deleteAccountTag.mockResolvedValue({ status: 'deleted' })
+    let upsertArgs = null
+    let deleteArgs = null
+    upsertAccountTag.mockImplementation(async (payload) => {
+      upsertArgs = payload
+      return { status: 'ok' }
+    })
+    deleteAccountTag.mockImplementation(async (payload) => {
+      deleteArgs = payload
+      return { status: 'deleted' }
+    })
 
     const { getByText, getByPlaceholderText, container } = render(
       <AccountTagPanel ego="ego" account={{ id: '123', username: 'alice' }} />
     )
 
     await waitFor(() => {
-      expect(fetchAccountTags).toHaveBeenCalledWith({ ego: 'ego', accountId: '123' })
+      expect(fetchArgs).not.toBeNull()
     })
+    expect(fetchArgs).toEqual({ ego: 'ego', accountId: '123' })
 
     fireEvent.change(getByPlaceholderText('e.g. AI alignment'), { target: { value: 'AI alignment' } })
     const select = container.querySelector('select')
@@ -49,13 +62,14 @@ describe('AccountTagPanel', () => {
     fireEvent.click(getByText('Add'))
 
     await waitFor(() => {
-      expect(upsertAccountTag).toHaveBeenCalledWith({
-        ego: 'ego',
-        accountId: '123',
-        tag: 'AI alignment',
-        polarity: 'not_in',
-        confidence: undefined,
-      })
+      expect(upsertArgs).not.toBeNull()
+    })
+    expect(upsertArgs).toEqual({
+      ego: 'ego',
+      accountId: '123',
+      tag: 'AI alignment',
+      polarity: 'not_in',
+      confidence: undefined,
     })
 
     await waitFor(() => {
@@ -65,8 +79,8 @@ describe('AccountTagPanel', () => {
 
     fireEvent.click(getByText('Remove'))
     await waitFor(() => {
-      expect(deleteAccountTag).toHaveBeenCalledWith({ ego: 'ego', accountId: '123', tag: 'AI alignment' })
+      expect(deleteArgs).not.toBeNull()
     })
+    expect(deleteArgs).toEqual({ ego: 'ego', accountId: '123', tag: 'AI alignment' })
   })
 })
-

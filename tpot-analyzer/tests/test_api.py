@@ -84,13 +84,13 @@ def test_compute_metrics_endpoint(client):
     """Test metrics computation endpoint."""
     # 1. Get a valid seed from the graph first
     graph_resp = client.get("/api/graph-data")
-    if graph_resp.status_code != 200:
-        pytest.skip("Could not fetch graph data to find seeds")
+    assert graph_resp.status_code == 200, (
+        f"Expected /api/graph-data 200, got {graph_resp.status_code}"
+    )
         
     graph_data = json.loads(graph_resp.data)
     _assert_graph_data_payload(graph_data)
-    if not graph_data["nodes"]:
-        pytest.skip("Graph is empty, cannot test metrics")
+    assert graph_data["nodes"], "Graph is empty; cache fixture should supply nodes."
         
     # Pick a real node ID from the DB
     valid_seed = graph_data["nodes"][0]["id"]
@@ -142,8 +142,7 @@ def test_compute_metrics_with_weights(client):
     graph_resp = client.get("/api/graph-data")
     graph_data = json.loads(graph_resp.data)
     _assert_graph_data_payload(graph_data)
-    if not graph_data["nodes"]:
-        pytest.skip("Graph is empty")
+    assert graph_data["nodes"], "Graph is empty; cache fixture should supply nodes."
     
     seeds = [graph_data["nodes"][0]["id"]]
 

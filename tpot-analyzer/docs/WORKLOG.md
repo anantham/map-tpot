@@ -738,3 +738,31 @@
         - `cd tpot-analyzer && make test-smoke` → `7 passed`.
         - `cd tpot-analyzer && make test` → `545 passed, 12 skipped, 3 xfailed`.
         - `cd tpot-analyzer && python3 -m scripts.verify_docs_hygiene` → `9/9` checks passed.
+
+- [2026-02-25 22:28 IST] **Merge-in: test-coverage-hardening branch integration (Codex GPT-5)**
+    - **Context**
+        - Preserved and integrated work from `test-coverage-hardening` (WIP checkpoint `bbfcae8`) into `main`, then resolved merge conflicts while preserving newer mainline ClusterView architecture.
+    - **Imported test-hardening payload**
+        - Frontend tests hardened to avoid call-count coupling:
+            - `tpot-analyzer/graph-explorer/src/AccountSearch.test.jsx`
+            - `tpot-analyzer/graph-explorer/src/AccountTagPanel.test.jsx`
+            - `tpot-analyzer/graph-explorer/src/ClusterCanvas.memoryleak.test.jsx`
+            - `tpot-analyzer/graph-explorer/src/ClusterCanvas.test.jsx`
+            - `tpot-analyzer/graph-explorer/src/ClusterView.integration.test.jsx`
+        - Backend test hardening:
+            - `tpot-analyzer/tests/test_api.py`
+            - `tpot-analyzer/tests/test_hierarchy_builder.py`
+            - `tpot-analyzer/tests/test_list_scraping.py`
+            - `tpot-analyzer/tests/test_shadow_archive_consistency.py`
+            - `tpot-analyzer/tests/test_shadow_coverage.py`
+            - `tpot-analyzer/tests/test_shadow_enricher_orchestration.py`
+            - `tpot-analyzer/tests/test_shadow_enricher_utils.py`
+            - `tpot-analyzer/tests/test_x_api_client.py`
+    - **Regression repairs applied during integration**
+        - `tpot-analyzer/tests/test_shadow_coverage.py:246`:
+            - switched subprocess invocation to explicit script path + project-root `cwd` for deterministic execution.
+        - `tpot-analyzer/tests/test_shadow_enricher_utils.py:572` and `tpot-analyzer/tests/test_shadow_enricher_utils.py:636`:
+            - added no-op `set_pause_callback`/`set_shutdown_callback` to fake Selenium workers to satisfy `HybridShadowEnricher` constructor contract.
+    - **Verification**
+        - `cd /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT-wt-test-coverage && /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/.venv/bin/pytest -q tpot-analyzer/tests/test_api.py tpot-analyzer/tests/test_hierarchy_builder.py tpot-analyzer/tests/test_list_scraping.py tpot-analyzer/tests/test_shadow_archive_consistency.py tpot-analyzer/tests/test_shadow_coverage.py tpot-analyzer/tests/test_shadow_enricher_orchestration.py tpot-analyzer/tests/test_shadow_enricher_utils.py tpot-analyzer/tests/test_x_api_client.py` → `108 passed, 1 warning`.
+        - `cd /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT-wt-test-coverage && /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/.venv/bin/python tpot-analyzer/scripts/verify_test_inventory.py` → skip markers/call-count/reimplementation markers resolved; internal-state assertions and >300 LOC debt remain (tracked in ROADMAP).
