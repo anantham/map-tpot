@@ -1,5 +1,52 @@
 # Worklog - TPOT Analyzer
 
+## Phase 4.0: Tweet Classification + Content-Aware Clustering
+
+- [2026-02-25 14:10 UTC] **MVP A backend curation loop scaffold (Codex GPT-5)**
+    - **Hypothesis**
+        - We need a normalized, persistent tweet-label/prediction schema and API layer before dashboard work; this should unlock fixed splits, queue ranking, and Brier evaluation with deterministic behavior.
+    - **Changes (files + why)**
+        - `tpot-analyzer/src/data/golden/constants.py:1` (NEW): define simulacrum axis constants, split/status enums, and queue weighting contract.
+        - `tpot-analyzer/src/data/golden/schema.py:1` (NEW): add Option-B normalized schema + helper math/validation utilities.
+        - `tpot-analyzer/src/data/golden/base.py:1` (NEW): add split bootstrap, candidate retrieval with context-cache hydration, and single-reviewer label upsert history.
+        - `tpot-analyzer/src/data/golden/predictions.py:1` (NEW): add prediction ingest, disagreement/entropy queue scoring, and queue retrieval.
+        - `tpot-analyzer/src/data/golden/evals.py:1` (NEW): add Brier evaluation run storage and metrics summary assembly.
+        - `tpot-analyzer/src/data/golden/store.py:1` (NEW): compose focused mixins into `GoldenStore`.
+        - `tpot-analyzer/src/data/golden_store.py:1`: compatibility re-export shim for existing import ergonomics.
+        - `tpot-analyzer/src/api/routes/golden.py:1` (NEW): add `/api/golden/candidates|labels|queue|predictions/run|eval/run|metrics` endpoints.
+        - `tpot-analyzer/src/api/server.py:24` and `tpot-analyzer/src/api/server.py:116`: register `golden_bp` in app factory startup.
+        - `tpot-analyzer/tests/test_golden_routes.py:1` (NEW): route-level regression tests for split bootstrap, label state changes, queue disagreement, and eval pass criteria.
+        - `tpot-analyzer/scripts/verify_mvp_a.py:1` (NEW): human-friendly ✓/✗ verification script for end-to-end MVP A backend flow.
+        - `tpot-analyzer/docs/adr/009-golden-curation-schema-and-active-learning-loop.md:1` (NEW): capture schema/contract decision and constraints.
+        - `tpot-analyzer/docs/index.md:1`: update docs index review date + add ADR 009/008 entries.
+        - `tpot-analyzer/docs/ROADMAP.md:32`: mark MVP A backend loop item completed under Phase 4 LLM Classification.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m py_compile src/data/golden/constants.py src/data/golden/schema.py src/data/golden/base.py src/data/golden/predictions.py src/data/golden/evals.py src/data/golden/store.py src/data/golden_store.py src/api/routes/golden.py scripts/verify_mvp_a.py tests/test_golden_routes.py` → passed.
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_golden_routes.py -q` → `3 passed`.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_mvp_a --help` → CLI usage renders.
+
+- [2026-02-25] **Architecture pivot: tweet-level LLM classification as account fingerprinting (Claude Sonnet 4.6)**
+    - **Context**
+        - Identified that graph-structure-only clustering cannot capture TPOT's vibe/aesthetic-based community boundaries. TPOT membership is defined by epistemic style (l1/l2/l3 simulacrum axis) and social function, not follow patterns alone. PageRank as a discovery signal is anti-correlated with TPOT membership (TPOT valorizes obscurity).
+    - **Decisions (see ADR 008)**
+        - Adopt two-layer architecture: (1) content-aware embedding via tweet classification (universal, runs once), (2) per-user semantic labeling via exemplar annotation (configurable, per-user).
+        - Use LLM few-shot classification (OpenRouter, frontier model) with a human-curated golden dataset (`taxonomy.yaml`) to classify each tweet on three orthogonal axes: epistemic/simulacrum (l1/l2/l3), functional/social (aggression, dialectics, etc.), topic (meditation, alignment, etc.).
+        - Treat liked tweets as a separate passive-engagement signal, distinct from posted tweets.
+        - Active learning loop: golden dataset grows via human arbitration of high-entropy "scissor tweets"; Brier score tracks calibration per axis per model.
+        - 334 anchor accounts serve as embedding scaffold for the broader follow/following graph.
+    - **Data pipeline built**
+        - `src/archive/fetcher.py`: streams community archive JSON per account from Supabase blob storage; atomic temp→rename cache; exponential backoff retry (4 attempts, 2/4/8/16s).
+        - `src/archive/store.py`: parses tweets + likes + note-tweets into `data/archive_tweets.db`; skips retweets; INSERT OR IGNORE for safe re-runs.
+        - `scripts/fetch_archive_data.py`: parallel download (N workers) + serial DB write; resume-safe (skips `ok`/`not_found` in fetch_log, retries `error`).
+        - `scripts/verify_archive_vs_cache.py`: data quality comparison between archive and scraped cache.db.
+    - **Status**: archive fetch in progress (316 accounts, ~halfway). Retry pass queued after first run completes (uses fixed streaming fetcher).
+    - **Next**
+        - Run verify_archive_vs_cache.py once fetch completes
+        - Build golden dataset (collaborative: human labels tweets, we craft examples per category)
+        - Build LLM eval harness + Brier score script
+        - Build classification pipeline with budget controls
+        - Recompute account fingerprints + clustering
+
 ## Phase 1.0: Setup & Infrastructure
 - [2025-10-14] Initial setup, `codebase_investigator` analysis.
 - [2025-10-14] Established `AGENTS.md` and `docs/ROADMAP.md`.

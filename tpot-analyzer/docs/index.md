@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-02-18
+Last reviewed: 2026-02-25
 
 ## Start Here
 
@@ -44,6 +44,8 @@ Last reviewed: 2026-02-18
 | Diagnostics | [docs/diagnostics/](diagnostics/) |
 
 Latest architecture decision:
+- [ADR 009: Golden Curation Schema and MVP A Active-Learning Loop](adr/009-golden-curation-schema-and-active-learning-loop.md) (Proposed, 2026-02-25)
+- [ADR 008: Tweet-Level LLM Classification as Account Fingerprinting Foundation](adr/008-tweet-classification-account-fingerprinting.md) (Proposed, 2026-02-25)
 - [ADR 007: Observation-Aware Clustering and Membership Inference](adr/007-observation-aware-clustering-membership.md) (Proposed, 2026-02-17)
 - [ADR 006: Shared Tagging and Anchor-Conditioned TPOT Membership](adr/006-shared-tagging-and-tpot-membership.md) (Proposed, 2026-02-10)
 
