@@ -151,8 +151,7 @@ class TestExpandCollapse:
 
         # Find an expandable cluster (non-leaf)
         expandable = [c for c in base.clusters if not c.is_leaf]
-        if not expandable:
-            pytest.skip("No expandable clusters in test setup")
+        assert expandable, "Expected at least one expandable cluster; check fixture granularity."
 
         # Expand it
         expanded = build_hierarchical_view(
@@ -171,8 +170,7 @@ class TestExpandCollapse:
 
         # Find a cluster with a parent
         collapsible = [c for c in base.clusters if c.parent_id is not None]
-        if not collapsible:
-            pytest.skip("No collapsible clusters in test setup")
+        assert collapsible, "Expected at least one collapsible cluster; check fixture granularity."
 
         parent_id = collapsible[0].parent_id
 

@@ -115,13 +115,18 @@ describe('ClusterView Expansion Behavior', () => {
     const { fetchClusterView, fetchClusterPreview } = await import('./data')
 
     // Initial view with expandable parent cluster
-    fetchClusterView.mockResolvedValue({
+    const fetchCalls = []
+    const viewResponse = {
       clusters: [
         { id: 'd_6', label: 'Parent', size: 10, isLeaf: false, childrenIds: ['d_4', 'd_5'] },
       ],
       edges: [],
       positions: { 'd_6': [0, 0] },
       meta: { budget: 25, budget_remaining: 24 },
+    }
+    fetchClusterView.mockImplementation(async params => {
+      fetchCalls.push(params)
+      return viewResponse
     })
 
     // Preview says expansion is allowed
@@ -138,18 +143,20 @@ describe('ClusterView Expansion Behavior', () => {
       expect(screen.getByTestId('node-d_6')).toBeInTheDocument()
     })
 
-    // Clear initial API calls
-    fetchClusterView.mockClear()
+    await waitFor(() => {
+      expect(fetchCalls.length).toBeGreaterThan(0)
+    })
+    const callCountBefore = fetchCalls.length
 
     // User clicks expand
     fireEvent.click(screen.getByTestId('expand-d_6'))
 
     // Verify API called with d_6 in expanded array
     await waitFor(() => {
-      expect(fetchClusterView).toHaveBeenCalled()
-      const lastCall = fetchClusterView.mock.calls[fetchClusterView.mock.calls.length - 1][0]
-      expect(lastCall.expanded).toContain('d_6')
+      expect(fetchCalls.length).toBeGreaterThan(callCountBefore)
     })
+    const lastCall = fetchCalls[fetchCalls.length - 1]
+    expect(lastCall.expanded).toContain('d_6')
   })
 
   it('updates expansion stack when cluster is expanded', async () => {
@@ -192,7 +199,8 @@ describe('ClusterView Expansion Behavior', () => {
     const { fetchClusterView } = await import('./data')
 
     // Start with expanded children visible
-    fetchClusterView.mockResolvedValue({
+    const fetchCalls = []
+    const viewResponse = {
       clusters: [
         { id: 'd_4', label: 'Child 1', size: 5, isLeaf: true, parentId: 'd_6' },
         { id: 'd_5', label: 'Child 2', size: 5, isLeaf: true, parentId: 'd_6' },
@@ -200,6 +208,10 @@ describe('ClusterView Expansion Behavior', () => {
       edges: [],
       positions: { 'd_4': [-1, 0], 'd_5': [1, 0] },
       meta: { budget: 25, budget_remaining: 23 },
+    }
+    fetchClusterView.mockImplementation(async params => {
+      fetchCalls.push(params)
+      return viewResponse
     })
 
     // Initialize with d_6 already expanded via URL
@@ -215,22 +227,28 @@ describe('ClusterView Expansion Behavior', () => {
     // Stack should show d_6 expanded
     expect(screen.getByTestId('expansion-stack')).toHaveTextContent('["d_6"]')
 
-    // Clear and prepare for collapse
-    fetchClusterView.mockClear()
+    await waitFor(() => {
+      expect(fetchCalls.length).toBeGreaterThan(0)
+    })
+    const callCountBefore = fetchCalls.length
 
     // User triggers collapse (simulates hybrid zoom out past threshold)
     fireEvent.click(screen.getByTestId('collapse-last'))
 
     // Verify API called without d_6 in expanded array
     await waitFor(() => {
-      expect(fetchClusterView).toHaveBeenCalled()
-      const lastCall = fetchClusterView.mock.calls[fetchClusterView.mock.calls.length - 1][0]
-      expect(lastCall.expanded).not.toContain('d_6')
+      expect(fetchCalls.length).toBeGreaterThan(callCountBefore)
     })
+    const lastCall = fetchCalls[fetchCalls.length - 1]
+    expect(lastCall.expanded).not.toContain('d_6')
   })
 
   it('syncs expansion state to URL', async () => {
     const { fetchClusterView, fetchClusterPreview } = await import('./data')
+    const historyCalls = []
+    window.history.replaceState = (...args) => {
+      historyCalls.push(args)
+    }
 
     fetchClusterView.mockResolvedValue({
       clusters: [
@@ -253,15 +271,20 @@ describe('ClusterView Expansion Behavior', () => {
       expect(screen.getByTestId('node-d_6')).toBeInTheDocument()
     })
 
+    await waitFor(() => {
+      expect(historyCalls.length).toBeGreaterThan(0)
+    })
+    const callCountBefore = historyCalls.length
+
     // Expand
     fireEvent.click(screen.getByTestId('expand-d_6'))
 
     // URL should be updated with expanded parameter
     await waitFor(() => {
-      const calls = window.history.replaceState.mock.calls
-      const lastUrl = calls[calls.length - 1]?.[2] || ''
-      expect(lastUrl).toContain('expanded=d_6')
+      expect(historyCalls.length).toBeGreaterThan(callCountBefore)
     })
+    const lastUrl = historyCalls[historyCalls.length - 1]?.[2] || ''
+    expect(lastUrl).toContain('expanded=d_6')
   })
 
   it('initializes expansion stack from URL on page load', async () => {
@@ -369,13 +392,18 @@ describe('ClusterView Budget Enforcement', () => {
   it('does not call API when expand is blocked by budget', async () => {
     const { fetchClusterView, fetchClusterPreview } = await import('./data')
 
-    fetchClusterView.mockResolvedValue({
+    const fetchCalls = []
+    const viewResponse = {
       clusters: [
         { id: 'd_0', label: 'Cluster', size: 1, isLeaf: false, childrenIds: ['d_1', 'd_2'] },
       ],
       edges: [],
       positions: { 'd_0': [0, 0] },
       meta: { budget: 25, budget_remaining: 0 },
+    }
+    fetchClusterView.mockImplementation(async params => {
+      fetchCalls.push(params)
+      return viewResponse
     })
 
     fetchClusterPreview.mockResolvedValue({
@@ -390,7 +418,10 @@ describe('ClusterView Budget Enforcement', () => {
       expect(screen.getByTestId('node-d_0')).toBeInTheDocument()
     })
 
-    const callCountBefore = fetchClusterView.mock.calls.length
+    await waitFor(() => {
+      expect(fetchCalls.length).toBeGreaterThan(0)
+    })
+    const callCountBefore = fetchCalls.length
 
     // Try to expand (button should be effectively disabled via canExpandNode)
     fireEvent.click(screen.getByTestId('expand-d_0'))
@@ -401,13 +432,12 @@ describe('ClusterView Budget Enforcement', () => {
     })
 
     // No new API calls should have been made with expanded param
-    const callCountAfter = fetchClusterView.mock.calls.length
-    const newCalls = fetchClusterView.mock.calls.slice(callCountBefore)
+    const newCalls = fetchCalls.slice(callCountBefore)
 
     // Either no new calls, or new calls don't include d_0 in expanded
     newCalls.forEach(call => {
-      if (call[0]?.expanded) {
-        expect(call[0].expanded).not.toContain('d_0')
+      if (call?.expanded) {
+        expect(call.expanded).not.toContain('d_0')
       }
     })
   })
@@ -599,13 +629,18 @@ describe('ClusterView Cache and Loading', () => {
     const { fetchClusterView, fetchClusterPreview } = await import('./data')
 
     // First call returns parent cluster
-    fetchClusterView.mockResolvedValue({
+    const fetchCalls = []
+    const viewResponse = {
       clusters: [
         { id: 'd_6', label: 'Parent', size: 10, isLeaf: false, childrenIds: ['d_4', 'd_5'] },
       ],
       edges: [],
       positions: { 'd_6': [0, 0] },
       meta: { budget: 25, budget_remaining: 24 },
+    }
+    fetchClusterView.mockImplementation(async params => {
+      fetchCalls.push(params)
+      return viewResponse
     })
 
     fetchClusterPreview.mockResolvedValue({
@@ -620,18 +655,20 @@ describe('ClusterView Cache and Loading', () => {
       expect(screen.getByTestId('node-d_6')).toBeInTheDocument()
     })
 
-    // Clear to track next call
-    fetchClusterView.mockClear()
+    await waitFor(() => {
+      expect(fetchCalls.length).toBeGreaterThan(0)
+    })
+    const callCountBefore = fetchCalls.length
 
     // Expand the cluster
     fireEvent.click(screen.getByTestId('expand-d_6'))
 
     // Verify API was called with expanded array containing d_6
     await waitFor(() => {
-      expect(fetchClusterView).toHaveBeenCalled()
-      const callArgs = fetchClusterView.mock.calls[0][0]
-      expect(callArgs).toHaveProperty('expanded')
-      expect(callArgs.expanded).toContain('d_6')
+      expect(fetchCalls.length).toBeGreaterThan(callCountBefore)
     })
+    const callArgs = fetchCalls[fetchCalls.length - 1]
+    expect(callArgs).toHaveProperty('expanded')
+    expect(callArgs.expanded).toContain('d_6')
   })
 })
