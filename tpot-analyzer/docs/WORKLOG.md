@@ -278,6 +278,21 @@
     - **Verification**
         - `cd tpot-analyzer && python3 scripts/verify_test_inventory.py` → reimplementation markers 0; internal-state assertions remain.
 
+- [2026-02-25 22:28 IST] **Test coverage hardening Phase 3.1 (regression fix for merge readiness) — In progress**
+    - **Context**
+        - Continued from `test-coverage-hardening` WIP checkpoint `bbfcae8` to resolve remaining red tests before merge.
+    - **Hypotheses**
+        - H1: `tests/test_shadow_coverage.py::test_coverage_script_runs` fails because `python -m scripts.analyze_coverage` depends on module-path assumptions that do not hold in subprocess test context.
+        - H2: List caching tests fail because fake Selenium worker does not implement newly required callback interface.
+    - **Modified files (line refs + why)**
+        - `tpot-analyzer/tests/test_shadow_coverage.py:246`:
+            - Run script via explicit path (`scripts/analyze_coverage.py`) and set `cwd` to project root for deterministic invocation.
+        - `tpot-analyzer/tests/test_shadow_enricher_utils.py:572` and `tpot-analyzer/tests/test_shadow_enricher_utils.py:636`:
+            - Added `set_pause_callback` / `set_shutdown_callback` no-op methods to `_FakeSelenium` fixtures to satisfy `HybridShadowEnricher` constructor contract.
+    - **Planned verification**
+        - `cd /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT-wt-test-coverage && /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/.venv/bin/pytest -q tpot-analyzer/tests/test_shadow_coverage.py tpot-analyzer/tests/test_shadow_enricher_utils.py`
+        - Re-run full targeted suite used for merge gate.
+
 ## Upcoming Tasks
 1.  **Unit Test Backfill**: The refactor moved code, but existing tests in `test_api.py` are integration tests dependent on a live DB. We need unit tests for the new `services/` and `routes/` that mock the managers.
 2.  **Documentation Update**: `docs/BACKEND_IMPLEMENTATION.md` needs to be updated to reflect the new modular architecture.

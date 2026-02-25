@@ -245,17 +245,20 @@ def test_archive_vs_shadow_coverage(shadow_coverage_db):
 
 def test_coverage_script_runs(shadow_coverage_db):
     """Test that the analyze_coverage.py script runs without errors."""
+    from pathlib import Path
     import subprocess
     import sys
+    project_root = Path(__file__).resolve().parents[1]
+    script_path = project_root / "scripts" / "analyze_coverage.py"
     result = subprocess.run(
         [
             sys.executable,
-            "-m",
-            "scripts.analyze_coverage",
+            str(script_path),
             "--summary-only",
             "--db-path",
             str(shadow_coverage_db),
         ],
+        cwd=str(project_root),
         capture_output=True,
         text=True,
         timeout=30,
