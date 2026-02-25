@@ -570,6 +570,12 @@ class TestListCaching:
         store.replace_list_members("list123", cached_members)
 
         class _FakeSelenium:
+            def set_pause_callback(self, _callback):
+                return None
+
+            def set_shutdown_callback(self, _callback):
+                return None
+
             def fetch_list_members(self, list_id):
                 raise AssertionError("Selenium should not be used when cache is fresh")
 
@@ -636,6 +642,12 @@ class TestListCaching:
         class _FakeSelenium:
             def __init__(self):
                 self.fetch_calls = []
+
+            def set_pause_callback(self, _callback):
+                return None
+
+            def set_shutdown_callback(self, _callback):
+                return None
 
             def fetch_list_members(self, list_id):
                 self.fetch_calls.append(list_id)
