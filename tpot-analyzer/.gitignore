@@ -30,6 +30,9 @@ data/validation_results/
 .coverage.*
 htmlcov/
 
+# Archive cache (large per-account JSON files, re-downloadable)
+data/archive_cache/
+
 # Local data and state
 *.db
 *.db-shm
