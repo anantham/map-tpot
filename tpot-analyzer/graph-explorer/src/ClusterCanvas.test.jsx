@@ -14,8 +14,8 @@ describe('ClusterCanvas High-Value Tests', () => {
     edges: [],
     width: 500,
     height: 500,
-    onSelect: vi.fn(),
-    onSelectionChange: vi.fn(),
+    onSelect: () => {},
+    onSelectionChange: () => {},
     selectionMode: false
   }
   

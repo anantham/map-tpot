@@ -5,8 +5,8 @@ They use mocking to isolate the enricher from external dependencies
 (Selenium, database) while testing observable outcomes.
 
 NOTE: These are orchestration unit tests (heavily mocked), not true integration tests.
-For actual integration tests against real browser/database, see test markers:
-- @pytest.mark.integration + @pytest.mark.skip for placeholders
+For actual integration tests against real browser/database, see integration markers
+used in separate suites.
 - Tests in test_shadow_archive_consistency.py for DB integration
 
 CURRENT STATUS: 14/14 tests PASS (refactored 2024-12 to test through public API).
@@ -738,7 +738,7 @@ Even though 8/14 tests fail, they provide:
 
 ### 6. Immediate Next Steps
 1. Keep these failing tests (don't delete!)
-2. Mark with @pytest.mark.skip + reason
+2. Mark as temporarily skipped with a clear reason
 3. Create issue: "Refactor HybridShadowEnricher for testability"
 4. Use failing tests as acceptance criteria for refactor
 """

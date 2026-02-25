@@ -19,12 +19,19 @@ describe('AccountSearch', () => {
   })
 
   it('debounces search and calls onPick when selecting a result', async () => {
-    searchAccounts.mockResolvedValue([
-      { id: '1', username: 'alice', displayName: 'Alice A' },
-      { id: '2', username: 'alicia', displayName: 'Alicia B' },
-    ])
+    let searchPayload = null
+    searchAccounts.mockImplementation(async (payload) => {
+      searchPayload = payload
+      return [
+        { id: '1', username: 'alice', displayName: 'Alice A' },
+        { id: '2', username: 'alicia', displayName: 'Alicia B' },
+      ]
+    })
 
-    const onPick = vi.fn()
+    let picked = null
+    const onPick = (account) => {
+      picked = account
+    }
     const { container, getByText } = render(<AccountSearch onPick={onPick} />)
     const input = container.querySelector('input')
 
@@ -39,13 +46,13 @@ describe('AccountSearch', () => {
       await Promise.resolve()
     })
 
-    expect(searchAccounts).toHaveBeenCalledWith({ q: 'ali', limit: 12 })
+    expect(searchPayload).toEqual({ q: 'ali', limit: 12 })
 
     expect(getByText('@alice')).toBeTruthy()
 
     fireEvent.mouseDown(getByText('@alice'))
 
-    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: '1' }))
+    expect(picked?.id).toBe('1')
     expect(input.value).toBe('')
   })
 })

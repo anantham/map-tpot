@@ -1,0 +1,240 @@
+"""Tests for communities.store — Layer 1 + Layer 2 persistence."""
+from __future__ import annotations
+
+import sqlite3
+
+import pytest
+
+from src.communities.store import (
+    init_db,
+    save_run,
+    save_memberships,
+    save_definitions,
+    list_runs,
+    get_memberships,
+    get_definitions,
+    upsert_community,
+    upsert_community_account,
+    list_communities,
+    get_community_members,
+    get_account_communities,
+    get_account_communities_canonical,
+    delete_community,
+    clear_seeded_communities,
+    reseed_nmf_memberships,
+    get_ego_following_set,
+)
+
+
+@pytest.fixture
+def db():
+    """In-memory SQLite DB with community schema initialized."""
+    conn = sqlite3.connect(":memory:")
+    conn.execute("PRAGMA foreign_keys = ON")
+    init_db(conn)
+    # Create profiles stub table (referenced by get_community_members JOIN)
+    conn.execute("""CREATE TABLE IF NOT EXISTS profiles (
+        account_id TEXT PRIMARY KEY,
+        username TEXT,
+        bio TEXT
+    )""")
+    conn.commit()
+    return conn
+
+
+@pytest.fixture
+def seeded_db(db):
+    """DB with one NMF run seeded into Layer 2, plus one human override."""
+    # Layer 1
+    save_run(db, "run-1", k=3, signal="follow+rt", threshold=0.1, account_count=10)
+    save_memberships(db, "run-1", [
+        ("acct_1", 0, 0.8),
+        ("acct_1", 1, 0.15),
+        ("acct_2", 0, 0.6),
+        ("acct_3", 1, 0.9),
+    ])
+
+    # Layer 2: two communities seeded from run-1
+    upsert_community(db, "comm-A", "EA / forecasting", color="#4a90e2",
+                     seeded_from_run="run-1", seeded_from_idx=0)
+    upsert_community(db, "comm-B", "Rationalist", color="#e67e22",
+                     seeded_from_run="run-1", seeded_from_idx=1)
+
+    # NMF-seeded memberships
+    upsert_community_account(db, "comm-A", "acct_1", weight=0.8, source="nmf")
+    upsert_community_account(db, "comm-A", "acct_2", weight=0.6, source="nmf")
+    upsert_community_account(db, "comm-B", "acct_3", weight=0.9, source="nmf")
+
+    # Human override: acct_1 manually placed in comm-B
+    upsert_community_account(db, "comm-B", "acct_1", weight=1.0, source="human")
+
+    db.commit()
+    return db
+
+
+# ── Task 1: reseed_nmf_memberships ──────────────────────────────────────
+
+def test_reseed_preserves_human_edits(seeded_db):
+    """reseed_nmf_memberships deletes nmf rows but keeps human rows."""
+    reseed_nmf_memberships(seeded_db, "run-1")
+
+    rows = seeded_db.execute(
+        "SELECT account_id, source FROM community_account WHERE community_id = 'comm-B'"
+    ).fetchall()
+    assert ("acct_1", "human") in rows
+
+    nmf_rows = seeded_db.execute(
+        "SELECT COUNT(*) FROM community_account WHERE source = 'nmf'"
+    ).fetchone()[0]
+    assert nmf_rows == 0
+
+
+def test_reseed_preserves_community_metadata(seeded_db):
+    """reseed_nmf_memberships does NOT delete community rows."""
+    reseed_nmf_memberships(seeded_db, "run-1")
+
+    communities = seeded_db.execute("SELECT id, name FROM community").fetchall()
+    names = {name for _, name in communities}
+    assert "EA / forecasting" in names
+    assert "Rationalist" in names
+
+
+def test_reseed_returns_deleted_count(seeded_db):
+    """reseed_nmf_memberships returns the number of nmf rows deleted."""
+    count = reseed_nmf_memberships(seeded_db, "run-1")
+    assert count == 3  # acct_1 in comm-A, acct_2 in comm-A, acct_3 in comm-B
+
+
+def test_reseed_no_op_for_unknown_run(seeded_db):
+    """reseed for non-existent run deletes nothing."""
+    count = reseed_nmf_memberships(seeded_db, "nonexistent-run")
+    assert count == 0
+
+
+def test_clear_seeded_communities_still_works(seeded_db):
+    """Original clear_seeded_communities still works for full wipe."""
+    deleted = clear_seeded_communities(seeded_db, "run-1")
+    assert deleted == 2
+    assert seeded_db.execute("SELECT COUNT(*) FROM community").fetchone()[0] == 0
+    assert seeded_db.execute("SELECT COUNT(*) FROM community_account").fetchone()[0] == 0
+
+
+# ── Task 2: get_account_communities_canonical ────────────────────────────
+
+def test_canonical_returns_all_memberships(seeded_db):
+    """Returns all communities an account belongs to."""
+    result = get_account_communities_canonical(seeded_db, "acct_1")
+    assert len(result) == 2
+    comm_ids = {r[0] for r in result}
+    assert "comm-A" in comm_ids
+    assert "comm-B" in comm_ids
+
+
+def test_canonical_shows_correct_source(seeded_db):
+    """Source field reflects what's in DB (human overwrite or nmf)."""
+    result = get_account_communities_canonical(seeded_db, "acct_1")
+    by_comm = {r[0]: r for r in result}
+    assert by_comm["comm-A"][4] == "nmf"
+    assert by_comm["comm-B"][4] == "human"
+    assert by_comm["comm-B"][3] == 1.0  # weight
+
+
+def test_canonical_nmf_only_account(seeded_db):
+    """Account with only nmf rows returns nmf source."""
+    result = get_account_communities_canonical(seeded_db, "acct_2")
+    assert len(result) == 1
+    assert result[0][4] == "nmf"
+
+
+def test_canonical_no_memberships(seeded_db):
+    """Account not in any community returns empty list."""
+    result = get_account_communities_canonical(seeded_db, "nonexistent")
+    assert result == []
+
+
+# ── Task 3: get_ego_following_set ────────────────────────────────────────
+
+def test_ego_following_set(db):
+    """Returns set of account_ids ego follows."""
+    db.execute("""CREATE TABLE IF NOT EXISTS account_following (
+        account_id TEXT NOT NULL,
+        following_account_id TEXT NOT NULL,
+        PRIMARY KEY (account_id, following_account_id)
+    )""")
+    db.executemany(
+        "INSERT INTO account_following VALUES (?, ?)",
+        [("ego_1", "acct_1"), ("ego_1", "acct_2"), ("ego_1", "acct_5"),
+         ("other", "acct_3")],
+    )
+    db.commit()
+
+    result = get_ego_following_set(db, "ego_1")
+    assert result == {"acct_1", "acct_2", "acct_5"}
+
+
+def test_ego_following_set_empty(db):
+    """Returns empty set if ego has no following entries."""
+    db.execute("""CREATE TABLE IF NOT EXISTS account_following (
+        account_id TEXT NOT NULL,
+        following_account_id TEXT NOT NULL,
+        PRIMARY KEY (account_id, following_account_id)
+    )""")
+    result = get_ego_following_set(db, "nobody")
+    assert result == set()
+
+
+# ── Layer 1 basic operations ────────────────────────────────────────────
+
+def test_save_and_list_runs(db):
+    """Runs can be saved and listed."""
+    save_run(db, "r1", k=14, signal="follow+rt", threshold=0.1, account_count=298, notes="test")
+    runs = list_runs(db)
+    assert len(runs) == 1
+    assert runs[0][0] == "r1"
+    assert runs[0][1] == 14
+
+
+def test_save_and_get_memberships(db):
+    """Memberships can be saved and retrieved."""
+    save_run(db, "r1", k=2, signal="s", threshold=0.1, account_count=2)
+    save_memberships(db, "r1", [("a1", 0, 0.8), ("a1", 1, 0.2)])
+    rows = get_memberships(db, "r1")
+    assert len(rows) == 2
+
+
+def test_save_and_get_definitions(db):
+    """Definitions can be saved and retrieved."""
+    save_run(db, "r1", k=2, signal="s", threshold=0.1, account_count=2)
+    save_definitions(db, "r1", [(0, "rt", "@user", 0.5, 0), (0, "follow", "id1", 0.3, 0)])
+    rows = get_definitions(db, "r1")
+    assert len(rows) == 2
+
+
+# ── Layer 2 basic operations ────────────────────────────────────────────
+
+def test_list_communities_with_counts(seeded_db):
+    """list_communities returns member counts."""
+    comms = list_communities(seeded_db)
+    assert len(comms) == 2
+    # Sorted by member_count DESC
+    counts = {c[1]: c[6] for c in comms}  # name: member_count
+    assert counts["EA / forecasting"] == 2
+    # Rationalist has acct_3 (nmf) + acct_1 (human) = 2
+    assert counts["Rationalist"] == 2
+
+
+def test_get_community_members(seeded_db):
+    """get_community_members returns account details."""
+    members = get_community_members(seeded_db, "comm-A")
+    assert len(members) == 2
+    acct_ids = {m[0] for m in members}
+    assert "acct_1" in acct_ids
+    assert "acct_2" in acct_ids
+
+
+def test_delete_community_cascades(seeded_db):
+    """Deleting a community removes its account rows too."""
+    delete_community(seeded_db, "comm-A")
+    assert seeded_db.execute(
+        "SELECT COUNT(*) FROM community_account WHERE community_id = 'comm-A'"
+    ).fetchone()[0] == 0

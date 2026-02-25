@@ -12,8 +12,7 @@ are better covered by end-to-end tests.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-import os
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -21,14 +20,6 @@ from src.data.shadow_store import ScrapeRunMetrics, ShadowList, ShadowListMember
 from src.shadow import SeedAccount
 from src.shadow.enricher import HybridShadowEnricher
 from src.shadow.selenium_worker import CapturedUser, UserListCapture, ProfileOverview, ListOverview
-
-
-REAL_DB_TEST_ENV = "TPOT_RUN_REAL_DB_TESTS"
-_REAL_DB_TRUE_VALUES = {"1", "true", "yes", "on"}
-REAL_DB_REQUIRED = pytest.mark.skipif(
-    os.getenv(REAL_DB_TEST_ENV, "").strip().lower() not in _REAL_DB_TRUE_VALUES,
-    reason=f"Set {REAL_DB_TEST_ENV}=1 to run integration tests that hit shared data/cache.db",
-)
 
 
 # ==============================================================================
@@ -529,10 +520,11 @@ class TestShouldRefreshListProfileTotals:
 
 @pytest.mark.unit
 class TestListCaching:
-    def test_fetch_list_members_uses_cache_when_fresh(self, mock_store, mock_config):
-        enricher = HybridShadowEnricher(mock_store, mock_config)
-        enricher._selenium = Mock()
+    def test_fetch_list_members_uses_cache_when_fresh(self, mock_config):
+        from tests.helpers.recording_shadow_store import RecordingShadowStore
 
+        store = RecordingShadowStore()
+        fetched_at = datetime.utcnow() - timedelta(days=1)
         fresh_list = ShadowList(
             list_id="list123",
             name="Test List",
@@ -543,7 +535,7 @@ class TestListCaching:
             member_count=2,
             claimed_member_total=2,
             followers_count=5,
-            fetched_at=datetime.utcnow() - timedelta(days=1),
+            fetched_at=fetched_at,
             source_channel="selenium_list_members",
             metadata={"owner_profile_url": "https://x.com/owner"},
         )
@@ -556,7 +548,7 @@ class TestListCaching:
                 bio=None,
                 website=None,
                 profile_image_url=None,
-                fetched_at=datetime.utcnow() - timedelta(days=1),
+                fetched_at=fetched_at,
                 source_channel="hybrid_selenium",
                 metadata={"list_types": ["list_members"]},
             ),
@@ -568,29 +560,39 @@ class TestListCaching:
                 bio=None,
                 website=None,
                 profile_image_url=None,
-                fetched_at=datetime.utcnow() - timedelta(days=1),
+                fetched_at=fetched_at,
                 source_channel="hybrid_selenium",
                 metadata={"list_types": ["list_members"]},
             ),
         ]
 
-        mock_store.get_shadow_list.return_value = fresh_list
-        mock_store.get_shadow_list_members.return_value = cached_members
+        store.upsert_lists([fresh_list])
+        store.replace_list_members("list123", cached_members)
 
-        capture = enricher.fetch_list_members_with_cache("list123")
+        class _FakeSelenium:
+            def set_pause_callback(self, _callback):
+                return None
 
-        mock_store.get_shadow_list.assert_called_once_with("list123")
-        mock_store.get_shadow_list_members.assert_called_once_with("list123")
-        enricher._selenium.fetch_list_members.assert_not_called()
+            def set_shutdown_callback(self, _callback):
+                return None
+
+            def fetch_list_members(self, list_id):
+                raise AssertionError("Selenium should not be used when cache is fresh")
+
+        with patch("src.shadow.enricher.SeleniumWorker", return_value=_FakeSelenium()):
+            enricher = HybridShadowEnricher(store, mock_config)
+            capture = enricher.fetch_list_members_with_cache("list123")
+
         assert len(capture.entries) == 2
         assert capture.claimed_total == fresh_list.claimed_member_total
         assert capture.list_overview is not None
         assert capture.list_overview.owner_username == "owner"
+        assert store.metrics == []
 
-    def test_fetch_list_members_refreshes_when_stale(self, mock_store, mock_config):
-        enricher = HybridShadowEnricher(mock_store, mock_config)
-        enricher._selenium = Mock()
+    def test_fetch_list_members_refreshes_when_stale(self, mock_config):
+        from tests.helpers.recording_shadow_store import RecordingShadowStore
 
+        store = RecordingShadowStore()
         stale_list = ShadowList(
             list_id="list123",
             name="Old List",
@@ -605,12 +607,8 @@ class TestListCaching:
             source_channel="selenium_list_members",
             metadata=None,
         )
-
-        mock_store.get_shadow_list.return_value = stale_list
-        mock_store.get_shadow_list_members.return_value = []
-        mock_store.upsert_lists = Mock()
-        mock_store.replace_list_members = Mock()
-        mock_store.record_scrape_metrics = Mock()
+        store.upsert_lists([stale_list])
+        store.replace_list_members("list123", [])
 
         list_overview = ListOverview(
             list_id="list123",
@@ -622,7 +620,6 @@ class TestListCaching:
             members_total=1,
             followers_total=7,
         )
-
         captured_entries = UserListCapture(
             list_type="list_members",
             entries=[
@@ -642,112 +639,131 @@ class TestListCaching:
             list_overview=list_overview,
         )
 
-        enricher._selenium.fetch_list_members.return_value = captured_entries
-        enricher._resolve_username = lambda captured: {
-            "account_id": f"shadow:{captured.username}",
-            "username": captured.username,
-            "display_name": captured.display_name,
-            "source_channel": "hybrid_selenium",
-        }
+        class _FakeSelenium:
+            def __init__(self):
+                self.fetch_calls = []
 
-        capture = enricher.fetch_list_members_with_cache("list123")
+            def set_pause_callback(self, _callback):
+                return None
 
-        enricher._selenium.fetch_list_members.assert_called_once_with("list123")
-        mock_store.upsert_lists.assert_called_once()
-        mock_store.replace_list_members.assert_called_once()
-        mock_store.record_scrape_metrics.assert_called_once()
-        mock_store.get_account_id_by_username.assert_called_with("owner")
-        assert len(capture.entries) == 1
+            def set_shutdown_callback(self, _callback):
+                return None
+
+            def fetch_list_members(self, list_id):
+                self.fetch_calls.append(list_id)
+                return captured_entries
+
+        fake_selenium = _FakeSelenium()
+
+        with patch("src.shadow.enricher.SeleniumWorker", return_value=fake_selenium):
+            enricher = HybridShadowEnricher(store, mock_config)
+            enricher._resolve_username = lambda captured: {
+                "account_id": f"shadow:{captured.username}",
+                "username": captured.username,
+                "display_name": captured.display_name,
+                "source_channel": "hybrid_selenium",
+            }
+
+            capture = enricher.fetch_list_members_with_cache("list123")
+
+        assert fake_selenium.fetch_calls == ["list123"]
+        assert len(store.list_members["list123"]) == 1
+        assert store.list_members["list123"][0].member_username == "user1"
+        assert len(store.metrics) == 1
         assert capture.entries[0].username == "user1"
         assert capture.list_overview == list_overview
 # _check_list_freshness_across_runs Tests (Account ID Migration)
 # ==============================================================================
 
-@REAL_DB_REQUIRED
-@pytest.mark.integration
+@pytest.mark.unit
 class TestAccountIDMigrationCacheLookup:
-    """Test that enricher finds historical scrape data when account ID changes.
+    """Test that enricher finds historical scrape data when account ID changes."""
 
-    Bug: When an account migrates from "shadow:username" to real ID "12345",
-    the freshness check would fail to find historical scrape records.
+    def test_check_list_freshness_finds_shadow_id_records(self, mock_config):
+        """Freshness check should find records using shadow ID when seed has real ID."""
+        from datetime import datetime, timedelta
+        from src.shadow import EnrichmentPolicy
+        from tests.helpers.recording_shadow_store import RecordingShadowStore
 
-    Fix: _check_list_freshness_across_runs now checks both real ID and shadow ID.
-    """
+        store = RecordingShadowStore()
+        metrics = ScrapeRunMetrics(
+            seed_account_id="shadow:adityaarpitha",
+            seed_username="adityaarpitha",
+            run_at=datetime.utcnow() - timedelta(days=10),
+            duration_seconds=10.0,
+            following_captured=120,
+            followers_captured=0,
+            followers_you_follow_captured=0,
+            list_members_captured=0,
+            following_claimed_total=120,
+            followers_claimed_total=0,
+            followers_you_follow_claimed_total=0,
+            following_coverage=1.0,
+            followers_coverage=0.0,
+            followers_you_follow_coverage=0.0,
+            accounts_upserted=0,
+            edges_upserted=0,
+            discoveries_upserted=0,
+        )
+        store.record_scrape_metrics(metrics)
 
-    def test_check_list_freshness_finds_shadow_id_records(self):
-        """Test that freshness check finds records using shadow ID when seed has real ID."""
-        from src.data.fetcher import CachedDataFetcher
-        from src.config import get_cache_settings
-        from src.data.shadow_store import get_shadow_store
-        from src.shadow import SeedAccount, EnrichmentPolicy, ShadowEnrichmentConfig
-        from pathlib import Path
+        policy = EnrichmentPolicy.default()
 
-        # Use real database to verify integration
-        with CachedDataFetcher(get_cache_settings().path) as fetcher:
-            store = get_shadow_store(fetcher.engine)
+        with patch("src.shadow.enricher.SeleniumWorker"):
+            enricher = HybridShadowEnricher(store, mock_config, policy)
 
-            # Create enricher with minimal config
-            config = ShadowEnrichmentConfig(
-                selenium_cookies_path=Path("secrets/twitter_cookies.pkl"),
-                selenium_headless=True,
-            )
-            policy = EnrichmentPolicy.default()
-            policy.skip_if_ever_scraped = True
+        following_skip, following_days, following_count = enricher._check_list_freshness_across_runs(
+            "261659859",
+            "following",
+            "adityaarpitha",
+        )
 
-            enricher = HybridShadowEnricher(store, config, policy)
+        assert following_skip is True
+        assert following_count > 13
+        assert following_days >= 0
 
-            # Test case: adityaarpitha
-            # - Has historical scrapes with seed_account_id = "shadow:adityaarpitha"
-            # - Now resolved to real account_id = "261659859"
-            seed = SeedAccount(
-                account_id="261659859",  # Real ID
-                username="adityaarpitha"
-            )
+    def test_check_list_freshness_without_username_still_checks_real_id(self, mock_config):
+        """When username is None, still checks the provided account_id."""
+        from datetime import datetime, timedelta
+        from src.shadow import EnrichmentPolicy
+        from tests.helpers.recording_shadow_store import RecordingShadowStore
 
-            # Check freshness - should find shadow ID records
-            following_skip, following_days, following_count = enricher._check_list_freshness_across_runs(
-                seed.account_id, "following", seed.username
-            )
+        store = RecordingShadowStore()
+        metrics = ScrapeRunMetrics(
+            seed_account_id="shadow:adityaarpitha",
+            seed_username="adityaarpitha",
+            run_at=datetime.utcnow() - timedelta(days=5),
+            duration_seconds=8.0,
+            following_captured=50,
+            followers_captured=0,
+            followers_you_follow_captured=0,
+            list_members_captured=0,
+            following_claimed_total=50,
+            followers_claimed_total=0,
+            followers_you_follow_claimed_total=0,
+            following_coverage=1.0,
+            followers_coverage=0.0,
+            followers_you_follow_coverage=0.0,
+            accounts_upserted=0,
+            edges_upserted=0,
+            discoveries_upserted=0,
+        )
+        store.record_scrape_metrics(metrics)
 
-            # Verify it found the historical data from shadow ID scrapes
-            # (We know from manual testing there are 853 following captured on Oct 8)
-            assert following_skip is True, (
-                f"Should find following data from shadow ID scrape, got skip={following_skip}"
-            )
-            assert following_count > 5, (
-                f"Should find >5 following accounts, found {following_count}"
-            )
-            assert following_days >= 0, (
-                f"Days ago should be non-negative, got {following_days}"
-            )
+        policy = EnrichmentPolicy.default()
 
-    def test_check_list_freshness_without_username_still_checks_real_id(self):
-        """Test that when username is None, still checks the provided account_id."""
-        from src.data.fetcher import CachedDataFetcher
-        from src.config import get_cache_settings
-        from src.data.shadow_store import get_shadow_store
-        from src.shadow import EnrichmentPolicy, ShadowEnrichmentConfig
-        from pathlib import Path
+        with patch("src.shadow.enricher.SeleniumWorker"):
+            enricher = HybridShadowEnricher(store, mock_config, policy)
 
-        with CachedDataFetcher(get_cache_settings().path) as fetcher:
-            store = get_shadow_store(fetcher.engine)
-            config = ShadowEnrichmentConfig(
-                selenium_cookies_path=Path("secrets/twitter_cookies.pkl"),
-                selenium_headless=True,
-            )
-            policy = EnrichmentPolicy.default()
-            enricher = HybridShadowEnricher(store, config, policy)
+        following_skip, following_days, following_count = enricher._check_list_freshness_across_runs(
+            "shadow:adityaarpitha",
+            "following",
+            username=None,
+        )
 
-            # Check with just account_id, no username
-            # Should still work, just won't check shadow ID variant
-            following_skip, following_days, following_count = enricher._check_list_freshness_across_runs(
-                "shadow:adityaarpitha", "following", username=None
-            )
-
-            # Should find data (or not) based on the shadow ID alone
-            assert isinstance(following_skip, bool)
-            assert isinstance(following_days, int)
-            assert isinstance(following_count, int)
+        assert following_skip is True
+        assert following_count > 13
+        assert following_days >= 0
 
 
 @pytest.mark.unit
@@ -779,96 +795,76 @@ class TestZeroCoverageEdgeCase:
         )
 
 
-@REAL_DB_REQUIRED
-@pytest.mark.integration
+@pytest.mark.unit
 class TestMultiRunFreshness:
-    """Test that enricher finds fresh data across multiple scrape runs.
+    """Test that enricher finds fresh data across multiple scrape runs."""
 
-    Context: The smart skip logic should check multiple recent runs, not just the last one.
-    For example, if following was scraped in run #1 and followers in run #2, both should
-    be considered fresh even though no single run has both.
-    """
+    def test_check_list_freshness_across_multiple_runs(self, mock_config):
+        """Freshness check should combine data across different runs."""
+        from datetime import datetime, timedelta
+        from src.shadow import EnrichmentPolicy
+        from tests.helpers.recording_shadow_store import RecordingShadowStore
 
-    def test_check_list_freshness_across_multiple_runs(self):
-        """Test that freshness check finds data across different runs.
+        store = RecordingShadowStore()
+        store.record_scrape_metrics(ScrapeRunMetrics(
+            seed_account_id="seed123",
+            seed_username="seeduser",
+            run_at=datetime.utcnow() - timedelta(days=12),
+            duration_seconds=12.0,
+            following_captured=40,
+            followers_captured=0,
+            followers_you_follow_captured=0,
+            list_members_captured=0,
+            following_claimed_total=40,
+            followers_claimed_total=0,
+            followers_you_follow_claimed_total=0,
+            following_coverage=1.0,
+            followers_coverage=0.0,
+            followers_you_follow_coverage=0.0,
+            accounts_upserted=0,
+            edges_upserted=0,
+            discoveries_upserted=0,
+        ))
+        store.record_scrape_metrics(ScrapeRunMetrics(
+            seed_account_id="seed123",
+            seed_username="seeduser",
+            run_at=datetime.utcnow() - timedelta(days=8),
+            duration_seconds=9.0,
+            following_captured=0,
+            followers_captured=35,
+            followers_you_follow_captured=0,
+            list_members_captured=0,
+            following_claimed_total=0,
+            followers_claimed_total=35,
+            followers_you_follow_claimed_total=0,
+            following_coverage=0.0,
+            followers_coverage=1.0,
+            followers_you_follow_coverage=0.0,
+            accounts_upserted=0,
+            edges_upserted=0,
+            discoveries_upserted=0,
+        ))
 
-        This verifies the "smart skip" logic where different lists might have been
-        scraped in different runs within the 180-day threshold.
-        """
-        from src.data.fetcher import CachedDataFetcher
-        from src.config import get_cache_settings
-        from src.data.shadow_store import get_shadow_store
-        from src.shadow import EnrichmentPolicy, ShadowEnrichmentConfig
-        from pathlib import Path
-        from sqlalchemy import text
+        policy = EnrichmentPolicy.default()
 
-        with CachedDataFetcher(get_cache_settings().path) as fetcher:
-            store = get_shadow_store(fetcher.engine)
-            config = ShadowEnrichmentConfig(
-                selenium_cookies_path=Path("secrets/twitter_cookies.pkl"),
-                selenium_headless=True,
-            )
-            policy = EnrichmentPolicy.default()
-            policy.skip_if_ever_scraped = True
+        with patch("src.shadow.enricher.SeleniumWorker"):
+            enricher = HybridShadowEnricher(store, mock_config, policy)
 
-            enricher = HybridShadowEnricher(store, config, policy)
+        following_skip, following_days, following_count = enricher._check_list_freshness_across_runs(
+            "seed123",
+            "following",
+            "seeduser",
+        )
+        followers_skip, followers_days, followers_count = enricher._check_list_freshness_across_runs(
+            "seed123",
+            "followers",
+            "seeduser",
+        )
 
-            # Find an account with split scrape runs (following in one run, followers in another)
-            # Query for such an account
-            with fetcher.engine.begin() as conn:
-                result = conn.execute(text("""
-                    WITH run_data AS (
-                        SELECT
-                            seed_account_id,
-                            seed_username,
-                            MAX(CASE WHEN following_captured > 5 THEN 1 ELSE 0 END) as has_following,
-                            MAX(CASE WHEN followers_captured > 5 THEN 1 ELSE 0 END) as has_followers,
-                            COUNT(DISTINCT CASE WHEN following_captured > 5 THEN run_at END) as following_runs,
-                            COUNT(DISTINCT CASE WHEN followers_captured > 5 THEN run_at END) as followers_runs
-                        FROM scrape_run_metrics
-                        WHERE seed_username IS NOT NULL
-                          AND datetime(run_at) > datetime('now', '-180 days')
-                        GROUP BY seed_account_id, seed_username
-                        HAVING has_following = 1 AND has_followers = 1
-                    )
-                    SELECT seed_account_id, seed_username
-                    FROM run_data
-                    WHERE following_runs >= 1 AND followers_runs >= 1
-                    LIMIT 1
-                """)).fetchone()
+        assert following_skip is True
+        assert following_count > 13
+        assert 0 <= following_days <= 180
 
-            if not result:
-                pytest.skip("No accounts found with split scrape runs (need real scrape data)")
-
-            account_id, username = result
-
-            # Check freshness for both lists - should find data across runs
-            following_skip, following_days, following_count = enricher._check_list_freshness_across_runs(
-                account_id, "following", username
-            )
-            followers_skip, followers_days, followers_count = enricher._check_list_freshness_across_runs(
-                account_id, "followers", username
-            )
-
-            # Verify both lists found fresh data (even if from different runs)
-            assert following_skip is True, (
-                f"Should find following data for {username}, got skip={following_skip}"
-            )
-            assert following_count > 5, (
-                f"Should find >5 following accounts for {username}, found {following_count}"
-            )
-
-            assert followers_skip is True, (
-                f"Should find followers data for {username}, got skip={followers_skip}"
-            )
-            assert followers_count > 5, (
-                f"Should find >5 followers accounts for {username}, found {followers_count}"
-            )
-
-            # Both should have reasonable age
-            assert 0 <= following_days <= 180, (
-                f"Following data age should be within 180 days, got {following_days}"
-            )
-            assert 0 <= followers_days <= 180, (
-                f"Followers data age should be within 180 days, got {followers_days}"
-            )
+        assert followers_skip is True
+        assert followers_count > 13
+        assert 0 <= followers_days <= 180

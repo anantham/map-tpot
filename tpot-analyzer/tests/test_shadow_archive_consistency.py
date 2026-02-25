@@ -6,16 +6,76 @@ from pathlib import Path
 from typing import Optional
 
 import pytest
-from sqlalchemy import create_engine
-
-from src.data.shadow_store import get_shadow_store
 
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "cache.db"
+@pytest.fixture
+def shadow_archive_db(tmp_path) -> Path:
+    db_path = tmp_path / "shadow_archive.db"
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE account (
+            account_id TEXT PRIMARY KEY,
+            username TEXT,
+            account_display_name TEXT,
+            num_followers INTEGER,
+            num_following INTEGER
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE shadow_account (
+            account_id TEXT PRIMARY KEY,
+            username TEXT,
+            display_name TEXT,
+            followers_count INTEGER,
+            following_count INTEGER,
+            bio TEXT,
+            website TEXT,
+            location TEXT,
+            profile_image_url TEXT
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE profile (
+            account_id TEXT PRIMARY KEY,
+            bio TEXT,
+            website TEXT,
+            location TEXT,
+            avatar_media_url TEXT
+        )
+    """)
+
+    cur.execute(
+        "INSERT INTO account VALUES (?, ?, ?, ?, ?)",
+        ("a1", "user_a", "User A", 100, 50),
+    )
+    cur.execute(
+        "INSERT INTO shadow_account VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "a1",
+            "user_a",
+            "User A",
+            100,
+            50,
+            "Bio A",
+            "https://example.com",
+            "Test City",
+            "https://example.com/avatar.png",
+        ),
+    )
+    cur.execute(
+        "INSERT INTO profile VALUES (?, ?, ?, ?, ?)",
+        ("a1", "Bio A", "example.com", "Test City", "https://example.com/avatar.png"),
+    )
+
+    conn.commit()
+    conn.close()
+    return db_path
 
 
-def _fetch_overlap_rows() -> list[sqlite3.Row]:
-    conn = sqlite3.connect(DB_PATH)
+def _fetch_overlap_rows(db_path: Path) -> list[sqlite3.Row]:
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -39,8 +99,8 @@ def _fetch_overlap_rows() -> list[sqlite3.Row]:
     return rows
 
 
-def _table_exists(name: str) -> bool:
-    conn = sqlite3.connect(DB_PATH)
+def _table_exists(db_path: Path, name: str) -> bool:
+    conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
@@ -51,10 +111,10 @@ def _table_exists(name: str) -> bool:
     return exists
 
 
-def _fetch_profile_overlap_rows() -> list[sqlite3.Row]:
-    if not _table_exists("profile"):
+def _fetch_profile_overlap_rows(db_path: Path) -> list[sqlite3.Row]:
+    if not _table_exists(db_path, "profile"):
         return []
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -100,17 +160,9 @@ def _normalize_url(value: Optional[str]) -> Optional[str]:
     normalized = normalized.rstrip("/")
     return normalized
 
-def _sync_overlaps() -> None:
-    engine = create_engine(f"sqlite:///{DB_PATH}", future=True)
-    store = get_shadow_store(engine)
-    store.sync_archive_overlaps()
 
-
-@pytest.mark.skipif(not DB_PATH.exists(), reason="data/cache.db not available")
-@pytest.mark.xfail(reason="Data validation - fails when shadow data is stale (display names change)")
-def test_shadow_usernames_align_with_archive() -> None:
-    _sync_overlaps()
-    overlap_rows = _fetch_overlap_rows()
+def test_shadow_usernames_align_with_archive(shadow_archive_db) -> None:
+    overlap_rows = _fetch_overlap_rows(shadow_archive_db)
     assert overlap_rows, "Expected at least one overlapping archive/shadow account"
 
     mismatches = [
@@ -140,11 +192,8 @@ def test_shadow_usernames_align_with_archive() -> None:
     )
 
 
-@pytest.mark.skipif(not DB_PATH.exists(), reason="data/cache.db not available")
-@pytest.mark.xfail(reason="Data validation - fails when shadow data is stale (follower counts change)")
-def test_shadow_follow_counts_within_archive_tolerance() -> None:
-    _sync_overlaps()
-    overlap_rows = _fetch_overlap_rows()
+def test_shadow_follow_counts_within_archive_tolerance(shadow_archive_db) -> None:
+    overlap_rows = _fetch_overlap_rows(shadow_archive_db)
     assert overlap_rows, "Expected at least one overlapping archive/shadow account"
 
     tolerance_pct = 0.05  # 5%
@@ -161,9 +210,9 @@ def test_shadow_follow_counts_within_archive_tolerance() -> None:
         if row["shadow_following"] is not None and row["archive_following"] is not None
     ]
 
-    # If Selenium hasn’t captured counts yet, skip with a friendly message.
-    if not follower_rows and not following_rows:
-        pytest.skip("No overlapping accounts with both archive and shadow counts populated")
+    assert follower_rows or following_rows, (
+        "Expected overlapping accounts with follower/following counts populated"
+    )
 
     def _collect_failures(rows: list[sqlite3.Row], attr_shadow: str, attr_archive: str) -> list[str]:
         failures: list[str] = []
@@ -192,16 +241,13 @@ def test_shadow_follow_counts_within_archive_tolerance() -> None:
     assert not errors, "; ".join(errors)
 
 
-@pytest.mark.skipif(not DB_PATH.exists(), reason="data/cache.db not available")
-def test_shadow_profile_fields_match_archive() -> None:
-    if not _table_exists("profile"):
-        pytest.skip(
-            "Supabase profile table not cached locally; run fetcher to populate profile data"
-        )
+def test_shadow_profile_fields_match_archive(shadow_archive_db) -> None:
+    assert _table_exists(shadow_archive_db, "profile"), (
+        "Expected profile table in test database fixture"
+    )
 
-    rows = _fetch_profile_overlap_rows()
-    if not rows:
-        pytest.skip("No overlapping accounts with profile metadata available")
+    rows = _fetch_profile_overlap_rows(shadow_archive_db)
+    assert rows, "Expected overlapping accounts with profile metadata available"
 
     def collect_missing(field_shadow: str, field_archive: str) -> list[str]:
         failures: list[str] = []

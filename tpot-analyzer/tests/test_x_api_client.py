@@ -151,7 +151,12 @@ class TestXAPIClientStatePersistence:
             rate_state_path=tmp_path / "rate_state.json"
         )
 
-        with patch('requests.Session'), patch('time.sleep') as mock_sleep:
+        sleep_calls = []
+
+        def fake_sleep(seconds: float) -> None:
+            sleep_calls.append(seconds)
+
+        with patch('requests.Session'), patch('time.sleep', new=fake_sleep):
             client = XAPIClient(config)
 
             # Set reset time to 10 seconds in the future
@@ -161,8 +166,8 @@ class TestXAPIClientStatePersistence:
             client._respect_persistent_limit()
 
             # Should have slept for ~15 seconds (10 + 5 buffer)
-            assert mock_sleep.called
-            sleep_duration = mock_sleep.call_args[0][0]
+            assert sleep_calls, "Expected a sleep to enforce the persistent rate limit"
+            sleep_duration = sleep_calls[0]
             assert 13 <= sleep_duration <= 17
 
     def test_respect_persistent_limit_no_wait_when_expired(self, tmp_path):
@@ -172,7 +177,12 @@ class TestXAPIClientStatePersistence:
             rate_state_path=tmp_path / "rate_state.json"
         )
 
-        with patch('requests.Session'), patch('time.sleep') as mock_sleep:
+        sleep_calls = []
+
+        def fake_sleep(seconds: float) -> None:
+            sleep_calls.append(seconds)
+
+        with patch('requests.Session'), patch('time.sleep', new=fake_sleep):
             client = XAPIClient(config)
 
             # Set reset time to the past
@@ -181,7 +191,7 @@ class TestXAPIClientStatePersistence:
             client._respect_persistent_limit()
 
             # Should not sleep
-            assert not mock_sleep.called
+            assert sleep_calls == []
 
 
 # ==============================================================================
@@ -213,7 +223,6 @@ class TestXAPIClientHTTP:
             )
 
         assert result == {"data": {"id": "123", "username": "testuser"}}
-        assert mock_session.get.called
 
     def test_rate_limit_429_with_reset_header(self, tmp_path):
         """Should save reset timestamp and retry on 429."""
@@ -232,8 +241,13 @@ class TestXAPIClientHTTP:
         mock_200_response.status_code = 200
         mock_200_response.json.return_value = {"data": {"id": "123"}}
 
+        sleep_calls = []
+
+        def fake_sleep(seconds: float) -> None:
+            sleep_calls.append(seconds)
+
         with patch('requests.Session') as mock_session_class, \
-             patch('time.sleep') as mock_sleep:
+             patch('time.sleep', new=fake_sleep):
             mock_session = Mock()
             mock_session.get.side_effect = [mock_429_response, mock_200_response]
             mock_session_class.return_value = mock_session
@@ -246,7 +260,7 @@ class TestXAPIClientHTTP:
 
         # Should have retried and succeeded
         assert result == {"data": {"id": "123"}}
-        assert mock_sleep.called
+        assert sleep_calls, "Expected a backoff sleep after rate limiting"
 
         # Should have saved reset timestamp
         assert tmp_path.joinpath("rate_state.json").exists()

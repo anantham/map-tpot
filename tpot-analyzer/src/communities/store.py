@@ -235,6 +235,26 @@ def get_account_communities(conn: sqlite3.Connection, account_id: str) -> list:
     ).fetchall()
 
 
+def get_account_communities_canonical(conn: sqlite3.Connection, account_id: str) -> list:
+    """Return communities for an account with human-overrides-nmf precedence.
+
+    With the current PK of (community_id, account_id), each account can only
+    have ONE row per community. So precedence is handled at write time —
+    upsert_community_account with source='human' overwrites the source='nmf' row.
+    This function returns the canonical view.
+
+    Returns: [(community_id, name, color, weight, source), ...]
+    """
+    return conn.execute(
+        """SELECT c.id, c.name, c.color, ca.weight, ca.source
+           FROM community_account ca
+           JOIN community c ON c.id = ca.community_id
+           WHERE ca.account_id = ?
+           ORDER BY ca.weight DESC""",
+        (account_id,),
+    ).fetchall()
+
+
 def delete_community(conn: sqlite3.Connection, community_id: str) -> None:
     """Cascade deletes community_account rows too (FK ON DELETE CASCADE)."""
     conn.execute("DELETE FROM community WHERE id = ?", (community_id,))
@@ -249,3 +269,37 @@ def clear_seeded_communities(conn: sqlite3.Connection, run_id: str) -> int:
     )
     conn.commit()
     return result.rowcount
+
+
+def reseed_nmf_memberships(conn: sqlite3.Connection, run_id: str) -> int:
+    """Delete only nmf-sourced memberships for communities seeded from run_id.
+
+    Preserves:
+    - All community rows (names, colors, descriptions)
+    - All source='human' community_account rows
+
+    Returns the number of nmf rows deleted.
+    """
+    result = conn.execute(
+        """DELETE FROM community_account
+           WHERE source = 'nmf'
+           AND community_id IN (
+               SELECT id FROM community WHERE seeded_from_run = ?
+           )""",
+        (run_id,),
+    )
+    conn.commit()
+    return result.rowcount
+
+
+def get_ego_following_set(conn: sqlite3.Connection, ego_account_id: str) -> set:
+    """Return the set of account_ids that ego follows.
+
+    Reads from account_following table (part of archive schema, not communities).
+    Used to power 'I follow' badges in the UI.
+    """
+    rows = conn.execute(
+        "SELECT following_account_id FROM account_following WHERE account_id = ?",
+        (ego_account_id,),
+    ).fetchall()
+    return {r[0] for r in rows}

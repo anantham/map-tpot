@@ -31,7 +31,7 @@ from communities.store import (
     get_definitions,
     upsert_community,
     upsert_community_account,
-    clear_seeded_communities,
+    reseed_nmf_memberships,
     list_communities,
 )
 
@@ -109,10 +109,10 @@ def main():
     k, account_count, notes = row
     print(f"Seeding from run: {run_id}  (k={k}, {account_count} accounts, notes={notes!r})")
 
-    # Clear any existing Layer 2 communities seeded from this run (idempotent)
-    deleted = clear_seeded_communities(conn, run_id)
+    # Clear only NMF-seeded memberships (preserves human edits and community metadata)
+    deleted = reseed_nmf_memberships(conn, run_id)
     if deleted:
-        print(f"  Cleared {deleted} existing communities from previous seed of this run.")
+        print(f"  Cleared {deleted} NMF memberships (human edits preserved).")
 
     # Load definitions and memberships
     definitions = get_definitions(conn, run_id)
