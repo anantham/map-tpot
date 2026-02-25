@@ -4,6 +4,7 @@ import GraphExplorer from './GraphExplorer'
 import Discovery from './Discovery'
 import ClusterView from './ClusterView'
 import Labeling from './Labeling'
+import Communities from './Communities'
 import { getAccount, getTheme as loadTheme, setTheme as saveTheme } from './storage'
 
 function App() {
@@ -13,7 +14,7 @@ function App() {
     if (typeof window === 'undefined') return 'discovery'
     const params = new URLSearchParams(window.location.search)
     const view = params.get('view')
-    if (view === 'cluster' || view === 'graph' || view === 'labeling') return view
+    if (view === 'cluster' || view === 'graph' || view === 'labeling' || view === 'communities') return view
     return 'discovery'
   }
   const [currentView, setCurrentView] = useState(getInitialView)
@@ -98,6 +99,20 @@ function App() {
           Cluster View
         </button>
         <button
+          onClick={() => setCurrentView('communities')}
+          style={{
+            padding: '8px 16px',
+            background: currentView === 'communities' ? 'var(--accent)' : 'var(--panel)',
+            color: currentView === 'communities' ? 'var(--bg)' : 'var(--text)',
+            border: '1px solid var(--panel-border)',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          Communities
+        </button>
+        <button
           onClick={() => setCurrentView('labeling')}
           style={{
             padding: '8px 16px',
@@ -155,6 +170,11 @@ function App() {
               theme={theme}
               onThemeChange={toggleTheme}
             />
+          </div>
+        )}
+        {currentView === 'communities' && (
+          <div style={{ height: '100%' }}>
+            <Communities ego={accountStatus.handle} />
           </div>
         )}
         {currentView === 'labeling' && (
