@@ -15,6 +15,12 @@ coverage gaps, or UX improvements surface.
   (recording store or sqlite-backed fixtures) instead of mock call counts.
 - Replace production-data dependent tests (e.g., shadow coverage + archive
   consistency) with deterministic fixture datasets.
+- Replace ClusterView utility reimplementation tests with exported helpers or
+  behavioral flows (remove reimplementation markers in
+  `tpot-analyzer/graph-explorer/src/ClusterView.test.jsx`).
+- Replace internal-state assertions in
+  `tpot-analyzer/tests/test_parse_compact_count.py` with behavior-level tests
+  that exercise the public Selenium worker parsing path.
 
 ## Features & Analysis
 

@@ -9,6 +9,82 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture
+def shadow_coverage_db(tmp_path) -> Path:
+    db_path = tmp_path / "coverage.db"
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE shadow_account (
+            account_id TEXT PRIMARY KEY,
+            username TEXT,
+            followers_count INTEGER,
+            following_count INTEGER
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE shadow_edge (
+            source_id TEXT,
+            target_id TEXT,
+            direction TEXT,
+            PRIMARY KEY (source_id, target_id, direction)
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE scrape_run_metrics (
+            seed_account_id TEXT,
+            skipped INTEGER
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE account (
+            account_id TEXT PRIMARY KEY
+        )
+    """)
+
+    cur.execute(
+        "INSERT INTO shadow_account VALUES (?, ?, ?, ?)",
+        ("seed1", "seed_user", 100, 50),
+    )
+    cur.execute(
+        "INSERT INTO shadow_account VALUES (?, ?, ?, ?)",
+        ("other1", "other_user", 200, 100),
+    )
+    cur.execute("INSERT INTO account VALUES (?)", ("seed1",))
+    cur.execute("INSERT INTO account VALUES (?)", ("other1",))
+    cur.execute(
+        "INSERT INTO scrape_run_metrics VALUES (?, ?)",
+        ("seed1", 0),
+    )
+
+    for i in range(80):
+        cur.execute(
+            "INSERT INTO shadow_edge VALUES (?, ?, ?)",
+            (f"follower_{i}", "seed1", "inbound"),
+        )
+    for i in range(25):
+        cur.execute(
+            "INSERT INTO shadow_edge VALUES (?, ?, ?)",
+            ("seed1", f"target_{i}", "outbound"),
+        )
+
+    for i in range(2):
+        cur.execute(
+            "INSERT INTO shadow_edge VALUES (?, ?, ?)",
+            (f"follower_b_{i}", "other1", "inbound"),
+        )
+    for i in range(3):
+        cur.execute(
+            "INSERT INTO shadow_edge VALUES (?, ?, ?)",
+            ("other1", f"target_b_{i}", "outbound"),
+        )
+
+    conn.commit()
+    conn.close()
+    return db_path
+
+
 def test_coverage_tracking_exists(tmp_path):
     """Test that we can compute coverage for nodes with claimed totals."""
     # Create minimal test database
@@ -87,13 +163,9 @@ def test_coverage_tracking_exists(tmp_path):
     conn.close()
 
 
-def test_low_coverage_detection():
+def test_low_coverage_detection(shadow_coverage_db):
     """Test that we can identify nodes with coverage below threshold."""
-    db_path = Path("data/cache.db")
-    if not db_path.exists():
-        pytest.skip("Database not found")
-
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(shadow_coverage_db)
     cur = conn.cursor()
 
     # Find nodes with <5% coverage
@@ -117,29 +189,17 @@ def test_low_coverage_detection():
 
     low_coverage_nodes = cur.fetchall()
 
-    # We should have some nodes with low coverage
-    # (This is informational, not a strict assertion)
-    if low_coverage_nodes:
-        print("\nNodes with <5% follower coverage (need re-scraping):")
-        for username, claimed, captured, pct in low_coverage_nodes:
-            print(f"  @{username}: {captured}/{claimed} ({pct}%)")
+    assert low_coverage_nodes, "Expected at least one low-coverage node in fixture data"
+    usernames = {row[0] for row in low_coverage_nodes}
+    assert "other_user" in usernames
 
     conn.close()
 
 
-def test_archive_vs_shadow_coverage():
+def test_archive_vs_shadow_coverage(shadow_coverage_db):
     """Test that archive nodes should have different coverage patterns than scraped nodes."""
-    db_path = Path("data/cache.db")
-    if not db_path.exists():
-        pytest.skip("Database not found")
-
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(shadow_coverage_db)
     cur = conn.cursor()
-
-    # Check if we have scrape_run_metrics table
-    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='scrape_run_metrics'")
-    if not cur.fetchone():
-        pytest.skip("scrape_run_metrics table not found")
 
     # Compare coverage for seed-scraped vs other nodes
     cur.execute("""
@@ -170,28 +230,32 @@ def test_archive_vs_shadow_coverage():
 
     results = {row[0]: {'count': row[1], 'avg': row[2], 'max': row[3]} for row in cur.fetchall()}
 
-    # Seed-scraped nodes should have higher average coverage than others
-    if 'seed_scraped' in results and 'other' in results:
-        seed_avg = results['seed_scraped']['avg']
-        other_avg = results['other']['avg']
+    assert "seed_scraped" in results and "other" in results, (
+        "Expected both seed_scraped and other coverage groups in fixture data"
+    )
+    seed_avg = results["seed_scraped"]["avg"]
+    other_avg = results["other"]["avg"]
 
-        print(f"\nCoverage comparison:")
-        print(f"  Seed-scraped: {seed_avg:.2f}% avg (n={results['seed_scraped']['count']})")
-        print(f"  Other nodes: {other_avg:.2f}% avg (n={results['other']['count']})")
-
-        # Seed-scraped should have better coverage
-        assert seed_avg > other_avg, \
-            f"Seed-scraped nodes should have higher coverage than incidental captures"
+    assert seed_avg > other_avg, (
+        "Seed-scraped nodes should have higher coverage than incidental captures"
+    )
 
     conn.close()
 
 
-def test_coverage_script_runs():
+def test_coverage_script_runs(shadow_coverage_db):
     """Test that the analyze_coverage.py script runs without errors."""
     import subprocess
     import sys
     result = subprocess.run(
-        [sys.executable, "-m", "scripts.analyze_coverage", "--summary-only"],
+        [
+            sys.executable,
+            "-m",
+            "scripts.analyze_coverage",
+            "--summary-only",
+            "--db-path",
+            str(shadow_coverage_db),
+        ],
         capture_output=True,
         text=True,
         timeout=30,

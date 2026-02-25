@@ -14,8 +14,8 @@ describe('ClusterCanvas High-Value Tests', () => {
     edges: [],
     width: 500,
     height: 500,
-    onSelect: vi.fn(),
-    onSelectionChange: vi.fn(),
+    onSelect: () => {},
+    onSelectionChange: () => {},
     selectionMode: false
   }
   
@@ -49,7 +49,13 @@ describe('ClusterCanvas High-Value Tests', () => {
   }
 
   it('detects a click on a centered node (Hit Detection)', async () => {
-    const singleNodeProps = { ...defaultProps, nodes: [{ id: 'center', x: 100, y: 100, radius: 20 }] }
+    let selectedNode
+    const onSelect = node => { selectedNode = node }
+    const singleNodeProps = { 
+      ...defaultProps, 
+      nodes: [{ id: 'center', x: 100, y: 100, radius: 20 }],
+      onSelect
+    }
     const { container } = render(<ClusterCanvas {...singleNodeProps} />)
     
     await waitForSettle()
@@ -59,14 +65,13 @@ describe('ClusterCanvas High-Value Tests', () => {
     fireEvent.click(canvas, { clientX: 250, clientY: 250 })
 
     await waitFor(() => {
-      expect(defaultProps.onSelect).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'center' })
-      )
+      expect(selectedNode).toMatchObject({ id: 'center' })
     })
   })
 
   it('respects Event Priority: Selection Mode prevents Panning', async () => {
-    const onSelectionChange = vi.fn()
+    const selectionChanges = []
+    const onSelectionChange = selection => selectionChanges.push(selection)
     // Need a node to hit for selection change to fire
     const nodes = [{ id: 'target', x: 100, y: 100, radius: 20 }]
     
@@ -87,11 +92,14 @@ describe('ClusterCanvas High-Value Tests', () => {
     fireEvent.mouseMove(canvas, { clientX: 300, clientY: 300 })
     fireEvent.mouseUp(canvas, { clientX: 300, clientY: 300 })
 
-    expect(onSelectionChange).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(selectionChanges.length).toBeGreaterThan(0)
+    })
   })
 
   it('respects Event Priority: Normal Mode triggers Pan (no selection)', async () => {
-    const onSelectionChange = vi.fn()
+    const selectionChanges = []
+    const onSelectionChange = selection => selectionChanges.push(selection)
     const nodes = [{ id: 'target', x: 100, y: 100, radius: 20 }]
 
     const { container } = render(
@@ -111,11 +119,12 @@ describe('ClusterCanvas High-Value Tests', () => {
     fireEvent.mouseMove(canvas, { clientX: 300, clientY: 300 })
     fireEvent.mouseUp(canvas, { clientX: 300, clientY: 300 })
 
-    expect(onSelectionChange).not.toHaveBeenCalled()
+    expect(selectionChanges).toHaveLength(0)
   })
 
   it('handles background clicks', async () => {
-    const onSelect = vi.fn()
+    let selectedNode
+    const onSelect = node => { selectedNode = node }
     const singleNodeProps = { 
       ...defaultProps, 
       nodes: [{ id: 'center', x: 100, y: 100, radius: 20 }],
@@ -130,11 +139,14 @@ describe('ClusterCanvas High-Value Tests', () => {
     // Click far away from center (at 0,0) - node is at 250,250
     fireEvent.click(canvas, { clientX: 10, clientY: 10 })
 
-    expect(onSelect).toHaveBeenCalledWith(null)
+    await waitFor(() => {
+      expect(selectedNode).toBe(null)
+    })
   })
   
   it('correctly interprets coordinates after Zoom (Wheel)', async () => {
-     const onSelect = vi.fn()
+     const selectionEvents = []
+     const onSelect = node => selectionEvents.push(node)
      const singleNodeProps = { 
        ...defaultProps, 
        nodes: [{ id: 'center', x: 0, y: 0, radius: 20 }],
@@ -147,8 +159,11 @@ describe('ClusterCanvas High-Value Tests', () => {
      
      // 1. Initial State: Node is at 250, 250.
      fireEvent.click(canvas, { clientX: 250, clientY: 250 })
-     expect(onSelect).toHaveBeenCalledTimes(1)
-     onSelect.mockClear()
+     await waitFor(() => {
+       expect(selectionEvents).toHaveLength(1)
+     })
+     expect(selectionEvents[0]).toMatchObject({ id: 'center' })
+     selectionEvents.length = 0
      
      // 2. Zoom In (Wheel Up) at Center
      fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: -100 })
@@ -156,8 +171,11 @@ describe('ClusterCanvas High-Value Tests', () => {
      
      // 3. Click again at center - should still hit
      fireEvent.click(canvas, { clientX: 250, clientY: 250 })
-     expect(onSelect).toHaveBeenCalledTimes(1)
-     onSelect.mockClear()
+     await waitFor(() => {
+       expect(selectionEvents).toHaveLength(1)
+     })
+     expect(selectionEvents[0]).toMatchObject({ id: 'center' })
+     selectionEvents.length = 0
      
      // 4. Pan to the right (move camera Left, so node moves Right)
      // Drag from 250 to 300
@@ -167,20 +185,27 @@ describe('ClusterCanvas High-Value Tests', () => {
      
      // Click at OLD location (250, 250) - Should Miss (Background Click)
      fireEvent.click(canvas, { clientX: 250, clientY: 250 })
-     expect(onSelect).toHaveBeenCalledWith(null)
-     onSelect.mockClear()
+     await waitFor(() => {
+       expect(selectionEvents).toHaveLength(1)
+     })
+     expect(selectionEvents[0]).toBe(null)
+     selectionEvents.length = 0
      
      // Click at NEW location (300, 250) - Should Hit
      fireEvent.click(canvas, { clientX: 300, clientY: 250 })
-     expect(onSelect).toHaveBeenCalledTimes(1)
+     await waitFor(() => {
+       expect(selectionEvents).toHaveLength(1)
+     })
+     expect(selectionEvents[0]).toMatchObject({ id: 'center' })
   })
 
   // === HYBRID ZOOM TESTS ===
   // These tests verify the semantic expand/collapse cycle works correctly
 
   it('triggers expand when zooming in past threshold with expandable node', async () => {
-    const onExpand = vi.fn()
-    const canExpandNode = vi.fn(() => true)
+    const expandedNodes = []
+    const onExpand = node => expandedNodes.push(node)
+    const canExpandNode = () => true
     const expandableNode = {
       id: 'expandable',
       x: 0,
@@ -215,12 +240,15 @@ describe('ClusterCanvas High-Value Tests', () => {
     fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: -100 })
     await waitForSettle()
 
-    expect(onExpand).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(expandedNodes.length).toBeGreaterThan(0)
+    })
   })
 
   it('resets scale after expand to enable collapse', async () => {
-    const onExpand = vi.fn()
-    const canExpandNode = vi.fn(() => true)
+    const expandedNodes = []
+    const onExpand = node => expandedNodes.push(node)
+    const canExpandNode = () => true
     const expandableNode = {
       id: 'expandable',
       x: 0,
@@ -254,12 +282,15 @@ describe('ClusterCanvas High-Value Tests', () => {
     // After expand, scale should reset to ~1.45 (16/11)
     // This means effectiveFont ~16px, which is between thresholds (14-24)
     // User can now zoom OUT to reach collapse threshold
-    expect(onExpand).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(expandedNodes.length).toBeGreaterThan(0)
+    })
   })
 
   it('does NOT expand when budget is exceeded', async () => {
-    const onExpand = vi.fn()
-    const canExpandNode = vi.fn(() => false) // Budget exceeded
+    const expandedNodes = []
+    const onExpand = node => expandedNodes.push(node)
+    const canExpandNode = () => false // Budget exceeded
     const expandableNode = {
       id: 'expandable',
       x: 0,
@@ -290,11 +321,12 @@ describe('ClusterCanvas High-Value Tests', () => {
     await waitForSettle()
 
     // Should NOT expand because canExpandNode returns false
-    expect(onExpand).not.toHaveBeenCalled()
+    expect(expandedNodes).toHaveLength(0)
   })
 
   it('triggers collapse when zooming out past threshold with expansion stack', async () => {
-    const onCollapse = vi.fn()
+    const collapsedIds = []
+    const onCollapse = clusterId => collapsedIds.push(clusterId)
     // Use multiple spread-out nodes to avoid extreme auto-fit scaling
     const childNodes = [
       { id: 'child1', x: -100, y: -100, radius: 15, isLeaf: true, label: 'Child 1' },
@@ -321,7 +353,10 @@ describe('ClusterCanvas High-Value Tests', () => {
     fireEvent.wheel(canvas, { clientX: 250, clientY: 250, deltaY: 100 })
     await waitForSettle()
 
-    expect(onCollapse).toHaveBeenCalledWith('parent1')
+    await waitFor(() => {
+      expect(collapsedIds).toHaveLength(1)
+    })
+    expect(collapsedIds[0]).toBe('parent1')
   })
 
   // === REGRESSION TESTS ===
@@ -329,8 +364,13 @@ describe('ClusterCanvas High-Value Tests', () => {
 
   it('calls canExpandNode with the centered node to check expand eligibility', async () => {
     // REGRESSION: canExpandNode was passed but never verified it receives correct args
-    const onExpand = vi.fn()
-    const canExpandNode = vi.fn(() => true)
+    const expandedNodes = []
+    const onExpand = node => expandedNodes.push(node)
+    const expandChecks = []
+    const canExpandNode = node => {
+      expandChecks.push(node)
+      return true
+    }
     const testNode = {
       id: 'test-node',
       x: 0,
@@ -361,15 +401,21 @@ describe('ClusterCanvas High-Value Tests', () => {
     await waitForSettle()
 
     // Verify canExpandNode was called with the correct node
-    expect(canExpandNode).toHaveBeenCalled()
-    const lastCall = canExpandNode.mock.calls[canExpandNode.mock.calls.length - 1]
-    expect(lastCall[0]).toMatchObject({ id: 'test-node' })
+    await waitFor(() => {
+      expect(expandChecks.length).toBeGreaterThan(0)
+    })
+    expect(expandChecks[expandChecks.length - 1]).toMatchObject({ id: 'test-node' })
   })
 
   it('does NOT expand when canExpandNode returns false (simulating budget exceeded)', async () => {
     // REGRESSION: Budget check in canExpandNode was silently failing
-    const onExpand = vi.fn()
-    const canExpandNode = vi.fn(() => false) // Simulates budget exceeded
+    const expandedNodes = []
+    const onExpand = node => expandedNodes.push(node)
+    const expandChecks = []
+    const canExpandNode = node => {
+      expandChecks.push(node)
+      return false
+    }
     const testNode = {
       id: 'budget-blocked',
       x: 0,
@@ -400,9 +446,11 @@ describe('ClusterCanvas High-Value Tests', () => {
     await waitForSettle()
 
     // canExpandNode should have been consulted
-    expect(canExpandNode).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(expandChecks.length).toBeGreaterThan(0)
+    })
     // But expand should NOT have been called because canExpandNode returned false
-    expect(onExpand).not.toHaveBeenCalled()
+    expect(expandedNodes).toHaveLength(0)
   })
 
   it('has sensible default thresholds from actual component config', async () => {
@@ -426,7 +474,8 @@ describe('ClusterCanvas High-Value Tests', () => {
 
   it('passes expansionStack to enable collapse functionality', async () => {
     // REGRESSION: expansionStack was empty on page reload, breaking collapse
-    const onCollapse = vi.fn()
+    const collapsedIds = []
+    const onCollapse = clusterId => collapsedIds.push(clusterId)
     const existingExpansions = ['parent1', 'parent2', 'parent3']
     // Use spread-out nodes to avoid extreme auto-fit scaling
     const childNodes = [
@@ -453,7 +502,10 @@ describe('ClusterCanvas High-Value Tests', () => {
     await waitForSettle()
 
     // Should collapse the LAST item in the stack (LIFO)
-    expect(onCollapse).toHaveBeenCalledWith('parent3')
+    await waitFor(() => {
+      expect(collapsedIds).toHaveLength(1)
+    })
+    expect(collapsedIds[0]).toBe('parent3')
   })
 
   // === FORCE SIMULATION SPREAD TESTS ===

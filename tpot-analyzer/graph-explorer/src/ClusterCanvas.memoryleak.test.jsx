@@ -9,12 +9,15 @@ import ClusterCanvas from './ClusterCanvas'
  * data structures don't grow unboundedly.
  */
 
+const warnEvents = []
+const infoEvents = []
+
 // Mock the logger to prevent actual fetch calls during tests
 vi.mock('./logger', () => ({
   canvasLog: {
-    info: vi.fn(),
+    info: (...args) => infoEvents.push(args),
     debug: vi.fn(),
-    warn: vi.fn(),
+    warn: (...args) => warnEvents.push(args),
     error: vi.fn(),
   }
 }))
@@ -23,6 +26,8 @@ describe('ClusterCanvas Memory Leak Detection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
+    warnEvents.length = 0
+    infoEvents.length = 0
   })
 
   afterEach(() => {
@@ -122,18 +127,13 @@ describe('ClusterCanvas Memory Leak Detection', () => {
       vi.advanceTimersByTime(2000)
     })
 
-    // The transition structures should be cleared after animation
-    // This is verified by the MEMORY_STATS log which we've mocked
-    const { canvasLog } = await import('./logger')
-
     // Trigger a memory stats log by advancing time
     await act(async () => {
       vi.advanceTimersByTime(15000) // Past the 10s memory log interval
     })
 
     // Check that no warnings about excessive sizes were logged
-    const warnCalls = canvasLog.warn.mock.calls
-    const leakWarnings = warnCalls.filter(call =>
+    const leakWarnings = warnEvents.filter(call =>
       call[0]?.includes('LEAK_SUSPECT') ||
       call[0]?.includes('MEMORY_LEAK_WARNING')
     )
@@ -210,15 +210,11 @@ describe('ClusterCanvas Memory Leak Detection', () => {
 
     // After 5 simulations, we shouldn't have accumulated
     // entries from previous simulations
-    // The test passes if no memory warnings were logged
-    const { canvasLog } = await import('./logger')
-
     await act(async () => {
       vi.advanceTimersByTime(15000)
     })
 
-    const warnCalls = canvasLog.warn.mock.calls
-    const leakWarnings = warnCalls.filter(call =>
+    const leakWarnings = warnEvents.filter(call =>
       call[0]?.includes('LEAK_SUSPECT')
     )
 
@@ -297,10 +293,8 @@ describe('ClusterCanvas Render Count Tracking', () => {
       vi.advanceTimersByTime(15000)
     })
 
-    const { canvasLog } = await import('./logger')
-
     // Should have logged MEMORY_STATS at least once
-    const memoryLogs = canvasLog.info.mock.calls.filter(
+    const memoryLogs = infoEvents.filter(
       call => call[0] === 'MEMORY_STATS'
     )
 
