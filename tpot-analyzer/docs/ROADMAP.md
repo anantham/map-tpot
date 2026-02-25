@@ -26,6 +26,10 @@ coverage gaps, or UX improvements surface.
 - [x] Ensure expansion-strategy environments pin `python-louvain` (module
   `community`) via `requirements.txt` and ship dependency-contract verifier
   (`scripts/verify_louvain_dependency_contract.py`) (implemented 2026-02-21).
+- [x] Resolve remaining `react-hooks/exhaustive-deps` warnings in
+  `graph-explorer/src/ClusterCanvas.jsx` and `graph-explorer/src/ClusterView.jsx`
+  so `npm run lint` is fully warning-free and hook dependency semantics are explicit
+  (implemented 2026-02-25).
 
 ---
 

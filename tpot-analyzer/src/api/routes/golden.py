@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import logging
 import os
 from pathlib import Path
@@ -18,6 +19,9 @@ from src.data.golden_store import AXIS_SIMULACRUM, GoldenStore
 _TAXONOMY_PATH = Path(__file__).parent.parent.parent.parent / "data" / "golden" / "taxonomy.yaml"
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _INTERPRET_MODEL = "moonshotai/kimi-k2"
+_INTERPRET_ALLOWED_MODELS_ENV = "GOLDEN_INTERPRET_ALLOWED_MODELS"
+_INTERPRET_ALLOW_REMOTE_ENV = "GOLDEN_INTERPRET_ALLOW_REMOTE"
+_LOOPBACK_ADDRS = {"127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"}
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +57,38 @@ def _parse_limit(raw: Optional[str], *, default: int = 20, minimum: int = 1, max
     value = raw if raw is not None else str(default)
     parsed = int(value)
     return max(minimum, min(maximum, parsed))
+
+
+def _allowed_interpret_models() -> set[str]:
+    raw = (os.environ.get(_INTERPRET_ALLOWED_MODELS_ENV) or "").strip()
+    if not raw:
+        return {_INTERPRET_MODEL}
+    return {m.strip() for m in raw.split(",") if m.strip()}
+
+
+def _is_loopback_request() -> bool:
+    remote_addr = (request.remote_addr or "").strip()
+    if not remote_addr:
+        return False
+    if remote_addr in _LOOPBACK_ADDRS:
+        return True
+    try:
+        return ipaddress.ip_address(remote_addr).is_loopback
+    except ValueError:
+        return False
+
+
+def _enforce_interpret_access(*, model: str) -> None:
+    allowed_models = _allowed_interpret_models()
+    if model not in allowed_models:
+        raise ValueError(
+            f"model '{model}' is not allowed. Allowed models: {sorted(allowed_models)}"
+        )
+    allow_remote = (os.environ.get(_INTERPRET_ALLOW_REMOTE_ENV) or "").strip().lower() in {"1", "true", "yes"}
+    if not allow_remote and not _is_loopback_request():
+        raise PermissionError(
+            "interpret endpoint is local-only. Set GOLDEN_INTERPRET_ALLOW_REMOTE=1 to enable remote access."
+        )
 
 
 @golden_bp.route("/candidates", methods=["GET"])
@@ -315,7 +351,10 @@ def interpret_tweet():
         if not tweet_text:
             raise ValueError("text is required")
         thread_context = data.get("threadContext") or data.get("thread_context") or []
+        if not isinstance(thread_context, list):
+            raise ValueError("threadContext must be a list")
         model = str(data.get("model") or _INTERPRET_MODEL)
+        _enforce_interpret_access(model=model)
 
         api_key = os.environ.get("OPENROUTER_API_KEY", "")
         if not api_key:
@@ -368,6 +407,8 @@ def interpret_tweet():
 
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
     except json.JSONDecodeError as exc:
         logger.error("LLM returned non-JSON: %s", exc)
         return jsonify({"error": "parse_error", "detail": "LLM returned non-JSON response"}), 502

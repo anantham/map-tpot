@@ -259,7 +259,7 @@ describe('ClusterCanvas High-Value Tests', () => {
       label: 'Test Cluster'
     }
 
-    const { container, rerender } = render(
+    const { container } = render(
       <ClusterCanvas
         {...defaultProps}
         nodes={[expandableNode]}
@@ -454,8 +454,8 @@ describe('ClusterCanvas High-Value Tests', () => {
   })
 
   it('has sensible default thresholds from actual component config', async () => {
-    // Import the actual ZOOM_CONFIG from the component
-    const { ZOOM_CONFIG } = await import('./ClusterCanvas')
+    // Import the actual ZOOM_CONFIG defaults
+    const { ZOOM_CONFIG } = await import('./clusterCanvasConfig')
     const { EXPAND_THRESHOLD, COLLAPSE_THRESHOLD, BASE_FONT_SIZE } = ZOOM_CONFIG
 
     // Expand threshold should be larger than base font (zoom in to expand)

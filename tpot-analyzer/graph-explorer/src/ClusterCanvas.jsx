@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { forceSimulation, forceManyBody, forceCollide, forceX, forceY } from 'd3-force'
 import { canvasLog } from './logger'
+import { ZOOM_CONFIG } from './clusterCanvasConfig'
 
 const clamp = (val, min, max) => Math.min(max, Math.max(min, val))
 
@@ -35,13 +36,6 @@ const findParentPosition = (nodeId, allNodes, edges) => {
   }
 
   return { x: 0, y: 0 }
-}
-
-// Hybrid zoom configuration defaults
-export const ZOOM_CONFIG = {
-  BASE_FONT_SIZE: 11,
-  EXPAND_THRESHOLD: 24,   // effective font size above which scroll-in triggers expand
-  COLLAPSE_THRESHOLD: 3,  // effective font size below which scroll-out triggers collapse (when labels mush together)
 }
 
 export default function ClusterCanvas({ 
@@ -136,7 +130,7 @@ export default function ClusterCanvas({
       let fromStorage = false
       try {
         fromStorage = window.localStorage?.getItem('hybridZoomLog') === '1'
-      } catch (err) {
+      } catch {
         fromStorage = false
       }
       hybridZoomLogRef.current = fromQuery || fromStorage
@@ -256,7 +250,7 @@ export default function ClusterCanvas({
     }
 
     cameraAnimRef.current = requestAnimationFrame(animateCamera)
-  }, [focusPoint])
+  }, [focusPoint, minZoomProp, maxZoomProp])
   
   // Keep transform ref in sync
   useEffect(() => {
@@ -1376,7 +1370,33 @@ export default function ClusterCanvas({
         })
       }
     }
-  }, [processedNodes, edges, memberNodes, transform, hoveredNode, hoveredEdge, hoveredMember, selectedSet, highlightedSet, pendingClusterId, renderTrigger])
+  }, [
+    processedNodes,
+    edges,
+    memberNodes,
+    transform,
+    hoveredNode,
+    hoveredEdge,
+    hoveredMember,
+    selectedSet,
+    highlightedSet,
+    pendingClusterId,
+    renderTrigger,
+    canExpandNode,
+    centeredNodeId,
+    highlightedMemberAccountId,
+    palette.bg,
+    palette.edgeHoverRgb,
+    palette.edgeRgb,
+    palette.label,
+    palette.labelMuted,
+    palette.labelShadow,
+    palette.memberFill,
+    palette.memberText,
+    palette.nodeDefaultInner,
+    palette.nodeDefaultOuter,
+    zoomMode,
+  ])
 
   const hitTest = useCallback((x, y) => {
     const t = transformRef.current
@@ -1610,7 +1630,7 @@ export default function ClusterCanvas({
     } else {
       setHoveredEdge(null)
     }
-  }, [hitTest, edgeHitTest, memberNodes, processedNodes])
+  }, [hitTest, edgeHitTest, memberNodes, processedNodes, onSelectionChange, selectedSet])
 
   const handleMouseDown = useCallback((evt) => {
     if (selectionMode && evt.button === 0) {
@@ -2032,7 +2052,23 @@ export default function ClusterCanvas({
 
     container.addEventListener('wheel', handleWheel, { passive: false })
     return () => container.removeEventListener('wheel', handleWheel)
-  }, [onGranularityChange, onExpand, onCollapse, expansionStack, findCenteredNode, canExpandNode, zoomToCursor, updateTransform, BASE_FONT_SIZE, EXPAND_THRESHOLD, COLLAPSE_THRESHOLD])
+  }, [
+    onGranularityChange,
+    onExpand,
+    onCollapse,
+    expansionStack,
+    findCenteredNode,
+    canExpandNode,
+    zoomToCursor,
+    updateTransform,
+    BASE_FONT_SIZE,
+    EXPAND_THRESHOLD,
+    COLLAPSE_THRESHOLD,
+    logHybridZoom,
+    minZoomProp,
+    maxZoomProp,
+    zoomMode,
+  ])
 
   return (
     <div

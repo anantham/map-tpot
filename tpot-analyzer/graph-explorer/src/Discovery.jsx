@@ -3,7 +3,7 @@ import './Discovery.css'
 import { DEFAULT_ACCOUNT, DEFAULT_SEEDS, DEFAULT_WEIGHTS } from './config'
 import * as storage from './storage'
 import * as discoveryApi from './discoveryApi'
-import { normalizeHandle, stripShadowPrefix } from './discoveryCache'
+import { stripShadowPrefix } from './discoveryCache'
 import { useAccountManager } from './hooks/useAccountManager'
 import { useSeedInput } from './hooks/useSeedInput'
 import { useModelSettings } from './hooks/useModelSettings'
@@ -72,7 +72,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   const seedInputHook = useSeedInput({ seeds, setSeeds })
   const {
     seedInput, autocompleteResults, showAutocomplete, selectedAutocompleteIndex,
-    handleInputChange, handleKeyDown, addSeed, removeSeed, selectAutocompleteItem,
+    setSelectedAutocompleteIndex, handleInputChange, handleKeyDown, addSeed, removeSeed, selectAutocompleteItem,
   } = seedInputHook
 
   const [weights, setWeights] = useState(DEFAULT_WEIGHTS)
@@ -107,7 +107,7 @@ function Discovery({ initialAccount = DEFAULT_ACCOUNT, onAccountStatusChange }) 
   const {
     allRecommendations, recommendations, meta, loading, error,
     hasMoreResults, loadingMore, loadMoreCountdown,
-    queryState, fetchRecommendations, resetRecommendationState, resetQueryState,
+    fetchRecommendations, resetRecommendationState, resetQueryState,
   } = useRecommendations({
     validatedAccount, seeds, weights, serverFilters, batchSize,
     modelSettings, includeShadow: filters.include_shadow,

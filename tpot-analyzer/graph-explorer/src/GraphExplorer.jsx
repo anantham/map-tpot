@@ -74,7 +74,7 @@ export default function GraphExplorer({ dataUrl: _dataUrl = "/analysis_output.js
 
   // --- Seed / preset management ---
   const {
-    graphSettings, seedTextarea, setSeedTextarea, presetName,
+    seedTextarea, setSeedTextarea, presetName,
     availablePresets, activeSeedList, customSeedHandleSet,
     applyCustomSeedList, persistSeedsToServer,
     handlePresetChange, handleApplyCustomSeeds,

@@ -41,11 +41,6 @@ describe('ClusterCanvas Memory Leak Detection', () => {
       size: 10,
     }))
 
-  // Helper to access internal refs via test helper
-  const getInternalSizes = () => {
-    return window.__CLUSTER_CANVAS_TEST__?.getInternalSizes?.() || null
-  }
-
   it('settledPositionsRef does not grow beyond visible nodes after many node changes', async () => {
     // This test simulates expanding/collapsing nodes repeatedly
     // and checks that settledPositionsRef doesn't accumulate stale entries

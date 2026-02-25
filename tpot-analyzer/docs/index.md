@@ -44,6 +44,8 @@ Last reviewed: 2026-02-25
 | Diagnostics | [docs/diagnostics/](diagnostics/) |
 
 Latest architecture decision:
+- [ADR 011: Content-Aware Fingerprinting and Community Visualization](adr/011-content-aware-fingerprinting-and-community-visualization.md) (Proposed, 2026-02-25)
+- [ADR 010: Labeling Dashboard and LLM Eval Harness](adr/010-labeling-dashboard-and-llm-eval-harness.md) (Proposed, 2026-02-25)
 - [ADR 009: Golden Curation Schema and MVP A Active-Learning Loop](adr/009-golden-curation-schema-and-active-learning-loop.md) (Proposed, 2026-02-25)
 - [ADR 008: Tweet-Level LLM Classification as Account Fingerprinting Foundation](adr/008-tweet-classification-account-fingerprinting.md) (Proposed, 2026-02-25)
 - [ADR 007: Observation-Aware Clustering and Membership Inference](adr/007-observation-aware-clustering-membership.md) (Proposed, 2026-02-17)

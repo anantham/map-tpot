@@ -379,8 +379,6 @@ describe('data.js API client', () => {
       await computeMetrics({ seeds: ['alice', 'bob'], skipCache: true })
 
       // Both should generate the same cache key
-      const key1 = mockCacheSet.mock.calls[0]?.[0]
-      const key2 = mockCacheSet.mock.calls[1]?.[0]
       // Wait for async cache sets
       await new Promise((r) => setTimeout(r, 10))
       // Keys should match (sorted seeds)

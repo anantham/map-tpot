@@ -14,6 +14,7 @@ import { fetchCandidate, fetchMetrics, interpretTweet, submitLabel } from './lab
 const LEVELS = ['l1', 'l2', 'l3', 'l4']
 const LEVEL_LABELS = { l1: 'L1 Truth', l2: 'L2 Persuasion', l3: 'L3 Signal', l4: 'L4 Simulacrum' }
 const LEVEL_COLORS = { l1: '#22c55e', l2: '#f59e0b', l3: '#3b82f6', l4: '#a855f7' }
+const DIST_PRECISION = 1000
 const LEVEL_DESC = {
   l1: 'Truth-tracking — would retract if wrong',
   l2: 'Audience-tracking — shaped to persuade',
@@ -22,9 +23,29 @@ const LEVEL_DESC = {
 }
 
 function normalize(dist) {
-  const total = Object.values(dist).reduce((s, v) => s + v, 0)
-  if (total === 0) return { l1: 0.25, l2: 0.25, l3: 0.25, l4: 0.25 }
-  return Object.fromEntries(Object.entries(dist).map(([k, v]) => [k, Math.round((v / total) * 1000) / 1000]))
+  const clean = LEVELS.map(k => {
+    const value = Number(dist?.[k])
+    return Number.isFinite(value) && value > 0 ? value : 0
+  })
+  const total = clean.reduce((s, v) => s + v, 0)
+  if (total <= 0) return { l1: 0.25, l2: 0.25, l3: 0.25, l4: 0.25 }
+
+  const scaled = clean.map(v => (v / total) * DIST_PRECISION)
+  const units = scaled.map(v => Math.floor(v))
+  let remaining = DIST_PRECISION - units.reduce((s, v) => s + v, 0)
+
+  const byFraction = scaled
+    .map((v, i) => ({ i, frac: v - units[i] }))
+    .sort((a, b) => (b.frac - a.frac) || (a.i - b.i))
+
+  for (let i = 0; i < remaining; i += 1) {
+    units[byFraction[i].i] += 1
+  }
+
+  return LEVELS.reduce((acc, key, i) => {
+    acc[key] = units[i] / DIST_PRECISION
+    return acc
+  }, {})
 }
 
 function DistributionBar({ dist }) {
@@ -49,9 +70,9 @@ function ProbabilitySliders({ dist, onChange }) {
     const otherTotal = others.reduce((s, k) => s + (dist[k] || 0), 0)
     const newDist = { ...dist, [key]: val }
     if (otherTotal > 0) {
-      others.forEach(k => { newDist[k] = Math.round((dist[k] / otherTotal) * remaining * 1000) / 1000 })
+      others.forEach(k => { newDist[k] = (dist[k] / otherTotal) * remaining })
     } else {
-      const share = Math.round((remaining / others.length) * 1000) / 1000
+      const share = remaining / others.length
       others.forEach(k => { newDist[k] = share })
     }
     onChange(normalize(newDist))
@@ -236,7 +257,7 @@ export default function Labeling({ reviewer = 'human' }) {
     loadNext()
   }
 
-  const totalLabeled = metrics?.labelCounts?.total ?? 0
+  const totalLabeled = metrics?.labeledCount ?? 0
   const totalTweets = metrics?.splitCounts?.total ?? 0
 
   return (
@@ -257,7 +278,7 @@ export default function Labeling({ reviewer = 'human' }) {
       }}>
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Tweet Labeling</h2>
         <div style={{ fontSize: 13, color: '#64748b' }}>
-          {totalLabeled} labeled · {skipped} skipped this session
+          {totalTweets > 0 ? `${totalLabeled}/${totalTweets}` : totalLabeled} labeled · {skipped} skipped this session
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 12, color: '#475569' }}>

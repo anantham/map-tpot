@@ -68,9 +68,13 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const [repulsionStrength, setRepulsionStrength] = useState(120)
   const [collisionPadding, setCollisionPadding] = useState(28)
   const [minZoom, setMinZoom] = useState(0.3) // Prevent excessive zoom-out causing label overlap
-  const expandedKey = useMemo(() => Array.from(expanded).sort().join(','), [expanded])
-  const collapsedKey = useMemo(() => Array.from(collapsed).sort().join(','), [collapsed])
-  const focusLeafKey = focusLeaf || ''
+  const expandedList = useMemo(() => Array.from(expanded), [expanded])
+  const collapsedList = useMemo(() => Array.from(collapsed), [collapsed])
+  const expandedCount = expandedList.length
+  const expandedKey = useMemo(() => [...expandedList].sort().join(','), [expandedList])
+  const collapsedKey = useMemo(() => [...collapsedList].sort().join(','), [collapsedList])
+  const focusLeafValue = focusLeaf || undefined
+  const focusLeafKey = focusLeafValue || ''
 
   useEffect(() => {
     lastDataRef.current = data
@@ -161,7 +165,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
         reqId,
         visibleTarget,
         budget,
-        expanded: expanded.size,
+        expanded: expandedCount,
         wl,
         expandDepth,
         ego: ego || null,
@@ -179,9 +183,9 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
 	          ego: ego.trim() || undefined,
 	          wl,
 	          budget,
-	          expanded: Array.from(expanded),
-	          collapsed: Array.from(collapsed),
-	          focus_leaf: focusLeaf || undefined,
+	          expanded: expandedList,
+	          collapsed: collapsedList,
+	          focus_leaf: focusLeafValue,
 	          expand_depth: expandDepth,
 	          reqId,
 	          controller,
@@ -259,7 +263,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
             '3_state_update': `${Math.round(t3 - t2)}ms`,
             '4_render': `${Math.round(t4 - t3)}ms`,
             'TOTAL': `${Math.round(t4 - t0)}ms`,
-            expanded: expanded.size,
+            expanded: expandedCount,
             visible: enrichedPayload?.clusters?.length,
             budget: enrichedPayload?.meta?.budget,
             budget_remaining: enrichedPayload?.meta?.budget_remaining,
@@ -293,7 +297,21 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       clusterViewLog.error('Fetch effect run() crashed', { error: err.message })
     })
     return () => controller.abort()
-	  }, [urlParsed, visibleTarget, budget, wl, expandDepth, ego, expandedKey, collapsedKey, focusLeafKey])
+	  }, [
+      urlParsed,
+      visibleTarget,
+      budget,
+      wl,
+      expandDepth,
+      ego,
+      expandedKey,
+      collapsedKey,
+      focusLeafKey,
+      expandedList,
+      collapsedList,
+      expandedCount,
+      focusLeafValue,
+    ])
 
   useEffect(() => {
     const clusterCount = data?.clusters?.length || 0
@@ -795,9 +813,6 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const handleSemanticCollapse = (clusterId) => {
     if (!clusterId) return
     clusterViewLog.info('HybridZoom handleSemanticCollapse called', { clusterId })
-
-    // Find the cluster being collapsed to get its position for auto-centering
-    const collapsingCluster = (data?.clusters || []).find(c => c.id === clusterId)
 
     // Remove from expanded set
     setExpanded(prev => {
