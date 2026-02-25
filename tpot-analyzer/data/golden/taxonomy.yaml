@@ -1,0 +1,274 @@
+# Tweet Classification Taxonomy
+# Used as few-shot context for LLM classification.
+# Edit this file to customize examples — the LLM uses these directly.
+#
+# Full theory doc: docs/specs/simulacrum_taxonomy.md
+
+# ─────────────────────────────────────────────────────────────
+# AXIS A: SIMULACRUM LEVEL
+# What is the speaker's relationship to their own words?
+# Assign a probability distribution summing to 1.0.
+# ─────────────────────────────────────────────────────────────
+simulacrum:
+  description: >
+    Simulacrum Levels distinguish meaning, intention and form of a message.
+    Classify based on apparent intent — what the author seems to be doing —
+    not the surface form of the words or the effect on the reader.
+    Output a probability distribution across all four levels.
+
+  levels:
+    l1:
+      name: "The Map"
+      definition: >
+        The speaker is trying to convey true information because it is true.
+        They are truth-tracking: if they discovered they were wrong, they
+        would stop saying it. This is modeling the territory directly.
+        The path of Power over the material world — sharing an accurate,
+        elegant map. Often introspective, observational, empirical, curious.
+      key_test: "If the speaker found out they were wrong, would they retract it?"
+      examples:
+        positive:
+          - tweet: >
+              feel your feelings ≠ despairing. despairing as a mental action
+              is just some kind of tension i think. maybe it's a way i try to
+              avoid feeling grief or helplessness. despairing leads to
+              rumination, cloudedness, depression
+            note: >
+              Clean phenomenological observation. No audience modeling, no tribal
+              signal. Reporting something actually noticed about inner states.
+            distribution: {l1: 0.85, l2: 0.05, l3: 0.10, l4: 0.00}
+
+          - tweet: >
+              Can you point at where I'm posthoc predicting here? Genomic
+              predictors are working for nearly every phenotype we can name and
+              probably phenotypes you think are entirely cultural. Would you
+              predict that social trust is heritable before hand or would you
+              think that's just purely social?
+            context: >
+              Reply in a debate. @virgil_30 accused lu_sichu of post-hoc
+              prediction. lu_sichu is defending an empirical position.
+            note: >
+              Genuine empirical defense. The challenge framing has a slight L2
+              rhetorical quality but the core is truth-tracking — engaging with
+              evidence on its merits.
+            distribution: {l1: 0.80, l2: 0.15, l3: 0.05, l4: 0.00}
+
+        negative:
+          - tweet: "Studies show people who wake up early earn 23% more"
+            looks_like: l1
+            is_actually: l2
+            note: >
+              Statistic may be true but is selected and deployed to induce
+              behavior change, not to inform. The choice of this fact over
+              others is audience-tracking, not truth-tracking.
+
+    l2:
+      name: "The Persuasion"
+      definition: >
+        The speaker is trying to get you to believe X so you will do or say
+        what they want. They are audience-tracking, not truth-tracking. The
+        content is selected and shaped to serve a goal — the listener's mind
+        is being modeled and the map warped to elicit a desirable action.
+        Best L2 is indistinguishable from L1 on the surface.
+        The path of Status and social control.
+      key_test: "Would the speaker say the opposite if it served their goals equally well?"
+      examples:
+        positive:
+          - tweet: >
+              just as we shift the goal post on AGI we've been doing the same
+              for magic. oh prayer is just relevance realization? no dude
+              that's magic. tarot cards are just projection? nope. magic.
+              jhanas are just predictive processing? wrong again bucko
+            context: >
+              Self-thread. Parent tweet: "if you had no idea what you were
+              looking at mathematics might as well be magic."
+            note: >
+              The rhetorical move is: collapse your categories until 'magic'
+              is the only word left. This is reframing to induce a belief
+              shift, not truth-sharing. "Wrong again bucko" is the tell.
+            distribution: {l1: 0.20, l2: 0.55, l3: 0.25, l4: 0.00}
+
+        negative:
+          - tweet: >
+              Here's the actual mechanism: cortisol peaks at 6am, which is
+              why early rising correlates with alertness in morning-type people
+            looks_like: l2
+            is_actually: l1
+            note: >
+              Looks like persuasion (presenting data to change behavior) but
+              the author's intent is accurate mechanistic modeling. No normative
+              claim, no implied action. Key tell: no "therefore you should X."
+
+    l3:
+      name: "The Signal"
+      definition: >
+        The speaker is saying something as a slogan or symbol to tell you
+        what tribe or faction they belong to, or what type of person they are.
+        The truth value of the statement is essentially irrelevant — what
+        matters is the signal. Signalling by sheep: to blend in, to support
+        the integrity of the Egregore they are part of. Channel the hive.
+        The speaker would say this even if they weren't sure it was true.
+      key_test: "Would the speaker say this even if they discovered it was false?"
+      examples:
+        positive:
+          - tweet: >
+              slowly undoing a lot of the background damage i took from all
+              the bottomfeeder self-flagellating Catholic anticapitalist memes
+              in the groundwater
+            context: >
+              Part of a self-thread about personal mental health changes.
+              Parent: "when i say 'ive been thinking a lot about this' i mean
+              'i keep having this same thought over and over'"
+            note: >
+              The content is genuine self-reflection (L1) but the specific
+              language — naming the ideological lineage being left behind —
+              is doing tribal positioning. "Bottomfeeder self-flagellating
+              Catholic anticapitalist memes in the groundwater" signals which
+              team you're leaving and which you're joining. L1 content in an L3
+              register. Classify by primary signal weight.
+            distribution: {l1: 0.55, l2: 0.10, l3: 0.35, l4: 0.00}
+
+          - tweet: >
+              The true face is not an obliterated, emotionless personality, &
+              if you're using Dharma to rationalize greed, dishonesty & sexual
+              misconduct, you've gone off the cliff.
+              Most of the West Coast has gone off the cliff
+            note: >
+              First sentence is genuine L1 dharma teaching. Last sentence is
+              pure L3 tribal boundary-drawing — "West Coast" as a geographic
+              marker for a specific spiritual subculture being rejected. One
+              tweet, two levels. Distribute accordingly.
+            distribution: {l1: 0.45, l2: 0.10, l3: 0.45, l4: 0.00}
+
+        negative:
+          - tweet: >
+              Any scenario where the probablistically optimal move is to submit
+              to an authority defined by the terms of the hypothetical is a
+              blender statement and makes for bad decision theory. To get better
+              TDT, you need scenarios where the correct move is not cooperation
+              with blackmailers.
+            looks_like: l3
+            is_actually: l1
+            note: >
+              Discussing TDT/Newcomb is an in-group shibboleth (the topic
+              signals tribe) but the tweet itself is making a precise logical
+              argument. The content is truth-tracking, not tribal. Classify
+              the content, not the topic.
+            distribution: {l1: 0.80, l2: 0.05, l3: 0.15, l4: 0.00}
+
+    l4:
+      name: "The Simulacrum"
+      definition: >
+        The symbol and its referent have detached and taken on their own
+        existence. The speaker is not choosing words — they are a substrate
+        for a self-perpetuating cultural pattern. No individual agent is
+        making a meaningful choice about what to say. The meme is running
+        the speaker. This is culture, Sanskara, habits and rituals that
+        exist across many humans and feed themselves.
+        Nations, fiat currency, political slogans operating independently
+        of any individual's belief.
+      key_test: "Is there any sense in which an individual agent chose these specific words?"
+      note: >
+        L4 is primarily a system-level phenomenon. For individual tweets,
+        flag as L4 only when the tweet is a culturally-scripted phrase repeated
+        with no evidence of individual processing — a meme so ossified that
+        removing the author's name would make it completely anonymous.
+        When uncertain between L3 and L4, lean L3. Mark L4 annotations as
+        requiring human review.
+      examples:
+        positive:
+          - tweet: "[PENDING — human annotator to provide examples]"
+            note: >
+              Candidates: ritual phrases, meme formats with zero original
+              thought, slogans repeated verbatim from a political/cultural
+              movement with no personal adaptation.
+
+# ─────────────────────────────────────────────────────────────
+# AXIS B: FUNCTIONAL TYPE
+# What social/communicative role does this tweet play?
+# One or two labels per tweet. Not mutually exclusive.
+# ─────────────────────────────────────────────────────────────
+functional:
+  description: >
+    What is this tweet doing socially? This is orthogonal to simulacrum level —
+    any functional type can operate at any simulacrum level.
+
+  types:
+    obvious:
+      definition: >
+        If you invert the tweet everyone would disagree — it's a tautology
+        with no information content. Saying something obvious.
+
+    meta:
+      definition: >
+        Simulacrum-level shifts within the tweet are visible — the tweet
+        is commenting on the level of discourse itself.
+
+    aggression:
+      definition: >
+        Clearly and explicitly aggressive content aimed at stoking conflict,
+        often along cultural fault lines.
+
+    dialectics:
+      definition: >
+        Discusses or debates ideas, inviting or engaging in discourse.
+        Thesis and antithesis forming synthesis.
+
+    personal:
+      definition: >
+        About the author's own life, experiences, or inner states.
+
+    information:
+      definition: >
+        Sharing facts, observations, or announcements. Neutral factual content.
+
+    commentary:
+      definition: >
+        Opinions on news or current events. Topical takes aimed at getting
+        you to have an opinion on something you cannot influence.
+
+    insight:
+      definition: >
+        Written to deconflate concepts confused in mainstream narratives.
+        The author shows discernment, confidence in direct experience,
+        and shares that clarity.
+
+    advertising:
+      definition: >
+        Aimed at establishing status, farming reputation, or convincing
+        you to purchase something or feel respect/insecurity.
+
+    art:
+      definition: >
+        Aesthetically oriented. Uses media, music, photos, or language
+        to point to truth non-intellectually, leaving space for multiple
+        interpretations.
+
+    alignment:
+      definition: >
+        About AI alignment, safety, or related technical/philosophical
+        concerns.
+
+    meditation:
+      definition: >
+        About dharma, Buddhism, walking the path, mindfulness,
+        or meditative practice.
+
+# ─────────────────────────────────────────────────────────────
+# AXIS C: TOPIC TAGS
+# Optional. Apply when clearly relevant.
+# ─────────────────────────────────────────────────────────────
+topic_tags:
+  - meditation
+  - alignment
+  - gender
+  - rationalism
+  - ea            # effective altruism
+  - eacc          # effective accelerationism
+  - psychedelics
+  - anime
+  - art
+  - politics
+  - science
+  - philosophy
+  - personal_development

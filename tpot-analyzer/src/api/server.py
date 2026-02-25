@@ -24,6 +24,7 @@ from src.api.routes.graph import graph_bp
 from src.api.routes.analysis import analysis_bp
 from src.api.routes.discovery import discovery_bp
 from src.api.routes.accounts import accounts_bp
+from src.api.routes.golden import golden_bp
 from src.api.routes.extension import extension_bp
 from src.api.cluster_routes import cluster_bp, init_cluster_routes
 from src.api.log_routes import log_bp
@@ -106,15 +107,10 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     app.config["CACHE_MANAGER"] = CacheManager()
     app.config["SIGNAL_FEEDBACK_STORE"] = SignalFeedbackStore()
 
-    # 2b. Load snapshot graph (used by search/autocomplete endpoints).
-    # Tests patch src.api.snapshot_loader.get_snapshot_loader to inject a lightweight graph.
-    try:
-        loader = snapshot_loader.get_snapshot_loader()
-        graph_result = loader.load_graph()
-        if graph_result is not None:
-            app.config["SNAPSHOT_GRAPH"] = graph_result
-    except Exception as exc:
-        logger.warning("Snapshot graph load skipped: %s", exc)
+    # 2b. Snapshot graph is loaded lazily on first discovery/search request.
+    # Loading the full NetworkX graph (~700-900 MB) at startup is wasteful because
+    # the cluster explorer never touches it — only discovery and accounts routes do.
+    # _load_graph_result() in discovery.py handles lazy load + caching in app.config.
 
     # 3. Register Blueprints
     app.register_blueprint(core_bp)
@@ -122,6 +118,7 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     app.register_blueprint(analysis_bp)
     app.register_blueprint(discovery_bp)
     app.register_blueprint(accounts_bp)
+    app.register_blueprint(golden_bp)
     app.register_blueprint(extension_bp)
     
     # Register legacy/existing blueprints
