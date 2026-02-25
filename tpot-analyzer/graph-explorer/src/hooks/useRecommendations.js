@@ -29,10 +29,6 @@ import {
 
 const CACHE_VERSION = 3
 const DEFAULT_DEPTH = 3
-const MAX_DEPTH = 5
-const MAX_AUTO_DISTANCE = 6
-const MAX_AUTO_LIMIT = 2000
-const FOLLOWER_CEILING = 1000000
 const MIN_BATCH_SIZE = 10
 
 export function useRecommendations({
@@ -53,8 +49,6 @@ export function useRecommendations({
   const [hasMoreResults, setHasMoreResults] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadMoreCountdown, setLoadMoreCountdown] = useState(null)
-  const [egoFollowing, setEgoFollowing] = useState(new Set())
-  const [egoAccountId, setEgoAccountId] = useState(null)
 
   // --- Cache key (computed from inputs) ---
   const normalizedAccountHandle = normalizeHandle(validatedAccount)
@@ -128,40 +122,12 @@ export function useRecommendations({
     setQueryState(base)
   }, [serverFilters?.max_distance, serverFilters?.max_followers, modelSettings?.max_distance, modelSettings?.limit, batchSize])
 
-  const advanceQueryState = useCallback(() => {
-    const maxDistanceCap = Math.max(modelSettings?.max_distance || MAX_AUTO_DISTANCE, serverFilters?.max_distance || 3)
-    const limitCap = Math.max(modelSettings?.limit || MAX_AUTO_LIMIT, MIN_BATCH_SIZE)
-    let changed = false
-    setQueryState(prev => {
-      let next = prev
-      if (prev.depth < MAX_DEPTH) {
-        next = { ...prev, depth: prev.depth + 1 }
-      } else if (prev.maxDistance < maxDistanceCap) {
-        next = { ...prev, maxDistance: prev.maxDistance + 1 }
-      } else if (prev.maxFollowers < FOLLOWER_CEILING) {
-        next = { ...prev, maxFollowers: FOLLOWER_CEILING }
-      } else if (prev.limit < limitCap) {
-        next = { ...prev, limit: Math.min(limitCap, prev.limit + (batchSize || 50)) }
-      }
-      if (next !== prev) {
-        changed = true
-        queryStateRef.current = next
-        paginationRef.current.offset = 0
-        return next
-      }
-      return prev
-    })
-    return changed
-  }, [modelSettings?.max_distance, modelSettings?.limit, serverFilters?.max_distance, batchSize])
-
   // --- Reset ---
 
   const resetRecommendationState = useCallback(() => {
     setAllRecommendations([])
     setRecommendations([])
     setMeta(null)
-    setEgoFollowing(new Set())
-    setEgoAccountId(null)
     setHasMoreResults(false)
     paginationRef.current = { offset: 0 }
     resetQueryState()
@@ -197,8 +163,6 @@ export function useRecommendations({
     const restoredRecommendations = payload.recommendations || []
     setAllRecommendations(restoredRecommendations)
     setMeta(payload.meta || null)
-    setEgoAccountId(payload.egoAccountId || null)
-    setEgoFollowing(new Set(payload.egoFollowing || []))
     setHasMoreResults(Boolean(payload.hasMore))
     paginationRef.current.offset = payload.paginationOffset || restoredRecommendations.length
     if (payload.queryState) {
@@ -269,10 +233,6 @@ export function useRecommendations({
       max_distance: maxDistance,
       max_followers: maxFollowers,
     })
-
-    // Always use subgraph discovery mode
-    setEgoAccountId(null)
-    setEgoFollowing(new Set())
 
     try {
       console.log(`[DISCOVERY] Using subgraph/discover endpoint with ${allSeeds.length} seeds (limit=${requestLimit}, offset=${offset})`)
@@ -358,7 +318,7 @@ export function useRecommendations({
         setLoading(false)
       }
     }
-  }, [validatedAccount, seeds, weights, serverFilters, batchSize, advanceQueryState, persistCacheSnapshot, meta])
+  }, [validatedAccount, seeds, weights, serverFilters, persistCacheSnapshot, meta])
 
   // --- Debounced fetch trigger ---
 

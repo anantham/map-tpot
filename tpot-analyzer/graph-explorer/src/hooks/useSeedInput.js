@@ -121,6 +121,7 @@ export function useSeedInput({ seeds, setSeeds }) {
     autocompleteResults,
     showAutocomplete,
     selectedAutocompleteIndex,
+    setSelectedAutocompleteIndex,
     handleInputChange,
     handleKeyDown,
     addSeed,

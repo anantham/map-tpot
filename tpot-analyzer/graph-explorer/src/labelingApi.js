@@ -29,7 +29,7 @@ export async function interpretTweet({ text, threadContext = [], model } = {}) {
   return res.json()
 }
 
-export async function submitLabel({ tweetId, distribution, lucidity, note, reviewer = 'human' } = {}) {
+export async function submitLabel({ tweetId, distribution, note, reviewer = 'human' } = {}) {
   const res = await fetch(`${BASE}/labels`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

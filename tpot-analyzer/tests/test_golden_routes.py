@@ -62,6 +62,9 @@ def golden_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask:
         conn.commit()
 
     monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path))
+    monkeypatch.delenv("GOLDEN_INTERPRET_ALLOWED_MODELS", raising=False)
+    monkeypatch.delenv("GOLDEN_INTERPRET_ALLOW_REMOTE", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     golden_routes._golden_store = None
 
     app = Flask(__name__)
@@ -198,3 +201,76 @@ def test_predictions_queue_and_eval_roundtrip(golden_app: Flask, tmp_path: Path)
     metrics_payload = metrics.get_json()
     assert metrics_payload["labeledCount"] >= 2
     assert "dev" in metrics_payload["latestEvaluation"]
+
+
+@pytest.mark.integration
+def test_interpret_rejects_remote_by_default(golden_app: Flask) -> None:
+    client = golden_app.test_client()
+
+    resp = client.post(
+        "/api/golden/interpret",
+        json={"text": "hello world"},
+        environ_overrides={"REMOTE_ADDR": "10.10.0.2"},
+    )
+    assert resp.status_code == 403
+    assert "local-only" in resp.get_json()["error"]
+
+
+@pytest.mark.integration
+def test_interpret_rejects_non_allowlisted_model(golden_app: Flask, monkeypatch: pytest.MonkeyPatch) -> None:
+    client = golden_app.test_client()
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+
+    resp = client.post(
+        "/api/golden/interpret",
+        json={"text": "hello world", "model": "openai/gpt-4o"},
+        environ_overrides={"REMOTE_ADDR": "127.0.0.1"},
+    )
+    assert resp.status_code == 400
+    assert "not allowed" in resp.get_json()["error"]
+
+
+@pytest.mark.integration
+def test_interpret_allows_loopback_and_returns_json(golden_app: Flask, monkeypatch: pytest.MonkeyPatch) -> None:
+    client = golden_app.test_client()
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+
+    class _FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "distribution": {"l1": 0.6, "l2": 0.1, "l3": 0.3, "l4": 0.0},
+                                    "lucidity": 0.7,
+                                    "interpretation": "sample",
+                                    "cluster_hypothesis": "none",
+                                    "ingroup_signal": "none",
+                                    "meme_role": "none",
+                                    "confidence": 0.8,
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+
+    def _fake_post(*_args, **_kwargs):
+        return _FakeResponse()
+
+    monkeypatch.setattr(golden_routes.httpx, "post", _fake_post)
+
+    resp = client.post(
+        "/api/golden/interpret",
+        json={"text": "hello world"},
+        environ_overrides={"REMOTE_ADDR": "127.0.0.1"},
+    )
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["status"] == "ok"
+    assert payload["distribution"] == {"l1": 0.6, "l2": 0.1, "l3": 0.3, "l4": 0.0}

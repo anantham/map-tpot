@@ -2,6 +2,71 @@
 
 ## Phase 4.0: Tweet Classification + Content-Aware Clustering
 
+- [2026-02-25 16:06 UTC] **Second pass: eliminate remaining React hook dependency warnings (Codex GPT-5)**
+    - **Assumptions**
+        - The remaining lint warnings are stale-dependency declarations (not behavioral bugs), so explicit dependency alignment should be behavior-preserving.
+    - **Predicted outcome**
+        - `npm run lint` becomes fully warning-free; `ClusterCanvas`/`ClusterView` tests remain green.
+    - **Confidence**
+        - `0.80`
+    - **Fallback plan**
+        - If dependency expansion caused regressions, revert to ref-backed reads for volatile values and isolate render-effect dependencies by extracting stable selectors.
+    - **Changes (files + why)**
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:253`: include `minZoomProp`/`maxZoomProp` in focus-camera effect dependencies.
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:1373`: include full render-effect inputs (`canExpandNode`, `centeredNodeId`, `highlightedMemberAccountId`, palette fields, `zoomMode`) to remove stale closure risk.
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:1633`: include `onSelectionChange` and `selectedSet` in hover/selection callback dependencies.
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:2067`: include `logHybridZoom`, zoom bounds, and `zoomMode` in wheel-handler effect dependencies.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.jsx:71`: derive stable `expandedList`, `collapsedList`, `expandedCount`, and `focusLeafValue` for fetch effect.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.jsx:168` and `:266`: replace direct `expanded.size` reads with `expandedCount` to match declared dependencies.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.jsx:300`: align fetch-effect dependency list with the derived values used to build the request payload.
+    - **Verification**
+        - `cd tpot-analyzer/graph-explorer && npm run lint` → clean (`0 warnings`, `0 errors`).
+        - `cd tpot-analyzer/graph-explorer && npx vitest run --silent=true src/ClusterCanvas.test.jsx src/ClusterView.integration.test.jsx src/ClusterView.test.jsx` → `53 passed`.
+
+- [2026-02-25 15:54 UTC] **Frontend lint-gate stabilization: Vitest globals + targeted dead-code cleanup (Codex GPT-5)**
+    - **Hypothesis**
+        - Current `npm run lint` failures are dominated by config drift (test globals missing) and stale locals from refactors; a narrow cleanup should restore lint as a reliable quality gate without changing runtime behavior.
+    - **Changes (files + why)**
+        - `tpot-analyzer/graph-explorer/eslint.config.js:7`: ignore generated artifacts (`coverage`, `playwright-report`, `test-results`) and add test-file globals (`browser + node + vitest`) so test suites lint under the right environment contract.
+        - `tpot-analyzer/graph-explorer/src/clusterCanvasConfig.js:1` (NEW): extract `ZOOM_CONFIG` from component file to satisfy `react-refresh/only-export-components`.
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx:3,133`: import shared `ZOOM_CONFIG` and use optional catch binding to remove unused error symbol.
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.test.jsx:262,458`: drop unused `rerender` binding and import zoom defaults from `clusterCanvasConfig`.
+        - `tpot-analyzer/graph-explorer/src/ClusterCanvas.memoryleak.test.jsx:42`: remove unused `getInternalSizes` helper.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.integration.test.jsx:32,404`: remove unused mock param and unused post-call count variable.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.jsx:800`: remove unused `collapsingCluster` assignment in semantic-collapse path.
+        - `tpot-analyzer/graph-explorer/src/ClusterView.test.jsx:1`: remove unused imports (`afterEach`, `act`).
+        - `tpot-analyzer/graph-explorer/src/Discovery.jsx:6,74,110`: remove unused `normalizeHandle`/`queryState` and wire `setSelectedAutocompleteIndex` from seed-input hook.
+        - `tpot-analyzer/graph-explorer/src/hooks/useSeedInput.js:118`: export `setSelectedAutocompleteIndex` so `Discovery` can control hover index.
+        - `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx:77`: remove unused `graphSettings` destructure.
+        - `tpot-analyzer/graph-explorer/src/accountsApi.test.js:1`: remove unused `afterEach` import.
+        - `tpot-analyzer/graph-explorer/src/data.js.test.js:382`: remove unused cache-key temp vars.
+        - `tpot-analyzer/graph-explorer/src/hooks/useModelSettings.test.js:2`: remove unused `waitFor` import.
+        - `tpot-analyzer/graph-explorer/src/hooks/useRecommendations.js:31,113`: remove dead query-advance branch + unused cached ego state setters; keep behavior on subgraph mode unchanged.
+        - `tpot-analyzer/graph-explorer/src/hooks/useRecommendations.test.js:147,300,348,760`: align destructuring with actual assertions (fix undefined/unused `result` variables).
+        - `tpot-analyzer/graph-explorer/src/hooks/useAccountManager.test.js:829` and `tpot-analyzer/graph-explorer/src/hooks/useSeedInput.test.js:635`: replace `global` with `globalThis` for lint-safe timer spies.
+    - **Verification**
+        - `cd tpot-analyzer/graph-explorer && npm run lint` → passes with `0 errors` (`5` existing `react-hooks/exhaustive-deps` warnings remain in `ClusterCanvas.jsx` and `ClusterView.jsx`).
+        - `cd tpot-analyzer/graph-explorer && npx vitest run src/ClusterCanvas.memoryleak.test.jsx src/ClusterCanvas.test.jsx src/ClusterView.integration.test.jsx src/ClusterView.test.jsx src/accountsApi.test.js src/data.js.test.js src/hooks/useModelSettings.test.js src/hooks/useRecommendations.test.js src/hooks/useAccountManager.test.js src/hooks/useSeedInput.test.js` → `10 files, 358 tests passed`.
+
+- [2026-02-25 13:19 UTC] **Post-review hardening: interpret endpoint guardrails + labeling UI contract fixes (Codex GPT-5)**
+    - **Hypothesis**
+        - Four regressions identified in review can be fixed with narrow changes: undeclared YAML dependency, open-ended interpret endpoint access/model override, metrics field mismatch in labeling UI, and slider normalization drift causing intermittent 400s on label submit.
+    - **Changes (files + why)**
+        - `tpot-analyzer/requirements.txt:2`: add `PyYAML==6.0.2` so `src/api/routes/golden.py` imports are reproducible in fresh environments.
+        - `tpot-analyzer/src/api/routes/golden.py:22`: add interpret access constants/env contracts (`GOLDEN_INTERPRET_ALLOWED_MODELS`, `GOLDEN_INTERPRET_ALLOW_REMOTE`).
+        - `tpot-analyzer/src/api/routes/golden.py:63`: add allowlist + loopback checks (`_allowed_interpret_models`, `_is_loopback_request`, `_enforce_interpret_access`) to prevent arbitrary remote model spend by default.
+        - `tpot-analyzer/src/api/routes/golden.py:355`: validate `threadContext` type and return explicit 400 when malformed.
+        - `tpot-analyzer/src/api/routes/golden.py:410`: map access denials to HTTP 403 with descriptive error.
+        - `tpot-analyzer/graph-explorer/src/Labeling.jsx:17`: replace per-field float rounding with integer-thousandths normalization, guaranteeing distributions sum to 1.0 in backend-compatible precision.
+        - `tpot-analyzer/graph-explorer/src/Labeling.jsx:260`: fix metrics binding to `labeledCount` and show `labeled/total` progress.
+        - `tpot-analyzer/graph-explorer/src/labelingApi.js:32`: remove unused `lucidity` argument from `submitLabel` API helper.
+        - `tpot-analyzer/tests/test_golden_routes.py:207`: add `/api/golden/interpret` tests for remote deny-by-default, model allowlist rejection, and successful loopback flow with mocked OpenRouter response.
+        - `tpot-analyzer/docs/index.md:47`: include ADR 010/011 in latest ADR index list to avoid documentation drift.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/pytest -q tests/test_golden_routes.py tests/test_api_autocomplete.py` → `18 passed`.
+        - `cd tpot-analyzer/graph-explorer && npm run build` → successful production build.
+        - `cd tpot-analyzer/graph-explorer && npx eslint src/Labeling.jsx src/labelingApi.js` → passes for touched frontend files.
+
 - [2026-02-25 14:10 UTC] **MVP A backend curation loop scaffold (Codex GPT-5)**
     - **Hypothesis**
         - We need a normalized, persistent tweet-label/prediction schema and API layer before dashboard work; this should unlock fixed splits, queue ranking, and Brier evaluation with deterministic behavior.

@@ -31,7 +31,7 @@ vi.mock('./accountsApi', () => ({
 
 // Mock ClusterCanvas to expose handlers for testing
 vi.mock('./ClusterCanvas', () => ({
-  default: ({ nodes, edges, onSelect, onExpand, onCollapse, canExpandNode, expansionStack, selectionMode, selectedIds, onSelectionChange }) => (
+  default: ({ nodes, onSelect, onExpand, onCollapse, canExpandNode, expansionStack, selectionMode, selectedIds, onSelectionChange }) => (
     <div data-testid="cluster-canvas">
       <div data-testid="node-count">{nodes?.length || 0}</div>
       <div data-testid="expansion-stack">{JSON.stringify(expansionStack || [])}</div>
@@ -402,7 +402,6 @@ describe('ClusterView Budget Enforcement', () => {
     })
 
     // No new API calls should have been made with expanded param
-    const callCountAfter = fetchClusterView.mock.calls.length
     const newCalls = fetchClusterView.mock.calls.slice(callCountBefore)
 
     // Either no new calls, or new calls don't include d_0 in expanded

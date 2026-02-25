@@ -200,14 +200,14 @@ describe('useRecommendations', () => {
         validatedAccount: null,
         seeds: [],
       }
-      const { result } = await renderWithoutFetch(props)
+      await renderWithoutFetch(props)
       // With null cacheKey, persist should never be called even after fetch
       await triggerDebouncedFetch()
       expect(persistCacheEntry).not.toHaveBeenCalled()
     })
 
     it('includes version, account, seeds, weights, and filters in cache key', async () => {
-      const { result } = await renderAndSettle()
+      await renderAndSettle()
       expect(persistCacheEntry).toHaveBeenCalled()
       const cacheKeyArg = persistCacheEntry.mock.calls[0][0]
       const parsed = JSON.parse(cacheKeyArg)
@@ -226,7 +226,7 @@ describe('useRecommendations', () => {
         ...defaultProps,
         seeds: ['Zulu', 'alpha', 'zulu', 'Alpha'],
       }
-      const { result } = await renderAndSettle(props)
+      await renderAndSettle(props)
       expect(persistCacheEntry).toHaveBeenCalled()
       const parsed = JSON.parse(persistCacheEntry.mock.calls[0][0])
       expect(parsed.seeds).toEqual(['alpha', 'zulu'])
@@ -237,7 +237,7 @@ describe('useRecommendations', () => {
         ...defaultProps,
         weights: { zebra: 2, alpha: 1 },
       }
-      const { result } = await renderAndSettle(props)
+      await renderAndSettle(props)
       expect(persistCacheEntry).toHaveBeenCalled()
       const parsed = JSON.parse(persistCacheEntry.mock.calls[0][0])
       const keys = Object.keys(parsed.weights)
@@ -757,7 +757,7 @@ describe('useRecommendations', () => {
 
   describe('debounced fetch', () => {
     it('triggers fetch after 500ms of no changes', async () => {
-      const { result } = await renderWithoutFetch()
+      await renderWithoutFetch()
 
       expect(discoveryApi.fetchDiscoverRecommendations).not.toHaveBeenCalled()
 
@@ -769,7 +769,7 @@ describe('useRecommendations', () => {
     })
 
     it('resets debounce timer when props change', async () => {
-      const { result, rerender } = await renderWithoutFetch()
+      const { rerender } = await renderWithoutFetch()
 
       // Advance 300ms (less than 500ms threshold)
       await act(async () => {
@@ -800,7 +800,7 @@ describe('useRecommendations', () => {
     })
 
     it('clears debounce timer on unmount', async () => {
-      const { result, unmount } = await renderWithoutFetch()
+      const { unmount } = await renderWithoutFetch()
 
       unmount()
 
