@@ -147,7 +147,8 @@ def compute_path_distance_score(
     graph: nx.Graph,
     candidate: str,
     seeds: List[str],
-    max_distance: int = 3
+    max_distance: int = 3,
+    precomputed_distances: Optional[Dict[str, Dict[str, int]]] = None,
 ) -> Dict[str, any]:
     """Compute proximity score based on shortest path distances.
 
@@ -156,6 +157,11 @@ def compute_path_distance_score(
         candidate: Handle of the candidate
         seeds: List of seed handles
         max_distance: Maximum distance to consider (beyond = 0 score)
+        precomputed_distances: Optional pre-computed SSSP per seed
+            ({seed: {node: distance}}). When provided, O(1) dict lookups
+            replace per-candidate BFS calls, yielding a large speedup over
+            large candidate sets. Build with single_source_shortest_path_length
+            per seed (cutoff=max_distance) before the scoring loop.
 
     Returns:
         Dict with distance metrics:
@@ -181,12 +187,19 @@ def compute_path_distance_score(
             seed_distances[seed] = None
             continue
 
-        try:
-            distance = nx.shortest_path_length(graph, seed, candidate)
-            seed_distances[seed] = distance
+        if precomputed_distances is not None:
+            # O(1) lookup — precomputed via single_source_shortest_path_length
+            distance = precomputed_distances.get(seed, {}).get(candidate)
+        else:
+            # Fallback: per-pair BFS (slow for large candidate sets)
+            try:
+                distance = nx.shortest_path_length(graph, seed, candidate)
+            except nx.NetworkXNoPath:
+                distance = None
+
+        seed_distances[seed] = distance
+        if distance is not None:
             valid_distances.append(distance)
-        except nx.NetworkXNoPath:
-            seed_distances[seed] = None
 
     if not valid_distances:
         return {
@@ -322,7 +335,8 @@ def score_candidate(
     seeds: List[str],
     pagerank_scores: Dict[str, float],
     weights: Optional[Dict[str, float]] = None,
-    undirected_graph: Optional[nx.Graph] = None
+    undirected_graph: Optional[nx.Graph] = None,
+    precomputed_distances: Optional[Dict[str, Dict[str, int]]] = None,
 ) -> Dict[str, any]:
     """Compute all scores for a candidate.
 
@@ -333,6 +347,8 @@ def score_candidate(
         pagerank_scores: Pre-computed PageRank scores
         weights: Score weights (will be normalized)
         undirected_graph: Undirected version for path computation
+        precomputed_distances: Pre-computed SSSP per seed for O(1) distance
+            lookups. See compute_path_distance_score for details.
 
     Returns:
         Complete scoring breakdown
@@ -344,7 +360,10 @@ def score_candidate(
     # Compute individual scores
     overlap = compute_neighbor_overlap(graph, candidate, seeds)
     community = compute_community_affinity(graph, candidate, seeds)
-    distance = compute_path_distance_score(undirected_graph, candidate, seeds)
+    distance = compute_path_distance_score(
+        undirected_graph, candidate, seeds,
+        precomputed_distances=precomputed_distances,
+    )
     pagerank = compute_pagerank_score(candidate, pagerank_scores)
 
     # Normalized scores for composite

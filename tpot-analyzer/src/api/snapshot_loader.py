@@ -321,19 +321,10 @@ class SnapshotLoader:
                 edge_attrs = {k: v for k, v in edge_attrs.items() if v is not None}
                 directed.add_edge(row["source"], row["target"], **edge_attrs)
 
-            # Build undirected view (all edges, not just mutual)
-            # Note: Snapshot is built with mutual_only=False, so undirected should include all edges
-            undirected = nx.Graph()
-            undirected.add_nodes_from(directed.nodes(data=True))
-
-            for u, v, data in directed.edges(data=True):
-                # Add edge to undirected (sorted to avoid duplicates)
-                edge_key = tuple(sorted((u, v)))
-                if not undirected.has_edge(*edge_key):
-                    weight = data.copy()
-                    undirected.add_edge(*edge_key, **weight)
-
-            graph_result = GraphBuildResult(directed=directed, undirected=undirected)
+            # Skip building the undirected copy at load time — it would duplicate ~300 MB
+            # of NetworkX memory for a field nobody reads via GraphBuildResult.undirected.
+            # discovery.py builds its own undirected subgraph from the candidates set on-demand.
+            graph_result = GraphBuildResult(directed=directed)
 
             # Cache in memory
             self._cached_graph = graph_result

@@ -17,7 +17,7 @@ class GraphBuildResult:
     """Container holding both directed and undirected graph views."""
 
     directed: nx.DiGraph
-    undirected: nx.Graph
+    undirected: Optional[nx.Graph] = None
 
 
 _DEFAULT_ACCOUNT_COLUMNS = [

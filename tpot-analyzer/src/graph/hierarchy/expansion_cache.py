@@ -320,6 +320,7 @@ class ExpansionPrecomputer:
                     adjacency=self._adjacency,
                     node_id_to_idx=self._node_id_to_idx,
                     node_tags=self._node_tags,
+                    max_sub_clusters=50,
                 )
 
                 elapsed_ms = int((time.time() - start) * 1000)
@@ -406,9 +407,20 @@ def compute_and_cache_expansion(
         node_id_to_idx=node_id_to_idx,
         node_tags=node_tags,
         weights=weights,
+        max_sub_clusters=50,
     )
 
     elapsed_ms = int((time.time() - start) * 1000)
+    best = ranked[0] if ranked else None
+    logger.info(
+        "expansion_cache computed cluster=%s members=%d strategies=%d best=%s score=%.3f elapsed_ms=%d",
+        cluster_id,
+        len(member_node_ids),
+        len(ranked),
+        best.strategy_name if best else "none",
+        best.score.total_score if best else 0.0,
+        elapsed_ms,
+    )
 
     # Cache
     cache.put(

@@ -223,6 +223,7 @@ def compute_edge_separation_fast(
     sub_clusters: List[List[str]],
     adjacency: sparse.spmatrix,
     node_id_to_idx: Dict[str, int],
+    _adj_coo=None,
 ) -> Tuple[float, int, int]:
     """Fast version of edge separation using index sets.
 
@@ -246,7 +247,7 @@ def compute_edge_separation_fast(
     intra_edges = 0
     inter_edges = 0
 
-    adj_coo = adjacency.tocoo()
+    adj_coo = _adj_coo if _adj_coo is not None else adjacency.tocoo()
 
     for i, j in zip(adj_coo.row, adj_coo.col):
         if i not in all_member_indices or j not in all_member_indices:
@@ -342,6 +343,7 @@ def compute_structure_score(
     node_id_to_idx: Dict[str, int],
     node_tags: Optional[Dict[str, Set[str]]] = None,
     weights: Optional[StructureScoreWeights] = None,
+    _adj_coo=None,
 ) -> StructureScoreBreakdown:
     """Compute overall structure score for an expansion result.
 
@@ -391,7 +393,7 @@ def compute_structure_score(
     fragmentation_ratio = compute_fragmentation_ratio(cluster_sizes, total_members)
 
     edge_sep_score, intra_edges, inter_edges = compute_edge_separation_fast(
-        sub_clusters, adjacency, node_id_to_idx
+        sub_clusters, adjacency, node_id_to_idx, _adj_coo=_adj_coo
     )
 
     tag_coherence = compute_tag_coherence(sub_clusters, node_tags)

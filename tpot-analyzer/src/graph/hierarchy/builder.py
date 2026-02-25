@@ -99,7 +99,8 @@ def build_hierarchical_view(
     base_granularity = min(base_granularity, n_micro, budget)
     t0 = time.time()
     base_labels = fcluster(linkage_matrix, t=base_granularity, criterion="maxclust")
-    logger.info("hierarchy timing: fcluster=%.2fs granularity=%d", time.time() - t0, base_granularity)
+    t_fcluster_ms = int((time.time() - t0) * 1000)
+    logger.info("hierarchy timing: fcluster=%dms granularity=%d", t_fcluster_ms, base_granularity)
     
     # Step 2: Find dendrogram nodes for each base cluster
     label_to_leader = find_cluster_leaders(linkage_matrix, base_labels, n_micro)
@@ -151,6 +152,15 @@ def build_hierarchical_view(
     # Maps local_cluster_id -> member_node_ids
     pending_local_expansions: Dict[str, List[str]] = {}
 
+    # Build micro_to_nodes once here; reused inside the expansion loop and in
+    # Step 4 below. Previously this was rebuilt O(expanded_ids) + 1 times.
+    micro_to_nodes: Dict[int, List[int]] = {}
+    for node_i, micro_i in enumerate(micro_labels):
+        if micro_i not in micro_to_nodes:
+            micro_to_nodes[micro_i] = []
+        micro_to_nodes[micro_i].append(node_i)
+
+    t_expansion_phase = time.time()
     for exp_id in expanded_ids:
         t_exp_start = time.time()
 
@@ -185,16 +195,10 @@ def build_hierarchical_view(
         # Get member count for this cluster to check if it's "large"
         micro_leaves = get_subtree_leaves(linkage_matrix, node_idx, n_micro)
 
-        # Build member list to get actual node count (not just micro-cluster count)
-        micro_to_nodes_temp: Dict[int, List[int]] = {}
-        for node_i, micro_i in enumerate(micro_labels):
-            if micro_i not in micro_to_nodes_temp:
-                micro_to_nodes_temp[micro_i] = []
-            micro_to_nodes_temp[micro_i].append(node_i)
-
+        # Use the pre-built micro_to_nodes (computed once before this loop)
         member_node_indices = []
         for micro_i in micro_leaves:
-            member_node_indices.extend(micro_to_nodes_temp.get(micro_i, []))
+            member_node_indices.extend(micro_to_nodes.get(micro_i, []))
         member_node_ids_list = [str(node_ids[i]) for i in member_node_indices]
         actual_node_count = len(member_node_ids_list)
 
@@ -271,7 +275,11 @@ def build_hierarchical_view(
             len(visible_nodes),
         )
     
-    logger.info("Visible nodes after expansion: %d", len(visible_nodes))
+    t_expansion_ms = int((time.time() - t_expansion_phase) * 1000)
+    logger.info(
+        "hierarchy timing: expansion_total=%dms expanded=%d visible_after=%d",
+        t_expansion_ms, len(expanded_ids), len(visible_nodes),
+    )
     
     # Step 3b: Apply collapse-upward operations
     # For each collapsed parent, replace its visible descendants with the parent itself
@@ -296,12 +304,7 @@ def build_hierarchical_view(
 
     # Step 4: Build cluster info for each visible node
     t_cluster_info = time.time()
-    # First, map micro-clusters to nodes
-    micro_to_nodes: Dict[int, List[int]] = {}  # micro_idx -> list of node indices
-    for node_idx, micro_idx in enumerate(micro_labels):
-        if micro_idx not in micro_to_nodes:
-            micro_to_nodes[micro_idx] = []
-        micro_to_nodes[micro_idx].append(node_idx)
+    # micro_to_nodes was built once before the expansion loop above; reused here.
     
     # Find ego's micro-cluster
     ego_micro = None
@@ -509,32 +512,44 @@ def build_hierarchical_view(
             parent_exp_id
         )
 
-    logger.info("hierarchy timing: cluster_info=%.2fs clusters=%d", time.time() - t_cluster_info, len(clusters))
+    t_cluster_info_ms = int((time.time() - t_cluster_info) * 1000)
+    logger.info("hierarchy timing: cluster_info=%dms clusters=%d", t_cluster_info_ms, len(clusters))
 
     # Step 5: Compute edges with connectivity metric (with optional Louvain fusion)
-    t_edges_start = time.time()
+    t0 = time.time()
     edges = compute_hierarchical_edges(
-        clusters, 
-        micro_labels, 
-        adjacency, 
+        clusters,
+        micro_labels,
+        adjacency,
         node_ids,
         louvain_communities,
         louvain_weight,
     )
-    logger.info("hierarchy timing: compute_edges=%.2fs", time.time() - t_edges_start)
+    t_edges_ms = int((time.time() - t0) * 1000)
+    logger.info("hierarchy timing: compute_edges=%dms", t_edges_ms)
 
     # Step 6: Compute positions via PCA on centroids
-    t_pos_start = time.time()
+    t0 = time.time()
     positions = compute_positions(clusters)
-    logger.info("hierarchy timing: compute_positions=%.2fs", time.time() - t_pos_start)
-    
+    t_pos_ms = int((time.time() - t0) * 1000)
+    logger.info("hierarchy timing: compute_positions=%dms", t_pos_ms)
+
     # Find ego cluster
     ego_cluster_id = None
     for c in clusters:
         if c.contains_ego:
             ego_cluster_id = c.id
             break
-    
+
+    t_total_ms = int((time.time() - t_start) * 1000)
+    logger.info(
+        "hierarchy timing summary: fcluster=%dms expansion=%dms cluster_info=%dms "
+        "edges=%dms positions=%dms total=%dms | clusters=%d expanded=%d nodes=%d",
+        t_fcluster_ms, t_expansion_ms, t_cluster_info_ms,
+        t_edges_ms, t_pos_ms, t_total_ms,
+        len(clusters), len(expanded_ids), len(node_ids),
+    )
+
     return HierarchicalViewData(
         clusters=clusters,
         edges=edges,
