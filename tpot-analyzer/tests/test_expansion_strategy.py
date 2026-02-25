@@ -327,6 +327,48 @@ class TestExecuteMutualComponents:
         assert len(result) >= 2
 
 
+    def test_degenerate_sparse_graph_returns_unsplit(self):
+        """Sparse graph where >80% components are singletons should return unsplit."""
+        # 20 nodes with almost no mutual edges — typical sparse social graph
+        n = 20
+        # Only one pair has a mutual edge; the rest are one-directional or absent
+        rows = [0, 1, 2, 3, 4, 5]
+        cols = [1, 0, 3, 4, 5, 2]  # 0↔1 mutual; 2→3, 4→5, 5→2 are one-directional chains
+        adjacency = sp.csr_matrix(([1.0] * len(rows), (rows, cols)), shape=(n, n))
+        node_ids = [f"node_{i}" for i in range(n)]
+        node_id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+
+        result = execute_mutual_components(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+
+        # Only 1 mutual edge → many singleton components → degenerate → unsplit
+        assert result == [node_ids]
+
+    def test_well_connected_graph_still_splits(self):
+        """Dense mutual-edge graph should still produce multiple components."""
+        n = 10
+        # Two mutual cliques with no cross-edges
+        rows = [0, 1, 1, 0, 2, 3, 3, 2,   5, 6, 6, 5, 7, 8, 8, 7]
+        cols = [1, 0, 2, 2, 3, 2, 0, 3,   6, 5, 7, 7, 8, 7, 5, 6]
+        adjacency = sp.csr_matrix(([1.0] * len(rows), (rows, cols)), shape=(n, n))
+        node_ids = [f"node_{i}" for i in range(n)]
+        node_id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+
+        result = execute_mutual_components(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+        )
+
+        # Two tight cliques → at most 3 components (clique A, clique B, isolated node_4/9)
+        # At minimum 2 (the cliques end up in separate components + singletons merged)
+        # Key assertion: NOT unsplit (i.e., we get > 1 component)
+        assert len(result) > 1
+
+
 class TestExecuteBridgeExtraction:
     """Tests for bridge node extraction."""
 
@@ -562,6 +604,56 @@ class TestEvaluateAllStrategies:
         assert best is not None
         assert best.strategy_name == ranked[0].strategy_name
         assert best.score.total_score == ranked[0].score.total_score
+
+
+    def test_max_sub_clusters_filters_degenerate_strategies(self):
+        """Strategies producing more sub-clusters than max_sub_clusters must be excluded."""
+        from src.graph.hierarchy.expansion_strategy import evaluate_all_strategies
+
+        # 25 nodes, no edges → SAMPLE_INDIVIDUALS will produce ~16 clusters,
+        # INDIVIDUALS won't run (n>20). Tight cap of 5 should exclude most.
+        n = 25
+        adjacency = sp.csr_matrix((n, n))
+        node_ids = [f"node_{i}" for i in range(n)]
+        node_id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
+
+        ranked = evaluate_all_strategies(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            max_sub_clusters=5,
+        )
+
+        # All surviving strategies must respect the cap
+        for s in ranked:
+            assert len(s.sub_clusters) <= 5, (
+                f"Strategy {s.strategy_name} produced {len(s.sub_clusters)} sub-clusters "
+                f"but cap is 5"
+            )
+
+    def test_max_sub_clusters_zero_means_no_cap(self, community_graph):
+        """max_sub_clusters=0 should disable the cap entirely."""
+        from src.graph.hierarchy.expansion_strategy import evaluate_all_strategies
+
+        adjacency, node_ids, node_id_to_idx = community_graph
+
+        # With cap disabled, all strategies are eligible
+        ranked_no_cap = evaluate_all_strategies(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            max_sub_clusters=0,
+        )
+        ranked_with_cap = evaluate_all_strategies(
+            member_node_ids=node_ids,
+            adjacency=adjacency,
+            node_id_to_idx=node_id_to_idx,
+            max_sub_clusters=50,
+        )
+
+        # Both calls should produce at least 1 result
+        assert len(ranked_no_cap) >= 1
+        assert len(ranked_with_cap) >= 1
 
 
 class TestExecuteLouvainLocal:

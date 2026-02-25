@@ -77,6 +77,7 @@ def compute_local_metrics(
     linkage_matrix: Optional[np.ndarray] = None,
     dendrogram_node: int = -1,
     n_micro: int = 0,
+    _adj_coo=None,
 ) -> LocalStructureMetrics:
     """Compute structural metrics for a cluster's local neighborhood.
 
@@ -108,7 +109,7 @@ def compute_local_metrics(
     idx_to_nid = {node_id_to_idx[nid]: nid for nid in member_node_ids if nid in node_id_to_idx}
 
     # Count edges and compute degrees
-    adj_coo = adjacency.tocoo()
+    adj_coo = _adj_coo if _adj_coo is not None else adjacency.tocoo()
     edges = []
     degrees = {nid: 0 for nid in member_node_ids}
 
@@ -428,6 +429,7 @@ def execute_core_periphery(
     adjacency: sparse.spmatrix,
     node_id_to_idx: Dict[str, int],
     degree_threshold: float,
+    _adj_coo=None,
 ) -> List[List[str]]:
     """Split cluster into core (high-degree) and periphery (low-degree).
 
@@ -446,7 +448,7 @@ def execute_core_periphery(
     idx_to_nid = {node_id_to_idx[nid]: nid for nid in member_node_ids if nid in node_id_to_idx}
 
     degrees = {nid: 0 for nid in member_node_ids}
-    adj_coo = adjacency.tocoo()
+    adj_coo = _adj_coo if _adj_coo is not None else adjacency.tocoo()
 
     for i, j in zip(adj_coo.row, adj_coo.col):
         if i in idx_set and j in idx_set:
@@ -471,6 +473,7 @@ def execute_mutual_components(
     member_node_ids: List[str],
     adjacency: sparse.spmatrix,
     node_id_to_idx: Dict[str, int],
+    _adj_coo=None,
 ) -> List[List[str]]:
     """Find connected components of the mutual (bidirectional) edge subgraph.
 
@@ -490,7 +493,7 @@ def execute_mutual_components(
     G = nx.Graph()
     G.add_nodes_from(member_node_ids)
 
-    adj_coo = adjacency.tocoo()
+    adj_coo = _adj_coo if _adj_coo is not None else adjacency.tocoo()
     edge_set = set()
 
     for i, j in zip(adj_coo.row, adj_coo.col):
@@ -510,6 +513,20 @@ def execute_mutual_components(
 
     if len(components) <= 1:
         # No meaningful split from mutuals
+        return [member_node_ids]
+
+    # Detect pathological fragmentation: on sparse social graphs most nodes
+    # have no mutual edges and become isolated vertices, producing one component
+    # per node. If >80% of components are singletons this strategy degenerates.
+    # Return unsplit so the scorer ignores it and other strategies can win.
+    singleton_count = sum(1 for c in components if len(c) == 1)
+    fragmentation_ratio = singleton_count / len(components)
+    if fragmentation_ratio > 0.8:
+        logger.warning(
+            "mutual_components degenerate: %d components, %.0f%% singletons "
+            "from %d members — returning unsplit",
+            len(components), fragmentation_ratio * 100, len(member_node_ids),
+        )
         return [member_node_ids]
 
     result = [list(comp) for comp in components]
@@ -553,6 +570,7 @@ def execute_sample_individuals(
     node_id_to_idx: Dict[str, int],
     sample_size: int = 15,
     method: str = "by_degree",
+    _adj_coo=None,
 ) -> List[List[str]]:
     """Sample top N individuals by some metric, rest become overflow cluster.
 
@@ -573,7 +591,7 @@ def execute_sample_individuals(
         idx_to_nid = {node_id_to_idx[nid]: nid for nid in member_node_ids if nid in node_id_to_idx}
 
         degrees = {nid: 0 for nid in member_node_ids}
-        adj_coo = adjacency.tocoo()
+        adj_coo = _adj_coo if _adj_coo is not None else adjacency.tocoo()
 
         for i, j in zip(adj_coo.row, adj_coo.col):
             if i in idx_set and j in idx_set:
@@ -602,6 +620,7 @@ def execute_louvain_local(
     adjacency: sparse.spmatrix,
     node_id_to_idx: Dict[str, int],
     resolution: float = 1.0,
+    _adj_coo=None,
 ) -> List[List[str]]:
     """Execute local Louvain community detection on the induced subgraph.
 
@@ -624,7 +643,7 @@ def execute_louvain_local(
     G = nx.Graph()
     G.add_nodes_from(member_node_ids)
 
-    adj_coo = adjacency.tocoo()
+    adj_coo = _adj_coo if _adj_coo is not None else adjacency.tocoo()
     for i, j, w in zip(adj_coo.row, adj_coo.col, adj_coo.data):
         if i in idx_set and j in idx_set and i < j:
             src = idx_to_nid.get(i)
@@ -665,6 +684,7 @@ def evaluate_all_strategies(
     dendrogram_node: int = -1,
     n_micro: int = 0,
     weights: Optional["StructureScoreWeights"] = None,
+    max_sub_clusters: int = 50,
 ) -> List["ScoredStrategy"]:
     """Execute all applicable strategies and score their results.
 
@@ -682,6 +702,10 @@ def evaluate_all_strategies(
         dendrogram_node: Dendrogram node index
         n_micro: Number of micro-clusters
         weights: Optional custom scoring weights
+        max_sub_clusters: Hard cap on sub-clusters a strategy may produce.
+            Strategies exceeding this are excluded before ranking so that
+            degenerate or budget-violating outputs cannot be selected.
+            Defaults to 50 (generous multiple of any realistic UI budget).
 
     Returns:
         List of ScoredStrategy objects, ranked by score (best first)
@@ -702,6 +726,11 @@ def evaluate_all_strategies(
     total_members = n
     scored_strategies: List[ScoredStrategy] = []
 
+    # Compute COO representation once; reused by every strategy and scoring call
+    # to avoid redundant sparse matrix format conversion (~3-4 ms per tocoo() on
+    # the full 295k-edge matrix, called 7+ times per evaluate_all_strategies).
+    adj_coo = adjacency.tocoo()
+
     # Compute local metrics to determine which strategies are applicable
     metrics = compute_local_metrics(
         member_node_ids=member_node_ids,
@@ -712,6 +741,7 @@ def evaluate_all_strategies(
         linkage_matrix=linkage_matrix,
         dendrogram_node=dendrogram_node,
         n_micro=n_micro,
+        _adj_coo=adj_coo,
     )
 
     # Strategy 1: INDIVIDUALS (only for small clusters)
@@ -727,6 +757,7 @@ def evaluate_all_strategies(
             node_id_to_idx=node_id_to_idx,
             node_tags=node_tags,
             weights=weights,
+            _adj_coo=adj_coo,
         )
 
         scored_strategies.append(ScoredStrategy(
@@ -745,6 +776,7 @@ def evaluate_all_strategies(
             node_id_to_idx=node_id_to_idx,
             sample_size=15,
             method="by_degree",
+            _adj_coo=adj_coo,
         )
         elapsed = int((time.time() - start) * 1000)
 
@@ -755,6 +787,7 @@ def evaluate_all_strategies(
             node_id_to_idx=node_id_to_idx,
             node_tags=node_tags,
             weights=weights,
+            _adj_coo=adj_coo,
         )
 
         scored_strategies.append(ScoredStrategy(
@@ -787,6 +820,7 @@ def evaluate_all_strategies(
                 node_id_to_idx=node_id_to_idx,
                 node_tags=node_tags,
                 weights=weights,
+                _adj_coo=adj_coo,
             )
 
             scored_strategies.append(ScoredStrategy(
@@ -804,6 +838,7 @@ def evaluate_all_strategies(
             adjacency=adjacency,
             node_id_to_idx=node_id_to_idx,
             degree_threshold=metrics.degree_mean,
+            _adj_coo=adj_coo,
         )
         elapsed = int((time.time() - start) * 1000)
 
@@ -814,6 +849,7 @@ def evaluate_all_strategies(
             node_id_to_idx=node_id_to_idx,
             node_tags=node_tags,
             weights=weights,
+            _adj_coo=adj_coo,
         )
 
         scored_strategies.append(ScoredStrategy(
@@ -830,6 +866,7 @@ def evaluate_all_strategies(
             member_node_ids=member_node_ids,
             adjacency=adjacency,
             node_id_to_idx=node_id_to_idx,
+            _adj_coo=adj_coo,
         )
         elapsed = int((time.time() - start) * 1000)
 
@@ -842,6 +879,7 @@ def evaluate_all_strategies(
                 node_id_to_idx=node_id_to_idx,
                 node_tags=node_tags,
                 weights=weights,
+                _adj_coo=adj_coo,
             )
 
             scored_strategies.append(ScoredStrategy(
@@ -879,6 +917,7 @@ def evaluate_all_strategies(
                 node_id_to_idx=node_id_to_idx,
                 node_tags=node_tags,
                 weights=weights,
+                _adj_coo=adj_coo,
             )
 
             scored_strategies.append(ScoredStrategy(
@@ -898,6 +937,7 @@ def evaluate_all_strategies(
             adjacency=adjacency,
             node_id_to_idx=node_id_to_idx,
             resolution=resolution,
+            _adj_coo=adj_coo,
         )
         elapsed = int((time.time() - start) * 1000)
 
@@ -910,6 +950,7 @@ def evaluate_all_strategies(
                 node_id_to_idx=node_id_to_idx,
                 node_tags=node_tags,
                 weights=weights,
+                _adj_coo=adj_coo,
             )
 
             scored_strategies.append(ScoredStrategy(
@@ -918,6 +959,21 @@ def evaluate_all_strategies(
                 score=score,
                 execution_time_ms=elapsed,
             ))
+
+    # Remove strategies that exceed the sub-cluster budget cap.
+    # This is a safety net: individual strategies (e.g. mutual_components) may
+    # still produce degenerate output despite their own early-exit guards.
+    if max_sub_clusters > 0:
+        within_budget = [s for s in scored_strategies if len(s.sub_clusters) <= max_sub_clusters]
+        over_budget = [s for s in scored_strategies if len(s.sub_clusters) > max_sub_clusters]
+        if over_budget:
+            logger.warning(
+                "Dropping %d over-budget strategies (max_sub_clusters=%d): %s",
+                len(over_budget),
+                max_sub_clusters,
+                [(s.strategy_name, len(s.sub_clusters)) for s in over_budget],
+            )
+        scored_strategies = within_budget
 
     # Rank by score
     return rank_strategies(scored_strategies)

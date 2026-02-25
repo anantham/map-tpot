@@ -462,6 +462,22 @@ def discover_subgraph(
     # Create undirected version for path computation
     undirected = subgraph.to_undirected()
 
+    # Precompute SSSP from each seed once (O(seeds × BFS)) so that per-candidate
+    # distance lookups are O(1) instead of O(candidates × seeds × BFS).
+    # cutoff=3 matches the default max_distance in compute_path_distance_score.
+    _DISTANCE_CUTOFF = 3
+    t0 = time.time()
+    precomputed_distances: Dict[str, Dict[str, int]] = {
+        seed: dict(nx.single_source_shortest_path_length(undirected, seed, cutoff=_DISTANCE_CUTOFF))
+        for seed in valid_seeds
+        if seed in undirected
+    }
+    timing['sssp_precompute_ms'] = int((time.time() - t0) * 1000)
+    logger.info(
+        "SSSP precomputed for %d seeds in %dms (cutoff=%d)",
+        len(precomputed_distances), timing['sssp_precompute_ms'], _DISTANCE_CUTOFF,
+    )
+
     # Score all candidates
     t0 = time.time()
     scored_candidates = []
@@ -476,7 +492,8 @@ def discover_subgraph(
             valid_seeds,
             pagerank_scores,
             request.weights,
-            undirected
+            undirected,
+            precomputed_distances=precomputed_distances,
         )
 
         scored_candidates.append(score_result)
@@ -556,5 +573,21 @@ def discover_subgraph(
     if request.use_cache and cache_key:
         discovery_cache.set(cache_key, response)
         response['meta']['cache_key'] = cache_key if request.debug else None
+
+    # Always log timing summary to disk so we can profile without debug=true.
+    timing['total_ms'] = int((time.time() - start_time) * 1000)
+    logger.info(
+        "discover timing seeds=%d candidates=%d filtered=%d | "
+        "subgraph=%dms sssp=%dms scoring=%dms filter=%dms sort=%dms total=%dms",
+        len(valid_seeds),
+        len(candidate_nodes),
+        total_candidates,
+        timing.get('subgraph_extraction_ms', 0),
+        timing.get('sssp_precompute_ms', 0),
+        timing.get('scoring_ms', 0),
+        timing.get('filtering_ms', 0),
+        timing.get('sorting_ms', 0),
+        timing['total_ms'],
+    )
 
     return response

@@ -79,6 +79,9 @@ def test_app():
 
         app = create_app()
         app.config["TESTING"] = True
+        # Inject mock graph directly — the snapshot is now lazy-loaded on first
+        # discovery request, not at startup (M1 fix), so we must seed it here.
+        app.config["SNAPSHOT_GRAPH"] = mock_graph
 
         yield app
 
