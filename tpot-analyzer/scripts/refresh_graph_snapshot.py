@@ -224,7 +224,7 @@ def main():
         with log_phase("betweenness"):
             if args.betweenness_sample_k:
                 logger.info("Using sampled betweenness with k=%d", args.betweenness_sample_k)
-                betweenness = compute_betweenness(undirected, k=args.betweenness_sample_k, seed=42)
+                betweenness = compute_betweenness(undirected, sample_size=args.betweenness_sample_k)
             else:
                 betweenness = compute_betweenness(undirected)
 
