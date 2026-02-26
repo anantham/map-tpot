@@ -60,6 +60,42 @@ export default function ClusterDetailsSidebar({
         <div style={{ color: '#475569' }}>
           Size {cluster.size} • Reps {(cluster.representativeHandles || []).join(', ')}
         </div>
+
+        {/* Community breakdown */}
+        {cluster.communityBreakdown?.length > 0 && (
+          <div style={{ marginTop: 4 }}>
+            {/* Stacked bar */}
+            <div style={{
+              display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden',
+              background: 'rgba(140,140,140,0.2)',
+            }}>
+              {cluster.communityBreakdown.slice(0, 6).map((seg, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: `${(seg.weight * 100).toFixed(1)}%`,
+                    background: seg.color,
+                    minWidth: seg.weight > 0.02 ? 3 : 0,
+                  }}
+                  title={`${seg.name}: ${(seg.weight * 100).toFixed(0)}%`}
+                />
+              ))}
+            </div>
+            {/* Top communities with dot + name + percentage */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px', marginTop: 4, fontSize: 11 }}>
+              {cluster.communityBreakdown.slice(0, 4).map((seg, i) => (
+                <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#475569' }}>
+                  <span style={{
+                    display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                    background: seg.color, flexShrink: 0,
+                  }} />
+                  {seg.name} {(seg.weight * 100).toFixed(0)}%
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         <label style={{ display: 'flex', gap: 6, alignItems: 'center', color: '#475569' }}>
           <input
             type="checkbox"

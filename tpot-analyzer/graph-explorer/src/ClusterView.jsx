@@ -62,6 +62,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const teleportAppliedRef = useRef(null) // `${leaf}|${accountId}`
   const focusAppliedRef = useRef(null) // `${accountId}`
   const [showSettings, setShowSettings] = useState(false)
+  const [alpha, setAlpha] = useState(0) // Community bias alpha
   // Physics settings for force simulation (exposed to Settings panel)
   const [jerkThreshold, setJerkThreshold] = useState(50)
   const [velocityThreshold, setVelocityThreshold] = useState(30)
@@ -96,6 +97,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     }
     setWl(clamp(toNumber(params.get('wl'), 0), 0, 1))
     setExpandDepth(clamp(toNumber(params.get('expand_depth'), 0.5), 0, 1))
+    setAlpha(clamp(toNumber(params.get('alpha'), 0), 0, 1))
     setEgo(params.get('ego') || defaultEgo || '')
     const expandedParam = params.get('expanded')
     if (expandedParam) {
@@ -123,6 +125,11 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     url.searchParams.set('visible', visibleTarget)
     url.searchParams.set('wl', wl.toFixed(2))
     url.searchParams.set('expand_depth', expandDepth.toFixed(2))
+    if (alpha > 0) {
+      url.searchParams.set('alpha', alpha.toFixed(2))
+    } else {
+      url.searchParams.delete('alpha')
+    }
     url.searchParams.set('expanded', Array.from(expanded).join(','))
     url.searchParams.set('collapsed', Array.from(collapsed).join(','))
     if (ego) {
@@ -131,7 +138,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       url.searchParams.delete('ego')
     }
     window.history.replaceState({}, '', url.toString())
-  }, [urlParsed, budget, visibleTarget, wl, expandDepth, ego, expanded, collapsed])
+  }, [urlParsed, budget, visibleTarget, wl, expandDepth, alpha, ego, expanded, collapsed])
 
   // Fetch cluster view
   useEffect(() => {
@@ -187,6 +194,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
 	          collapsed: collapsedList,
 	          focus_leaf: focusLeafValue,
 	          expand_depth: expandDepth,
+	          alpha,
 	          reqId,
 	          controller,
 	          signal: controller.signal,
@@ -303,6 +311,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       budget,
       wl,
       expandDepth,
+      alpha,
       ego,
       expandedKey,
       collapsedKey,
@@ -604,6 +613,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       expanded: Array.from(expanded),
       collapsed: Array.from(collapsed),
       focus_leaf: focusLeaf || undefined,
+      alpha,
     })
     const { positions, stats } = alignLayout(refreshed?.clusters || [], refreshed?.positions || {}, prevLayoutRef.current)
     const nextData = { ...refreshed, positions, meta: { ...(refreshed?.meta || {}), budget, base_cut: visibleTarget, alignment: stats } }
@@ -1139,6 +1149,48 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
           />
         )}
       </div>
+
+      {/* Community legend + alpha slider */}
+      {data?.meta?.communities?.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, padding: '4px 12px',
+          background: 'var(--bg-secondary, #f5f5f5)', borderBottom: '1px solid var(--border, #e0e0e0)',
+          flexWrap: 'wrap', fontSize: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Communities:</span>
+          </div>
+          {data.meta.communities.map(c => (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{
+                display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
+                background: c.color, border: '1px solid rgba(0,0,0,0.15)',
+              }} />
+              <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{c.name}</span>
+            </div>
+          ))}
+          {data.meta.alphaPresets && data.meta.alphaPresets.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Community bias:</span>
+              {data.meta.alphaPresets.map(preset => (
+                <button
+                  key={preset}
+                  onClick={() => setAlpha(preset)}
+                  style={{
+                    padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
+                    border: alpha === preset ? '1px solid var(--accent, #3b82f6)' : '1px solid var(--border, #ccc)',
+                    background: alpha === preset ? 'var(--accent, #3b82f6)' : 'transparent',
+                    color: alpha === preset ? '#fff' : 'var(--text-secondary)',
+                    fontSize: 11, fontWeight: 500,
+                  }}
+                >
+                  {preset === 0 ? 'off' : `α=${preset}`}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         <ClusterCanvas
