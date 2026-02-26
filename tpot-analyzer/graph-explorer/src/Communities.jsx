@@ -65,10 +65,11 @@ function MemberTable({ members, onSelectAccount, showFollowOnly,
   })
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
       <div style={{
         display: 'flex', gap: 8, padding: '8px 12px', alignItems: 'center',
         borderBottom: '1px solid var(--panel-border, #1e293b)',
+        flexShrink: 0,
       }}>
         <input
           type="text" placeholder="Search @handle..."
@@ -96,7 +97,7 @@ function MemberTable({ members, onSelectAccount, showFollowOnly,
         </span>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--panel-border, #1e293b)',
@@ -292,7 +293,7 @@ export default function Communities({ ego: defaultEgo }) {
       )}
 
       {/* Main layout: sidebar + center */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         <CommunityList
           communities={communities}
           selectedId={selectedCommunity?.id}
@@ -310,7 +311,7 @@ export default function Communities({ ego: defaultEgo }) {
           />
         ) : (
           /* List mode — community header + member table */
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
             {/* Community edit bar */}
             {selectedCommunity && (
               <>

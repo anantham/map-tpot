@@ -130,7 +130,7 @@ function App() {
       </div>
 
       {/* Main Content - render both but hide inactive one */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         {currentView === 'discovery' && (
           <div style={{ height: '100%' }}>
             <Discovery
@@ -173,7 +173,7 @@ function App() {
           </div>
         )}
         {currentView === 'communities' && (
-          <div style={{ height: '100%' }}>
+          <div style={{ height: '100%', overflow: 'hidden' }}>
             <Communities ego={accountStatus.handle} />
           </div>
         )}
