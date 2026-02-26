@@ -635,16 +635,24 @@ def print_diagnostics(result: PropagationResult) -> dict:
 def save_results(result: PropagationResult, output_dir: Path) -> Path:
     """Save propagation results as compressed numpy archive.
 
+    Creates two files:
+    - Timestamped archive in data/community_propagation_runs/
+    - Active pointer at data/community_propagation.npz
+
     This file is the input for Phase 1 (community-aware embedding) and
     Phase 3 (frontend integration). It contains everything needed to
     color the ClusterView by community membership.
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Timestamped archive
+    archive_dir = output_dir / "community_propagation_runs"
+    archive_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out_path = output_dir / f"community_propagation_{timestamp}.npz"
+    archive_path = archive_dir / f"{timestamp}.npz"
 
-    np.savez_compressed(
-        str(out_path),
+    # Active pointer (stable path for downstream consumers)
+    active_path = output_dir / "community_propagation.npz"
+
+    save_arrays = dict(
         memberships=result.memberships.astype(np.float32),
         uncertainty=result.uncertainty.astype(np.float32),
         abstain_mask=result.abstain_mask,
@@ -653,10 +661,19 @@ def save_results(result: PropagationResult, output_dir: Path) -> Path:
         community_ids=np.array(result.community_ids),
         community_names=np.array(result.community_names),
         community_colors=np.array(result.community_colors),
+        converged=np.array(result.converged, dtype=bool),
+        cg_iterations=np.array(result.cg_iterations, dtype=np.int32),
     )
-    print(f"\nResults saved to: {out_path}")
-    print(f"  Size: {out_path.stat().st_size / 1024 / 1024:.1f} MB")
-    return out_path
+
+    np.savez_compressed(str(archive_path), **save_arrays)
+    np.savez_compressed(str(active_path), **save_arrays)
+
+    print(f"\nResults saved:")
+    print(f"  Archive: {archive_path}")
+    print(f"  Active:  {active_path}")
+    print(f"  Size: {active_path.stat().st_size / 1024 / 1024:.1f} MB")
+    print(f"  Arrays: {list(save_arrays.keys())}")
+    return active_path
 
 
 def main():
