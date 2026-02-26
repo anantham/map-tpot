@@ -576,3 +576,133 @@ def create_branch(
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (branch_id, name, description, base_run_id, 1 if is_active else 0, now, now),
     )
+
+
+def capture_snapshot(
+    conn: sqlite3.Connection,
+    branch_id: str,
+    name: Optional[str] = None,
+) -> str:
+    """Freeze current Layer 2 state into a snapshot. Commits internally.
+
+    Serializes all community, community_account, and account_note rows
+    as JSON into community_snapshot_data.
+
+    Returns the snapshot_id.
+    """
+    snap_id = str(uuid4())
+    now = now_utc()
+
+    conn.execute(
+        "INSERT INTO community_snapshot (id, branch_id, name, created_at) VALUES (?,?,?,?)",
+        (snap_id, branch_id, name, now),
+    )
+
+    # Capture communities
+    for row in conn.execute(
+        "SELECT id, name, description, color, seeded_from_run, seeded_from_idx, created_at, updated_at"
+        " FROM community"
+    ).fetchall():
+        conn.execute(
+            "INSERT INTO community_snapshot_data (snapshot_id, kind, data) VALUES (?,?,?)",
+            (snap_id, "community", json.dumps({
+                "id": row[0], "name": row[1], "description": row[2], "color": row[3],
+                "seeded_from_run": row[4], "seeded_from_idx": row[5],
+                "created_at": row[6], "updated_at": row[7],
+            })),
+        )
+
+    # Capture assignments
+    for row in conn.execute(
+        "SELECT community_id, account_id, weight, source, updated_at FROM community_account"
+    ).fetchall():
+        conn.execute(
+            "INSERT INTO community_snapshot_data (snapshot_id, kind, data) VALUES (?,?,?)",
+            (snap_id, "assignment", json.dumps({
+                "community_id": row[0], "account_id": row[1],
+                "weight": row[2], "source": row[3], "updated_at": row[4],
+            })),
+        )
+
+    # Capture notes
+    for row in conn.execute(
+        "SELECT account_id, note, updated_at FROM account_note"
+    ).fetchall():
+        conn.execute(
+            "INSERT INTO community_snapshot_data (snapshot_id, kind, data) VALUES (?,?,?)",
+            (snap_id, "note", json.dumps({
+                "account_id": row[0], "note": row[1], "updated_at": row[2],
+            })),
+        )
+
+    conn.commit()
+    return snap_id
+
+
+def restore_snapshot(conn: sqlite3.Connection, snapshot_id: str) -> None:
+    """Wipe Layer 2 and restore from a snapshot. Commits internally.
+
+    WARNING: Destructive — deletes all community, community_account,
+    and account_note rows before restoring.
+    """
+    rows = conn.execute(
+        "SELECT kind, data FROM community_snapshot_data WHERE snapshot_id = ?",
+        (snapshot_id,),
+    ).fetchall()
+
+    if not rows:
+        # Empty snapshot — just wipe
+        conn.execute("DELETE FROM community_account")
+        conn.execute("DELETE FROM account_note")
+        conn.execute("DELETE FROM community")
+        conn.commit()
+        return
+
+    # Wipe Layer 2 (order matters for FK constraints)
+    conn.execute("DELETE FROM community_account")
+    conn.execute("DELETE FROM account_note")
+    conn.execute("DELETE FROM community")
+
+    # Restore from snapshot
+    for kind, data_json in rows:
+        d = json.loads(data_json)
+        if kind == "community":
+            conn.execute(
+                """INSERT INTO community (id, name, description, color,
+                       seeded_from_run, seeded_from_idx, created_at, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (d["id"], d["name"], d["description"], d["color"],
+                 d["seeded_from_run"], d["seeded_from_idx"],
+                 d["created_at"], d["updated_at"]),
+            )
+        elif kind == "assignment":
+            conn.execute(
+                """INSERT INTO community_account
+                       (community_id, account_id, weight, source, updated_at)
+                   VALUES (?,?,?,?,?)""",
+                (d["community_id"], d["account_id"],
+                 d["weight"], d["source"], d["updated_at"]),
+            )
+        elif kind == "note":
+            conn.execute(
+                """INSERT INTO account_note (account_id, note, updated_at)
+                   VALUES (?,?,?)""",
+                (d["account_id"], d["note"], d["updated_at"]),
+            )
+
+    conn.commit()
+
+
+def list_snapshots(conn: sqlite3.Connection, branch_id: str) -> list:
+    """Return snapshots for a branch, newest first."""
+    rows = conn.execute(
+        """SELECT id, branch_id, name, created_at
+           FROM community_snapshot
+           WHERE branch_id = ?
+           ORDER BY created_at DESC""",
+        (branch_id,),
+    ).fetchall()
+    return [
+        {"id": r[0], "branch_id": r[1], "name": r[2], "created_at": r[3]}
+        for r in rows
+    ]
