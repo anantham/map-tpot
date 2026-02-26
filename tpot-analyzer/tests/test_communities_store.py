@@ -28,6 +28,9 @@ from src.communities.store import (
     create_branch,
     list_branches,
     get_active_branch,
+    capture_snapshot,
+    restore_snapshot,
+    list_snapshots,
 )
 
 
@@ -427,3 +430,100 @@ def test_init_db_creates_branch_tables(db):
     assert "community_branch" in tables
     assert "community_snapshot" in tables
     assert "community_snapshot_data" in tables
+
+
+# ── Snapshot capture & restore ────────────────────────────────────────
+
+def test_capture_snapshot(seeded_db):
+    """capture_snapshot freezes Layer 2 state as JSON."""
+    create_branch(seeded_db, "br-1", "main", is_active=True)
+    seeded_db.commit()
+    snap_id = capture_snapshot(seeded_db, "br-1", name="initial")
+
+    # Verify snapshot exists
+    row = seeded_db.execute(
+        "SELECT id, branch_id, name FROM community_snapshot WHERE id = ?",
+        (snap_id,),
+    ).fetchone()
+    assert row is not None
+    assert row[1] == "br-1"
+    assert row[2] == "initial"
+
+    # Verify data was captured
+    kinds = {r[0] for r in seeded_db.execute(
+        "SELECT DISTINCT kind FROM community_snapshot_data WHERE snapshot_id = ?",
+        (snap_id,),
+    ).fetchall()}
+    assert "community" in kinds
+    assert "assignment" in kinds
+
+
+def test_restore_snapshot(seeded_db):
+    """restore_snapshot wipes Layer 2 and restores from snapshot."""
+    create_branch(seeded_db, "br-1", "main", is_active=True)
+    seeded_db.commit()
+    snap_id = capture_snapshot(seeded_db, "br-1", name="before-change")
+
+    # Mutate Layer 2
+    seeded_db.execute("DELETE FROM community WHERE id = 'comm-A'")
+    seeded_db.commit()
+    assert seeded_db.execute("SELECT COUNT(*) FROM community").fetchone()[0] == 1
+
+    # Restore
+    restore_snapshot(seeded_db, snap_id)
+
+    # Verify full state restored
+    assert seeded_db.execute("SELECT COUNT(*) FROM community").fetchone()[0] == 2
+    names = {r[0] for r in seeded_db.execute("SELECT name FROM community").fetchall()}
+    assert "EA / forecasting" in names
+    assert "Rationalist" in names
+
+
+def test_restore_snapshot_includes_assignments(seeded_db):
+    """Restored snapshot includes community_account rows."""
+    create_branch(seeded_db, "br-1", "main", is_active=True)
+    seeded_db.commit()
+    snap_id = capture_snapshot(seeded_db, "br-1")
+
+    original_count = seeded_db.execute(
+        "SELECT COUNT(*) FROM community_account"
+    ).fetchone()[0]
+
+    # Wipe assignments
+    seeded_db.execute("DELETE FROM community_account")
+    seeded_db.commit()
+
+    restore_snapshot(seeded_db, snap_id)
+    restored_count = seeded_db.execute(
+        "SELECT COUNT(*) FROM community_account"
+    ).fetchone()[0]
+    assert restored_count == original_count
+
+
+def test_restore_snapshot_includes_notes(seeded_db):
+    """Restored snapshot includes account_note rows."""
+    upsert_account_note(seeded_db, "acct_1", "Important person")
+    seeded_db.commit()
+
+    create_branch(seeded_db, "br-1", "main", is_active=True)
+    seeded_db.commit()
+    snap_id = capture_snapshot(seeded_db, "br-1")
+
+    seeded_db.execute("DELETE FROM account_note")
+    seeded_db.commit()
+
+    restore_snapshot(seeded_db, snap_id)
+    assert get_account_note(seeded_db, "acct_1") == "Important person"
+
+
+def test_list_snapshots(seeded_db):
+    """list_snapshots returns snapshots for a branch ordered newest-first."""
+    create_branch(seeded_db, "br-1", "main", is_active=True)
+    seeded_db.commit()
+    capture_snapshot(seeded_db, "br-1", name="first")
+    capture_snapshot(seeded_db, "br-1", name="second")
+
+    snaps = list_snapshots(seeded_db, "br-1")
+    assert len(snaps) == 2
+    assert snaps[0]["name"] == "second"  # newest first
+    assert snaps[1]["name"] == "first"
