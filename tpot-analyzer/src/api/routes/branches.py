@@ -26,6 +26,8 @@ def _get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys = ON")
+    # Ensure branch/snapshot tables exist (idempotent CREATE IF NOT EXISTS)
+    store.init_db(conn)
     return conn
 
 
