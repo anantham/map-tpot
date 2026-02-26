@@ -461,6 +461,7 @@ export const fetchClusterView = async (options = {}) => {
     expand_depth: typeof options.expand_depth === 'number'
       ? Math.min(1, Math.max(0, options.expand_depth)).toFixed(2)
       : '0.50',
+    alpha: typeof options.alpha === 'number' ? options.alpha.toFixed(2) : '0.00',
   });
   const inflight = fetchClusterView._inflight.get(cacheKey);
   if (inflight) {
@@ -492,6 +493,9 @@ export const fetchClusterView = async (options = {}) => {
   if (typeof options.expand_depth === 'number') {
     const ed = Math.min(1, Math.max(0, options.expand_depth));
     params.set('expand_depth', ed.toFixed(2));
+  }
+  if (typeof options.alpha === 'number' && options.alpha > 0) {
+    params.set('alpha', options.alpha.toFixed(2));
   }
   const reqId = options.reqId || Math.random().toString(36).slice(2, 8);
   params.set('reqId', reqId);

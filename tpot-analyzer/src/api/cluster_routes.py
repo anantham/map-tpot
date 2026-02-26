@@ -113,6 +113,8 @@ _label_store: Optional[ClusterLabelStore] = None
 _tag_store: Optional[AccountTagStore] = None
 _data_dir: Optional[Path] = None
 _propagation_data: Optional[PropagationData] = None
+_spectral_presets: Dict[float, object] = {}  # alpha -> SpectralResult
+_alpha_presets: list = []  # sorted list of available alpha values
 _observation_config = ObservationWeightingConfig()
 _observation_stats: Dict[str, object] = {}
 _graph_settings: Dict[str, object] = {}
@@ -279,6 +281,7 @@ def _make_cache_key(
     louvain_weight: float = 0.0,
     expand_depth: float = 0.5,
     focus_leaf: Optional[str] = None,
+    alpha: float = 0.0,
 ) -> Tuple:
     collapsed = collapsed or set()
     return (
@@ -289,6 +292,7 @@ def _make_cache_key(
         round(louvain_weight, 2),
         round(expand_depth, 2),
         focus_leaf or "",
+        round(alpha, 2),
     )
 
 def _get_tag_store() -> AccountTagStore:
@@ -363,7 +367,7 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
     Note: Blueprint registration is handled by the Flask app factory.
     """
     global _spectral_result, _adjacency, _node_metadata, _node_id_to_idx, _louvain_communities, _label_store
-    global _data_dir, _propagation_data
+    global _data_dir, _propagation_data, _spectral_presets, _alpha_presets
     global _observation_config, _observation_stats, _graph_settings
 
     try:
@@ -430,6 +434,20 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
         else:
             logger.warning("Community propagation not found at %s — community colors disabled", prop_path)
 
+        # Load spectral alpha presets (e.g. graph_snapshot.a15.spectral.npz)
+        _spectral_presets = {0.0: _spectral_result}
+        for alpha_pct in [15, 30]:
+            alpha_val = alpha_pct / 100.0
+            preset_base = data_dir / f"graph_snapshot.a{alpha_pct}"
+            preset_sidecar = data_dir / f"graph_snapshot.a{alpha_pct}.spectral.npz"
+            if preset_sidecar.exists():
+                try:
+                    _spectral_presets[alpha_val] = load_spectral_result(preset_base)
+                    logger.info("Loaded spectral preset alpha=%.2f from %s", alpha_val, preset_base)
+                except Exception:
+                    logger.warning("Failed to load spectral preset alpha=%.2f", alpha_val, exc_info=True)
+        _alpha_presets = sorted(_spectral_presets.keys())
+
         if _spectral_result.micro_labels is not None:
             n_micro = len(np.unique(_spectral_result.micro_labels))
             logger.info(
@@ -470,9 +488,20 @@ def get_clusters():
     louvain_weight = max(0.0, min(1.0, louvain_weight))
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
+    alpha = request.args.get("alpha", 0.0, type=float)
+    alpha = max(0.0, min(1.0, alpha))
+
+    # Select spectral preset for this alpha (snap to nearest available)
+    active_spectral = _spectral_result
+    active_alpha = 0.0
+    if alpha > 0 and _spectral_presets:
+        best_alpha = min(_alpha_presets, key=lambda a: abs(a - alpha))
+        if best_alpha in _spectral_presets:
+            active_spectral = _spectral_presets[best_alpha]
+            active_alpha = best_alpha
 
     logger.info(
-        "clusters start req=%s n=%d budget=%d expanded=%d collapsed=%d wl=%.2f depth=%.2f",
+        "clusters start req=%s n=%d budget=%d expanded=%d collapsed=%d wl=%.2f depth=%.2f alpha=%.2f",
         req_id,
         granularity,
         budget,
@@ -480,9 +509,10 @@ def get_clusters():
         len(collapsed_ids),
         louvain_weight,
         expand_depth,
+        active_alpha,
     )
 
-    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf)
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf, active_alpha)
 
     # Deduplicate identical in-flight builds
     inflight = _cache.inflight_get(cache_key)
@@ -553,10 +583,10 @@ def get_clusters():
 
     def _compute_view():
         return build_hierarchical_view(
-            linkage_matrix=_spectral_result.linkage_matrix,
-            micro_labels=_spectral_result.micro_labels if _spectral_result.micro_labels is not None else np.arange(len(_spectral_result.node_ids)),
-            micro_centroids=_spectral_result.micro_centroids if _spectral_result.micro_centroids is not None else _spectral_result.embedding,
-            node_ids=_spectral_result.node_ids,
+            linkage_matrix=active_spectral.linkage_matrix,
+            micro_labels=active_spectral.micro_labels if active_spectral.micro_labels is not None else np.arange(len(active_spectral.node_ids)),
+            micro_centroids=active_spectral.micro_centroids if active_spectral.micro_centroids is not None else active_spectral.embedding,
+            node_ids=active_spectral.node_ids,
             adjacency=_adjacency,
             node_metadata=_node_metadata,
             base_granularity=granularity,
@@ -582,6 +612,9 @@ def get_clusters():
 
         start_serialize = time.time()
         payload = _serialize_hierarchical_view(view)
+        # Patch active alpha into meta (per-request value)
+        if "meta" in payload:
+            payload["meta"]["activeAlpha"] = active_alpha
         serialize_duration = time.time() - start_serialize
         total_duration = time.time() - start_total
 
@@ -1129,6 +1162,8 @@ def _serialize_hierarchical_view(view) -> dict:
                 "stats": _observation_stats,
             },
             "communities": _build_communities_meta(),
+            "alphaPresets": _alpha_presets if len(_alpha_presets) > 1 else [],
+            "activeAlpha": 0.0,  # Will be overridden per-request in get_clusters
         },
         "cache_hit": False,
     }
