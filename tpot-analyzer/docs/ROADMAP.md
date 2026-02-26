@@ -65,9 +65,9 @@ Full classification pipeline (all accounts)
   (`src/archive/store.py`, implemented 2026-02-25)
 - [x] Thread context fetcher with local cache — pays for each thread once
   (`src/archive/thread_fetcher.py`, implemented 2026-02-25)
-- [ ] **Complete community archive fetch for all 316 accounts** (`scripts/fetch_archive_data.py`)
-  — currently 68 accounts `ok` and 6 `error` in `fetch_log`, with 830,370 tweets and
-  2,735,156 likes in DB (snapshot checked on 2026-02-25). Fetch/retry still in progress.
+- [x] **Complete community archive fetch for all 334 accounts** (`scripts/fetch_archive_data.py`)
+  — 394 ok, 19 no archive (accounts without uploaded archive). 5,553,228 tweets and
+  17,501,243 likes in DB. Archive fetch complete as of 2026-02-26.
 - [ ] Run data quality verification (`scripts/verify_archive_vs_cache.py`)
 
 ### Golden Dataset Curation
