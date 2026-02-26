@@ -158,13 +158,44 @@ def _build_undirected_view(directed: nx.DiGraph, *, mutual_only: bool) -> nx.Gra
     return undirected
 
 
-def _inject_shadow_data(graph: nx.DiGraph, store: ShadowStore) -> None:
-    """Augment directed graph with shadow accounts and edges."""
+def _build_shadow_remap(graph: nx.DiGraph) -> dict[str, str]:
+    """Build a mapping from shadow:username → numeric_node_id for deduplication.
 
+    The shadow enricher stores accounts as "shadow:{username_lowercase}" when the
+    Twitter API is unavailable. If the same account already exists in the graph
+    under its numeric Twitter ID (from archive data), we need to merge them.
+
+    Without this remap, the same person gets two graph nodes with split edges,
+    which breaks clustering, propagation, and degree calculations.
+
+    See ADR 012 for the full context on this dedup issue.
+    """
+    username_to_id: dict[str, str] = {}
+    for node_id, data in graph.nodes(data=True):
+        username = data.get("username")
+        if username and not str(node_id).startswith("shadow:"):
+            username_to_id[username.lower()] = str(node_id)
+    return {f"shadow:{uname}": nid for uname, nid in username_to_id.items()}
+
+
+def _inject_shadow_data(graph: nx.DiGraph, store: ShadowStore) -> None:
+    """Augment directed graph with shadow accounts and edges.
+
+    Handles deduplication: when a shadow account (shadow:username) corresponds
+    to an archive account (numeric ID) already in the graph, edges are merged
+    onto the existing node instead of creating a duplicate.
+    """
     now = datetime.utcnow()
+    remap = _build_shadow_remap(graph)
+    n_remapped_accounts = 0
+    n_remapped_edges = 0
+
     accounts = store.fetch_accounts()
     for record in accounts:
-        node_id = str(record["account_id"])
+        raw_id = str(record["account_id"])
+        node_id = remap.get(raw_id, raw_id)
+        if node_id != raw_id:
+            n_remapped_accounts += 1
         if graph.has_node(node_id):
             graph.nodes[node_id].setdefault("provenance", "archive")
             continue
@@ -184,8 +215,10 @@ def _inject_shadow_data(graph: nx.DiGraph, store: ShadowStore) -> None:
 
     edges = store.fetch_edges()
     for record in edges:
-        source = str(record["source_id"])
-        target = str(record["target_id"])
+        source = remap.get(str(record["source_id"]), str(record["source_id"]))
+        target = remap.get(str(record["target_id"]), str(record["target_id"]))
+        if source != str(record["source_id"]) or target != str(record["target_id"]):
+            n_remapped_edges += 1
         if not graph.has_node(source):
             graph.add_node(source, provenance="shadow", shadow=True)
         if not graph.has_node(target):
@@ -198,6 +231,13 @@ def _inject_shadow_data(graph: nx.DiGraph, store: ShadowStore) -> None:
             "fetched_at": record.get("fetched_at") or now,
         }
         graph.add_edge(source, target, **attributes)
+
+    if n_remapped_accounts > 0 or n_remapped_edges > 0:
+        import logging
+        logging.getLogger(__name__).info(
+            "Shadow dedup: remapped %d accounts, %d edges from shadow:username → numeric ID",
+            n_remapped_accounts, n_remapped_edges,
+        )
 
 
 def _add_edges(
