@@ -5,6 +5,29 @@ import { ZOOM_CONFIG } from './clusterCanvasConfig'
 
 const clamp = (val, min, max) => Math.min(max, Math.max(min, val))
 
+// Community color utilities
+function hexToRgb(hex) {
+  if (!hex) return null
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.test(hex) ? hex : null
+  if (!result) return null
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return { r, g, b }
+}
+
+function communityColor(baseHex, intensity) {
+  const rgb = hexToRgb(baseHex)
+  if (!rgb) return null
+  const gray = { r: 140, g: 140, b: 140 }
+  const t = Math.max(0, Math.min(1, intensity))
+  return {
+    r: Math.round(gray.r + (rgb.r - gray.r) * t),
+    g: Math.round(gray.g + (rgb.g - gray.g) * t),
+    b: Math.round(gray.b + (rgb.b - gray.b) * t),
+  }
+}
+
 // Easing functions for smooth animations
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3)
 const easeInOutQuad = (t) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
@@ -1124,12 +1147,37 @@ export default function ClusterCanvas({
         // Green tint for newly appearing nodes
         gradient.addColorStop(0, '#86efac')
         gradient.addColorStop(1, '#22c55e')
+      } else if (node.communityColor && node.communityIntensity > 0.01) {
+        // Community color: interpolate gray -> community color by intensity
+        const cc = communityColor(node.communityColor, node.communityIntensity)
+        if (cc) {
+          gradient.addColorStop(0, `rgba(${cc.r}, ${cc.g}, ${cc.b}, 0.95)`)
+          gradient.addColorStop(1, `rgba(${cc.r}, ${cc.g}, ${cc.b}, 0.65)`)
+        } else {
+          gradient.addColorStop(0, palette.nodeDefaultInner)
+          gradient.addColorStop(1, palette.nodeDefaultOuter)
+        }
       } else {
         gradient.addColorStop(0, palette.nodeDefaultInner)
         gradient.addColorStop(1, palette.nodeDefaultOuter)
       }
       ctx.fillStyle = gradient
       ctx.fill()
+
+      // Impurity ring: thin outer ring of secondary community color
+      if (node.secondaryCommunityColor && node.secondaryCommunityIntensity > 0.1
+          && !node.containsEgo && !isDragged && !isHighlighted && !isPending && !isEntering) {
+        const sc = communityColor(node.secondaryCommunityColor, node.secondaryCommunityIntensity)
+        if (sc) {
+          ctx.save()
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, radius + 1, 0, Math.PI * 2)
+          ctx.strokeStyle = `rgba(${sc.r}, ${sc.g}, ${sc.b}, ${Math.min(0.8, node.secondaryCommunityIntensity * 2)})`
+          ctx.lineWidth = 2
+          ctx.stroke()
+          ctx.restore()
+        }
+      }
       
       // Draw glow for dragged node
       if (isDragged) {
