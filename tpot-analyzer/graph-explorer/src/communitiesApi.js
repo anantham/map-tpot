@@ -11,20 +11,20 @@ export async function fetchCommunities() {
 export async function fetchCommunityMembers(communityId, { ego } = {}) {
   const params = new URLSearchParams()
   if (ego) params.set('ego', ego)
-  const url = `${BASE}/${communityId}/members${params.toString() ? '?' + params : ''}`
+  const url = `${BASE}/${encodeURIComponent(communityId)}/members${params.toString() ? '?' + params : ''}`
   const res = await fetch(url)
   if (!res.ok) throw new Error(`members failed: ${res.status}`)
   return res.json()
 }
 
 export async function fetchAccountCommunities(accountId) {
-  const res = await fetch(`${BASE}/account/${accountId}`)
+  const res = await fetch(`${BASE}/account/${encodeURIComponent(accountId)}`)
   if (!res.ok) throw new Error(`account communities failed: ${res.status}`)
   return res.json()
 }
 
 export async function assignMember(communityId, accountId) {
-  const res = await fetch(`${BASE}/${communityId}/members/${accountId}`, {
+  const res = await fetch(`${BASE}/${encodeURIComponent(communityId)}/members/${encodeURIComponent(accountId)}`, {
     method: 'PUT',
   })
   if (!res.ok) throw new Error(`assign failed: ${res.status}`)
@@ -32,7 +32,7 @@ export async function assignMember(communityId, accountId) {
 }
 
 export async function removeMember(communityId, accountId) {
-  const res = await fetch(`${BASE}/${communityId}/members/${accountId}`, {
+  const res = await fetch(`${BASE}/${encodeURIComponent(communityId)}/members/${encodeURIComponent(accountId)}`, {
     method: 'DELETE',
   })
   if (!res.ok) throw new Error(`remove failed: ${res.status}`)
@@ -40,11 +40,19 @@ export async function removeMember(communityId, accountId) {
 }
 
 export async function updateCommunity(communityId, updates) {
-  const res = await fetch(`${BASE}/${communityId}`, {
+  const res = await fetch(`${BASE}/${encodeURIComponent(communityId)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
   })
   if (!res.ok) throw new Error(`update failed: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteCommunity(communityId) {
+  const res = await fetch(`${BASE}/${encodeURIComponent(communityId)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error(`delete failed: ${res.status}`)
   return res.json()
 }

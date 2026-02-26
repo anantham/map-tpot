@@ -146,7 +146,11 @@ def main():
         follow_targets = follow_by_community.get(cidx, [])
         name = auto_name(cidx, rt_targets, follow_targets)
         color = PALETTE[cidx % len(PALETTE)]
-        community_id = str(uuid.uuid4())
+        existing = conn.execute(
+            "SELECT id FROM community WHERE seeded_from_run = ? AND seeded_from_idx = ?",
+            (run_id, cidx),
+        ).fetchone()
+        community_id = existing[0] if existing else str(uuid.uuid4())
         community_ids[cidx] = community_id
 
         upsert_community(
