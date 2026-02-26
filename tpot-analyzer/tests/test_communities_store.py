@@ -22,6 +22,9 @@ from src.communities.store import (
     clear_seeded_communities,
     reseed_nmf_memberships,
     get_ego_following_set,
+    get_account_note,
+    upsert_account_note,
+    get_account_preview,
 )
 
 
@@ -35,7 +38,10 @@ def db():
     conn.execute("""CREATE TABLE IF NOT EXISTS profiles (
         account_id TEXT PRIMARY KEY,
         username TEXT,
-        bio TEXT
+        display_name TEXT,
+        bio TEXT,
+        location TEXT,
+        website TEXT
     )""")
     conn.commit()
     return conn
@@ -237,3 +243,154 @@ def test_delete_community_cascades(seeded_db):
     assert seeded_db.execute(
         "SELECT COUNT(*) FROM community_account WHERE community_id = 'comm-A'"
     ).fetchone()[0] == 0
+
+
+# ── Account notes ─────────────────────────────────────────────────────
+
+def test_account_note_upsert_and_get(db):
+    """Notes can be saved and retrieved."""
+    upsert_account_note(db, "acct_1", "Great forecaster")
+    db.commit()
+    assert get_account_note(db, "acct_1") == "Great forecaster"
+
+
+def test_account_note_update(db):
+    """Upserting again updates existing note."""
+    upsert_account_note(db, "acct_1", "First note")
+    db.commit()
+    upsert_account_note(db, "acct_1", "Updated note")
+    db.commit()
+    assert get_account_note(db, "acct_1") == "Updated note"
+
+
+def test_account_note_missing(db):
+    """get_account_note returns None for unknown account."""
+    assert get_account_note(db, "nobody") is None
+
+
+# ── Account preview ──────────────────────────────────────────────────
+
+@pytest.fixture
+def preview_db(seeded_db):
+    """DB with extra tables needed by get_account_preview."""
+    seeded_db.executescript("""
+        CREATE TABLE IF NOT EXISTS profiles (
+            account_id TEXT PRIMARY KEY,
+            username TEXT,
+            display_name TEXT,
+            bio TEXT,
+            location TEXT,
+            website TEXT
+        );
+        CREATE TABLE IF NOT EXISTS tweets (
+            tweet_id TEXT PRIMARY KEY,
+            account_id TEXT,
+            full_text TEXT,
+            created_at TEXT,
+            favorite_count INTEGER DEFAULT 0,
+            retweet_count INTEGER DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS likes (
+            liker_account_id TEXT,
+            full_text TEXT,
+            expanded_url TEXT
+        );
+        CREATE TABLE IF NOT EXISTS retweets (
+            account_id TEXT,
+            rt_of_username TEXT
+        );
+        CREATE TABLE IF NOT EXISTS account_followers (
+            account_id TEXT,
+            follower_account_id TEXT,
+            PRIMARY KEY (account_id, follower_account_id)
+        );
+        CREATE TABLE IF NOT EXISTS account_following (
+            account_id TEXT,
+            following_account_id TEXT,
+            PRIMARY KEY (account_id, following_account_id)
+        );
+    """)
+
+    # Insert profile data
+    seeded_db.execute(
+        "INSERT OR REPLACE INTO profiles VALUES (?, ?, ?, ?, ?, ?)",
+        ("acct_1", "thezvi", "Zvi Mowshowitz", "EA writer", "NYC", None),
+    )
+
+    # Insert tweets for acct_1
+    seeded_db.executemany(
+        "INSERT INTO tweets VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            ("t1", "acct_1", "Great post about EA", "2025-01-15 10:00:00", 50, 10),
+            ("t2", "acct_1", "Another take", "2025-01-14 10:00:00", 20, 5),
+        ],
+    )
+
+    # Insert likes
+    seeded_db.execute(
+        "INSERT INTO likes VALUES (?, ?, ?)",
+        ("acct_1", "I liked this tweet", "https://x.com/status/123"),
+    )
+
+    # Insert retweets
+    seeded_db.executemany(
+        "INSERT INTO retweets VALUES (?, ?)",
+        [("acct_1", "eigenrobot"), ("acct_1", "eigenrobot"), ("acct_1", "gwern")],
+    )
+
+    # Insert follower relationships
+    # acct_2 (community member) follows acct_1
+    seeded_db.execute("INSERT INTO account_followers VALUES ('acct_1', 'acct_2')")
+    # acct_3 (community member) follows acct_1
+    seeded_db.execute("INSERT INTO account_followers VALUES ('acct_1', 'acct_3')")
+
+    seeded_db.commit()
+    return seeded_db
+
+
+def test_preview_returns_all_sections(preview_db):
+    """get_account_preview returns all expected keys."""
+    result = get_account_preview(preview_db, "acct_1")
+    assert result["account_id"] == "acct_1"
+    assert result["profile"]["username"] == "thezvi"
+    assert len(result["communities"]) == 2
+    assert len(result["recent_tweets"]) == 2
+    assert len(result["top_tweets"]) == 2
+    assert len(result["liked_tweets"]) == 1
+    assert len(result["top_rt_targets"]) == 2
+    assert result["tpot_score"] == 2  # acct_2 and acct_3 are community members
+    assert result["tpot_score_max"] > 0
+    assert result["note"] is None
+
+
+def test_preview_with_note(preview_db):
+    """Preview includes saved curator note."""
+    upsert_account_note(preview_db, "acct_1", "Key community member")
+    preview_db.commit()
+    result = get_account_preview(preview_db, "acct_1")
+    assert result["note"] == "Key community member"
+
+
+def test_preview_mutual_follows_with_ego(preview_db):
+    """Preview with ego returns mutual follows."""
+    # ego follows acct_2 and acct_3
+    preview_db.executemany(
+        "INSERT OR IGNORE INTO account_following VALUES (?, ?)",
+        [("ego_1", "acct_2"), ("ego_1", "acct_3")],
+    )
+    # acct_2 also follows acct_1 (already set up)
+    preview_db.commit()
+
+    result = get_account_preview(preview_db, "acct_1", ego_account_id="ego_1")
+    assert result["mutual_follow_count"] >= 1
+    mf_ids = {mf["account_id"] for mf in result["mutual_follows"]}
+    assert "acct_2" in mf_ids
+
+
+def test_preview_unknown_account(preview_db):
+    """Preview for non-existent account returns empty but doesn't crash."""
+    result = get_account_preview(preview_db, "nobody")
+    assert result["profile"]["username"] is None
+    assert result["communities"] == []
+    assert result["recent_tweets"] == []
+    assert result["tpot_score"] == 0

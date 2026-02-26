@@ -195,3 +195,69 @@ def delete_community_route(community_id):
         return jsonify({"deleted": True, "community_id": community_id})
     finally:
         conn.close()
+
+
+# ── Account preview + notes ─────────────────────────────────────────────
+
+
+@communities_bp.route("/account/<account_id>/preview", methods=["GET"])
+def get_account_preview_route(account_id):
+    """Rich preview: profile, mutual follows (with communities), tweets, RT targets, note."""
+    ego = request.args.get("ego")
+    conn = _get_db()
+    try:
+        # Ensure account_note table exists (created by init_db but may be missing on older DBs)
+        conn.execute("""CREATE TABLE IF NOT EXISTS account_note (
+            account_id TEXT PRIMARY KEY, note TEXT NOT NULL, updated_at TEXT NOT NULL
+        )""")
+        preview = store.get_account_preview(conn, account_id, ego_account_id=ego)
+        return jsonify(preview)
+    finally:
+        conn.close()
+
+
+@communities_bp.route("/account/<account_id>/note", methods=["PUT"])
+def put_account_note_route(account_id):
+    """Save curator's free-form note about an account."""
+    conn = _get_db()
+    try:
+        conn.execute("""CREATE TABLE IF NOT EXISTS account_note (
+            account_id TEXT PRIMARY KEY, note TEXT NOT NULL, updated_at TEXT NOT NULL
+        )""")
+        body = request.get_json() or {}
+        note = body.get("note", "")
+        store.upsert_account_note(conn, account_id, note)
+        conn.commit()
+        return jsonify({"account_id": account_id, "note": note})
+    finally:
+        conn.close()
+
+
+@communities_bp.route("/account/<account_id>/weights", methods=["PUT"])
+def put_account_weights_route(account_id):
+    """Update community weights for an account. Body: {weights: [{community_id, weight}, ...]}"""
+    conn = _get_db()
+    try:
+        body = request.get_json() or {}
+        weights = body.get("weights", [])
+        for w in weights:
+            cid = w.get("community_id")
+            weight = w.get("weight")
+            if cid is None or weight is None:
+                continue
+            exists = conn.execute(
+                "SELECT 1 FROM community WHERE id = ?", (cid,)
+            ).fetchone()
+            if not exists:
+                return jsonify({"error": f"community {cid} not found"}), 404
+            store.upsert_community_account(
+                conn, cid, account_id, weight=float(weight), source="human"
+            )
+        conn.commit()
+        # Return updated communities
+        rows = store.get_account_communities(conn, account_id)
+        result = [{"community_id": r[0], "name": r[1], "color": r[2],
+                    "weight": r[3], "source": r[4]} for r in rows]
+        return jsonify({"account_id": account_id, "communities": result})
+    finally:
+        conn.close()
