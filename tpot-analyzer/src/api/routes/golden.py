@@ -101,6 +101,8 @@ def get_candidates():
         limit = _parse_limit(request.args.get("limit"), default=20, maximum=1000)
 
         store = _get_store()
+        # ensure_fixed_splits is fast when splits already exist (LIMIT 1 check).
+        # Full bootstrap runs only on first call or after archive fetch adds new tweets.
         split_counts = store.ensure_fixed_splits(axis, assigned_by="system")
         candidates = store.list_candidates(
             axis,
@@ -144,7 +146,6 @@ def upsert_label():
         context_snapshot_json = data.get("context_snapshot_json")
 
         store = _get_store()
-        store.ensure_fixed_splits(axis, assigned_by="system")
         label_set_id = store.upsert_label(
             tweet_id=tweet_id,
             axis=axis,
