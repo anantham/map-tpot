@@ -18,6 +18,7 @@ data/clusters.db
 data/outputs/
 data/*.parquet
 data/*.npz
+data/**/*.npz
 data/*.pkl
 data/adjacency_matrix_cache.pkl
 data/holdout_clusters.json
