@@ -11,6 +11,11 @@ import {
   fetchCommunities,
   fetchCommunityMembers,
   updateCommunity,
+  fetchBranches,
+  createBranch,
+  switchBranch,
+  saveSnapshot,
+  checkBranchDirty,
 } from './communitiesApi'
 import { searchAccounts } from './accountsApi'
 import AccountDeepDive from './AccountDeepDive'
@@ -181,6 +186,14 @@ export default function Communities({ ego: defaultEgo }) {
   const [egoInput, setEgoInput] = useState(defaultEgo || '')
   const [egoAccountId, setEgoAccountId] = useState(null)
 
+  // Branch state
+  const [branches, setBranches] = useState([])
+  const [activeBranch, setActiveBranch] = useState(null)
+  const [isDirty, setIsDirty] = useState(false)
+  const [showBranchModal, setShowBranchModal] = useState(false) // 'switch-confirm' | 'new-branch' | false
+  const [pendingSwitchId, setPendingSwitchId] = useState(null)
+  const [newBranchName, setNewBranchName] = useState('')
+
   useEffect(() => {
     if (!ego) { setEgoAccountId(null); return }
     searchAccounts({ q: ego, limit: 1 })
@@ -194,6 +207,77 @@ export default function Communities({ ego: defaultEgo }) {
       })
       .catch(() => setEgoAccountId(null))
   }, [ego])
+
+  // Branch loading
+  const loadBranches = useCallback(async () => {
+    try {
+      const data = await fetchBranches()
+      setBranches(data)
+      const active = data.find(b => b.is_active)
+      setActiveBranch(active || null)
+      if (active) {
+        const dirtyResult = await checkBranchDirty(active.id)
+        setIsDirty(dirtyResult.dirty)
+      }
+    } catch (e) { setError(e.message) }
+  }, [])
+
+  const refreshDirtyState = useCallback(async () => {
+    if (!activeBranch) return
+    try {
+      const result = await checkBranchDirty(activeBranch.id)
+      setIsDirty(result.dirty)
+    } catch { /* ignore polling errors */ }
+  }, [activeBranch])
+
+  const handleSwitchBranch = useCallback(async (branchId, action) => {
+    try {
+      await switchBranch(branchId, action)
+      await loadBranches()
+      const comms = await fetchCommunities()
+      setCommunities(comms)
+      if (comms.length > 0) setSelectedCommunity(comms[0])
+      setMembers([])
+      setDeepDiveAccountId(null)
+      setShowBranchModal(false)
+      setPendingSwitchId(null)
+    } catch (e) { setError(e.message) }
+  }, [loadBranches])
+
+  const handleCreateBranch = useCallback(async () => {
+    if (!newBranchName.trim()) return
+    try {
+      await createBranch(newBranchName.trim())
+      setNewBranchName('')
+      setShowBranchModal(false)
+      await loadBranches()
+      const comms = await fetchCommunities()
+      setCommunities(comms)
+      if (comms.length > 0) setSelectedCommunity(comms[0])
+    } catch (e) { setError(e.message) }
+  }, [newBranchName, loadBranches])
+
+  const handleSaveSnapshot = useCallback(async () => {
+    if (!activeBranch) return
+    try {
+      const name = window.prompt('Snapshot name (optional):')
+      await saveSnapshot(activeBranch.id, name || undefined)
+      setIsDirty(false)
+      await loadBranches()
+    } catch (e) { setError(e.message) }
+  }, [activeBranch, loadBranches])
+
+  const initiateSwitch = useCallback(async (branchId) => {
+    if (!activeBranch || branchId === activeBranch.id) return
+    if (isDirty) {
+      setPendingSwitchId(branchId)
+      setShowBranchModal('switch-confirm')
+    } else {
+      await handleSwitchBranch(branchId, 'discard')
+    }
+  }, [activeBranch, isDirty, handleSwitchBranch])
+
+  useEffect(() => { loadBranches() }, [loadBranches])
 
   useEffect(() => {
     setLoading(true)
@@ -227,15 +311,17 @@ export default function Communities({ ego: defaultEgo }) {
       setSelectedCommunity(updated)
       setCommunities(prev => prev.map(c => c.id === updated.id ? { ...c, ...result } : c))
       setEditingName(null)
+      refreshDirtyState()
     } catch (e) { setError(e.message) }
-  }, [selectedCommunity])
+  }, [selectedCommunity, refreshDirtyState])
 
   const handleWeightsChanged = useCallback(async () => {
     // Refresh member list + community counts after weight edit
     loadMembers()
     const comms = await fetchCommunities()
     setCommunities(comms)
-  }, [loadMembers])
+    refreshDirtyState()
+  }, [loadMembers, refreshDirtyState])
 
   if (loading) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center',
@@ -289,6 +375,141 @@ export default function Communities({ ego: defaultEgo }) {
               color: '#f87171', cursor: 'pointer', fontSize: 16 }}>
             ×
           </button>
+        </div>
+      )}
+
+      {/* Branch bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '6px 16px',
+        borderBottom: '1px solid var(--panel-border, #1e293b)',
+        background: 'var(--panel, #1e293b)',
+        fontSize: 12, flexShrink: 0,
+      }}>
+        <span style={{ color: '#64748b', fontWeight: 600 }}>Branch:</span>
+        <select
+          value={activeBranch?.id || ''}
+          onChange={e => initiateSwitch(e.target.value)}
+          style={{
+            padding: '4px 8px', fontSize: 12,
+            background: 'var(--bg, #0f172a)',
+            border: '1px solid var(--panel-border, #2d3748)',
+            borderRadius: 4, color: 'var(--text, #e2e8f0)',
+          }}
+        >
+          {branches.map(b => (
+            <option key={b.id} value={b.id}>
+              {b.name} ({b.snapshot_count} saves)
+            </option>
+          ))}
+        </select>
+        <button onClick={handleSaveSnapshot} style={{
+          padding: '4px 10px', fontSize: 12, fontWeight: 600,
+          background: '#22c55e', color: '#fff', border: 'none',
+          borderRadius: 4, cursor: 'pointer',
+        }}>
+          Save
+        </button>
+        <button onClick={() => setShowBranchModal('new-branch')} style={{
+          padding: '4px 10px', fontSize: 12, fontWeight: 600,
+          background: '#3b82f6', color: '#fff', border: 'none',
+          borderRadius: 4, cursor: 'pointer',
+        }}>
+          Branch...
+        </button>
+        {isDirty && (
+          <span style={{ color: '#f59e0b', fontWeight: 600 }}>
+            unsaved changes
+          </span>
+        )}
+      </div>
+
+      {/* Switch confirmation modal */}
+      {showBranchModal === 'switch-confirm' && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: 'var(--panel, #1e293b)', borderRadius: 8,
+            padding: 24, maxWidth: 400, width: '90%',
+            border: '1px solid var(--panel-border, #2d3748)',
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
+              Unsaved changes on &ldquo;{activeBranch?.name}&rdquo;
+            </div>
+            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16 }}>
+              Save your changes before switching, or discard them?
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowBranchModal(false); setPendingSwitchId(null) }}
+                style={{ padding: '6px 16px', fontSize: 12, background: 'transparent',
+                  border: '1px solid var(--panel-border, #2d3748)', borderRadius: 4,
+                  color: 'var(--text, #e2e8f0)', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={() => handleSwitchBranch(pendingSwitchId, 'discard')}
+                style={{ padding: '6px 16px', fontSize: 12, background: '#ef4444',
+                  color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                Discard
+              </button>
+              <button onClick={() => handleSwitchBranch(pendingSwitchId, 'save')}
+                style={{ padding: '6px 16px', fontSize: 12, background: '#22c55e',
+                  color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                Save & Switch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New branch modal */}
+      {showBranchModal === 'new-branch' && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: 'var(--panel, #1e293b)', borderRadius: 8,
+            padding: 24, maxWidth: 400, width: '90%',
+            border: '1px solid var(--panel-border, #2d3748)',
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>
+              Create New Branch
+            </div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>
+              Fork from current state of &ldquo;{activeBranch?.name}&rdquo;
+            </div>
+            <input
+              autoFocus
+              type="text" placeholder="Branch name..."
+              value={newBranchName}
+              onChange={e => setNewBranchName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleCreateBranch()}
+              style={{
+                width: '100%', padding: '8px 12px', fontSize: 13, marginBottom: 12,
+                background: 'var(--bg, #0f172a)',
+                border: '1px solid var(--panel-border, #2d3748)',
+                borderRadius: 4, color: 'var(--text, #e2e8f0)',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowBranchModal(false); setNewBranchName('') }}
+                style={{ padding: '6px 16px', fontSize: 12, background: 'transparent',
+                  border: '1px solid var(--panel-border, #2d3748)', borderRadius: 4,
+                  color: 'var(--text, #e2e8f0)', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={handleCreateBranch}
+                style={{ padding: '6px 16px', fontSize: 12, background: '#3b82f6',
+                  color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                Create
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
