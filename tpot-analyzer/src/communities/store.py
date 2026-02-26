@@ -706,3 +706,180 @@ def list_snapshots(conn: sqlite3.Connection, branch_id: str) -> list:
         {"id": r[0], "branch_id": r[1], "name": r[2], "created_at": r[3]}
         for r in rows
     ]
+
+
+def set_active_branch(conn: sqlite3.Connection, branch_id: str) -> None:
+    """Set exactly one branch as active. Does NOT commit."""
+    conn.execute("UPDATE community_branch SET is_active = 0")
+    conn.execute(
+        "UPDATE community_branch SET is_active = 1, updated_at = ? WHERE id = ?",
+        (now_utc(), branch_id),
+    )
+
+
+def switch_branch(
+    conn: sqlite3.Connection,
+    target_branch_id: str,
+    save_current: bool = True,
+) -> None:
+    """Switch to a different branch. Commits internally.
+
+    If save_current=True, snapshots current Layer 2 onto the current active branch
+    before switching. If False, current unsaved changes are discarded.
+    """
+    current = get_active_branch(conn)
+    if current and current["id"] == target_branch_id:
+        return  # Already on this branch
+
+    # Optionally save current state
+    if save_current and current:
+        capture_snapshot(conn, current["id"], name="auto-save before switch")
+
+    # Find target branch's latest snapshot
+    latest = conn.execute(
+        """SELECT id FROM community_snapshot
+           WHERE branch_id = ? ORDER BY created_at DESC LIMIT 1""",
+        (target_branch_id,),
+    ).fetchone()
+
+    if latest:
+        restore_snapshot(conn, latest[0])
+    else:
+        # No snapshots on target — wipe to empty
+        conn.execute("DELETE FROM community_account")
+        conn.execute("DELETE FROM account_note")
+        conn.execute("DELETE FROM community")
+        conn.commit()
+
+    set_active_branch(conn, target_branch_id)
+    conn.commit()
+
+
+def is_branch_dirty(conn: sqlite3.Connection, branch_id: str) -> bool:
+    """Check if working Layer 2 state differs from the latest snapshot.
+
+    Returns False if the branch has no snapshots (treated as clean).
+    """
+    latest = conn.execute(
+        """SELECT id FROM community_snapshot
+           WHERE branch_id = ? ORDER BY created_at DESC LIMIT 1""",
+        (branch_id,),
+    ).fetchone()
+
+    if not latest:
+        return False
+
+    snapshot_id = latest[0]
+
+    # Compare community rows
+    current_communities = sorted(
+        conn.execute(
+            "SELECT id, name, description, color FROM community ORDER BY id"
+        ).fetchall()
+    )
+    snap_communities = sorted(
+        (
+            (d["id"], d["name"], d["description"], d["color"])
+            for d in (
+                json.loads(r[0])
+                for r in conn.execute(
+                    "SELECT data FROM community_snapshot_data WHERE snapshot_id = ? AND kind = 'community'",
+                    (snapshot_id,),
+                ).fetchall()
+            )
+        )
+    )
+    if current_communities != snap_communities:
+        return True
+
+    # Compare assignment rows
+    current_assignments = sorted(
+        conn.execute(
+            "SELECT community_id, account_id, weight, source FROM community_account ORDER BY community_id, account_id"
+        ).fetchall()
+    )
+    snap_assignments = sorted(
+        (
+            (d["community_id"], d["account_id"], d["weight"], d["source"])
+            for d in (
+                json.loads(r[0])
+                for r in conn.execute(
+                    "SELECT data FROM community_snapshot_data WHERE snapshot_id = ? AND kind = 'assignment'",
+                    (snapshot_id,),
+                ).fetchall()
+            )
+        )
+    )
+    if current_assignments != snap_assignments:
+        return True
+
+    # Compare note rows
+    current_notes = sorted(
+        conn.execute(
+            "SELECT account_id, note FROM account_note ORDER BY account_id"
+        ).fetchall()
+    )
+    snap_notes = sorted(
+        (
+            (d["account_id"], d["note"])
+            for d in (
+                json.loads(r[0])
+                for r in conn.execute(
+                    "SELECT data FROM community_snapshot_data WHERE snapshot_id = ? AND kind = 'note'",
+                    (snapshot_id,),
+                ).fetchall()
+            )
+        )
+    )
+    return current_notes != snap_notes
+
+
+def delete_branch(conn: sqlite3.Connection, branch_id: str) -> None:
+    """Delete a branch and cascade to its snapshots. Commits internally.
+
+    Raises ValueError if attempting to delete the active branch.
+    """
+    active = get_active_branch(conn)
+    if active and active["id"] == branch_id:
+        raise ValueError("cannot delete active branch")
+
+    conn.execute("DELETE FROM community_branch WHERE id = ?", (branch_id,))
+    conn.commit()
+
+
+def ensure_main_branch(conn: sqlite3.Connection) -> dict:
+    """Create 'main' branch if no branches exist. Returns the active branch.
+
+    On first use, snapshots the current Layer 2 state.
+    Idempotent — does nothing if branches already exist.
+    Commits internally.
+    """
+    existing = get_active_branch(conn)
+    if existing:
+        return existing
+
+    # Check if any branches exist at all
+    count = conn.execute("SELECT COUNT(*) FROM community_branch").fetchone()[0]
+    if count > 0:
+        # Branches exist but none active — activate the first one
+        first = conn.execute(
+            "SELECT id FROM community_branch ORDER BY created_at LIMIT 1"
+        ).fetchone()
+        set_active_branch(conn, first[0])
+        conn.commit()
+        return get_active_branch(conn)
+
+    # No branches at all — create "main"
+    branch_id = str(uuid4())
+
+    # Find latest NMF run for base_run_id
+    latest_run = conn.execute(
+        "SELECT run_id FROM community_run ORDER BY created_at DESC LIMIT 1"
+    ).fetchone()
+    base_run_id = latest_run[0] if latest_run else None
+
+    create_branch(conn, branch_id, "main", base_run_id=base_run_id, is_active=True)
+    conn.commit()
+    capture_snapshot(conn, branch_id, name="initial state")
+
+    return get_active_branch(conn)

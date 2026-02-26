@@ -31,6 +31,11 @@ from src.communities.store import (
     capture_snapshot,
     restore_snapshot,
     list_snapshots,
+    switch_branch,
+    is_branch_dirty,
+    delete_branch,
+    ensure_main_branch,
+    set_active_branch,
 )
 
 
@@ -527,3 +532,129 @@ def test_list_snapshots(seeded_db):
     assert len(snaps) == 2
     assert snaps[0]["name"] == "second"  # newest first
     assert snaps[1]["name"] == "first"
+
+
+# ── Branch switch, dirty detection, delete, bootstrap ─────────────────
+
+def test_switch_branch_with_save(seeded_db):
+    """Switching branches saves current state and restores target."""
+    # Create two branches
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    seeded_db.commit()
+    capture_snapshot(seeded_db, "br-main", name="initial")
+
+    # Create branch B as fork
+    create_branch(seeded_db, "br-b", "experiment")
+    seeded_db.commit()
+    capture_snapshot(seeded_db, "br-b", name="fork")
+
+    # Modify Layer 2 on main (rename a community)
+    seeded_db.execute("UPDATE community SET name = 'RENAMED' WHERE id = 'comm-A'")
+    seeded_db.commit()
+
+    # Switch to B with save
+    switch_branch(seeded_db, "br-b", save_current=True)
+
+    # After switch: Layer 2 should have the original names (from br-b's snapshot)
+    row = seeded_db.execute("SELECT name FROM community WHERE id = 'comm-A'").fetchone()
+    assert row[0] == "EA / forecasting"
+
+    # br-main should now be inactive, br-b active
+    assert get_active_branch(seeded_db)["id"] == "br-b"
+
+    # Switch back to main — should have the rename saved
+    switch_branch(seeded_db, "br-main", save_current=False)
+    row = seeded_db.execute("SELECT name FROM community WHERE id = 'comm-A'").fetchone()
+    assert row[0] == "RENAMED"
+
+
+def test_switch_branch_with_discard(seeded_db):
+    """Switching with discard drops unsaved changes."""
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    seeded_db.commit()
+    capture_snapshot(seeded_db, "br-main", name="initial")
+
+    create_branch(seeded_db, "br-b", "experiment")
+    seeded_db.commit()
+    capture_snapshot(seeded_db, "br-b", name="fork")
+
+    # Modify Layer 2
+    seeded_db.execute("UPDATE community SET name = 'RENAMED' WHERE id = 'comm-A'")
+    seeded_db.commit()
+
+    # Switch with discard (save_current=False)
+    switch_branch(seeded_db, "br-b", save_current=False)
+
+    # Switch back — rename should be gone (was discarded)
+    switch_branch(seeded_db, "br-main", save_current=False)
+    row = seeded_db.execute("SELECT name FROM community WHERE id = 'comm-A'").fetchone()
+    assert row[0] == "EA / forecasting"
+
+
+def test_is_branch_dirty(seeded_db):
+    """Dirty detection compares Layer 2 against latest snapshot."""
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    seeded_db.commit()
+    capture_snapshot(seeded_db, "br-main")
+
+    assert is_branch_dirty(seeded_db, "br-main") is False
+
+    # Modify Layer 2
+    seeded_db.execute("UPDATE community SET name = 'CHANGED' WHERE id = 'comm-A'")
+    seeded_db.commit()
+
+    assert is_branch_dirty(seeded_db, "br-main") is True
+
+
+def test_is_branch_dirty_no_snapshots(seeded_db):
+    """Branch with no snapshots is considered clean."""
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    seeded_db.commit()
+    assert is_branch_dirty(seeded_db, "br-main") is False
+
+
+def test_delete_branch(seeded_db):
+    """Deleting a branch cascades to its snapshots."""
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    create_branch(seeded_db, "br-b", "experiment")
+    seeded_db.commit()
+    capture_snapshot(seeded_db, "br-b", name="test")
+
+    delete_branch(seeded_db, "br-b")
+
+    branches = list_branches(seeded_db)
+    assert len(branches) == 1
+    snaps = list_snapshots(seeded_db, "br-b")
+    assert len(snaps) == 0
+
+
+def test_delete_active_branch_raises(seeded_db):
+    """Cannot delete the active branch."""
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    seeded_db.commit()
+
+    with pytest.raises(ValueError, match="cannot delete active branch"):
+        delete_branch(seeded_db, "br-main")
+
+
+def test_ensure_main_branch_creates_on_empty(seeded_db):
+    """ensure_main_branch creates 'main' branch with snapshot if none exist."""
+    ensure_main_branch(seeded_db)
+
+    branch = get_active_branch(seeded_db)
+    assert branch is not None
+    assert branch["name"] == "main"
+
+    snaps = list_snapshots(seeded_db, branch["id"])
+    assert len(snaps) == 1
+
+
+def test_ensure_main_branch_noop_if_exists(seeded_db):
+    """ensure_main_branch is idempotent."""
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    seeded_db.commit()
+
+    ensure_main_branch(seeded_db)
+
+    branches = list_branches(seeded_db)
+    assert len(branches) == 1
