@@ -371,8 +371,8 @@ def test_preview_with_note(preview_db):
     assert result["note"] == "Key community member"
 
 
-def test_preview_mutual_follows_with_ego(preview_db):
-    """Preview with ego returns mutual follows."""
+def test_preview_followers_you_know_with_ego(preview_db):
+    """Preview with ego returns followers you know."""
     # ego follows acct_2 and acct_3
     preview_db.executemany(
         "INSERT OR IGNORE INTO account_following VALUES (?, ?)",
@@ -382,9 +382,27 @@ def test_preview_mutual_follows_with_ego(preview_db):
     preview_db.commit()
 
     result = get_account_preview(preview_db, "acct_1", ego_account_id="ego_1")
-    assert result["mutual_follow_count"] >= 1
-    mf_ids = {mf["account_id"] for mf in result["mutual_follows"]}
-    assert "acct_2" in mf_ids
+    assert result["followers_you_know_count"] >= 1
+    fk_ids = {f["account_id"] for f in result["followers_you_know"]}
+    assert "acct_2" in fk_ids
+
+
+def test_preview_notable_followees(preview_db):
+    """Preview returns notable followees (high-TPOT accounts they follow)."""
+    # acct_1 follows acct_3 (who is a community member)
+    preview_db.execute(
+        "INSERT OR IGNORE INTO account_following VALUES (?, ?)",
+        ("acct_1", "acct_3"),
+    )
+    preview_db.commit()
+
+    result = get_account_preview(preview_db, "acct_1")
+    assert len(result["notable_followees"]) >= 1
+    nf_ids = {f["account_id"] for f in result["notable_followees"]}
+    assert "acct_3" in nf_ids
+    # Should include tpot_score
+    acct3 = next(f for f in result["notable_followees"] if f["account_id"] == "acct_3")
+    assert "tpot_score" in acct3
 
 
 def test_preview_unknown_account(preview_db):

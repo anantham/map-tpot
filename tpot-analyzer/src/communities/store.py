@@ -356,8 +356,8 @@ def get_account_preview(
             "weight": weight, "source": source,
         })
 
-    # Mutual follows: people ego follows who also follow this account
-    mutual_follows = []
+    # Followers you know: people you (ego) follow who also follow this account
+    followers_you_know = []
     if ego_account_id:
         rows = conn.execute(
             """SELECT af.follower_account_id, p.username, p.bio
@@ -371,13 +371,43 @@ def get_account_preview(
             (ego_account_id, account_id),
         ).fetchall()
         for fid, fusername, fbio in rows:
-            mf_comms = []
+            fk_comms = []
             for cid, cname, ccolor, cw, csrc in get_account_communities(conn, fid):
-                mf_comms.append({"community_id": cid, "name": cname, "color": ccolor})
-            mutual_follows.append({
+                fk_comms.append({"community_id": cid, "name": cname, "color": ccolor})
+            followers_you_know.append({
                 "account_id": fid, "username": fusername, "bio": fbio,
-                "communities": mf_comms,
+                "communities": fk_comms,
             })
+
+    # Notable followees: high-TPOT-score accounts that this person follows
+    # (accounts they follow that are also community members, ranked by in-degree)
+    notable_followees = []
+    followee_rows = conn.execute(
+        """SELECT af.following_account_id, p.username, p.bio,
+                  COUNT(DISTINCT af2.follower_account_id) as tpot_score
+           FROM account_following af
+           JOIN community_account ca ON ca.account_id = af.following_account_id
+           LEFT JOIN profiles p ON p.account_id = af.following_account_id
+           LEFT JOIN account_followers af2
+               ON af2.account_id = af.following_account_id
+               AND af2.follower_account_id IN (
+                   SELECT DISTINCT account_id FROM community_account
+               )
+           WHERE af.account_id = ?
+             AND af.following_account_id != ?
+           GROUP BY af.following_account_id
+           ORDER BY tpot_score DESC
+           LIMIT 30""",
+        (account_id, account_id),
+    ).fetchall()
+    for fid, fusername, fbio, fscore in followee_rows:
+        nf_comms = []
+        for cid, cname, ccolor, cw, csrc in get_account_communities(conn, fid):
+            nf_comms.append({"community_id": cid, "name": cname, "color": ccolor})
+        notable_followees.append({
+            "account_id": fid, "username": fusername, "bio": fbio,
+            "tpot_score": fscore, "communities": nf_comms,
+        })
 
     # Recent tweets (15)
     recent_tweets = []
@@ -449,8 +479,9 @@ def get_account_preview(
         "account_id": account_id,
         "profile": profile_dict,
         "communities": communities,
-        "mutual_follows": mutual_follows,
-        "mutual_follow_count": len(mutual_follows),
+        "followers_you_know": followers_you_know,
+        "followers_you_know_count": len(followers_you_know),
+        "notable_followees": notable_followees,
         "recent_tweets": recent_tweets,
         "top_tweets": top_tweets,
         "liked_tweets": liked_tweets,

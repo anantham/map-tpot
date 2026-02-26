@@ -239,12 +239,13 @@ def test_account_preview(client):
 
 
 def test_account_preview_with_ego(client):
-    """Preview with ego param returns mutual follows."""
+    """Preview with ego param returns followers you know."""
     res = client.get("/api/communities/account/acct_1/preview?ego=ego_1")
     assert res.status_code == 200
     data = res.get_json()
-    assert "mutual_follows" in data
-    assert "mutual_follow_count" in data
+    assert "followers_you_know" in data
+    assert "followers_you_know_count" in data
+    assert "notable_followees" in data
 
 
 def test_save_and_get_note(client):

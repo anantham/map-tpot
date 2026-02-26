@@ -13,12 +13,13 @@ import {
 } from './communitiesApi'
 
 const SECTION_KEYS = [
-  'communities', 'mutualFollows', 'topTweets', 'recentTweets',
-  'likedTweets', 'rtTargets', 'note',
+  'communities', 'followersYouKnow', 'notableFollowees', 'topTweets',
+  'recentTweets', 'likedTweets', 'rtTargets', 'note',
 ]
 const SECTION_LABELS = {
   communities: 'Community Weights',
-  mutualFollows: 'Mutual Follows',
+  followersYouKnow: 'Followers You Know',
+  notableFollowees: 'Notable Followees',
   topTweets: 'Top Tweets',
   recentTweets: 'Recent Tweets',
   likedTweets: 'Liked Tweets',
@@ -141,23 +142,41 @@ export default function AccountDeepDive({
 
   if (!preview) return null
 
-  const { profile, mutual_follows, mutual_follow_count, recent_tweets,
+  const { profile, followers_you_know, followers_you_know_count,
+    notable_followees, recent_tweets,
     top_tweets, liked_tweets, top_rt_targets, tpot_score, tpot_score_max } = preview
 
-  // Group mutual follows by their primary community
-  const mutualsByComm = {}
-  const mutualsNoCommunity = []
-  for (const mf of mutual_follows || []) {
-    if (mf.communities?.length > 0) {
-      const primary = mf.communities[0]
-      if (!mutualsByComm[primary.community_id]) {
-        mutualsByComm[primary.community_id] = {
+  // Group followers-you-know by their primary community
+  const followersByComm = {}
+  const followersNoCommunity = []
+  for (const f of followers_you_know || []) {
+    if (f.communities?.length > 0) {
+      const primary = f.communities[0]
+      if (!followersByComm[primary.community_id]) {
+        followersByComm[primary.community_id] = {
           name: primary.name, color: primary.color, members: [],
         }
       }
-      mutualsByComm[primary.community_id].members.push(mf)
+      followersByComm[primary.community_id].members.push(f)
     } else {
-      mutualsNoCommunity.push(mf)
+      followersNoCommunity.push(f)
+    }
+  }
+
+  // Group notable followees by their primary community
+  const followeesByComm = {}
+  const followeesNoCommunity = []
+  for (const f of notable_followees || []) {
+    if (f.communities?.length > 0) {
+      const primary = f.communities[0]
+      if (!followeesByComm[primary.community_id]) {
+        followeesByComm[primary.community_id] = {
+          name: primary.name, color: primary.color, members: [],
+        }
+      }
+      followeesByComm[primary.community_id].members.push(f)
+    } else {
+      followeesNoCommunity.push(f)
     }
   }
 
@@ -234,7 +253,7 @@ export default function AccountDeepDive({
 
       {/* Two-column layout for dense info */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        {/* Left column */}
+        {/* Left column: weights, RT targets, notes, liked tweets, recent tweets */}
         <div>
           {/* Community weights */}
           {sections.communities && (
@@ -356,82 +375,8 @@ export default function AccountDeepDive({
               </button>
             </div>
           )}
-        </div>
 
-        {/* Right column */}
-        <div>
-          {/* Mutual follows */}
-          {sections.mutualFollows && (
-            <div>
-              <div style={sectionHeaderStyle}>
-                Mutual Follows ({mutual_follow_count})
-              </div>
-              {Object.entries(mutualsByComm)
-                .sort((a, b) => b[1].members.length - a[1].members.length)
-                .map(([cid, group]) => (
-                <div key={cid} style={{ marginBottom: 10 }}>
-                  <div style={{
-                    fontSize: 11, fontWeight: 600, marginBottom: 4,
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}>
-                    <span style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: group.color || '#64748b',
-                    }} />
-                    {group.name} ({group.members.length})
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {group.members.map(mf => (
-                      <span key={mf.account_id} style={{
-                        fontSize: 12, padding: '2px 6px', borderRadius: 4,
-                        background: 'rgba(59,130,246,0.1)', color: '#93c5fd',
-                      }} title={mf.bio || ''}>
-                        @{mf.username || mf.account_id.slice(0, 8)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              {mutualsNoCommunity.length > 0 && (
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#64748b' }}>
-                    Not in any community ({mutualsNoCommunity.length})
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                    {mutualsNoCommunity.map(mf => (
-                      <span key={mf.account_id} style={{
-                        fontSize: 12, padding: '2px 6px', borderRadius: 4,
-                        background: 'rgba(148,163,184,0.1)', color: '#94a3b8',
-                      }} title={mf.bio || ''}>
-                        @{mf.username || mf.account_id.slice(0, 8)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {mutual_follow_count === 0 && (
-                <div style={{ fontSize: 12, color: '#475569' }}>No mutual follows found</div>
-              )}
-            </div>
-          )}
-
-          {/* Top tweets */}
-          {sections.topTweets && top_tweets?.length > 0 && (
-            <div>
-              <div style={sectionHeaderStyle}>Top Tweets (by likes)</div>
-              {top_tweets.map((t, i) => <TweetCard key={i} tweet={t} />)}
-            </div>
-          )}
-
-          {/* Recent tweets */}
-          {sections.recentTweets && recent_tweets?.length > 0 && (
-            <div>
-              <div style={sectionHeaderStyle}>Recent Tweets</div>
-              {recent_tweets.map((t, i) => <TweetCard key={i} tweet={t} />)}
-            </div>
-          )}
-
-          {/* Liked tweets */}
+          {/* Liked tweets — fills space below notes */}
           {sections.likedTweets && liked_tweets?.length > 0 && (
             <div>
               <div style={sectionHeaderStyle}>Tweets They Liked</div>
@@ -446,6 +391,143 @@ export default function AccountDeepDive({
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Recent tweets — fills remaining left column space */}
+          {sections.recentTweets && recent_tweets?.length > 0 && (
+            <div>
+              <div style={sectionHeaderStyle}>Recent Tweets</div>
+              {recent_tweets.map((t, i) => <TweetCard key={i} tweet={t} />)}
+            </div>
+          )}
+        </div>
+
+        {/* Right column: followers you know, notable followees, top tweets */}
+        <div>
+          {/* Followers you know — people you follow who follow this account */}
+          {sections.followersYouKnow && (
+            <div>
+              <div style={sectionHeaderStyle}>
+                People You Follow Who Follow Them ({followers_you_know_count})
+              </div>
+              {followers_you_know_count === 0 ? (
+                <div style={{ fontSize: 12, color: '#475569' }}>
+                  {egoAccountId ? 'None found' : 'Set ego handle above to see this'}
+                </div>
+              ) : (
+                <>
+                  {Object.entries(followersByComm)
+                    .sort((a, b) => b[1].members.length - a[1].members.length)
+                    .map(([cid, group]) => (
+                    <div key={cid} style={{ marginBottom: 10 }}>
+                      <div style={{
+                        fontSize: 11, fontWeight: 600, marginBottom: 4,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                      }}>
+                        <span style={{
+                          width: 8, height: 8, borderRadius: '50%',
+                          background: group.color || '#64748b',
+                        }} />
+                        {group.name} ({group.members.length})
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {group.members.map(f => (
+                          <span key={f.account_id} style={{
+                            fontSize: 12, padding: '2px 6px', borderRadius: 4,
+                            background: 'rgba(59,130,246,0.1)', color: '#93c5fd',
+                          }} title={f.bio || ''}>
+                            @{f.username || f.account_id.slice(0, 8)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {followersNoCommunity.length > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#64748b' }}>
+                        Not in any community ({followersNoCommunity.length})
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {followersNoCommunity.map(f => (
+                          <span key={f.account_id} style={{
+                            fontSize: 12, padding: '2px 6px', borderRadius: 4,
+                            background: 'rgba(148,163,184,0.1)', color: '#94a3b8',
+                          }} title={f.bio || ''}>
+                            @{f.username || f.account_id.slice(0, 8)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Notable followees — high-TPOT accounts this person follows */}
+          {sections.notableFollowees && notable_followees?.length > 0 && (
+            <div>
+              <div style={sectionHeaderStyle}>
+                High-TPOT Accounts They Follow ({notable_followees.length})
+              </div>
+              {Object.entries(followeesByComm)
+                .sort((a, b) => b[1].members.length - a[1].members.length)
+                .map(([cid, group]) => (
+                <div key={cid} style={{ marginBottom: 10 }}>
+                  <div style={{
+                    fontSize: 11, fontWeight: 600, marginBottom: 4,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <span style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: group.color || '#64748b',
+                    }} />
+                    {group.name} ({group.members.length})
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {group.members.map(f => (
+                      <span key={f.account_id} style={{
+                        fontSize: 12, padding: '2px 6px', borderRadius: 4,
+                        background: 'rgba(34,197,94,0.1)', color: '#86efac',
+                      }} title={`TPOT ${f.tpot_score} · ${f.bio || ''}`}>
+                        @{f.username || f.account_id.slice(0, 8)}
+                        <span style={{ fontSize: 10, color: '#64748b', marginLeft: 4 }}>
+                          {f.tpot_score}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {followeesNoCommunity.length > 0 && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#64748b' }}>
+                    Not in any community ({followeesNoCommunity.length})
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {followeesNoCommunity.map(f => (
+                      <span key={f.account_id} style={{
+                        fontSize: 12, padding: '2px 6px', borderRadius: 4,
+                        background: 'rgba(148,163,184,0.1)', color: '#94a3b8',
+                      }} title={`TPOT ${f.tpot_score} · ${f.bio || ''}`}>
+                        @{f.username || f.account_id.slice(0, 8)}
+                        <span style={{ fontSize: 10, color: '#64748b', marginLeft: 4 }}>
+                          {f.tpot_score}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Top tweets */}
+          {sections.topTweets && top_tweets?.length > 0 && (
+            <div>
+              <div style={sectionHeaderStyle}>Top Tweets (by likes)</div>
+              {top_tweets.map((t, i) => <TweetCard key={i} tweet={t} />)}
             </div>
           )}
         </div>
