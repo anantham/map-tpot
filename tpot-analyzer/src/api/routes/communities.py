@@ -13,6 +13,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request
 
 from src.communities import store
+from src.communities import preview as account_preview
 
 logger = logging.getLogger(__name__)
 
@@ -210,8 +211,8 @@ def get_account_preview_route(account_id):
         conn.execute("""CREATE TABLE IF NOT EXISTS account_note (
             account_id TEXT PRIMARY KEY, note TEXT NOT NULL, updated_at TEXT NOT NULL
         )""")
-        preview = store.get_account_preview(conn, account_id, ego_account_id=ego)
-        return jsonify(preview)
+        preview_data = account_preview.get_account_preview(conn, account_id, ego_account_id=ego)
+        return jsonify(preview_data)
     finally:
         conn.close()
 
