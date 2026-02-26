@@ -72,6 +72,54 @@ def main():
     all_ok &= check("community_definition -> community_run FK", orphan_cd == 0,
                      f"{orphan_cd} orphans" if orphan_cd else "clean")
 
+    print("\nBehavioral checks:")
+
+    # B1: No duplicate community seeds for the same (run, idx) — Finding #2 regression guard
+    dup_seeds = conn.execute("""
+        SELECT seeded_from_run, seeded_from_idx, COUNT(*) as cnt
+        FROM community
+        WHERE seeded_from_run IS NOT NULL AND seeded_from_idx IS NOT NULL
+        GROUP BY seeded_from_run, seeded_from_idx
+        HAVING cnt > 1
+    """).fetchall()
+    all_ok &= check(
+        "No duplicate community seeds (run+idx unique)",
+        len(dup_seeds) == 0,
+        f"{len(dup_seeds)} duplicate (run,idx) pairs" if dup_seeds else "clean",
+    )
+
+    # B2: All source values are valid
+    invalid_source = conn.execute(
+        "SELECT COUNT(*) FROM community_account WHERE source NOT IN ('nmf', 'human')"
+    ).fetchone()[0]
+    all_ok &= check(
+        "All membership sources valid ('nmf' or 'human')",
+        invalid_source == 0,
+        f"{invalid_source} invalid" if invalid_source else "clean",
+    )
+
+    # B3: account_note table present (required by curator notes feature)
+    note_table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='account_note'"
+    ).fetchone()
+    all_ok &= check("Table account_note exists", note_table is not None)
+
+    # B4: Human-override integrity — no (community_id, account_id) has duplicate rows
+    # (enforced by PK; this catches corrupted DBs)
+    dupe_ca = conn.execute("""
+        SELECT COUNT(*) FROM (
+            SELECT community_id, account_id, COUNT(*) as cnt
+            FROM community_account
+            GROUP BY community_id, account_id
+            HAVING cnt > 1
+        )
+    """).fetchone()[0]
+    all_ok &= check(
+        "No duplicate (community, account) membership rows",
+        dupe_ca == 0,
+        f"{dupe_ca} duplicates" if dupe_ca else "clean",
+    )
+
     print("\nRuns:")
     for run_id, k, signal, thresh, acct_count, notes, created in conn.execute(
         "SELECT * FROM community_run ORDER BY created_at DESC"
