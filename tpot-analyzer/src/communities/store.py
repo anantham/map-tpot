@@ -20,9 +20,11 @@ Commit contract:
     reseed_nmf_memberships) commit internally for safety.
 """
 
+import json
 import sqlite3
 from datetime import datetime, timezone
 from typing import Optional
+from uuid import uuid4
 
 
 SCHEMA = """
@@ -81,6 +83,32 @@ CREATE TABLE IF NOT EXISTS account_note (
     account_id TEXT PRIMARY KEY,
     note       TEXT NOT NULL,
     updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS community_branch (
+    id           TEXT PRIMARY KEY,
+    name         TEXT NOT NULL UNIQUE,
+    description  TEXT,
+    base_run_id  TEXT,
+    is_active    INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL,
+    FOREIGN KEY (base_run_id) REFERENCES community_run(run_id)
+);
+
+CREATE TABLE IF NOT EXISTS community_snapshot (
+    id           TEXT PRIMARY KEY,
+    branch_id    TEXT NOT NULL,
+    name         TEXT,
+    created_at   TEXT NOT NULL,
+    FOREIGN KEY (branch_id) REFERENCES community_branch(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS community_snapshot_data (
+    snapshot_id   TEXT NOT NULL,
+    kind          TEXT NOT NULL CHECK (kind IN ('community', 'assignment', 'note')),
+    data          TEXT NOT NULL,
+    FOREIGN KEY (snapshot_id) REFERENCES community_snapshot(id) ON DELETE CASCADE
 );
 """
 
@@ -503,3 +531,48 @@ def get_ego_following_set(conn: sqlite3.Connection, ego_account_id: str) -> set:
         (ego_account_id,),
     ).fetchall()
     return {r[0] for r in rows}
+
+
+# ── Branch & snapshot versioning ──────────────────────────────────────────────
+
+def get_active_branch(conn: sqlite3.Connection) -> Optional[dict]:
+    """Return the active branch as a dict, or None."""
+    row = conn.execute(
+        "SELECT id, name, description, base_run_id, created_at, updated_at"
+        " FROM community_branch WHERE is_active = 1"
+    ).fetchone()
+    if not row:
+        return None
+    return {
+        "id": row[0], "name": row[1], "description": row[2],
+        "base_run_id": row[3], "created_at": row[4], "updated_at": row[5],
+    }
+
+
+def list_branches(conn: sqlite3.Connection) -> list:
+    """Return all branches with snapshot counts."""
+    return conn.execute(
+        """SELECT b.id, b.name, b.description, b.base_run_id, b.is_active,
+                  COUNT(s.id) as snapshot_count, b.created_at, b.updated_at
+           FROM community_branch b
+           LEFT JOIN community_snapshot s ON s.branch_id = b.id
+           GROUP BY b.id
+           ORDER BY b.created_at"""
+    ).fetchall()
+
+
+def create_branch(
+    conn: sqlite3.Connection,
+    branch_id: str,
+    name: str,
+    description: Optional[str] = None,
+    base_run_id: Optional[str] = None,
+    is_active: bool = False,
+) -> None:
+    """Create a new branch row. Does NOT commit."""
+    now = now_utc()
+    conn.execute(
+        """INSERT INTO community_branch (id, name, description, base_run_id, is_active, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (branch_id, name, description, base_run_id, 1 if is_active else 0, now, now),
+    )
