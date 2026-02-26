@@ -25,6 +25,9 @@ from src.communities.store import (
     get_account_note,
     upsert_account_note,
     get_account_preview,
+    create_branch,
+    list_branches,
+    get_active_branch,
 )
 
 
@@ -412,3 +415,15 @@ def test_preview_unknown_account(preview_db):
     assert result["communities"] == []
     assert result["recent_tweets"] == []
     assert result["tpot_score"] == 0
+
+
+# ── Branch & snapshot schema ──────────────────────────────────────────
+
+def test_init_db_creates_branch_tables(db):
+    """init_db creates community_branch, community_snapshot, community_snapshot_data tables."""
+    tables = {r[0] for r in db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+    assert "community_branch" in tables
+    assert "community_snapshot" in tables
+    assert "community_snapshot_data" in tables
