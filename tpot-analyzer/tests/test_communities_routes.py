@@ -29,14 +29,38 @@ def communities_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask:
                 following_account_id TEXT NOT NULL,
                 PRIMARY KEY (account_id, following_account_id)
             );
+            CREATE TABLE IF NOT EXISTS account_followers (
+                account_id TEXT NOT NULL,
+                follower_account_id TEXT NOT NULL,
+                PRIMARY KEY (account_id, follower_account_id)
+            );
             CREATE TABLE IF NOT EXISTS profiles (
                 account_id TEXT PRIMARY KEY,
                 username TEXT,
                 display_name TEXT,
                 bio TEXT,
+                location TEXT,
+                website TEXT,
                 followers_count INTEGER,
                 following_count INTEGER,
                 profile_image_url TEXT
+            );
+            CREATE TABLE IF NOT EXISTS tweets (
+                tweet_id TEXT PRIMARY KEY,
+                account_id TEXT,
+                full_text TEXT,
+                created_at TEXT,
+                favorite_count INTEGER DEFAULT 0,
+                retweet_count INTEGER DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS likes (
+                liker_account_id TEXT,
+                full_text TEXT,
+                expanded_url TEXT
+            );
+            CREATE TABLE IF NOT EXISTS retweets (
+                account_id TEXT,
+                rt_of_username TEXT
             );
         """)
 
@@ -195,4 +219,79 @@ def test_delete_community(client):
 
 def test_delete_nonexistent_community_404(client):
     res = client.delete("/api/communities/nonexistent")
+    assert res.status_code == 404
+
+
+# ── Preview, Note, Weights endpoints ─────────────────────────────────
+
+
+def test_account_preview(client):
+    """Preview returns profile, communities, tweets, tpot_score."""
+    res = client.get("/api/communities/account/acct_1/preview")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["account_id"] == "acct_1"
+    assert data["profile"]["username"] == "thezvi"
+    assert len(data["communities"]) == 2
+    assert "tpot_score" in data
+    assert "tpot_score_max" in data
+    assert data["note"] is None
+
+
+def test_account_preview_with_ego(client):
+    """Preview with ego param returns mutual follows."""
+    res = client.get("/api/communities/account/acct_1/preview?ego=ego_1")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert "mutual_follows" in data
+    assert "mutual_follow_count" in data
+
+
+def test_save_and_get_note(client):
+    """PUT note then verify it appears in preview."""
+    res = client.put(
+        "/api/communities/account/acct_1/note",
+        json={"note": "Key EA figure"},
+    )
+    assert res.status_code == 200
+    assert res.get_json()["note"] == "Key EA figure"
+
+    # Verify note appears in preview
+    res2 = client.get("/api/communities/account/acct_1/preview")
+    assert res2.get_json()["note"] == "Key EA figure"
+
+
+def test_save_note_empty(client):
+    """Saving empty note works."""
+    res = client.put(
+        "/api/communities/account/acct_1/note",
+        json={"note": ""},
+    )
+    assert res.status_code == 200
+
+
+def test_save_weights(client):
+    """PUT weights updates community assignments."""
+    res = client.put(
+        "/api/communities/account/acct_2/weights",
+        json={"weights": [
+            {"community_id": "comm-A", "weight": 0.5},
+            {"community_id": "comm-B", "weight": 0.3},
+        ]},
+    )
+    assert res.status_code == 200
+    data = res.get_json()
+    assert len(data["communities"]) == 2
+    by_comm = {c["community_id"]: c for c in data["communities"]}
+    assert by_comm["comm-A"]["weight"] == 0.5
+    assert by_comm["comm-A"]["source"] == "human"
+    assert by_comm["comm-B"]["weight"] == 0.3
+
+
+def test_save_weights_nonexistent_community(client):
+    """Saving weight to nonexistent community returns 404."""
+    res = client.put(
+        "/api/communities/account/acct_1/weights",
+        json={"weights": [{"community_id": "nonexistent", "weight": 0.5}]},
+    )
     assert res.status_code == 404

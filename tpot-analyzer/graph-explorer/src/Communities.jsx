@@ -1,29 +1,26 @@
 /**
  * Communities — Account community curation dashboard.
  *
- * Flow:
- *   1. Load communities list from /api/communities
- *   2. Click community → load members with I-follow badges
- *   3. Click member → see community distribution + bio + actions
- *   4. Assign/remove/move accounts → persists as source='human'
+ * Layout: [community list | center panel]
+ * Center panel switches between:
+ *   - MemberTable: list of members with search/filter
+ *   - AccountDeepDive: full preview with signals, weights, notes
  */
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchCommunities,
   fetchCommunityMembers,
-  fetchAccountCommunities,
-  assignMember,
-  removeMember,
   updateCommunity,
 } from './communitiesApi'
 import { searchAccounts } from './accountsApi'
+import AccountDeepDive from './AccountDeepDive'
 
 
 function CommunityList({ communities, selectedId, onSelect }) {
   return (
     <div style={{
       width: 240, borderRight: '1px solid var(--panel-border, #1e293b)',
-      overflowY: 'auto', padding: '12px 0',
+      overflowY: 'auto', padding: '12px 0', flexShrink: 0,
     }}>
       <div style={{ padding: '0 12px 8px', fontSize: 11, fontWeight: 700,
         color: '#64748b', textTransform: 'uppercase' }}>
@@ -59,7 +56,7 @@ function CommunityList({ communities, selectedId, onSelect }) {
 }
 
 
-function MemberTable({ members, selectedAccountId, onSelectAccount, showFollowOnly,
+function MemberTable({ members, onSelectAccount, showFollowOnly,
   onToggleFollowOnly, searchQuery, onSearchChange }) {
   const filtered = members.filter(m => {
     if (showFollowOnly && !m.i_follow) return false
@@ -69,7 +66,6 @@ function MemberTable({ members, selectedAccountId, onSelectAccount, showFollowOn
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-      {/* Filters */}
       <div style={{
         display: 'flex', gap: 8, padding: '8px 12px', alignItems: 'center',
         borderBottom: '1px solid var(--panel-border, #1e293b)',
@@ -100,7 +96,6 @@ function MemberTable({ members, selectedAccountId, onSelectAccount, showFollowOn
         </span>
       </div>
 
-      {/* Table */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
@@ -119,8 +114,6 @@ function MemberTable({ members, selectedAccountId, onSelectAccount, showFollowOn
                 style={{
                   cursor: 'pointer',
                   borderBottom: '1px solid var(--panel-border, #0f172a)',
-                  background: selectedAccountId === m.account_id
-                    ? 'var(--accent-dim, rgba(59,130,246,0.1))' : 'transparent',
                 }}
               >
                 <td style={{ padding: '8px 12px' }}>
@@ -132,7 +125,7 @@ function MemberTable({ members, selectedAccountId, onSelectAccount, showFollowOn
                   {m.bio && (
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 2,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      maxWidth: 300 }}>
+                      maxWidth: 400 }}>
                       {m.bio}
                     </div>
                   )}
@@ -166,171 +159,27 @@ function MemberTable({ members, selectedAccountId, onSelectAccount, showFollowOn
 }
 
 
-function AccountDetail({ account, accountCommunities, communities, currentCommunityId,
-  onAssign, onRemove, assigning }) {
-  const [moveTarget, setMoveTarget] = useState('')
-
-  if (!account) return (
-    <div style={{
-      width: 300, borderLeft: '1px solid var(--panel-border, #1e293b)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#475569', fontSize: 13, padding: 24, textAlign: 'center',
-    }}>
-      Click an account to see details
-    </div>
-  )
-
-  const otherCommunities = communities.filter(c => c.id !== currentCommunityId)
-
-  return (
-    <div style={{
-      width: 300, borderLeft: '1px solid var(--panel-border, #1e293b)',
-      overflowY: 'auto', padding: 16,
-    }}>
-      {/* Header */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>
-          @{account.username || account.account_id}
-        </div>
-        {account.bio && (
-          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4, lineHeight: 1.5 }}>
-            {account.bio}
-          </div>
-        )}
-        {account.username && (
-          <a
-            href={`https://x.com/${account.username}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ fontSize: 12, color: '#3b82f6', marginTop: 6, display: 'inline-block' }}
-          >
-            Open on X →
-          </a>
-        )}
-      </div>
-
-      {/* Community memberships */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b',
-          textTransform: 'uppercase', marginBottom: 8 }}>
-          Communities
-        </div>
-        {accountCommunities.map(c => (
-          <div key={c.community_id} style={{
-            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
-          }}>
-            <span style={{
-              width: 8, height: 8, borderRadius: '50%',
-              background: c.color || '#64748b', flexShrink: 0,
-            }} />
-            <span style={{ flex: 1, fontSize: 13 }}>{c.name}</span>
-            <div style={{
-              width: 60, height: 6, background: 'rgba(148,163,184,0.2)',
-              borderRadius: 3, overflow: 'hidden',
-            }}>
-              <div style={{
-                width: `${(c.weight * 100)}%`, height: '100%',
-                background: c.color || '#3b82f6', borderRadius: 3,
-              }} />
-            </div>
-            <span style={{ fontSize: 11, color: '#94a3b8', width: 32, textAlign: 'right',
-              fontVariantNumeric: 'tabular-nums' }}>
-              {(c.weight * 100).toFixed(0)}%
-            </span>
-          </div>
-        ))}
-        {accountCommunities.length === 0 && (
-          <div style={{ fontSize: 12, color: '#475569' }}>Not in any community</div>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div style={{
-        background: 'var(--panel, #1e293b)',
-        border: '1px solid var(--panel-border, #2d3748)',
-        borderRadius: 8, padding: 12,
-      }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b',
-          textTransform: 'uppercase', marginBottom: 8 }}>
-          Actions
-        </div>
-
-        {/* Assign to community */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-          <select
-            value={moveTarget}
-            onChange={e => setMoveTarget(e.target.value)}
-            style={{
-              flex: 1, padding: '6px 8px', fontSize: 12,
-              background: 'var(--bg, #0f172a)',
-              border: '1px solid var(--panel-border, #2d3748)',
-              borderRadius: 4, color: 'var(--text, #e2e8f0)',
-            }}
-          >
-            <option value="">Assign to...</option>
-            {otherCommunities.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => { if (moveTarget) { onAssign(moveTarget, account.account_id); setMoveTarget('') } }}
-            disabled={!moveTarget || assigning}
-            style={{
-              padding: '6px 12px', fontSize: 12, fontWeight: 600,
-              background: moveTarget ? '#3b82f6' : '#334155',
-              color: '#fff', border: 'none', borderRadius: 4,
-              cursor: moveTarget ? 'pointer' : 'not-allowed',
-            }}
-          >
-            {assigning ? '...' : 'Add'}
-          </button>
-        </div>
-
-        {/* Remove from current */}
-        {currentCommunityId && (
-          <button
-            onClick={() => onRemove(currentCommunityId, account.account_id)}
-            disabled={assigning}
-            style={{
-              width: '100%', padding: '6px 0', fontSize: 12, fontWeight: 600,
-              background: 'transparent', color: '#f87171',
-              border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4,
-              cursor: 'pointer',
-            }}
-          >
-            Remove from this community
-          </button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-
 export default function Communities({ ego: defaultEgo }) {
-  // Data state
   const [communities, setCommunities] = useState([])
   const [selectedCommunity, setSelectedCommunity] = useState(null)
   const [members, setMembers] = useState([])
-  const [selectedAccount, setSelectedAccount] = useState(null)
-  const [accountCommunities, setAccountCommunities] = useState([])
 
-  // UI state
+  // Navigation: null = member list, account_id = deep dive
+  const [deepDiveAccountId, setDeepDiveAccountId] = useState(null)
+
   const [loading, setLoading] = useState(true)
   const [membersLoading, setMembersLoading] = useState(false)
   const [error, setError] = useState(null)
   const [showFollowOnly, setShowFollowOnly] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [assigning, setAssigning] = useState(false)
   const [editingName, setEditingName] = useState(null)
   const [editingColor, setEditingColor] = useState(null)
+  const [editingDesc, setEditingDesc] = useState(null)
 
-  // Ego state — changeable
   const [ego, setEgo] = useState(defaultEgo || '')
   const [egoInput, setEgoInput] = useState(defaultEgo || '')
   const [egoAccountId, setEgoAccountId] = useState(null)
 
-  // Resolve ego handle to account_id on change
   useEffect(() => {
     if (!ego) { setEgoAccountId(null); return }
     searchAccounts({ q: ego, limit: 1 })
@@ -345,7 +194,6 @@ export default function Communities({ ego: defaultEgo }) {
       .catch(() => setEgoAccountId(null))
   }, [ego])
 
-  // Load communities on mount
   useEffect(() => {
     setLoading(true)
     fetchCommunities()
@@ -357,12 +205,10 @@ export default function Communities({ ego: defaultEgo }) {
       .finally(() => setLoading(false))
   }, [])
 
-  // Load members when selected community or ego changes
-  useEffect(() => {
+  const loadMembers = useCallback(() => {
     if (!selectedCommunity) return
     setMembersLoading(true)
-    setSelectedAccount(null)
-    setAccountCommunities([])
+    setDeepDiveAccountId(null)
     setSearchQuery('')
     fetchCommunityMembers(selectedCommunity.id, { ego: egoAccountId })
       .then(data => setMembers(data.members || []))
@@ -370,69 +216,25 @@ export default function Communities({ ego: defaultEgo }) {
       .finally(() => setMembersLoading(false))
   }, [selectedCommunity?.id, egoAccountId])
 
-  // Load account communities when account selected
-  useEffect(() => {
-    if (!selectedAccount) return
-    fetchAccountCommunities(selectedAccount.account_id)
-      .then(data => setAccountCommunities(data.communities || []))
-      .catch(() => setAccountCommunities([]))
-  }, [selectedAccount?.account_id])
-
-  const refreshAfterEdit = useCallback(async (accountId) => {
-    // Refresh member list
-    if (selectedCommunity) {
-      const data = await fetchCommunityMembers(selectedCommunity.id, { ego: egoAccountId })
-      setMembers(data.members || [])
-    }
-    // Refresh account communities if same account
-    if (accountId) {
-      const acData = await fetchAccountCommunities(accountId)
-      setAccountCommunities(acData.communities || [])
-    }
-    // Refresh community counts
-    const comms = await fetchCommunities()
-    setCommunities(comms)
-  }, [selectedCommunity, egoAccountId])
-
-  const handleAssign = useCallback(async (communityId, accountId) => {
-    setAssigning(true)
-    try {
-      await assignMember(communityId, accountId)
-      await refreshAfterEdit(accountId)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setAssigning(false)
-    }
-  }, [refreshAfterEdit])
-
-  const handleRemove = useCallback(async (communityId, accountId) => {
-    setAssigning(true)
-    try {
-      await removeMember(communityId, accountId)
-      setSelectedAccount(null)
-      setAccountCommunities([])
-      await refreshAfterEdit(null)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setAssigning(false)
-    }
-  }, [refreshAfterEdit])
+  useEffect(() => { loadMembers() }, [loadMembers])
 
   const handleUpdateCommunity = useCallback(async (updates) => {
     if (!selectedCommunity) return
     try {
       const result = await updateCommunity(selectedCommunity.id, updates)
-      // Update local state so UI reflects changes immediately
       const updated = { ...selectedCommunity, ...result }
       setSelectedCommunity(updated)
       setCommunities(prev => prev.map(c => c.id === updated.id ? { ...c, ...result } : c))
       setEditingName(null)
-    } catch (e) {
-      setError(e.message)
-    }
+    } catch (e) { setError(e.message) }
   }, [selectedCommunity])
+
+  const handleWeightsChanged = useCallback(async () => {
+    // Refresh member list + community counts after weight edit
+    loadMembers()
+    const comms = await fetchCommunities()
+    setCommunities(comms)
+  }, [loadMembers])
 
   if (loading) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center',
@@ -489,102 +291,139 @@ export default function Communities({ ego: defaultEgo }) {
         </div>
       )}
 
-      {/* Main 3-panel layout */}
+      {/* Main layout: sidebar + center */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <CommunityList
           communities={communities}
           selectedId={selectedCommunity?.id}
-          onSelect={setSelectedCommunity}
+          onSelect={c => { setSelectedCommunity(c); setDeepDiveAccountId(null) }}
         />
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          {/* Community edit bar */}
-          {selectedCommunity && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '6px 12px',
-              borderBottom: '1px solid var(--panel-border, #1e293b)',
-              background: 'var(--panel, #1e293b)',
-            }}>
-              <input
-                type="color"
-                value={editingColor ?? selectedCommunity.color ?? '#64748b'}
-                onChange={e => setEditingColor(e.target.value)}
-                onBlur={() => {
-                  if (editingColor && editingColor !== selectedCommunity.color) {
-                    handleUpdateCommunity({ color: editingColor })
-                  }
-                  setEditingColor(null)
-                }}
-                style={{ width: 24, height: 24, border: 'none', padding: 0,
-                  cursor: 'pointer', background: 'transparent' }}
-                title="Change color"
+        {deepDiveAccountId ? (
+          /* Deep dive mode — full center panel */
+          <AccountDeepDive
+            accountId={deepDiveAccountId}
+            egoAccountId={egoAccountId}
+            allCommunities={communities}
+            onBack={() => setDeepDiveAccountId(null)}
+            onWeightsChanged={handleWeightsChanged}
+          />
+        ) : (
+          /* List mode — community header + member table */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            {/* Community edit bar */}
+            {selectedCommunity && (
+              <>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '6px 12px',
+                  borderBottom: '1px solid var(--panel-border, #1e293b)',
+                  background: 'var(--panel, #1e293b)',
+                }}>
+                  <input
+                    type="color"
+                    value={editingColor ?? selectedCommunity.color ?? '#64748b'}
+                    onChange={e => setEditingColor(e.target.value)}
+                    onBlur={() => {
+                      if (editingColor && editingColor !== selectedCommunity.color) {
+                        handleUpdateCommunity({ color: editingColor })
+                      }
+                      setEditingColor(null)
+                    }}
+                    style={{ width: 24, height: 24, border: 'none', padding: 0,
+                      cursor: 'pointer', background: 'transparent' }}
+                    title="Change color"
+                  />
+                  {editingName !== null ? (
+                    <input
+                      autoFocus value={editingName}
+                      onChange={e => setEditingName(e.target.value)}
+                      onBlur={() => {
+                        if (editingName && editingName !== selectedCommunity.name) {
+                          handleUpdateCommunity({ name: editingName })
+                        } else { setEditingName(null) }
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') e.target.blur()
+                        if (e.key === 'Escape') setEditingName(null)
+                      }}
+                      style={{
+                        flex: 1, padding: '4px 8px', fontSize: 14, fontWeight: 600,
+                        background: 'var(--bg, #0f172a)',
+                        border: '1px solid var(--accent, #3b82f6)',
+                        borderRadius: 4, color: 'var(--text, #e2e8f0)',
+                      }}
+                    />
+                  ) : (
+                    <span onClick={() => setEditingName(selectedCommunity.name)}
+                      style={{ fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                      title="Click to rename">
+                      {selectedCommunity.name}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 11, color: '#64748b' }}>
+                    {selectedCommunity.member_count} members
+                  </span>
+                </div>
+                <div style={{
+                  padding: '4px 12px',
+                  borderBottom: '1px solid var(--panel-border, #1e293b)',
+                }}>
+                  {editingDesc !== null ? (
+                    <input
+                      autoFocus value={editingDesc}
+                      onChange={e => setEditingDesc(e.target.value)}
+                      onBlur={() => {
+                        if (editingDesc !== (selectedCommunity.description || '')) {
+                          handleUpdateCommunity({ description: editingDesc || null })
+                        }
+                        setEditingDesc(null)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') e.target.blur()
+                        if (e.key === 'Escape') setEditingDesc(null)
+                      }}
+                      placeholder="Add a description..."
+                      style={{
+                        width: '100%', padding: '4px 8px', fontSize: 12,
+                        background: 'var(--bg, #0f172a)',
+                        border: '1px solid var(--accent, #3b82f6)',
+                        borderRadius: 4, color: 'var(--text, #e2e8f0)',
+                      }}
+                    />
+                  ) : (
+                    <span
+                      onClick={() => setEditingDesc(selectedCommunity.description || '')}
+                      style={{
+                        fontSize: 12, cursor: 'pointer',
+                        color: selectedCommunity.description ? 'var(--text, #e2e8f0)' : '#475569',
+                        fontStyle: selectedCommunity.description ? 'normal' : 'italic',
+                      }}
+                      title="Click to edit description">
+                      {selectedCommunity.description || 'Add a description...'}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+
+            {membersLoading ? (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', color: '#64748b' }}>
+                Loading members...
+              </div>
+            ) : (
+              <MemberTable
+                members={members}
+                onSelectAccount={m => setDeepDiveAccountId(m.account_id)}
+                showFollowOnly={showFollowOnly}
+                onToggleFollowOnly={() => setShowFollowOnly(v => !v)}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
               />
-              {editingName !== null ? (
-                <input
-                  autoFocus
-                  value={editingName}
-                  onChange={e => setEditingName(e.target.value)}
-                  onBlur={() => {
-                    if (editingName && editingName !== selectedCommunity.name) {
-                      handleUpdateCommunity({ name: editingName })
-                    } else {
-                      setEditingName(null)
-                    }
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') e.target.blur()
-                    if (e.key === 'Escape') setEditingName(null)
-                  }}
-                  style={{
-                    flex: 1, padding: '4px 8px', fontSize: 14, fontWeight: 600,
-                    background: 'var(--bg, #0f172a)',
-                    border: '1px solid var(--accent, #3b82f6)',
-                    borderRadius: 4, color: 'var(--text, #e2e8f0)',
-                  }}
-                />
-              ) : (
-                <span
-                  onClick={() => setEditingName(selectedCommunity.name)}
-                  style={{ fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-                  title="Click to rename"
-                >
-                  {selectedCommunity.name}
-                </span>
-              )}
-              <span style={{ fontSize: 11, color: '#64748b' }}>
-                {selectedCommunity.member_count} members
-              </span>
-            </div>
-          )}
-
-          {membersLoading ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', color: '#64748b' }}>
-              Loading members...
-            </div>
-          ) : (
-            <MemberTable
-              members={members}
-              selectedAccountId={selectedAccount?.account_id}
-              onSelectAccount={setSelectedAccount}
-              showFollowOnly={showFollowOnly}
-              onToggleFollowOnly={() => setShowFollowOnly(v => !v)}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-            />
-          )}
-        </div>
-
-        <AccountDetail
-          account={selectedAccount}
-          accountCommunities={accountCommunities}
-          communities={communities}
-          currentCommunityId={selectedCommunity?.id}
-          onAssign={handleAssign}
-          onRemove={handleRemove}
-          assigning={assigning}
-        />
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
