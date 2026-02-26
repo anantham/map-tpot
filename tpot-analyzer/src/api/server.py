@@ -27,6 +27,7 @@ from src.api.routes.accounts import accounts_bp
 from src.api.routes.golden import golden_bp
 from src.api.routes.extension import extension_bp
 from src.api.routes.communities import communities_bp
+from src.api.routes.branches import branches_bp
 from src.api.cluster_routes import cluster_bp, init_cluster_routes
 from src.api.log_routes import log_bp
 from src.config import get_snapshot_dir
@@ -122,7 +123,8 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     app.register_blueprint(golden_bp)
     app.register_blueprint(extension_bp)
     app.register_blueprint(communities_bp)
-    
+    app.register_blueprint(branches_bp)
+
     # Register legacy/existing blueprints
     app.register_blueprint(log_bp)
     
