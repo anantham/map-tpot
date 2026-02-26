@@ -34,6 +34,11 @@ from src.graph.observation_model import (
 )
 from src.graph.membership_grf import GRFMembershipConfig, compute_grf_membership
 from src.graph.seeds import get_graph_settings
+from src.communities.cluster_colors import (
+    PropagationData,
+    compute_cluster_community,
+    load_propagation,
+)
 from src.graph.spectral import load_spectral_result
 
 logger = logging.getLogger(__name__)
@@ -107,6 +112,7 @@ _louvain_communities: Dict[str, int] = {}  # Louvain community mapping
 _label_store: Optional[ClusterLabelStore] = None
 _tag_store: Optional[AccountTagStore] = None
 _data_dir: Optional[Path] = None
+_propagation_data: Optional[PropagationData] = None
 _observation_config = ObservationWeightingConfig()
 _observation_stats: Dict[str, object] = {}
 _graph_settings: Dict[str, object] = {}
@@ -357,7 +363,7 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
     Note: Blueprint registration is handled by the Flask app factory.
     """
     global _spectral_result, _adjacency, _node_metadata, _node_id_to_idx, _louvain_communities, _label_store
-    global _data_dir
+    global _data_dir, _propagation_data
     global _observation_config, _observation_stats, _graph_settings
 
     try:
@@ -413,6 +419,16 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
 
         # Load Louvain communities
         _louvain_communities = _load_louvain(data_dir)
+
+        # Load community propagation data (optional — degrades gracefully)
+        prop_path = data_dir / "community_propagation.npz"
+        _propagation_data = load_propagation(prop_path)
+        if _propagation_data is not None:
+            logger.info("Community propagation loaded: %d nodes, %d communities",
+                        _propagation_data.memberships.shape[0],
+                        len(_propagation_data.community_names))
+        else:
+            logger.warning("Community propagation not found at %s — community colors disabled", prop_path)
 
         if _spectral_result.micro_labels is not None:
             n_micro = len(np.unique(_spectral_result.micro_labels))
@@ -1052,7 +1068,7 @@ def _serialize_hierarchical_view(view) -> dict:
         max_conn = 1.0
 
     def serialize_cluster(c):
-        return {
+        result = {
             "id": c.id,
             "parentId": c.parent_id,
             "childrenIds": list(c.children_ids) if c.children_ids else [],
@@ -1065,6 +1081,27 @@ def _serialize_hierarchical_view(view) -> dict:
             "centroid": c.centroid.tolist(),
             "memberIds": c.member_node_ids,
         }
+
+        # Community color fields (graceful degradation when propagation unavailable)
+        if _propagation_data is not None and c.member_node_ids:
+            ci = compute_cluster_community(_propagation_data, c.member_node_ids)
+            result["communityColor"] = ci.dominant_color
+            result["communityName"] = ci.dominant_name
+            result["communityId"] = ci.dominant_id
+            result["communityIntensity"] = ci.dominant_intensity
+            result["secondaryCommunityColor"] = ci.secondary_color
+            result["secondaryCommunityIntensity"] = ci.secondary_intensity
+            result["communityBreakdown"] = ci.breakdown
+        else:
+            result["communityColor"] = None
+            result["communityName"] = None
+            result["communityId"] = None
+            result["communityIntensity"] = 0
+            result["secondaryCommunityColor"] = None
+            result["secondaryCommunityIntensity"] = 0
+            result["communityBreakdown"] = []
+
+        return result
 
     payload = {
         "clusters": [serialize_cluster(c) for c in view.clusters],
@@ -1091,7 +1128,22 @@ def _serialize_hierarchical_view(view) -> dict:
                 "mode": _observation_config.mode,
                 "stats": _observation_stats,
             },
+            "communities": _build_communities_meta(),
         },
         "cache_hit": False,
     }
     return payload
+
+
+def _build_communities_meta() -> list:
+    """Build communities list for meta response."""
+    if _propagation_data is None:
+        return []
+    return [
+        {
+            "id": _propagation_data.community_ids[i],
+            "name": _propagation_data.community_names[i],
+            "color": _propagation_data.community_colors[i],
+        }
+        for i in range(len(_propagation_data.community_names))
+    ]
