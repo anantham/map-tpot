@@ -179,3 +179,20 @@ def test_patch_nonexistent_community_404(client):
         json={"name": "nope"},
     )
     assert res.status_code == 404
+
+
+def test_delete_community(client):
+    """DELETE removes community and cascades to memberships."""
+    res = client.delete("/api/communities/comm-A")
+    assert res.status_code == 200
+    assert res.get_json()["deleted"] is True
+
+    # Verify gone from list
+    res2 = client.get("/api/communities")
+    ids = {c["id"] for c in res2.get_json()}
+    assert "comm-A" not in ids
+
+
+def test_delete_nonexistent_community_404(client):
+    res = client.delete("/api/communities/nonexistent")
+    assert res.status_code == 404

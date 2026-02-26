@@ -91,7 +91,7 @@ def get_account_communities_route(account_id):
     """Which communities does this account belong to?"""
     conn = _get_db()
     try:
-        rows = store.get_account_communities_canonical(conn, account_id)
+        rows = store.get_account_communities(conn, account_id)
         result = []
         for cid, name, color, weight, source in rows:
             result.append({
@@ -176,5 +176,22 @@ def update_community_route(community_id):
             "color": color,
             "description": description,
         })
+    finally:
+        conn.close()
+
+
+@communities_bp.route("/<community_id>", methods=["DELETE"])
+def delete_community_route(community_id):
+    """Delete a community and all its memberships (cascade)."""
+    conn = _get_db()
+    try:
+        exists = conn.execute(
+            "SELECT 1 FROM community WHERE id = ?", (community_id,)
+        ).fetchone()
+        if not exists:
+            return jsonify({"error": "community not found"}), 404
+
+        store.delete_community(conn, community_id)
+        return jsonify({"deleted": True, "community_id": community_id})
     finally:
         conn.close()

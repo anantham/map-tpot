@@ -10,6 +10,14 @@ Two-layer design:
   Layer 2 — Curator's canonical map (human-managed):
     community         — named communities (seeded from NMF, then human-edited)
     community_account — account→community assignments (source: 'nmf' | 'human')
+
+Commit contract:
+  - Layer 1 bulk writers (save_run, save_memberships, save_definitions) commit
+    internally because they're called from scripts that expect atomic writes.
+  - Layer 2 single-row writers (upsert_community, upsert_community_account) do
+    NOT commit — callers must conn.commit() after batching multiple writes.
+  - Destructive operations (delete_community, clear_seeded_communities,
+    reseed_nmf_memberships) commit internally for safety.
 """
 
 import sqlite3
@@ -162,6 +170,7 @@ def upsert_community(
     seeded_from_run: Optional[str] = None,
     seeded_from_idx: Optional[int] = None,
 ) -> None:
+    """Insert or update a community row. Does NOT commit — caller must commit."""
     now = now_utc()
     conn.execute(
         """INSERT INTO community (id, name, description, color,
@@ -184,6 +193,7 @@ def upsert_community_account(
     weight: float,
     source: str = "nmf",
 ) -> None:
+    """Insert or update an account→community assignment. Does NOT commit — caller must commit."""
     conn.execute(
         """INSERT INTO community_account (community_id, account_id, weight, source, updated_at)
            VALUES (?,?,?,?,?)
@@ -224,24 +234,11 @@ def get_community_members(
 
 
 def get_account_communities(conn: sqlite3.Connection, account_id: str) -> list:
-    """Return all community memberships for an account (Layer 2 view)."""
-    return conn.execute(
-        """SELECT c.id, c.name, c.color, ca.weight, ca.source
-           FROM community_account ca
-           JOIN community c ON c.id = ca.community_id
-           WHERE ca.account_id = ?
-           ORDER BY ca.weight DESC""",
-        (account_id,),
-    ).fetchall()
+    """Return canonical community memberships for an account.
 
-
-def get_account_communities_canonical(conn: sqlite3.Connection, account_id: str) -> list:
-    """Return communities for an account with human-overrides-nmf precedence.
-
-    With the current PK of (community_id, account_id), each account can only
-    have ONE row per community. So precedence is handled at write time —
-    upsert_community_account with source='human' overwrites the source='nmf' row.
-    This function returns the canonical view.
+    Human-overrides-NMF precedence is handled at write time: upsert_community_account
+    with source='human' overwrites any existing source='nmf' row (PK is
+    (community_id, account_id)). So this query always returns the canonical view.
 
     Returns: [(community_id, name, color, weight, source), ...]
     """
@@ -262,8 +259,14 @@ def delete_community(conn: sqlite3.Connection, community_id: str) -> None:
 
 
 def clear_seeded_communities(conn: sqlite3.Connection, run_id: str) -> int:
-    """Remove Layer 2 communities that were seeded from a specific run.
-    Returns the number of communities deleted."""
+    """Remove Layer 2 communities seeded from a specific run. Commits internally.
+
+    WARNING: This deletes community rows AND all associated community_account
+    rows (via ON DELETE CASCADE), including source='human' edits. For safe
+    re-seeding that preserves human edits, use reseed_nmf_memberships() instead.
+
+    Returns the number of communities deleted.
+    """
     result = conn.execute(
         "DELETE FROM community WHERE seeded_from_run = ?", (run_id,)
     )

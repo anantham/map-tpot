@@ -99,6 +99,18 @@ def main():
     print(f"  Layer 1: {l1_memberships} membership rows, {l1_definitions} definition rows")
 
     print(f"\n{'ALL CHECKS PASSED' if all_ok else 'SOME CHECKS FAILED'}")
+
+    print("\nNext steps:")
+    if human_count == 0:
+        print("  1. Start backend: .venv/bin/python3 -m src.api.server")
+        print("  2. Start frontend: cd graph-explorer && npm run dev")
+        print("  3. Open Communities tab and start curating memberships")
+        print("  4. Re-run this script to verify human edits are persisted")
+    else:
+        print(f"  - {human_count} human-curated memberships preserved")
+        print("  - Communities tab ready for further curation")
+        print("  - Run 'pytest tests/test_communities_store.py -v' to verify store invariants")
+
     conn.close()
     sys.exit(0 if all_ok else 1)
 

@@ -8,7 +8,6 @@
  *   4. Assign/remove/move accounts → persists as source='human'
  */
 import { useState, useEffect, useCallback } from 'react'
-import { API_BASE_URL } from './config'
 import {
   fetchCommunities,
   fetchCommunityMembers,
@@ -17,6 +16,7 @@ import {
   removeMember,
   updateCommunity,
 } from './communitiesApi'
+import { searchAccounts } from './accountsApi'
 
 
 function CommunityList({ communities, selectedId, onSelect }) {
@@ -322,6 +322,8 @@ export default function Communities({ ego: defaultEgo }) {
   const [showFollowOnly, setShowFollowOnly] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [assigning, setAssigning] = useState(false)
+  const [editingName, setEditingName] = useState(null)
+  const [editingColor, setEditingColor] = useState(null)
 
   // Ego state — changeable
   const [ego, setEgo] = useState(defaultEgo || '')
@@ -331,12 +333,11 @@ export default function Communities({ ego: defaultEgo }) {
   // Resolve ego handle to account_id on change
   useEffect(() => {
     if (!ego) { setEgoAccountId(null); return }
-    fetch(`${API_BASE_URL}/api/accounts/search?q=${encodeURIComponent(ego)}&limit=1`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        const match = data?.results?.[0]
+    searchAccounts({ q: ego, limit: 1 })
+      .then(results => {
+        const match = Array.isArray(results) ? results[0] : null
         if (match && match.username?.toLowerCase() === ego.toLowerCase()) {
-          setEgoAccountId(match.account_id)
+          setEgoAccountId(match.id)
         } else {
           setEgoAccountId(null)
         }
@@ -419,6 +420,20 @@ export default function Communities({ ego: defaultEgo }) {
     }
   }, [refreshAfterEdit])
 
+  const handleUpdateCommunity = useCallback(async (updates) => {
+    if (!selectedCommunity) return
+    try {
+      const result = await updateCommunity(selectedCommunity.id, updates)
+      // Update local state so UI reflects changes immediately
+      const updated = { ...selectedCommunity, ...result }
+      setSelectedCommunity(updated)
+      setCommunities(prev => prev.map(c => c.id === updated.id ? { ...c, ...result } : c))
+      setEditingName(null)
+    } catch (e) {
+      setError(e.message)
+    }
+  }, [selectedCommunity])
+
   if (loading) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center',
       justifyContent: 'center', color: '#64748b' }}>
@@ -482,22 +497,84 @@ export default function Communities({ ego: defaultEgo }) {
           onSelect={setSelectedCommunity}
         />
 
-        {membersLoading ? (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', color: '#64748b' }}>
-            Loading members...
-          </div>
-        ) : (
-          <MemberTable
-            members={members}
-            selectedAccountId={selectedAccount?.account_id}
-            onSelectAccount={setSelectedAccount}
-            showFollowOnly={showFollowOnly}
-            onToggleFollowOnly={() => setShowFollowOnly(v => !v)}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-          />
-        )}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* Community edit bar */}
+          {selectedCommunity && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '6px 12px',
+              borderBottom: '1px solid var(--panel-border, #1e293b)',
+              background: 'var(--panel, #1e293b)',
+            }}>
+              <input
+                type="color"
+                value={editingColor ?? selectedCommunity.color ?? '#64748b'}
+                onChange={e => setEditingColor(e.target.value)}
+                onBlur={() => {
+                  if (editingColor && editingColor !== selectedCommunity.color) {
+                    handleUpdateCommunity({ color: editingColor })
+                  }
+                  setEditingColor(null)
+                }}
+                style={{ width: 24, height: 24, border: 'none', padding: 0,
+                  cursor: 'pointer', background: 'transparent' }}
+                title="Change color"
+              />
+              {editingName !== null ? (
+                <input
+                  autoFocus
+                  value={editingName}
+                  onChange={e => setEditingName(e.target.value)}
+                  onBlur={() => {
+                    if (editingName && editingName !== selectedCommunity.name) {
+                      handleUpdateCommunity({ name: editingName })
+                    } else {
+                      setEditingName(null)
+                    }
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') e.target.blur()
+                    if (e.key === 'Escape') setEditingName(null)
+                  }}
+                  style={{
+                    flex: 1, padding: '4px 8px', fontSize: 14, fontWeight: 600,
+                    background: 'var(--bg, #0f172a)',
+                    border: '1px solid var(--accent, #3b82f6)',
+                    borderRadius: 4, color: 'var(--text, #e2e8f0)',
+                  }}
+                />
+              ) : (
+                <span
+                  onClick={() => setEditingName(selectedCommunity.name)}
+                  style={{ fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+                  title="Click to rename"
+                >
+                  {selectedCommunity.name}
+                </span>
+              )}
+              <span style={{ fontSize: 11, color: '#64748b' }}>
+                {selectedCommunity.member_count} members
+              </span>
+            </div>
+          )}
+
+          {membersLoading ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', color: '#64748b' }}>
+              Loading members...
+            </div>
+          ) : (
+            <MemberTable
+              members={members}
+              selectedAccountId={selectedAccount?.account_id}
+              onSelectAccount={setSelectedAccount}
+              showFollowOnly={showFollowOnly}
+              onToggleFollowOnly={() => setShowFollowOnly(v => !v)}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+            />
+          )}
+        </div>
 
         <AccountDetail
           account={selectedAccount}

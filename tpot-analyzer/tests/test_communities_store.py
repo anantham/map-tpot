@@ -18,7 +18,6 @@ from src.communities.store import (
     list_communities,
     get_community_members,
     get_account_communities,
-    get_account_communities_canonical,
     delete_community,
     clear_seeded_communities,
     reseed_nmf_memberships,
@@ -119,11 +118,11 @@ def test_clear_seeded_communities_still_works(seeded_db):
     assert seeded_db.execute("SELECT COUNT(*) FROM community_account").fetchone()[0] == 0
 
 
-# ── Task 2: get_account_communities_canonical ────────────────────────────
+# ── get_account_communities (canonical view) ─────────────────────────────
 
 def test_canonical_returns_all_memberships(seeded_db):
     """Returns all communities an account belongs to."""
-    result = get_account_communities_canonical(seeded_db, "acct_1")
+    result = get_account_communities(seeded_db, "acct_1")
     assert len(result) == 2
     comm_ids = {r[0] for r in result}
     assert "comm-A" in comm_ids
@@ -132,7 +131,7 @@ def test_canonical_returns_all_memberships(seeded_db):
 
 def test_canonical_shows_correct_source(seeded_db):
     """Source field reflects what's in DB (human overwrite or nmf)."""
-    result = get_account_communities_canonical(seeded_db, "acct_1")
+    result = get_account_communities(seeded_db, "acct_1")
     by_comm = {r[0]: r for r in result}
     assert by_comm["comm-A"][4] == "nmf"
     assert by_comm["comm-B"][4] == "human"
@@ -141,14 +140,14 @@ def test_canonical_shows_correct_source(seeded_db):
 
 def test_canonical_nmf_only_account(seeded_db):
     """Account with only nmf rows returns nmf source."""
-    result = get_account_communities_canonical(seeded_db, "acct_2")
+    result = get_account_communities(seeded_db, "acct_2")
     assert len(result) == 1
     assert result[0][4] == "nmf"
 
 
 def test_canonical_no_memberships(seeded_db):
     """Account not in any community returns empty list."""
-    result = get_account_communities_canonical(seeded_db, "nonexistent")
+    result = get_account_communities(seeded_db, "nonexistent")
     assert result == []
 
 
