@@ -24,7 +24,9 @@ from src.communities.store import (
     get_ego_following_set,
     get_account_note,
     upsert_account_note,
-    get_account_preview,
+)
+from src.communities.preview import get_account_preview
+from src.communities.versioning import (
     create_branch,
     list_branches,
     get_active_branch,
