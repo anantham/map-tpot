@@ -81,3 +81,79 @@ Status is **Proposed** until we align on the operational cadence. After acceptan
 1. Implement the snapshot refresh + manifest + loader + verification script, and add the enrichment hook (`--refresh-snapshot`) so snapshots can be regenerated automatically after successful scrapes.
 2. Update documentation (README, ROADMAP, WORKLOG) with the new workflow.
 3. Plan follow-up ADR or WORKLOG entry for the incremental explorer UX that will rely on this precomputed data.
+
+---
+
+## Amendment: Row-Based Staleness Detection (2026-02-27)
+
+### Context
+
+The original decision (Section 2) specified staleness detection via `cache_db_modified` mtime comparison: "compare `cache_db_modified` to the current mtime of `data/cache.db`". During implementation, this proved insufficient because:
+
+1. File mtime changes on any write, even trivial ones (vacuum, WAL checkpoint)
+2. mtime doesn't distinguish meaningful data changes from housekeeping
+3. We needed granular detection of *which* data changed and by how much
+
+### Evolved Implementation
+
+`src/api/snapshot_loader.py` now implements **row-count-based staleness detection** with mtime as a fallback:
+
+**Phase 1 — Age check** (unchanged):
+```python
+age = datetime.utcnow() - manifest.generated_at
+if age.total_seconds() > 86400:  # 24 hours
+    return stale
+```
+
+**Phase 2 — Row-count comparison** (NEW):
+```python
+# Query current SQLite table row counts
+for table in ["account", "profile", "followers", "following"]:
+    current_counts[table] = SELECT COUNT(*) FROM {table}
+
+# Regenerate if:
+# - 100+ new accounts added (absolute threshold)
+# - 100+ new profiles added (absolute threshold)
+# - 10%+ increase in followers rows (relative threshold)
+# - 10%+ increase in following rows (relative threshold)
+```
+
+**Phase 3 — mtime fallback** (for old manifests without `cache_row_counts`):
+```python
+if not manifest.cache_row_counts:
+    return mtime_comparison()  # original behavior
+```
+
+### Threshold Rationale
+
+| Threshold | Value | Rationale |
+|-----------|-------|-----------|
+| Account diff | 100 | ~1.3% of current graph (~8k nodes). Below this, PageRank changes are negligible |
+| Profile diff | 100 | Mirrors account threshold for consistency |
+| Follower increase | 10% | Significant enough to change betweenness centrality rankings |
+| Following increase | 10% | Significant enough to change neighbor overlap scores |
+| Max age | 24 hours | Balance between freshness and rebuild cost |
+
+### Manifest Format
+
+The manifest (`data/graph_snapshot.meta.json`) now includes a `cache_row_counts` field:
+
+```json
+{
+  "generated_at": "2026-02-27T08:00:00",
+  "cache_db_path": "data/cache.db",
+  "cache_db_modified": "2026-02-27T07:55:00",
+  "node_count": 7981,
+  "edge_count": 18497,
+  "cache_row_counts": {
+    "account": 291,
+    "profile": 285,
+    "followers": 158000,
+    "following": 165000
+  }
+}
+```
+
+### Backward Compatibility
+
+Old manifests without `cache_row_counts` fall back to the original mtime comparison, ensuring zero breaking changes.

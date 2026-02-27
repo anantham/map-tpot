@@ -89,6 +89,90 @@
 
 ---
 
+## Multi-Layer Cache Architecture
+
+<!-- staleness-marker: src/api/cache.py -->
+<!-- staleness-marker: src/api/metrics_cache.py -->
+<!-- staleness-marker: src/api/discovery.py -->
+<!-- staleness-marker: src/api/snapshot_loader.py -->
+<!-- last-verified: 2026-02-27 -->
+
+### Why Multiple Caches?
+
+The API uses **three distinct in-memory cache layers** (plus a fourth for snapshots), each optimized for different access patterns:
+
+```
+Request Flow:
+
+                    ┌─────────────────────────────┐
+/api/metrics/compute──→│ Layer 2: Response Cache      │──HIT→ Return cached JSON
+                    │ (metrics_cache.py, 5 min TTL)│
+                    └─────────┬───────────────────┘
+                              │ MISS
+                              ▼
+                    ┌─────────────────────────────┐
+                    │ Layer 1: Graph Cache         │──HIT→ Recompute composite only
+                    │ (cache.py, 1 hour TTL)       │
+                    └─────────┬───────────────────┘
+                              │ MISS
+                              ▼
+                    ┌─────────────────────────────┐
+                    │ Layer 4: Snapshot Cache       │──HIT→ Load from Parquet
+                    │ (snapshot_loader.py, 24h)     │
+                    └─────────┬───────────────────┘
+                              │ MISS
+                              ▼
+                    ┌─────────────────────────────┐
+                    │ Live SQLite Rebuild           │
+                    │ (CachedDataFetcher + builder) │
+                    └──────────────────────────────┘
+
+/api/subgraph/discover──→ Layer 3: Discovery Cache (discovery.py, 1 hour TTL)
+```
+
+### Cache Comparison
+
+| Property | Layer 1 (Graph) | Layer 2 (Response) | Layer 3 (Discovery) | Layer 4 (Snapshot) |
+|----------|----------------|-------------------|--------------------|--------------------|
+| **File** | `cache.py` | `metrics_cache.py` | `discovery.py` | `snapshot_loader.py` |
+| **Class** | `MetricsCache` | `MetricsCache` | `DiscoveryCache` | `SnapshotLoader` |
+| **Purpose** | Graph build + base metrics | Full HTTP response JSON | Discovery recommendations | Precomputed graph |
+| **TTL** | 1 hour | 5 minutes | 1 hour | 24 hours |
+| **Max size** | 100 entries | 100 entries | 100 entries | 1 graph (singleton) |
+| **Key hash** | SHA256 | SHA256 | MD5 | N/A (file-based) |
+| **Eviction** | LRU (OrderedDict) | LRU (oldest created_at) | LRU (list-based) | Staleness detection |
+
+### Design Rationale
+
+**Layer 1 (1 hour TTL):** Graph building and PageRank/betweenness are expensive (500-2000ms). Results only change when underlying data changes, so 1-hour TTL is appropriate.
+
+**Layer 2 (5 minute TTL):** Catches rapid re-fires of the same request. Short TTL ensures composite scores reflect recent weight changes while absorbing duplicate requests.
+
+**Layer 3 (1 hour TTL):** Discovery scoring is expensive (1-3s). Cache key includes snapshot version, so new snapshots automatically invalidate.
+
+**Layer 4 (24 hour TTL):** Validated against SQLite row counts (100 new accounts or 10% relationship increase triggers rebuild).
+
+### Cache Interaction Example
+
+When a user adjusts weight sliders:
+1. **Layer 2** misses (weights changed the cache key)
+2. **Layer 1** hits (graph and base metrics haven't changed)
+3. Only composite recomputation needed (~1ms client-side)
+
+When a user changes seeds:
+1. All layers miss (seeds affect personalization)
+2. Full recomputation needed (500-2000ms)
+
+### Naming Collision Note
+
+Both `cache.py` and `metrics_cache.py` define a class called `MetricsCache`. These are **different classes** with different APIs:
+- `cache.py::MetricsCache`: Uses `get(prefix, params)` / `set(prefix, params, value)` with detailed stats
+- `metrics_cache.py::MetricsCache`: Uses `get(**params)` / `set(data, **params)` with `@cached_response` decorator
+
+See `docs/API.md` → "Cache Architecture" for full documentation.
+
+---
+
 ## 📦 Implementation Details
 
 ### 1. Backend Cache (`src/api/cache.py`)
