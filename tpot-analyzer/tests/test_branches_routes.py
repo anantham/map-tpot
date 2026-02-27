@@ -12,8 +12,8 @@ from src.api.routes.branches import branches_bp
 from src.communities.store import (
     init_db, save_run,
     upsert_community, upsert_community_account,
-    create_branch, capture_snapshot,
 )
+from src.communities.versioning import create_branch, capture_snapshot
 
 
 @pytest.fixture
