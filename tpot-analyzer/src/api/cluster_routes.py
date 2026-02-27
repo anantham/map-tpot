@@ -115,6 +115,11 @@ _data_dir: Optional[Path] = None
 _propagation_data: Optional[PropagationData] = None
 _spectral_presets: Dict[float, object] = {}  # alpha -> SpectralResult
 _alpha_presets: list = []  # sorted list of available alpha values
+_tpot_spectral = None  # SpectralResult for TPOT-focused lens
+_tpot_node_metadata: Dict[str, Dict] = {}  # Metadata for TPOT subgraph nodes only
+_tpot_adjacency = None  # Adjacency for TPOT subgraph
+_tpot_stats: Dict[str, object] = {}  # n_core, n_halo, tau from mapping
+_available_lenses: list = ["full"]  # Available graph lenses
 _observation_config = ObservationWeightingConfig()
 _observation_stats: Dict[str, object] = {}
 _graph_settings: Dict[str, object] = {}
@@ -282,6 +287,7 @@ def _make_cache_key(
     expand_depth: float = 0.5,
     focus_leaf: Optional[str] = None,
     alpha: float = 0.0,
+    lens: str = "full",
 ) -> Tuple:
     collapsed = collapsed or set()
     return (
@@ -293,6 +299,7 @@ def _make_cache_key(
         round(expand_depth, 2),
         focus_leaf or "",
         round(alpha, 2),
+        lens,
     )
 
 def _get_tag_store() -> AccountTagStore:
@@ -368,6 +375,7 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
     """
     global _spectral_result, _adjacency, _node_metadata, _node_id_to_idx, _louvain_communities, _label_store
     global _data_dir, _propagation_data, _spectral_presets, _alpha_presets
+    global _tpot_spectral, _tpot_node_metadata, _tpot_adjacency, _tpot_stats, _available_lenses
     global _observation_config, _observation_stats, _graph_settings
 
     try:
@@ -448,6 +456,50 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
                     logger.warning("Failed to load spectral preset alpha=%.2f", alpha_val, exc_info=True)
         _alpha_presets = sorted(_spectral_presets.keys())
 
+        # Load TPOT-focused lens (optional — degrades gracefully)
+        _available_lenses = ["full"]
+        tpot_spectral_path = data_dir / "graph_snapshot_tpot.spectral.npz"
+        if tpot_spectral_path.exists():
+            try:
+                tpot_base = data_dir / "graph_snapshot_tpot"
+                _tpot_spectral = load_spectral_result(tpot_base)
+
+                # Load TPOT node metadata (subset of full metadata)
+                tpot_nodes_path = data_dir / "graph_snapshot_tpot.nodes.parquet"
+                if tpot_nodes_path.exists():
+                    tpot_nodes_df = pd.read_parquet(tpot_nodes_path)
+                    _tpot_node_metadata = _load_metadata(tpot_nodes_df)
+
+                    # Build TPOT adjacency from edges
+                    tpot_edges_path = data_dir / "graph_snapshot_tpot.edges.parquet"
+                    if tpot_edges_path.exists():
+                        tpot_edges_df = pd.read_parquet(tpot_edges_path)
+                        tpot_node_ids = _tpot_spectral.node_ids
+                        tpot_adj_cache = data_dir / "adjacency_matrix_cache.tpot.pkl"
+                        _tpot_adjacency, _tpot_obs_stats = _load_or_build_adjacency(
+                            tpot_edges_df, tpot_node_ids, tpot_adj_cache,
+                            obs_config=ObservationWeightingConfig(),  # default for TPOT
+                        )
+
+                # Load TPOT mapping stats (n_core, n_halo, tau)
+                tpot_mapping_path = data_dir / "graph_snapshot_tpot.mapping.json"
+                if tpot_mapping_path.exists():
+                    mapping = json.loads(tpot_mapping_path.read_text())
+                    _tpot_stats = {
+                        "n_core": mapping.get("n_core", 0),
+                        "n_halo": mapping.get("n_halo", 0),
+                        "n_total": mapping.get("n_tpot_subgraph", 0),
+                        "tau": mapping.get("tau", 0),
+                    }
+
+                _available_lenses.append("tpot")
+                logger.info("TPOT lens loaded: %d nodes", len(_tpot_spectral.node_ids))
+            except Exception:
+                logger.warning("Failed to load TPOT lens", exc_info=True)
+                _tpot_spectral = None
+        else:
+            logger.info("TPOT lens not available (no %s)", tpot_spectral_path)
+
         if _spectral_result.micro_labels is not None:
             n_micro = len(np.unique(_spectral_result.micro_labels))
             logger.info(
@@ -490,11 +542,22 @@ def get_clusters():
     expand_depth = max(0.0, min(1.0, expand_depth))
     alpha = request.args.get("alpha", 0.0, type=float)
     alpha = max(0.0, min(1.0, alpha))
+    lens = request.args.get("lens", "full", type=str)
+    if lens not in _available_lenses:
+        lens = "full"
 
-    # Select spectral preset for this alpha (snap to nearest available)
+    # Select spectral + adjacency + metadata based on lens
     active_spectral = _spectral_result
+    active_adjacency = _adjacency
+    active_metadata = _node_metadata
     active_alpha = 0.0
-    if alpha > 0 and _spectral_presets:
+
+    if lens == "tpot" and _tpot_spectral is not None:
+        active_spectral = _tpot_spectral
+        active_adjacency = _tpot_adjacency if _tpot_adjacency is not None else _adjacency
+        active_metadata = _tpot_node_metadata if _tpot_node_metadata else _node_metadata
+    elif alpha > 0 and _spectral_presets:
+        # Select spectral preset for this alpha (snap to nearest available)
         best_alpha = min(_alpha_presets, key=lambda a: abs(a - alpha))
         if best_alpha in _spectral_presets:
             active_spectral = _spectral_presets[best_alpha]
@@ -512,7 +575,7 @@ def get_clusters():
         active_alpha,
     )
 
-    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf, active_alpha)
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf, active_alpha, lens)
 
     # Deduplicate identical in-flight builds
     inflight = _cache.inflight_get(cache_key)
@@ -587,8 +650,8 @@ def get_clusters():
             micro_labels=active_spectral.micro_labels if active_spectral.micro_labels is not None else np.arange(len(active_spectral.node_ids)),
             micro_centroids=active_spectral.micro_centroids if active_spectral.micro_centroids is not None else active_spectral.embedding,
             node_ids=active_spectral.node_ids,
-            adjacency=_adjacency,
-            node_metadata=_node_metadata,
+            adjacency=active_adjacency,
+            node_metadata=active_metadata,
             base_granularity=granularity,
                 expanded_ids=expanded_ids,
                 collapsed_ids=collapsed_ids,
@@ -612,9 +675,10 @@ def get_clusters():
 
         start_serialize = time.time()
         payload = _serialize_hierarchical_view(view)
-        # Patch active alpha into meta (per-request value)
+        # Patch per-request values into meta
         if "meta" in payload:
             payload["meta"]["activeAlpha"] = active_alpha
+            payload["meta"]["activeLens"] = lens
         serialize_duration = time.time() - start_serialize
         total_duration = time.time() - start_total
 
@@ -1164,6 +1228,9 @@ def _serialize_hierarchical_view(view) -> dict:
             "communities": _build_communities_meta(),
             "alphaPresets": _alpha_presets if len(_alpha_presets) > 1 else [],
             "activeAlpha": 0.0,  # Will be overridden per-request in get_clusters
+            "availableLenses": _available_lenses,
+            "activeLens": "full",  # Will be overridden per-request in get_clusters
+            "tpotStats": _tpot_stats if _tpot_stats else None,
         },
         "cache_hit": False,
     }
