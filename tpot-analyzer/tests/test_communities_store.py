@@ -615,6 +615,84 @@ def test_is_branch_dirty_no_snapshots(seeded_db):
     assert is_branch_dirty(seeded_db, "br-main") is False
 
 
+def test_is_branch_dirty_detects_assignment_change(seeded_db):
+    """Dirty detection triggers on community_account changes, not just community name."""
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    seeded_db.commit()
+    capture_snapshot(seeded_db, "br-main")
+
+    assert is_branch_dirty(seeded_db, "br-main") is False
+
+    # Add a new assignment (no community name change)
+    seeded_db.execute(
+        "INSERT INTO community_account (community_id, account_id, weight, source, updated_at)"
+        " VALUES ('comm-A', 'new_acct', 0.5, 'human', '2025-01-01')"
+    )
+    seeded_db.commit()
+
+    assert is_branch_dirty(seeded_db, "br-main") is True
+
+
+def test_is_branch_dirty_detects_note_change(seeded_db):
+    """Dirty detection triggers on account_note changes."""
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    seeded_db.commit()
+    capture_snapshot(seeded_db, "br-main")
+
+    assert is_branch_dirty(seeded_db, "br-main") is False
+
+    # Add a note (no community or assignment change)
+    upsert_account_note(seeded_db, "acct_1", "new note")
+    seeded_db.commit()
+
+    assert is_branch_dirty(seeded_db, "br-main") is True
+
+
+def test_restore_snapshot_empty_wipes_layer2(seeded_db):
+    """restore_snapshot with an empty snapshot wipes all Layer 2 data."""
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    seeded_db.commit()
+
+    # Capture snapshot of empty state first, then seed data
+    snap_id = capture_snapshot(seeded_db, "br-main", name="empty")
+
+    # Verify we have data before restore
+    assert seeded_db.execute("SELECT COUNT(*) FROM community").fetchone()[0] == 2
+    assert seeded_db.execute("SELECT COUNT(*) FROM community_account").fetchone()[0] == 4
+
+    # Wipe the snapshot's data rows to simulate an "empty" snapshot
+    seeded_db.execute(
+        "DELETE FROM community_snapshot_data WHERE snapshot_id = ?", (snap_id,)
+    )
+    seeded_db.commit()
+
+    restore_snapshot(seeded_db, snap_id)
+
+    assert seeded_db.execute("SELECT COUNT(*) FROM community").fetchone()[0] == 0
+    assert seeded_db.execute("SELECT COUNT(*) FROM community_account").fetchone()[0] == 0
+    assert seeded_db.execute("SELECT COUNT(*) FROM account_note").fetchone()[0] == 0
+
+
+def test_switch_branch_no_snapshot_target_wipes_layer2(seeded_db):
+    """Switching to a branch with no snapshots wipes Layer 2 to empty."""
+    create_branch(seeded_db, "br-main", "main", is_active=True)
+    seeded_db.commit()
+    capture_snapshot(seeded_db, "br-main", name="initial")
+
+    # Create a new branch with NO snapshots
+    create_branch(seeded_db, "br-blank", "blank")
+    seeded_db.commit()
+
+    assert seeded_db.execute("SELECT COUNT(*) FROM community").fetchone()[0] == 2
+
+    switch_branch(seeded_db, "br-blank", save_current=False)
+
+    # Layer 2 should be empty — blank branch had no state to restore
+    assert seeded_db.execute("SELECT COUNT(*) FROM community").fetchone()[0] == 0
+    assert seeded_db.execute("SELECT COUNT(*) FROM community_account").fetchone()[0] == 0
+    assert get_active_branch(seeded_db)["name"] == "blank"
+
+
 def test_delete_branch(seeded_db):
     """Deleting a branch cascades to its snapshots."""
     create_branch(seeded_db, "br-main", "main", is_active=True)
