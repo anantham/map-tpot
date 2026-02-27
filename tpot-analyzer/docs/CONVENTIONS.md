@@ -18,7 +18,13 @@ Code hash: 7ba43d1
 | Constants | UPPER_SNAKE | `AXIS_SIMULACRUM` | `axisSimulacrum` |
 | Config env vars | UPPER_SNAKE | `OPENROUTER_API_KEY` | `openrouterApiKey` |
 
-**Known violation:** API response keys are camelCase (frontend convention) while DB columns are snake_case. Conversion happens in `_rows_to_candidates()` and route handlers.
+## Intentional Divergences
+
+These are NOT convention violations — `doc-audit` should skip them.
+
+| Divergence | Where | Why |
+|------------|-------|-----|
+| snake_case in DB columns, camelCase in API responses | All API routes | Frontend JS convention vs DB convention; conversion in `_rows_to_candidates()` and route handlers |
 
 ## Error Handling
 
