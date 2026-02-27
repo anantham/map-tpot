@@ -33,6 +33,10 @@ from uuid import uuid4
 import httpx
 import yaml
 
+# Ensure project root is importable
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from src.data.golden.schema import split_for_tweet  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -203,17 +207,6 @@ def parse_response(raw_response: dict) -> Optional[Dict[str, float]]:
 # Tweet selection
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _split_for_tweet(tweet_id: str) -> str:
-    """Deterministic split assignment via SHA256 hash (mirrors schema.py)."""
-    import hashlib
-    bucket = int(hashlib.sha256(tweet_id.encode("utf-8")).hexdigest()[:8], 16) % 100
-    if bucket < 70:
-        return "train"
-    if bucket < 85:
-        return "dev"
-    return "test"
-
-
 def select_tweets(
     db_path: Path,
     *,
@@ -267,7 +260,7 @@ def select_tweets(
         count = 0
         for r in rows:
             tid = r["tweet_id"]
-            if split and _split_for_tweet(tid) != split:
+            if split and split_for_tweet(tid) != split:
                 continue
             tweets.append({
                 "tweet_id": tid,
