@@ -159,17 +159,28 @@ def load_adjacency() -> sp.csr_matrix:
 def load_community_labels(
     node_ids: np.ndarray,
     config: PropagationConfig,
-) -> tuple[np.ndarray, np.ndarray, list[str], list[str], list[str]]:
+    holdout_fraction: float = 0.0,
+    holdout_seed: int = 42,
+) -> tuple[np.ndarray, np.ndarray, list[str], list[str], list[str], dict | None]:
     """Load community assignments from DB and build boundary condition matrix.
 
     The boundary matrix has K+1 columns: one per community + one "none" column.
     Each labeled node gets its NMF-derived weights (0-1 per community), optionally
     class-balanced. The "none" column is the residual (1 - sum of community weights).
 
+    Args:
+        node_ids: Array of node IDs matching graph matrix rows.
+        config: Propagation config.
+        holdout_fraction: Fraction of labeled accounts to hold out per community
+            for threshold calibration (0 = no holdout, use all seeds).
+        holdout_seed: Random seed for reproducible holdout split.
+
     Returns:
         boundary_matrix: (n_labeled, K+1) soft membership boundary conditions
         labeled_indices: (n_labeled,) indices into node_ids array
         community_ids, community_names, community_colors: metadata lists
+        holdout_info: dict with holdout account IDs and their community assignments
+            (None if holdout_fraction == 0)
     """
     id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
 
@@ -208,6 +219,53 @@ def load_community_labels(
         # Take max weight if multiple entries for same (account, community)
         account_weights[aid][col] = max(account_weights[aid][col], weight)
 
+    # --- Holdout split (stratified by dominant community) ---
+    holdout_info = None
+    if holdout_fraction > 0:
+        rng = np.random.RandomState(holdout_seed)
+        # Group accounts by their dominant community
+        community_groups: dict[int, list[str]] = {i: [] for i in range(K)}
+        for aid, weights in account_weights.items():
+            dominant = int(np.argmax(weights))
+            community_groups[dominant].append(aid)
+
+        holdout_accounts: set[str] = set()
+        holdout_assignments: dict[str, dict] = {}  # aid -> {community_id, community_name, weights}
+        for col_idx, members in community_groups.items():
+            n_holdout = max(1, int(len(members) * holdout_fraction))
+            # Don't hold out more than half — keep at least some train seeds per community
+            n_holdout = min(n_holdout, len(members) // 2)
+            if n_holdout > 0:
+                rng.shuffle(members)
+                for aid in members[:n_holdout]:
+                    holdout_accounts.add(aid)
+                    holdout_assignments[aid] = {
+                        "dominant_community_id": community_ids[col_idx],
+                        "dominant_community_name": community_names[col_idx],
+                        "weights": account_weights[aid].tolist(),
+                    }
+
+        # Remove holdout accounts from the training set
+        for aid in holdout_accounts:
+            del account_weights[aid]
+
+        holdout_info = {
+            "holdout_fraction": holdout_fraction,
+            "holdout_seed": holdout_seed,
+            "n_holdout": len(holdout_accounts),
+            "n_train": len(account_weights),
+            "accounts": holdout_assignments,
+        }
+        print(f"Holdout split: {len(holdout_accounts)} holdout, {len(account_weights)} train "
+              f"(fraction={holdout_fraction}, seed={holdout_seed})")
+        for col_idx in range(K):
+            n_in_holdout = sum(
+                1 for a in holdout_assignments.values()
+                if a["dominant_community_name"] == community_names[col_idx]
+            )
+            n_in_train = len(community_groups[col_idx]) - n_in_holdout
+            print(f"  {community_names[col_idx]:30s}: {n_in_train} train, {n_in_holdout} holdout")
+
     # Class balancing: inverse-sqrt of community size.
     # Why sqrt? Linear inverse would over-boost tiny communities (AI Art with 1 node
     # in graph would get 73x the weight of Qualia Research Folks). Sqrt is a
@@ -238,7 +296,7 @@ def load_community_labels(
         # For accounts weakly in multiple communities, none captures the residual.
         boundary[i, K] = max(0.0, 1.0 - balanced.sum())
 
-    return boundary, labeled_indices, community_ids, community_names, community_colors
+    return boundary, labeled_indices, community_ids, community_names, community_colors, holdout_info
 
 
 def multiclass_entropy(memberships: np.ndarray) -> np.ndarray:
@@ -262,7 +320,9 @@ def propagate(
     adjacency: sp.csr_matrix,
     node_ids: np.ndarray,
     config: PropagationConfig,
-) -> PropagationResult:
+    holdout_fraction: float = 0.0,
+    holdout_seed: int = 42,
+) -> tuple[PropagationResult, dict | None]:
     """Run multi-class harmonic label propagation.
 
     Mathematical formulation:
@@ -278,8 +338,8 @@ def propagate(
     n_nodes = adjacency.shape[0]
 
     # Load boundary conditions from community database
-    boundary, labeled_idx, community_ids, community_names, community_colors = (
-        load_community_labels(node_ids, config)
+    boundary, labeled_idx, community_ids, community_names, community_colors, holdout_info = (
+        load_community_labels(node_ids, config, holdout_fraction=holdout_fraction, holdout_seed=holdout_seed)
     )
     K = len(community_ids)
     n_classes = K + 1  # K communities + "none"
@@ -413,7 +473,7 @@ def propagate(
         | (uncertainty > config.abstain_uncertainty_threshold)
     ) & ~labeled_mask
 
-    return PropagationResult(
+    result = PropagationResult(
         memberships=memberships,
         uncertainty=uncertainty,
         entropy=entropy,
@@ -428,6 +488,7 @@ def propagate(
         config=config,
         solve_time_seconds=t_solve,
     )
+    return result, holdout_info
 
 
 # ── Diagnostics ──────────────────────────────────────────────────────────────
@@ -692,6 +753,10 @@ def main():
                         help="Disable class balancing (large communities will dominate)")
     parser.add_argument("--save", action="store_true",
                         help="Save results to data/ directory for downstream use")
+    parser.add_argument("--holdout-fraction", type=float, default=0.0,
+                        help="Fraction of seeds to hold out per community for threshold calibration (default: 0)")
+    parser.add_argument("--holdout-seed", type=int, default=42,
+                        help="Random seed for holdout split (default: 42)")
     args = parser.parse_args()
 
     config = PropagationConfig(
@@ -705,6 +770,8 @@ def main():
     print("=== Community Label Propagation (ADR 012 Phase 0) ===")
     print(f"Config: T={config.temperature}, reg={config.regularization}, "
           f"min_deg={config.min_degree_for_assignment}, balance={config.class_balance}")
+    if args.holdout_fraction > 0:
+        print(f"Holdout: {args.holdout_fraction:.0%} per community (seed={args.holdout_seed})")
     print()
 
     # Load graph data
@@ -718,14 +785,34 @@ def main():
 
     # Run propagation
     print("\n--- Running Propagation ---")
-    result = propagate(adjacency, node_ids, config)
+    result, holdout_info = propagate(
+        adjacency, node_ids, config,
+        holdout_fraction=args.holdout_fraction,
+        holdout_seed=args.holdout_seed,
+    )
 
     # Print diagnostics for human review
     report = print_diagnostics(result)
 
     # Save if requested
     if args.save:
-        save_results(result, DATA_DIR)
+        if args.holdout_fraction > 0:
+            # Train-only output — distinct path from production
+            train_path = DATA_DIR / "community_propagation_train.npz"
+            save_results(result, DATA_DIR)
+            # Rename active pointer to train-specific name
+            active_path = DATA_DIR / "community_propagation.npz"
+            if active_path.exists():
+                import shutil
+                shutil.move(str(active_path), str(train_path))
+                print(f"  Renamed to train output: {train_path}")
+
+            # Save holdout seeds for calibration
+            holdout_path = DATA_DIR / "tpot_holdout_seeds.json"
+            holdout_path.write_text(json.dumps(holdout_info, indent=2))
+            print(f"  Holdout seeds: {holdout_path} ({holdout_info['n_holdout']} accounts)")
+        else:
+            save_results(result, DATA_DIR)
 
     return result, report
 

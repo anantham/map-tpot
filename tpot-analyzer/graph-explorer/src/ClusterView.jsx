@@ -63,6 +63,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const focusAppliedRef = useRef(null) // `${accountId}`
   const [showSettings, setShowSettings] = useState(false)
   const [alpha, setAlpha] = useState(0) // Community bias alpha
+  const [lens, setLens] = useState('full') // Graph lens: 'full' or 'tpot'
   // Physics settings for force simulation (exposed to Settings panel)
   const [jerkThreshold, setJerkThreshold] = useState(50)
   const [velocityThreshold, setVelocityThreshold] = useState(30)
@@ -98,6 +99,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     setWl(clamp(toNumber(params.get('wl'), 0), 0, 1))
     setExpandDepth(clamp(toNumber(params.get('expand_depth'), 0.5), 0, 1))
     setAlpha(clamp(toNumber(params.get('alpha'), 0), 0, 1))
+    setLens(params.get('lens') || 'full')
     setEgo(params.get('ego') || defaultEgo || '')
     const expandedParam = params.get('expanded')
     if (expandedParam) {
@@ -130,6 +132,11 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     } else {
       url.searchParams.delete('alpha')
     }
+    if (lens !== 'full') {
+      url.searchParams.set('lens', lens)
+    } else {
+      url.searchParams.delete('lens')
+    }
     url.searchParams.set('expanded', Array.from(expanded).join(','))
     url.searchParams.set('collapsed', Array.from(collapsed).join(','))
     if (ego) {
@@ -138,7 +145,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       url.searchParams.delete('ego')
     }
     window.history.replaceState({}, '', url.toString())
-  }, [urlParsed, budget, visibleTarget, wl, expandDepth, alpha, ego, expanded, collapsed])
+  }, [urlParsed, budget, visibleTarget, wl, expandDepth, alpha, lens, ego, expanded, collapsed])
 
   // Fetch cluster view
   useEffect(() => {
@@ -195,6 +202,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
 	          focus_leaf: focusLeafValue,
 	          expand_depth: expandDepth,
 	          alpha,
+	          lens,
 	          reqId,
 	          controller,
 	          signal: controller.signal,
@@ -312,6 +320,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       wl,
       expandDepth,
       alpha,
+      lens,
       ego,
       expandedKey,
       collapsedKey,
@@ -614,6 +623,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       collapsed: Array.from(collapsed),
       focus_leaf: focusLeaf || undefined,
       alpha,
+      lens,
     })
     const { positions, stats } = alignLayout(refreshed?.clusters || [], refreshed?.positions || {}, prevLayoutRef.current)
     const nextData = { ...refreshed, positions, meta: { ...(refreshed?.meta || {}), budget, base_cut: visibleTarget, alignment: stats } }
@@ -1149,6 +1159,52 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
           />
         )}
       </div>
+
+      {/* Lens toggle (Full Graph / TPOT Core) */}
+      {data?.meta?.availableLenses?.length > 1 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px',
+          background: 'var(--bg-secondary, #f5f5f5)', borderBottom: '1px solid var(--border, #e0e0e0)',
+          fontSize: 12,
+        }}>
+          <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginRight: 4 }}>View:</span>
+          {data.meta.availableLenses.map(l => {
+            const label = l === 'full' ? 'Full Graph' : l === 'tpot' ? 'TPOT Core' : l
+            const active = lens === l
+            return (
+              <button
+                key={l}
+                onClick={() => {
+                  if (l === lens) return
+                  // Reset expansion state — cluster IDs change between lenses
+                  setExpanded(new Set())
+                  setCollapsed(new Set())
+                  setExpansionStack([])
+                  setExplodedLeaves(new Map())
+                  setSelectedCluster(null)
+                  setPendingAction(null)
+                  setLens(l)
+                }}
+                style={{
+                  padding: '3px 10px', borderRadius: 4, cursor: active ? 'default' : 'pointer',
+                  border: active ? '1px solid var(--accent, #3b82f6)' : '1px solid var(--border, #ccc)',
+                  background: active ? 'var(--accent, #3b82f6)' : 'transparent',
+                  color: active ? '#fff' : 'var(--text-secondary)',
+                  fontSize: 11, fontWeight: 500,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+          {lens === 'tpot' && data?.meta?.tpotStats && (
+            <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 8 }}>
+              {data.meta.tpotStats.n_core?.toLocaleString()} core + {data.meta.tpotStats.n_halo?.toLocaleString()} halo nodes
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Community legend + alpha slider */}
       {data?.meta?.communities?.length > 0 && (
