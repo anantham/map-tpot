@@ -35,6 +35,14 @@ Last reviewed: 2026-02-25
 | [Scrape Debugging](guides/SCRAPE_DEBUG.md) | Selenium/scraping troubleshooting |
 | [Test Backend Workflow](guides/TEST_MODE.md) | Deterministic local backend data workflow |
 
+## Module Documentation
+
+| Area | Location |
+|------|----------|
+| Module docs index | [docs/modules/INDEX.md](modules/INDEX.md) |
+| Formal proofs | [docs/proofs/](proofs/) |
+| Conventions | [docs/CONVENTIONS.md](CONVENTIONS.md) |
+
 ## Architecture and Specs
 
 | Area | Location |
