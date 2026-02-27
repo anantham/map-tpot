@@ -13,6 +13,7 @@ from uuid import uuid4
 from flask import Blueprint, jsonify, request
 
 from src.communities import store
+from src.communities import versioning
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,8 @@ def list_branches_route():
     """List all branches. Auto-creates 'main' on first call."""
     conn = _get_db()
     try:
-        store.ensure_main_branch(conn)
-        rows = store.list_branches(conn)
+        versioning.ensure_main_branch(conn)
+        rows = versioning.list_branches(conn)
         return jsonify([
             {
                 "id": r[0], "name": r[1], "description": r[2],
@@ -55,7 +56,7 @@ def create_branch_route():
     """Create a new branch forked from current state."""
     conn = _get_db()
     try:
-        store.ensure_main_branch(conn)
+        versioning.ensure_main_branch(conn)
         body = request.get_json() or {}
         name = body.get("name")
         if not name:
@@ -69,9 +70,9 @@ def create_branch_route():
             return jsonify({"error": f"branch '{name}' already exists"}), 409
 
         # Auto-save current branch
-        current = store.get_active_branch(conn)
+        current = versioning.get_active_branch(conn)
         if current:
-            store.capture_snapshot(conn, current["id"], name="auto-save before fork")
+            versioning.capture_snapshot(conn, current["id"], name="auto-save before fork")
 
         # Create new branch
         branch_id = str(uuid4())
@@ -80,21 +81,21 @@ def create_branch_route():
         ).fetchone()
         base_run_id = body.get("base_run_id") or (latest_run[0] if latest_run else None)
 
-        store.create_branch(
+        versioning.create_branch(
             conn, branch_id, name,
             description=body.get("description"),
             base_run_id=base_run_id,
         )
-        store.set_active_branch(conn, branch_id)
+        versioning.set_active_branch(conn, branch_id)
         conn.commit()
 
         # Snapshot current state onto new branch
-        store.capture_snapshot(
+        versioning.capture_snapshot(
             conn, branch_id,
             name="forked from " + (current["name"] if current else "scratch"),
         )
 
-        branch = store.get_active_branch(conn)
+        branch = versioning.get_active_branch(conn)
         return jsonify(branch), 201
     finally:
         conn.close()
@@ -117,7 +118,7 @@ def update_branch_route(branch_id):
         if description is not None:
             conn.execute(
                 "UPDATE community_branch SET description = ?, updated_at = ? WHERE id = ?",
-                (description, store.now_utc(), branch_id),
+                (description, store.now_utc(), branch_id),  # now_utc stays in store
             )
         conn.commit()
         return jsonify({"updated": True})
@@ -131,7 +132,7 @@ def delete_branch_route(branch_id):
     conn = _get_db()
     try:
         try:
-            store.delete_branch(conn, branch_id)
+            versioning.delete_branch(conn, branch_id)
         except ValueError as e:
             return jsonify({"error": str(e)}), 409
         return jsonify({"deleted": True})
@@ -148,8 +149,8 @@ def switch_branch_route(branch_id):
         action = body.get("action", "save")
         save_current = action == "save"
 
-        store.switch_branch(conn, branch_id, save_current=save_current)
-        branch = store.get_active_branch(conn)
+        versioning.switch_branch(conn, branch_id, save_current=save_current)
+        branch = versioning.get_active_branch(conn)
         return jsonify(branch)
     finally:
         conn.close()
@@ -160,7 +161,7 @@ def dirty_check_route(branch_id):
     """Check if working state differs from latest snapshot."""
     conn = _get_db()
     try:
-        dirty = store.is_branch_dirty(conn, branch_id)
+        dirty = versioning.is_branch_dirty(conn, branch_id)
         return jsonify({"branch_id": branch_id, "dirty": dirty})
     finally:
         conn.close()
@@ -171,7 +172,7 @@ def list_snapshots_route(branch_id):
     """List snapshots on a branch."""
     conn = _get_db()
     try:
-        snaps = store.list_snapshots(conn, branch_id)
+        snaps = versioning.list_snapshots(conn, branch_id)
         return jsonify(snaps)
     finally:
         conn.close()
@@ -183,7 +184,7 @@ def save_snapshot_route(branch_id):
     conn = _get_db()
     try:
         body = request.get_json() or {}
-        snap_id = store.capture_snapshot(conn, branch_id, name=body.get("name"))
+        snap_id = versioning.capture_snapshot(conn, branch_id, name=body.get("name"))
         snap = conn.execute(
             "SELECT id, branch_id, name, created_at FROM community_snapshot WHERE id = ?",
             (snap_id,),
@@ -209,7 +210,7 @@ def restore_snapshot_route(branch_id, snapshot_id):
         if not snap:
             return jsonify({"error": "snapshot not found on this branch"}), 404
 
-        store.restore_snapshot(conn, snapshot_id)
+        versioning.restore_snapshot(conn, snapshot_id)
         return jsonify({"restored": True, "snapshot_id": snapshot_id})
     finally:
         conn.close()
