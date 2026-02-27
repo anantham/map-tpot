@@ -5,11 +5,11 @@ import json
 import pytest
 
 from scripts.classify_tweets import (
-    _split_for_tweet,
     build_prompt,
     load_taxonomy,
     parse_response,
 )
+from src.data.golden.schema import split_for_tweet
 
 
 # ---------------------------------------------------------------------------
@@ -17,27 +17,26 @@ from scripts.classify_tweets import (
 # ---------------------------------------------------------------------------
 
 class TestSplitForTweet:
-    """Deterministic hash-based split assignment."""
+    """Deterministic hash-based split assignment (tests schema.py canonical implementation)."""
 
     def test_deterministic(self):
         """Same tweet_id always gets same split."""
-        assert _split_for_tweet("12345") == _split_for_tweet("12345")
+        assert split_for_tweet("12345") == split_for_tweet("12345")
 
     def test_known_splits(self):
         """Verify distribution roughly matches 70/15/15."""
         splits = {"train": 0, "dev": 0, "test": 0}
         for i in range(10000):
-            splits[_split_for_tweet(str(i))] += 1
+            splits[split_for_tweet(str(i))] += 1
         # Allow ±3% tolerance
         assert 6700 < splits["train"] < 7300
         assert 1200 < splits["dev"] < 1800
         assert 1200 < splits["test"] < 1800
 
-    def test_matches_schema_implementation(self):
-        """Verify our local copy matches schema.py."""
-        from src.data.golden.schema import split_for_tweet
-        for tid in ["abc", "12345", "tweet_999", "0"]:
-            assert _split_for_tweet(tid) == split_for_tweet(tid)
+    def test_returns_valid_split_names(self):
+        """Output is always one of the three valid splits."""
+        for i in range(1000):
+            assert split_for_tweet(str(i)) in {"train", "dev", "test"}
 
 
 # ---------------------------------------------------------------------------

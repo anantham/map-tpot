@@ -76,15 +76,17 @@ Full classification pipeline (all accounts)
 - [x] Golden dataset backend — schema, label store, train/dev/test split, Brier eval, uncertainty
   queue (`src/data/golden/`, `src/api/routes/golden.py`, `scripts/verify_mvp_a.py`,
   implemented 2026-02-25)
-- [ ] **Labeling dashboard UI** — tweet display with thread context, L1/L2/L3 probability sliders,
-  notes field, submit → `POST /api/golden/labels` (ADR 009)
+- [x] **Labeling dashboard UI** — tweet display with thread context, L1/L2/L3 probability sliders,
+  notes field, submit → `POST /api/golden/labels` (ADR 009). Implemented as `Labeling.jsx` with
+  `labelingApi.js`; integer-thousandths normalization for backend-compatible precision (2026-02-25)
 - [ ] Grow golden set to 50+ labeled examples (currently 6), prioritizing near-miss
   negatives at L1/L2 and L2/L3 boundaries
 - [ ] Extend taxonomy.yaml with lucidity axis (0.0–1.0) per ADR 009
 
 ### LLM Evaluation Harness
-- [ ] **`scripts/classify_tweets.py`** — few-shot prompt from `taxonomy.yaml`, calls OpenRouter,
-  ingests via `POST /api/golden/predictions/run`, prints Brier score per axis
+- [x] **`scripts/classify_tweets.py`** — few-shot prompt from `taxonomy.yaml`, calls OpenRouter,
+  ingests via `POST /api/golden/predictions/run`, prints Brier score per axis. Client-side SHA256
+  split filtering for performance (4s vs 107s JOIN). 15 tests passing (2026-02-27)
 - [ ] Validate core assumption: simulacrum distributions separate TPOT from non-TPOT accounts
   in 2D space (pilot: 10 accounts × 100 tweets ≈ $0.63, takes 1 hour)
 - [ ] Multi-model benchmark (kimi-k2.5, claude-sonnet-4.5, gpt-4o) on dev split
