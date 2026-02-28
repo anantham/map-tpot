@@ -18,6 +18,7 @@ class BaseGoldenStore:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
         self._split_counts_cache: Optional[Dict[str, Dict[str, int]]] = None
+        self._account_ids_cache: Optional[List[str]] = None
         self._init_db()
 
     def _open(self) -> sqlite3.Connection:
@@ -31,6 +32,12 @@ class BaseGoldenStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._open() as conn:
             conn.executescript(SCHEMA)
+            # Ensure index for per-account candidate lookups (on tweets table,
+            # not part of golden schema but required for fast diversity queries).
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_tweets_account_reply "
+                "ON tweets(account_id, reply_to_tweet_id)"
+            )
             conn.commit()
 
     def _assert_axis(self, axis: str) -> None:
@@ -128,7 +135,28 @@ class BaseGoldenStore:
         ).fetchall()
         return {str(row["label"]): float(row["probability"]) for row in rows}
 
+    def _get_account_ids(self, conn: sqlite3.Connection) -> List[str]:
+        """Fast DISTINCT account_id lookup using recursive CTE index seeks.
+
+        Avoids scanning 5.5M rows: uses ~318 index seeks via the
+        idx_tweets_account index instead. Cached after first call.
+        """
+        if self._account_ids_cache is not None:
+            return self._account_ids_cache
+        rows = conn.execute("""
+            WITH RECURSIVE cte(aid) AS (
+                SELECT MIN(account_id) FROM tweets
+                UNION ALL
+                SELECT (SELECT MIN(account_id) FROM tweets WHERE account_id > cte.aid)
+                FROM cte WHERE cte.aid IS NOT NULL
+            )
+            SELECT aid FROM cte WHERE aid IS NOT NULL
+        """).fetchall()
+        self._account_ids_cache = [str(row[0]) for row in rows]
+        return self._account_ids_cache
+
     def _load_context(self, conn: sqlite3.Connection, tweet_id: str, reply_to_tweet_id: Optional[str]) -> Dict[str, Any]:
+        # 1. Try thread_context_cache first (full thread data from API)
         for candidate in [tweet_id, reply_to_tweet_id]:
             if not candidate:
                 continue
@@ -141,6 +169,35 @@ class BaseGoldenStore:
                 logger.warning("Invalid thread context JSON for tweet_id=%s", candidate)
                 continue
             return {"threadContext": payload, "contextSource": str(candidate)}
+
+        # 2. Fallback: look up parent tweet directly from tweets table
+        if reply_to_tweet_id:
+            parent = conn.execute(
+                "SELECT tweet_id, username, full_text, created_at, reply_to_tweet_id FROM tweets WHERE tweet_id = ?",
+                (reply_to_tweet_id,),
+            ).fetchone()
+            if parent is not None:
+                context_chain = []
+                # Walk up the reply chain (up to 5 levels to avoid infinite loops)
+                current = parent
+                for _ in range(5):
+                    context_chain.insert(0, {
+                        "text": str(current["full_text"]),
+                        "author": {"userName": str(current["username"])},
+                        "id": str(current["tweet_id"]),
+                        "createdAt": current["created_at"],
+                    })
+                    parent_id = current["reply_to_tweet_id"]
+                    if not parent_id:
+                        break
+                    current = conn.execute(
+                        "SELECT tweet_id, username, full_text, created_at, reply_to_tweet_id FROM tweets WHERE tweet_id = ?",
+                        (parent_id,),
+                    ).fetchone()
+                    if current is None:
+                        break
+                return {"threadContext": context_chain, "contextSource": reply_to_tweet_id}
+
         return {"threadContext": [], "contextSource": None}
 
     def list_candidates(
@@ -201,36 +258,81 @@ class BaseGoldenStore:
         reviewer: str,
         limit: int,
     ) -> List[Dict[str, Any]]:
-        """Fast path for fetching unlabeled candidates using NOT EXISTS + LIMIT.
+        """Fast path for unlabeled candidates with cold-start ordering.
 
-        SQLite can satisfy this without sorting millions of rows because
-        NOT EXISTS short-circuits per row and we don't need a global sort
-        for labeling — any unlabeled tweet is fine.
+        Ordering strategy (optimized for information gain during labeling):
+          1. Prefer standalone tweets (reply_to_tweet_id IS NULL) — these are
+             self-contained and easier to classify without missing context.
+          2. Among standalone tweets, spread across different accounts to get
+             a diverse initial sample (one per account round-robin).
+          3. Falls back to reply tweets if standalone ones are exhausted.
+
+        Performance: per-account queries use tweets(account_id, reply_to_tweet_id)
+        index as the driving table (~1ms each) instead of scanning 3.8M
+        curation_split rows. Total: ~318 index seeks for full diversity.
         """
-        conditions = ["s.axis = ?"]
-        params: List[Any] = [axis]
-        if split is not None:
-            conditions.append("s.split = ?")
-            params.append(split)
+        # Build the per-account query. Critical: tweets t must be the driving
+        # table (via idx_tweets_account_reply) to avoid scanning curation_split.
+        split_filter = "AND s.split = ?" if split is not None else ""
 
         query = f"""
-            SELECT t.tweet_id, t.account_id, t.username, t.full_text, t.created_at, t.reply_to_tweet_id,
-                   s.split
-            FROM curation_split s
-            JOIN tweets t ON t.tweet_id = s.tweet_id
-            WHERE {' AND '.join(conditions)}
+            SELECT t.tweet_id, t.account_id, t.username, t.full_text, t.created_at,
+                   t.reply_to_tweet_id, s.split
+            FROM tweets t
+            JOIN curation_split s ON s.tweet_id = t.tweet_id AND s.axis = ?
+            WHERE t.account_id = ?
+              AND t.reply_to_tweet_id IS NULL
+              {split_filter}
               AND NOT EXISTS (
                   SELECT 1 FROM tweet_label_set ls
-                  WHERE ls.tweet_id = s.tweet_id
+                  WHERE ls.tweet_id = t.tweet_id
+                    AND ls.axis = s.axis
+                    AND ls.reviewer = ?
+                    AND ls.is_active = 1
+              )
+            LIMIT 1
+        """
+
+        # Phase 1: standalone tweets, one per account for diversity.
+        account_ids = self._get_account_ids(conn)
+        rows: list = []
+        for acct_id in account_ids:
+            params = (axis, acct_id, split, reviewer) if split else (axis, acct_id, reviewer)
+            row = conn.execute(query, params).fetchone()
+            if row is not None:
+                rows.append(row)
+                if len(rows) >= limit:
+                    break
+
+        if len(rows) >= limit:
+            return self._rows_to_candidates(conn, rows, label_status="unlabeled")
+
+        # Phase 2: fill remaining slots with reply tweets
+        remaining = limit - len(rows)
+        existing_ids = {row["tweet_id"] for row in rows}
+
+        reply_query = f"""
+            SELECT t.tweet_id, t.account_id, t.username, t.full_text, t.created_at,
+                   t.reply_to_tweet_id, s.split
+            FROM tweets t
+            JOIN curation_split s ON s.tweet_id = t.tweet_id AND s.axis = ?
+            WHERE t.reply_to_tweet_id IS NOT NULL
+              {split_filter}
+              AND NOT EXISTS (
+                  SELECT 1 FROM tweet_label_set ls
+                  WHERE ls.tweet_id = t.tweet_id
                     AND ls.axis = s.axis
                     AND ls.reviewer = ?
                     AND ls.is_active = 1
               )
             LIMIT ?
         """
-        params.extend([reviewer, int(limit)])
-        rows = conn.execute(query, tuple(params)).fetchall()
-        return self._rows_to_candidates(conn, rows, label_status="unlabeled")
+        reply_params = (axis, split, reviewer, remaining) if split else (axis, reviewer, remaining)
+        reply_rows = conn.execute(reply_query, reply_params).fetchall()
+        reply_rows = [r for r in reply_rows if r["tweet_id"] not in existing_ids]
+
+        all_rows = list(rows) + list(reply_rows)
+        return self._rows_to_candidates(conn, all_rows, label_status="unlabeled")
 
     def _rows_to_candidates(
         self,
