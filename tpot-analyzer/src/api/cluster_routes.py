@@ -750,18 +750,30 @@ def get_cluster_members(cluster_id: str):
     louvain_weight = max(0.0, min(1.0, louvain_weight))
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
+    lens = request.args.get("lens", "full", type=str)
+    if lens not in _available_lenses:
+        lens = "full"
 
-    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf)
+    # Select spectral/adjacency/metadata based on lens
+    active_spectral = _spectral_result
+    active_adjacency = _adjacency
+    active_metadata = _node_metadata
+    if lens == "tpot" and _tpot_spectral is not None:
+        active_spectral = _tpot_spectral
+        active_adjacency = _tpot_adjacency if _tpot_adjacency is not None else _adjacency
+        active_metadata = _tpot_node_metadata if _tpot_node_metadata else _node_metadata
+
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf, lens=lens)
     view = _cache.get(cache_key)
     if not view:
         start_build = time.time()
         view_obj = build_hierarchical_view(
-            linkage_matrix=_spectral_result.linkage_matrix,
-            micro_labels=_spectral_result.micro_labels if _spectral_result.micro_labels is not None else np.arange(len(_spectral_result.node_ids)),
-            micro_centroids=_spectral_result.micro_centroids if _spectral_result.micro_centroids is not None else _spectral_result.embedding,
-            node_ids=_spectral_result.node_ids,
-            adjacency=_adjacency,
-            node_metadata=_node_metadata,
+            linkage_matrix=active_spectral.linkage_matrix,
+            micro_labels=active_spectral.micro_labels if active_spectral.micro_labels is not None else np.arange(len(active_spectral.node_ids)),
+            micro_centroids=active_spectral.micro_centroids if active_spectral.micro_centroids is not None else active_spectral.embedding,
+            node_ids=active_spectral.node_ids,
+            adjacency=active_adjacency,
+            node_metadata=active_metadata,
             base_granularity=granularity,
             expanded_ids=expanded_ids,
             collapsed_ids=collapsed_ids,
@@ -775,12 +787,13 @@ def get_cluster_members(cluster_id: str):
         )
         view = _serialize_hierarchical_view(view_obj)
         logger.info(
-            "member view built: n=%d expanded=%d visible=%d wl=%.2f depth=%.2f took=%.3fs",
+            "member view built: n=%d expanded=%d visible=%d wl=%.2f depth=%.2f lens=%s took=%.3fs",
             granularity,
             len(expanded_ids),
             len(view.get("clusters", [])),
             louvain_weight,
             expand_depth,
+            lens,
             time.time() - start_build,
         )
         _cache.set(cache_key, view)
@@ -796,7 +809,7 @@ def get_cluster_members(cluster_id: str):
             total = len(cluster.get("memberIds", []))
             slice_ids = cluster.get("memberIds", [])[offset : offset + limit]
             for nid in slice_ids:
-                meta = _node_metadata.get(str(nid), {})
+                meta = active_metadata.get(str(nid), {})
                 members.append(
                     {
                         "id": str(nid),
@@ -853,18 +866,30 @@ def get_cluster_tag_summary(cluster_id: str):
     louvain_weight = max(0.0, min(1.0, louvain_weight))
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
+    lens = request.args.get("lens", "full", type=str)
+    if lens not in _available_lenses:
+        lens = "full"
 
-    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf)
+    # Select spectral/adjacency/metadata based on lens
+    active_spectral = _spectral_result
+    active_adjacency = _adjacency
+    active_metadata = _node_metadata
+    if lens == "tpot" and _tpot_spectral is not None:
+        active_spectral = _tpot_spectral
+        active_adjacency = _tpot_adjacency if _tpot_adjacency is not None else _adjacency
+        active_metadata = _tpot_node_metadata if _tpot_node_metadata else _node_metadata
+
+    cache_key = _make_cache_key(granularity, ego, expanded_ids, collapsed_ids, louvain_weight, expand_depth, focus_leaf, lens=lens)
     view = _cache.get(cache_key)
     if not view:
         start_build = time.time()
         view_obj = build_hierarchical_view(
-            linkage_matrix=_spectral_result.linkage_matrix,
-            micro_labels=_spectral_result.micro_labels if _spectral_result.micro_labels is not None else np.arange(len(_spectral_result.node_ids)),
-            micro_centroids=_spectral_result.micro_centroids if _spectral_result.micro_centroids is not None else _spectral_result.embedding,
-            node_ids=_spectral_result.node_ids,
-            adjacency=_adjacency,
-            node_metadata=_node_metadata,
+            linkage_matrix=active_spectral.linkage_matrix,
+            micro_labels=active_spectral.micro_labels if active_spectral.micro_labels is not None else np.arange(len(active_spectral.node_ids)),
+            micro_centroids=active_spectral.micro_centroids if active_spectral.micro_centroids is not None else active_spectral.embedding,
+            node_ids=active_spectral.node_ids,
+            adjacency=active_adjacency,
+            node_metadata=active_metadata,
             base_granularity=granularity,
             expanded_ids=expanded_ids,
             collapsed_ids=collapsed_ids,
@@ -879,11 +904,12 @@ def get_cluster_tag_summary(cluster_id: str):
         view = _serialize_hierarchical_view(view_obj)
         _cache.set(cache_key, view)
         logger.info(
-            "tag_summary view built: cluster=%s n=%d expanded=%d visible=%d took=%.3fs",
+            "tag_summary view built: cluster=%s n=%d expanded=%d visible=%d lens=%s took=%.3fs",
             cluster_id,
             granularity,
             len(expanded_ids),
             len(view.get("clusters", [])),
+            lens,
             time.time() - start_build,
         )
 
@@ -1120,26 +1146,34 @@ def preview_cluster(cluster_id: str):
     budget = max(5, budget)
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
-    cache_key = _make_cache_key(granularity, None, expanded_ids, collapsed_ids, 0.0, expand_depth)
+    lens = request.args.get("lens", "full", type=str)
+    if lens not in _available_lenses:
+        lens = "full"
+
+    active_spectral = _spectral_result
+    if lens == "tpot" and _tpot_spectral is not None:
+        active_spectral = _tpot_spectral
+
+    cache_key = _make_cache_key(granularity, None, expanded_ids, collapsed_ids, 0.0, expand_depth, lens=lens)
 
     # Try to reuse cached view to avoid recompute during preview
     cached_view = _cache.get(cache_key)
     if cached_view:
         current_visible = len(visible_ids) if visible_ids else len(cached_view.get("clusters", []))
         logger.info(
-            "preview cache hit: cluster=%s n=%d expanded=%d visible=%d budget=%d",
-            cluster_id, granularity, len(expanded_ids), current_visible, budget
+            "preview cache hit: cluster=%s n=%d expanded=%d visible=%d budget=%d lens=%s",
+            cluster_id, granularity, len(expanded_ids), current_visible, budget, lens
         )
         view_clusters = cached_view.get("clusters", [])
     else:
         current_visible = len(visible_ids) if visible_ids else (len(expanded_ids) + granularity)
         view_clusters = None
 
-    n_micro = _spectral_result.micro_centroids.shape[0] if _spectral_result.micro_centroids is not None else len(_spectral_result.node_ids)
+    n_micro = active_spectral.micro_centroids.shape[0] if active_spectral.micro_centroids is not None else len(active_spectral.node_ids)
 
     current_visible = current_visible if cached_view else (len(visible_ids) if visible_ids else (len(expanded_ids) + granularity))
     expand_preview = get_expand_preview(
-        _spectral_result.linkage_matrix,
+        active_spectral.linkage_matrix,
         n_micro,
         cluster_id,
         current_visible,
@@ -1147,7 +1181,7 @@ def preview_cluster(cluster_id: str):
         expand_depth=expand_depth,
     )
     collapse_preview = get_collapse_preview(
-        _spectral_result.linkage_matrix,
+        active_spectral.linkage_matrix,
         n_micro,
         cluster_id,
         visible_ids if visible_ids else expanded_ids,
