@@ -379,7 +379,21 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       const x = Number.isFinite(pos[0]) ? pos[0] * POSITION_SCALE : 0
       const y = Number.isFinite(pos[1]) ? pos[1] * POSITION_SCALE : 0
       const radius = 6 + Math.sqrt((c.size || 1) / maxSize) * 18
-      return { ...c, x, y, radius }
+
+      // Build display label: community names when available, else just handles
+      let label
+      const significant = (c.communityBreakdown || []).filter(seg => seg.weight >= 0.10)
+      if (significant.length > 0) {
+        // Show top 2 community names
+        label = significant.slice(0, 2).map(seg => seg.name).join(' + ')
+      } else if (c.representativeHandles?.length > 0) {
+        // No community signal — show top handles (without "Cluster N:" prefix)
+        label = c.representativeHandles.slice(0, 2).map(h => `@${h}`).join(', ')
+      } else {
+        label = c.label
+      }
+
+      return { ...c, x, y, radius, label }
     })
   }, [data])
 
@@ -416,15 +430,16 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
 
 	  const loadMembers = async (clusterId) => {
 	    try {
-	      const res = await fetchClusterMembers({ 
-	        clusterId, 
-	        n: visibleTarget, 
-	        wl, 
+	      const res = await fetchClusterMembers({
+	        clusterId,
+	        n: visibleTarget,
+	        wl,
 	        expand_depth: expandDepth,
-	        ego: ego || undefined, 
+	        ego: ego || undefined,
 	        expanded: Array.from(expanded),
 	        collapsed: Array.from(collapsed),
 	        focus_leaf: focusLeaf || undefined,
+	        lens,
 	      })
       setMembers(res.members || [])
       setMembersTotal(res.total || 0)
@@ -461,6 +476,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
         focus_leaf: focusLeaf || undefined,
         budget,
         signal: controller.signal,
+        lens,
       })
       if (controller.signal.aborted) return
       setTagSummary(res || null)
@@ -555,6 +571,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
         expanded: Array.from(expanded),
         collapsed: Array.from(collapsed),
         visible: visibleIds,
+        lens,
       })
     clusterViewLog.info('Preview loaded', {
       clusterId,
@@ -590,6 +607,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
 	        collapsed: Array.from(collapsed),
 	        focus_leaf: focusLeaf || undefined,
 	        limit: Math.min(cluster.size || 100, 500),
+	        lens,
 	      })
       const members = res.members || []
       setExplodedLeaves(prev => {
@@ -751,6 +769,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
             expanded: Array.from(expanded),
             collapsed: Array.from(collapsed),
             visible: currentVisibleIds,
+            lens,
           })
           preview = res.expand || null
           setExpandPreview(preview)
@@ -1164,7 +1183,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       {data?.meta?.availableLenses?.length > 1 && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px',
-          background: 'var(--bg-secondary, #f5f5f5)', borderBottom: '1px solid var(--border, #e0e0e0)',
+          background: 'var(--bg-muted)', borderBottom: '1px solid var(--panel-border)',
           fontSize: 12,
         }}>
           <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginRight: 4 }}>View:</span>
@@ -1187,9 +1206,9 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
                 }}
                 style={{
                   padding: '3px 10px', borderRadius: 4, cursor: active ? 'default' : 'pointer',
-                  border: active ? '1px solid var(--accent, #3b82f6)' : '1px solid var(--border, #ccc)',
-                  background: active ? 'var(--accent, #3b82f6)' : 'transparent',
-                  color: active ? '#fff' : 'var(--text-secondary)',
+                  border: active ? '1px solid var(--accent)' : '1px solid var(--panel-border)',
+                  background: active ? 'var(--accent)' : 'transparent',
+                  color: active ? '#fff' : 'var(--text-muted)',
                   fontSize: 11, fontWeight: 500,
                   transition: 'all 0.15s ease',
                 }}
@@ -1210,7 +1229,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       {data?.meta?.communities?.length > 0 && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 12, padding: '4px 12px',
-          background: 'var(--bg-secondary, #f5f5f5)', borderBottom: '1px solid var(--border, #e0e0e0)',
+          background: 'var(--bg-muted)', borderBottom: '1px solid var(--panel-border)',
           flexWrap: 'wrap', fontSize: 12,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
@@ -1220,9 +1239,9 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
             <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               <span style={{
                 display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
-                background: c.color, border: '1px solid rgba(0,0,0,0.15)',
+                background: c.color, border: '1px solid rgba(255,255,255,0.15)',
               }} />
-              <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{c.name}</span>
+              <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{c.name}</span>
             </div>
           ))}
           {data.meta.alphaPresets && data.meta.alphaPresets.length > 1 && (
@@ -1234,9 +1253,9 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
                   onClick={() => setAlpha(preset)}
                   style={{
                     padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
-                    border: alpha === preset ? '1px solid var(--accent, #3b82f6)' : '1px solid var(--border, #ccc)',
-                    background: alpha === preset ? 'var(--accent, #3b82f6)' : 'transparent',
-                    color: alpha === preset ? '#fff' : 'var(--text-secondary)',
+                    border: alpha === preset ? '1px solid var(--accent)' : '1px solid var(--panel-border)',
+                    background: alpha === preset ? 'var(--accent)' : 'transparent',
+                    color: alpha === preset ? '#fff' : 'var(--text-muted)',
                     fontSize: 11, fontWeight: 500,
                   }}
                 >

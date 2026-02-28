@@ -20,7 +20,10 @@ function communityColor(baseHex, intensity) {
   const rgb = hexToRgb(baseHex)
   if (!rgb) return null
   const gray = { r: 140, g: 140, b: 140 }
-  const t = Math.max(0, Math.min(1, intensity))
+  // Boost low intensities so even 3-5% reads as clearly colored
+  // sqrt curve: 0.01 -> 0.10, 0.05 -> 0.22, 0.10 -> 0.32, 0.50 -> 0.71, 1.0 -> 1.0
+  const raw = Math.max(0, Math.min(1, intensity))
+  const t = Math.sqrt(raw)
   return {
     r: Math.round(gray.r + (rgb.r - gray.r) * t),
     g: Math.round(gray.g + (rgb.g - gray.g) * t),
@@ -614,21 +617,21 @@ export default function ClusterCanvas({
         })
 
         const sim = forceSimulation(simNodes)
-          // Stronger charge with size-based scaling - larger nodes push harder
-          // repulsionStrengthProp is stored as positive, negate for forceManyBody
+          // Gentle charge — just enough to separate overlapping nodes, not fling them
           .force('charge', forceManyBody()
-            .strength(d => -repulsionStrengthProp - (d.radius || 20) * 2)
-            .distanceMax(400))
-          // Increased collision radius to account for labels below nodes
+            .strength(d => -(repulsionStrengthProp * 0.5) - (d.radius || 20) * 0.8)
+            .distanceMax(300))
+          // Collision keeps nodes from overlapping
           .force('collide', forceCollide()
             .radius(d => (d.radius || 20) + collisionPaddingProp)
-            .strength(1.0)
-            .iterations(3))  // More iterations for better separation
-          .force('x', forceX(d => d.targetX).strength(0.22))
-          .force('y', forceY(d => d.targetY).strength(0.22))
-          .alpha(1)
-          .alphaDecay(0.04)
-          .velocityDecay(0.45)
+            .strength(0.8)
+            .iterations(2))
+          // Stronger pull toward target = less wandering, more direct morph
+          .force('x', forceX(d => d.targetX).strength(0.35))
+          .force('y', forceY(d => d.targetY).strength(0.35))
+          .alpha(0.8)
+          .alphaDecay(0.035)
+          .velocityDecay(0.55) // Higher damping = less oscillation
 
         forceSimRef.current = sim
 
@@ -787,17 +790,17 @@ export default function ClusterCanvas({
             })
 
             const settleSim = forceSimulation(settleNodes)
-              // Repulsion only - no centering forces, so nodes can spread freely
+              // Gentle repulsion — just nudge apart overlapping nodes
               .force('charge', forceManyBody()
-                .strength(-repulsionStrengthProp * 0.8) // Slightly weaker than main sim
-                .distanceMax(250))
+                .strength(-repulsionStrengthProp * 0.4)
+                .distanceMax(200))
               .force('collide', forceCollide()
-                .radius(d => d.radius + collisionPaddingProp + 5) // Extra padding for labels
-                .strength(0.9)
+                .radius(d => d.radius + collisionPaddingProp + 5)
+                .strength(0.7)
                 .iterations(2))
-              .alpha(0.4) // Lower starting energy
-              .alphaDecay(0.03)
-              .velocityDecay(0.4)
+              .alpha(0.25) // Low starting energy for gentle nudging
+              .alphaDecay(0.04)
+              .velocityDecay(0.6) // High damping — settle quickly, no jitter
 
             forceSimRef.current = settleSim
 
@@ -1041,9 +1044,9 @@ export default function ClusterCanvas({
         ctx.strokeStyle = `rgba(${palette.edgeHoverRgb}, ${0.9 * edgeFade})`
         ctx.lineWidth = 3
       } else {
-        const baseOpacity = (0.1 + Math.min(0.4, op)) * edgeFade
+        const baseOpacity = (0.15 + Math.min(0.55, op)) * edgeFade
         ctx.strokeStyle = `rgba(${palette.edgeRgb}, ${baseOpacity})`
-        ctx.lineWidth = 0.5 + Math.min(2, Math.log1p(edge.rawCount || 1) * 0.2)
+        ctx.lineWidth = 1 + Math.min(2.5, Math.log1p(edge.rawCount || 1) * 0.4)
       }
       
       ctx.beginPath()
@@ -1071,6 +1074,9 @@ export default function ClusterCanvas({
         ? Math.min(1, (animationProgress - stagger) / (1 - stagger))
         : animationProgress
       const p = toScreen(pos)
+
+      // Guard: skip rendering nodes with non-finite screen coordinates (can happen during transitions)
+      if (!isFinite(p.x) || !isFinite(p.y)) return
 
       // Calculate animation modifiers (using staggered progress for entering)
       let animScale = 1
@@ -1147,7 +1153,7 @@ export default function ClusterCanvas({
         // Green tint for newly appearing nodes
         gradient.addColorStop(0, '#86efac')
         gradient.addColorStop(1, '#22c55e')
-      } else if (node.communityColor && node.communityIntensity > 0.01) {
+      } else if (node.communityColor && node.communityIntensity > 0.005) {
         // Community color: interpolate gray -> community color by intensity
         const cc = communityColor(node.communityColor, node.communityIntensity)
         if (cc) {
@@ -1886,6 +1892,40 @@ export default function ClusterCanvas({
     return { scale: newScale, offset: { x: newOffsetX, y: newOffsetY } }
   }, [])
 
+  // Animated camera tween — smooth scale+offset transition over durationMs
+  const tweenCamera = useCallback((targetTransform, durationMs = 500) => {
+    // Guard: if container has zero dimensions (test env) or values are non-finite, snap instantly
+    const container = containerRef.current
+    if (!container || !container.clientWidth || !container.clientHeight
+        || !isFinite(targetTransform.scale) || !isFinite(targetTransform.offset?.x) || !isFinite(targetTransform.offset?.y)) {
+      updateTransform(targetTransform)
+      return
+    }
+    if (cameraAnimRef.current) {
+      cancelAnimationFrame(cameraAnimRef.current)
+      cameraAnimRef.current = null
+    }
+    const startTime = performance.now()
+    const startTransform = { ...transformRef.current }
+    const animateCamera = (now) => {
+      const elapsed = now - startTime
+      const t = Math.min(1, elapsed / durationMs)
+      const eased = easeOutCubic(t)
+      const newScale = startTransform.scale + (targetTransform.scale - startTransform.scale) * eased
+      const newOffset = {
+        x: startTransform.offset.x + (targetTransform.offset.x - startTransform.offset.x) * eased,
+        y: startTransform.offset.y + (targetTransform.offset.y - startTransform.offset.y) * eased,
+      }
+      setTransform({ scale: newScale, offset: newOffset })
+      if (t < 1) {
+        cameraAnimRef.current = requestAnimationFrame(animateCamera)
+      } else {
+        cameraAnimRef.current = null
+      }
+    }
+    cameraAnimRef.current = requestAnimationFrame(animateCamera)
+  }, [updateTransform])
+
   // Native wheel handler with hybrid zoom
   useEffect(() => {
     const container = containerRef.current
@@ -2023,7 +2063,8 @@ export default function ClusterCanvas({
             const newOffsetX = mouseX - centeredPos.x * targetScale
             const newOffsetY = mouseY - centeredPos.y * targetScale
 
-            updateTransform({ scale: clamp(targetScale, 0.5, 3), offset: { x: newOffsetX, y: newOffsetY } })
+            // Smooth camera transition instead of instant jump
+            tweenCamera({ scale: clamp(targetScale, 0.5, 3), offset: { x: newOffsetX, y: newOffsetY } }, 600)
           } else {
             // Can't expand - visual zoom to cursor
             const reason = !centered ? 'no centered node' : !canExpand ? (isLeaf ? 'leaf with no members' : 'budget exceeded') : 'unknown'
@@ -2078,9 +2119,10 @@ export default function ClusterCanvas({
             const newOffsetX = mouseX - centerPos.x * targetScale
             const newOffsetY = mouseY - centerPos.y * targetScale
 
-            updateTransform({ scale: clamp(targetScale, 0.5, 3), offset: { x: newOffsetX, y: newOffsetY } })
+            // Smooth camera transition instead of instant jump
+            tweenCamera({ scale: clamp(targetScale, 0.5, 3), offset: { x: newOffsetX, y: newOffsetY } }, 500)
           } else {
-            updateTransform(t => ({ ...t, scale: clamp(targetScale, 0.5, 3) }))
+            tweenCamera({ ...transformRef.current, scale: clamp(targetScale, 0.5, 3) }, 500)
           }
         } else {
           // Visual zoom out (to cursor)
@@ -2108,6 +2150,7 @@ export default function ClusterCanvas({
     findCenteredNode,
     canExpandNode,
     zoomToCursor,
+    tweenCamera,
     updateTransform,
     BASE_FONT_SIZE,
     EXPAND_THRESHOLD,

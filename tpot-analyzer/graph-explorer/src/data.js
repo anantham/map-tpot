@@ -577,7 +577,7 @@ export const fetchClusterView = async (options = {}) => {
   }
 };
 
-export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_depth = 0.5, ego, expanded = [], collapsed = [], focus, focus_leaf, limit = 100, offset = 0 }) => {
+export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_depth = 0.5, ego, expanded = [], collapsed = [], focus, focus_leaf, limit = 100, offset = 0, lens }) => {
   const params = new URLSearchParams();
   params.set('n', n);
   params.set('limit', limit);
@@ -593,6 +593,7 @@ export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_de
   }
   params.set('wl', Math.min(1, Math.max(0, wl)).toFixed(2));
   params.set('expand_depth', Math.min(1, Math.max(0, expand_depth)).toFixed(2));
+  if (lens && lens !== 'full') params.set('lens', lens);
 
   const response = await fetch(`${API_BASE_URL}/api/clusters/${clusterId}/members?${params.toString()}`);
   if (!response.ok) {
@@ -601,7 +602,7 @@ export const fetchClusterMembers = async ({ clusterId, n = 25, wl = 0, expand_de
   return response.json();
 };
 
-export const fetchClusterTagSummary = async ({ clusterId, n = 25, wl = 0, expand_depth = 0.5, ego, expanded = [], collapsed = [], focus_leaf, budget = 25, signal }) => {
+export const fetchClusterTagSummary = async ({ clusterId, n = 25, wl = 0, expand_depth = 0.5, ego, expanded = [], collapsed = [], focus_leaf, budget = 25, signal, lens }) => {
   if (!ego) {
     throw new Error('ego is required to fetch tag summary')
   }
@@ -618,6 +619,7 @@ export const fetchClusterTagSummary = async ({ clusterId, n = 25, wl = 0, expand
   }
   params.set('wl', Math.min(1, Math.max(0, wl)).toFixed(2))
   params.set('expand_depth', Math.min(1, Math.max(0, expand_depth)).toFixed(2))
+  if (lens && lens !== 'full') params.set('lens', lens)
 
   const url = `${API_BASE_URL}/api/clusters/${clusterId}/tag_summary?${params.toString()}`
   const res = await fetchWithRetry(url, { signal }, { timeoutMs: API_TIMEOUT_MS })
@@ -675,7 +677,7 @@ export const deleteClusterLabel = async ({ clusterId, n = 25, wl = 0 }) => {
   return response.json();
 };
 
-export const fetchClusterPreview = async ({ clusterId, n = 25, expand_depth = 0.5, budget = 25, expanded = [], collapsed = [], visible = [] }) => {
+export const fetchClusterPreview = async ({ clusterId, n = 25, expand_depth = 0.5, budget = 25, expanded = [], collapsed = [], visible = [], lens }) => {
   const params = new URLSearchParams();
   params.set('n', n);
   params.set('budget', budget);
@@ -689,6 +691,7 @@ export const fetchClusterPreview = async ({ clusterId, n = 25, expand_depth = 0.
   if (Array.isArray(visible) && visible.length) {
     params.set('visible', visible.join(','));
   }
+  if (lens && lens !== 'full') params.set('lens', lens);
   const response = await fetch(`${API_BASE_URL}/api/clusters/${clusterId}/preview?${params.toString()}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch preview: ${response.statusText}`);
