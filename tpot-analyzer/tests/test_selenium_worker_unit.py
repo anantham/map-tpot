@@ -564,3 +564,67 @@ class TestExtractProfileImageUrl:
         mock_cell.find_elements.return_value = []
 
         assert SeleniumWorker._extract_profile_image_url(mock_cell) is None
+
+
+# ==============================================================================
+# Login Detection Tests (_check_logged_in)
+# ==============================================================================
+class TestCheckLoggedIn:
+    """_check_logged_in must detect expired/missing sessions before scraping."""
+
+    def _make_worker(self):
+        config = Mock()
+        config.cookies_path = Mock()
+        worker = SeleniumWorker.__new__(SeleniumWorker)
+        worker._config = config
+        worker._driver = Mock()
+        return worker
+
+    def test_logged_in_when_account_switcher_present(self):
+        """Account-switcher button present → session is authenticated."""
+        worker = self._make_worker()
+        worker._driver.find_elements.return_value = [Mock()]  # switcher found
+        assert worker._check_logged_in() is True
+
+    def test_logged_out_when_only_login_button_present(self):
+        """Login button present and no account-switcher → session expired."""
+        worker = self._make_worker()
+
+        def _find(by, selector):
+            if "SideNav_AccountSwitcher_Button" in selector:
+                return []          # not logged in
+            return [Mock()]        # login button found
+
+        worker._driver.find_elements.side_effect = _find
+        assert worker._check_logged_in() is False
+
+    def test_login_with_cookies_returns_false_on_expired_session(self):
+        """_login_with_cookies must return False when session check fails."""
+        import pickle, tempfile, os
+        from pathlib import Path
+        from unittest.mock import patch, MagicMock
+
+        worker = self._make_worker()
+
+        # Write a minimal cookie file so pickle.load succeeds
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pkl") as f:
+            pickle.dump([{"name": "auth_token", "value": "expired"}], f)
+            cookie_path = Path(f.name)
+
+        worker._config.cookies_path = cookie_path
+        worker._config.require_confirmation = False
+
+        # Simulate driver actions
+        worker._driver.get = Mock()
+        worker._driver.add_cookie = Mock()
+        worker._driver.refresh = Mock()
+
+        try:
+            # _check_logged_in returns False → expired session
+            with patch.object(worker, "_apply_delay"), \
+                 patch.object(worker, "_check_logged_in", return_value=False):
+                result = worker._login_with_cookies()
+
+            assert result is False, "Should return False when session is not authenticated"
+        finally:
+            os.unlink(cookie_path)

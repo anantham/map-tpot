@@ -322,6 +322,14 @@ class SeleniumWorker:
             self._apply_delay("add-cookie", short=True)
         self._driver.refresh()
         self._apply_delay("post-refresh")
+        if not self._check_logged_in():
+            LOGGER.error(
+                "❌ SESSION NOT AUTHENTICATED — cookies have expired or are invalid.\n"
+                "   The browser shows the 'New to X?' / logged-out screen.\n"
+                "   Fix: run  .venv/bin/python3 -m scripts.setup_cookies  to refresh your session,\n"
+                "   then retry enrichment."
+            )
+            return False
         if self._config.require_confirmation:
             prompt = "Cookies loaded. Please log in or verify the session in the browser window, then press Enter to continue..."
             print(prompt)
@@ -329,6 +337,34 @@ class SeleniumWorker:
             if user_input is None:
                 LOGGER.info("No user input detected after 10 seconds; continuing automatically.")
         return True
+
+    def _check_logged_in(self) -> bool:
+        """Return True if the current browser session is authenticated.
+
+        Looks for the account-switcher button that only appears in the
+        left sidebar when a user is logged in.  A 'New to X?' / signup
+        panel or a visible Log-in button means the session has expired.
+        """
+        assert self._driver is not None
+        try:
+            # Logged-in indicator: user avatar / account switcher in left nav
+            logged_in = bool(
+                self._driver.find_elements(
+                    By.CSS_SELECTOR, '[data-testid="SideNav_AccountSwitcher_Button"]'
+                )
+            )
+            # Belt-and-suspenders: also check for the logged-out login button
+            login_prompt = bool(
+                self._driver.find_elements(
+                    By.CSS_SELECTOR, '[data-testid="loginButton"], a[href="/login"]'
+                )
+            )
+            if login_prompt and not logged_in:
+                return False
+            return logged_in
+        except Exception as exc:
+            LOGGER.warning("Could not determine login state: %s", exc)
+            return True  # assume logged in rather than abort on transient DOM errors
 
     @staticmethod
     def _wait_for_input(timeout: float) -> Optional[str]:

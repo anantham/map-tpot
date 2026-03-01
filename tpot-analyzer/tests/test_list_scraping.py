@@ -37,6 +37,10 @@ def _build_args(tmp_path, *, center):
         log_level="INFO",
         quiet=True,
         enable_api_fallback=False,
+        acquisition=False,
+        acquisition_k=None,
+        mmr_lambda=0.7,
+        acquisition_run_id=None,
     )
 
 
