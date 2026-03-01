@@ -1,8 +1,8 @@
 # Golden Dataset — Curation & Active Learning
 
 <!--
-Last verified: 2026-02-27
-Code hash: a9a572c
+Last verified: 2026-03-01
+Code hash: 6c8670c
 Verified by: agent
 -->
 
@@ -86,13 +86,14 @@ Composed class: `BaseGoldenStore + PredictionMixin + EvaluationMixin`. All metho
 
 ```
 GoldenStore (store.py, 12 LOC)
-  ├── BaseGoldenStore (base.py, 323 LOC)
+  ├── BaseGoldenStore (base.py, 425 LOC)
   │     ├── DB connection management (WAL mode, FK enabled)
-  │     ├── Schema bootstrap (_init_db)
+  │     ├── Schema bootstrap (_init_db, incl. idx_tweets_account_reply index)
   │     ├── Split assignment (ensure_fixed_splits)
   │     ├── Candidate queries (list_candidates, _list_unlabeled_fast)
+  │     ├── Account ID enumeration (_get_account_ids — recursive CTE, cached)
   │     ├── Label upsert with versioning
-  │     └── Thread context loading (_load_context → thread_context_cache)
+  │     └── Thread context loading (_load_context → thread_context_cache + tweets fallback)
   ├── PredictionMixin (predictions.py, 199 LOC)
   │     ├── Prediction ingestion with entropy/disagreement scoring
   │     ├── Cross-model disagreement computation

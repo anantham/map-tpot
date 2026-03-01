@@ -1,8 +1,8 @@
 # Project Conventions
 
 <!--
-Last verified: 2026-02-27
-Code hash: 7ba43d1
+Last verified: 2026-03-01
+Code hash: 6c8670c
 -->
 
 ## Naming
