@@ -3,8 +3,8 @@
 <!--
 Status: valid
 Created: 2026-02-27
-Last verified: 2026-02-27
-Code hash: a9a572c
+Last verified: 2026-03-01
+Code hash: 6c8670c
 Verified by: agent
 -->
 
@@ -124,7 +124,7 @@ for split in ['train', 'dev', 'test']:
 | # | File | Lines | Code hash | Status |
 |---|------|-------|-----------|--------|
 | 1 | `src/data/golden/schema.py` | `110-116` | `4c54153` | valid |
-| 2 | `src/data/golden/base.py` | `96-116` | `a9a572c` | valid |
+| 2 | `src/data/golden/base.py` | `102-122` | `6c8670c` | valid |
 | 3 | `src/data/golden/schema.py` | `13-19` | `4c54153` | valid |
 
 ### Cited Code Snapshots
