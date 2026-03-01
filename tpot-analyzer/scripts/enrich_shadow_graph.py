@@ -191,6 +191,39 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable X API fallback for enriching accounts with missing bios (requires --bearer-token or X_BEARER_TOKEN env). WARNING: May cause rate limiting.",
     )
+    # Active-learning acquisition scoring
+    parser.add_argument(
+        "--acquisition",
+        action="store_true",
+        help=(
+            "Enable active-learning acquisition scoring: ranks candidates by expected"
+            " information gain per scrape-minute, then diversifies via MMR."
+        ),
+    )
+    parser.add_argument(
+        "--acquisition-k",
+        type=int,
+        default=None,
+        metavar="K",
+        help="Return only the top-K scored candidates (default: all candidates).",
+    )
+    parser.add_argument(
+        "--mmr-lambda",
+        type=float,
+        default=0.7,
+        metavar="LAMBDA",
+        help=(
+            "MMR diversity weight in [0, 1].  1.0 = pure relevance (no diversity);"
+            " 0.0 = maximum diversity (default: 0.7)."
+        ),
+    )
+    parser.add_argument(
+        "--acquisition-run-id",
+        type=str,
+        default=None,
+        metavar="RUN_ID",
+        help="NMF run_id to use for community membership signals (default: latest run).",
+    )
     return parser.parse_args()
 
 
@@ -338,6 +371,39 @@ def main() -> None:
                 seed_usernames.insert(0, center_username_lower)
 
         seeds = build_seed_accounts(fetcher, seed_usernames)
+
+        # Active-learning acquisition scoring (optional)
+        if args.acquisition:
+            import sqlite3 as _sqlite3
+            from src.shadow.acquisition import score_candidates, AcquisitionWeights
+
+            _archive_db_default = str(
+                Path(__file__).resolve().parents[1] / "data" / "archive_tweets.db"
+            )
+            _archive_db_path = os.getenv("ARCHIVE_DB_PATH", _archive_db_default)
+            LOGGER.info(
+                "Acquisition scoring enabled — archive DB: %s", _archive_db_path
+            )
+            try:
+                community_conn = _sqlite3.connect(_archive_db_path)
+                seeds = score_candidates(
+                    seeds,
+                    shadow_store=store,
+                    community_conn=community_conn,
+                    run_id=args.acquisition_run_id or None,
+                    top_k=args.acquisition_k or None,
+                    lambda_mmr=args.mmr_lambda,
+                )
+                community_conn.close()
+                LOGGER.info(
+                    "Acquisition scoring complete: %d candidates ranked", len(seeds)
+                )
+            except Exception as exc:
+                LOGGER.error(
+                    "Acquisition scoring failed (%s); falling back to default order",
+                    exc,
+                    exc_info=True,
+                )
 
         # Calculate retry_delays from retry_attempts (attempts = delays + 1)
         retry_delays = [5.0, 15.0, 60.0][:max(0, args.retry_attempts - 1)]
