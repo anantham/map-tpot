@@ -1,0 +1,1108 @@
+{
+  "holdout_fraction": 0.2,
+  "holdout_seed": 42,
+  "n_holdout": 55,
+  "n_train": 243,
+  "accounts": {
+    "1663014989697785856": {
+      "dominant_community_id": "bbfe5387-a5f9-41f5-b3f9-80fc83aa4f6e",
+      "dominant_community_name": "LLM Whisperers & ML Tinkerers",
+      "weights": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1824166383204392960": {
+      "dominant_community_id": "bbfe5387-a5f9-41f5-b3f9-80fc83aa4f6e",
+      "dominant_community_name": "LLM Whisperers & ML Tinkerers",
+      "weights": [
+        0.3551909625530243,
+        0.0,
+        0.0,
+        0.31464916467666626,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.21073412895202637,
+        0.0,
+        0.0
+      ]
+    },
+    "1443938695426478082": {
+      "dominant_community_id": "bbfe5387-a5f9-41f5-b3f9-80fc83aa4f6e",
+      "dominant_community_name": "LLM Whisperers & ML Tinkerers",
+      "weights": [
+        0.33152443170547485,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.125324085354805,
+        0.312080442905426,
+        0.0
+      ]
+    },
+    "1643307429294137361": {
+      "dominant_community_id": "bbfe5387-a5f9-41f5-b3f9-80fc83aa4f6e",
+      "dominant_community_name": "LLM Whisperers & ML Tinkerers",
+      "weights": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1226662155795288071": {
+      "dominant_community_id": "bbfe5387-a5f9-41f5-b3f9-80fc83aa4f6e",
+      "dominant_community_name": "LLM Whisperers & ML Tinkerers",
+      "weights": [
+        0.8,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1669851025875017728": {
+      "dominant_community_id": "bbfe5387-a5f9-41f5-b3f9-80fc83aa4f6e",
+      "dominant_community_name": "LLM Whisperers & ML Tinkerers",
+      "weights": [
+        0.9651883244514465,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "178479745": {
+      "dominant_community_id": "bbfe5387-a5f9-41f5-b3f9-80fc83aa4f6e",
+      "dominant_community_name": "LLM Whisperers & ML Tinkerers",
+      "weights": [
+        0.352592796087265,
+        0.0,
+        0.0,
+        0.0,
+        0.11827094852924347,
+        0.0,
+        0.11156626045703888,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.31678226590156555,
+        0.0
+      ]
+    },
+    "714496340592627712": {
+      "dominant_community_id": "bbfe5387-a5f9-41f5-b3f9-80fc83aa4f6e",
+      "dominant_community_name": "LLM Whisperers & ML Tinkerers",
+      "weights": [
+        0.45112213492393494,
+        0.3767382800579071,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1652439832687378,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1133288553859887106": {
+      "dominant_community_id": "effaff86-24d3-425d-a96d-11919f93abdc",
+      "dominant_community_name": "highbies",
+      "weights": [
+        0.15312427282333374,
+        0.5813394784927368,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1525408774614334,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "881192533056827392": {
+      "dominant_community_id": "effaff86-24d3-425d-a96d-11919f93abdc",
+      "dominant_community_name": "highbies",
+      "weights": [
+        0.0,
+        0.7926466464996338,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.11827914416790009,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1245857389888319488": {
+      "dominant_community_id": "effaff86-24d3-425d-a96d-11919f93abdc",
+      "dominant_community_name": "highbies",
+      "weights": [
+        0.22962407767772675,
+        0.4277271628379822,
+        0.0,
+        0.2268848717212677,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1220764014399184904": {
+      "dominant_community_id": "effaff86-24d3-425d-a96d-11919f93abdc",
+      "dominant_community_name": "highbies",
+      "weights": [
+        0.0,
+        0.92214435338974,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1163743742764998658": {
+      "dominant_community_id": "effaff86-24d3-425d-a96d-11919f93abdc",
+      "dominant_community_name": "highbies",
+      "weights": [
+        0.0,
+        0.6834309697151184,
+        0.0,
+        0.0,
+        0.14123287796974182,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "905201": {
+      "dominant_community_id": "effaff86-24d3-425d-a96d-11919f93abdc",
+      "dominant_community_name": "highbies",
+      "weights": [
+        0.0,
+        0.31910863518714905,
+        0.21717999875545502,
+        0.0,
+        0.0,
+        0.13370847702026367,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1379132866859436,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "568646506": {
+      "dominant_community_id": "bc944819-8805-4d1f-bcf8-54f3f53c8e2a",
+      "dominant_community_name": "Builders",
+      "weights": [
+        0.0,
+        0.0,
+        0.8448492884635925,
+        0.0,
+        0.14821380376815796,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "20844341": {
+      "dominant_community_id": "bc944819-8805-4d1f-bcf8-54f3f53c8e2a",
+      "dominant_community_name": "Builders",
+      "weights": [
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1917349034": {
+      "dominant_community_id": "bc944819-8805-4d1f-bcf8-54f3f53c8e2a",
+      "dominant_community_name": "Builders",
+      "weights": [
+        0.0,
+        0.0,
+        0.48049396276474,
+        0.0,
+        0.0,
+        0.1191263496875763,
+        0.0,
+        0.0,
+        0.0,
+        0.1248161718249321,
+        0.0,
+        0.0,
+        0.2439253330230713,
+        0.0
+      ]
+    },
+    "34650516": {
+      "dominant_community_id": "bc944819-8805-4d1f-bcf8-54f3f53c8e2a",
+      "dominant_community_name": "Builders",
+      "weights": [
+        0.0,
+        0.0,
+        0.4610615372657776,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.40113916993141174,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1372281": {
+      "dominant_community_id": "bc944819-8805-4d1f-bcf8-54f3f53c8e2a",
+      "dominant_community_name": "Builders",
+      "weights": [
+        0.0,
+        0.24573968350887299,
+        0.5947510600090027,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "2041531": {
+      "dominant_community_id": "bc944819-8805-4d1f-bcf8-54f3f53c8e2a",
+      "dominant_community_name": "Builders",
+      "weights": [
+        0.0,
+        0.0,
+        0.42083218693733215,
+        0.0,
+        0.0,
+        0.19952118396759033,
+        0.0,
+        0.3335595726966858,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1472730884403048450": {
+      "dominant_community_id": "d1ec7742-480b-41bb-a1dc-21d58e93a265",
+      "dominant_community_name": "Relational Explorers",
+      "weights": [
+        0.1310405135154724,
+        0.0,
+        0.0,
+        0.32362285256385803,
+        0.10607358813285828,
+        0.0,
+        0.2837837040424347,
+        0.0,
+        0.12444456666707993,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1750574343615320065": {
+      "dominant_community_id": "d1ec7742-480b-41bb-a1dc-21d58e93a265",
+      "dominant_community_name": "Relational Explorers",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.9851177930831909,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1351153127215525891": {
+      "dominant_community_id": "d1ec7742-480b-41bb-a1dc-21d58e93a265",
+      "dominant_community_name": "Relational Explorers",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.9785129427909851,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1666184562064384002": {
+      "dominant_community_id": "d1ec7742-480b-41bb-a1dc-21d58e93a265",
+      "dominant_community_name": "Relational Explorers",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.9119718074798584,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "2298710089": {
+      "dominant_community_id": "d1ec7742-480b-41bb-a1dc-21d58e93a265",
+      "dominant_community_name": "Relational Explorers",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.7371315360069275,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.12308847159147263,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1323353574064021506": {
+      "dominant_community_id": "60d2a359-603d-4880-b59b-ffc17cf12366",
+      "dominant_community_name": "Contemplative Practitioners",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.9923404455184937,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1043928565065142272": {
+      "dominant_community_id": "60d2a359-603d-4880-b59b-ffc17cf12366",
+      "dominant_community_name": "Contemplative Practitioners",
+      "weights": [
+        0.0,
+        0.46021556854248047,
+        0.0,
+        0.0,
+        0.47927817702293396,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1259985717142396928": {
+      "dominant_community_id": "60d2a359-603d-4880-b59b-ffc17cf12366",
+      "dominant_community_name": "Contemplative Practitioners",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.7779490351676941,
+        0.0,
+        0.11872858554124832,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1252080019100311555": {
+      "dominant_community_id": "60d2a359-603d-4880-b59b-ffc17cf12366",
+      "dominant_community_name": "Contemplative Practitioners",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.603487491607666,
+        0.0,
+        0.0,
+        0.0,
+        0.27188539505004883,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "261659859": {
+      "dominant_community_id": "1ae87669-1092-4fd8-b25f-1588ab9ce667",
+      "dominant_community_name": "EA, AI Safety & Forecasting",
+      "weights": [
+        0.17593155801296234,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5227361917495728,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "15883462": {
+      "dominant_community_id": "1ae87669-1092-4fd8-b25f-1588ab9ce667",
+      "dominant_community_name": "EA, AI Safety & Forecasting",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "37547071": {
+      "dominant_community_id": "1ae87669-1092-4fd8-b25f-1588ab9ce667",
+      "dominant_community_name": "EA, AI Safety & Forecasting",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.912114679813385,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1129680728": {
+      "dominant_community_id": "1ae87669-1092-4fd8-b25f-1588ab9ce667",
+      "dominant_community_name": "EA, AI Safety & Forecasting",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5626591444015503,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.17767474055290222,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "401273594": {
+      "dominant_community_id": "37d004fc-32fb-471c-a89e-e260cc19318b",
+      "dominant_community_name": "Emergence & Self-Transformation",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5153629183769226,
+        0.4045986533164978,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1572014077655793664": {
+      "dominant_community_id": "37d004fc-32fb-471c-a89e-e260cc19318b",
+      "dominant_community_name": "Emergence & Self-Transformation",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.11472959816455841,
+        0.36417800188064575,
+        0.0,
+        0.521092414855957,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1595127297983627284": {
+      "dominant_community_id": "37d004fc-32fb-471c-a89e-e260cc19318b",
+      "dominant_community_name": "Emergence & Self-Transformation",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1195529113169039360": {
+      "dominant_community_id": "ad6fb455-8671-4390-a6da-becfaac83459",
+      "dominant_community_name": "Queer TPOT & Identity Experimentalists",
+      "weights": [
+        0.3040081858634949,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5204806923866272,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1345597674339192834": {
+      "dominant_community_id": "ad6fb455-8671-4390-a6da-becfaac83459",
+      "dominant_community_name": "Queer TPOT & Identity Experimentalists",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.6484760046005249,
+        0.0,
+        0.0,
+        0.14818201959133148,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "5614412": {
+      "dominant_community_id": "ad6fb455-8671-4390-a6da-becfaac83459",
+      "dominant_community_name": "Queer TPOT & Identity Experimentalists",
+      "weights": [
+        0.0,
+        0.0,
+        0.34675711393356323,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5891307592391968,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1297705469142806529": {
+      "dominant_community_id": "ad6fb455-8671-4390-a6da-becfaac83459",
+      "dominant_community_name": "Queer TPOT & Identity Experimentalists",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.277373343706131,
+        0.0,
+        0.0,
+        0.0,
+        0.6307227611541748,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1571687459976617985": {
+      "dominant_community_id": "ad6fb455-8671-4390-a6da-becfaac83459",
+      "dominant_community_name": "Queer TPOT & Identity Experimentalists",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.7683911323547363,
+        0.0,
+        0.0,
+        0.0,
+        0.23160889744758606,
+        0.0,
+        0.0
+      ]
+    },
+    "21502232": {
+      "dominant_community_id": "8e87c0b1-984c-4327-a0e7-eb7be007a414",
+      "dominant_community_name": "Quiet Creatives",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.10818962752819061,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.7879825830459595,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1249561851387674624": {
+      "dominant_community_id": "8e87c0b1-984c-4327-a0e7-eb7be007a414",
+      "dominant_community_name": "Quiet Creatives",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.24557490646839142,
+        0.0,
+        0.0,
+        0.13426701724529266,
+        0.0,
+        0.43970879912376404,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1195483263936188416": {
+      "dominant_community_id": "8e87c0b1-984c-4327-a0e7-eb7be007a414",
+      "dominant_community_name": "Quiet Creatives",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.2680457830429077,
+        0.0,
+        0.0,
+        0.0,
+        0.202728271484375,
+        0.4258139133453369,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "14480672": {
+      "dominant_community_id": "8e87c0b1-984c-4327-a0e7-eb7be007a414",
+      "dominant_community_name": "Quiet Creatives",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.23671501874923706,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.2957938611507416,
+        0.0,
+        0.0,
+        0.11021056026220322,
+        0.13727445900440216,
+        0.0
+      ]
+    },
+    "316970336": {
+      "dominant_community_id": "68821476-4076-472b-94be-7c0cab896ccf",
+      "dominant_community_name": "Collective Intelligence & Civic Tech",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.15850968658924103,
+        0.0,
+        0.27188408374786377,
+        0.0,
+        0.0,
+        0.4286605417728424,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "1065316525417160705": {
+      "dominant_community_id": "68821476-4076-472b-94be-7c0cab896ccf",
+      "dominant_community_name": "Collective Intelligence & Civic Tech",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.903198778629303,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "64017773": {
+      "dominant_community_id": "68821476-4076-472b-94be-7c0cab896ccf",
+      "dominant_community_name": "Collective Intelligence & Civic Tech",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.851581335067749,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "3467611": {
+      "dominant_community_id": "86ea371b-c9de-418f-9cf6-21f308c2775a",
+      "dominant_community_name": "NYC Institution Builders",
+      "weights": [
+        0.0,
+        0.323731929063797,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.6650233268737793,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "2691903487": {
+      "dominant_community_id": "86ea371b-c9de-418f-9cf6-21f308c2775a",
+      "dominant_community_name": "NYC Institution Builders",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "404639888": {
+      "dominant_community_id": "f5e6154d-fb76-4f1a-af78-ab9aa8838815",
+      "dominant_community_name": "Qualia Research & Cognitive Phenomenology",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.10891507565975189,
+        0.0,
+        0.5173128843307495,
+        0.3214976191520691,
+        0.0
+      ]
+    },
+    "1359981346119155719": {
+      "dominant_community_id": "f5e6154d-fb76-4f1a-af78-ab9aa8838815",
+      "dominant_community_name": "Qualia Research & Cognitive Phenomenology",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.8046174049377441,
+        0.0,
+        0.0
+      ]
+    },
+    "1463989936491749380": {
+      "dominant_community_id": "e8e6e7d0-bfa6-49c4-96e4-f10942210496",
+      "dominant_community_name": "Ethereum Builders & Quantified Self",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.8860137462615967,
+        0.0
+      ]
+    },
+    "31019711": {
+      "dominant_community_id": "e8e6e7d0-bfa6-49c4-96e4-f10942210496",
+      "dominant_community_name": "Ethereum Builders & Quantified Self",
+      "weights": [
+        0.0,
+        0.1947193443775177,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.20626616477966309,
+        0.0,
+        0.43707454204559326,
+        0.0
+      ]
+    },
+    "1145495170911105024": {
+      "dominant_community_id": "7dff6a20-f5e1-4c53-bc92-80f5d4ef661a",
+      "dominant_community_name": "Feline Poetics",
+      "weights": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    }
+  }
+}
