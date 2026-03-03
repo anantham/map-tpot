@@ -208,6 +208,30 @@ communities from Phase 6 and temporal data.
   → requires twitterapi.io reply data for targeted tweets
 - [ ] Visualize as timeline overlay on community map
 
+### Memetic Shockwave Propagation (Future)
+Measure how fast information travels through TPOT sub-communities and who
+sits closest to the epicenter of different event types.
+
+- [ ] **Event detection from tweet bursts** — cluster tweet embeddings in
+  short time windows (6h buckets); a sudden burst of semantically similar
+  content across multiple accounts = a shockwave event
+- [ ] **Per-account propagation delay** — for each detected event, measure
+  time between first tweet/like and each account's first engagement;
+  averaged across events → stable "epicenter proximity score" per account
+- [ ] **Community-level propagation profile** — aggregate per-account delays
+  by NMF community to see which sub-communities are upstream vs downstream
+  for different event types
+- [ ] **Translation fidelity measurement** — compare embeddings of early vs
+  late tweets for the same event; embedding drift across the wavefront =
+  frame shift as information crosses bubble boundaries
+- [ ] **Likes as leading indicator** — likes are timestamped and closer to
+  "moment of encounter" than tweets; use like-then-tweet delay as a measure
+  of processing time per account
+
+Data available: 5.5M tweets + 17.5M likes with timestamps across 334
+accounts. Sufficient for intra-TPOT propagation analysis. Cannot measure
+propagation out of TPOT to mainstream (no data on journalists/policymakers).
+
 ## Features & Analysis
 
 - Phase 1.4 completion: finalize policy-driven refresh loop and document human
