@@ -766,3 +766,47 @@
     - **Verification**
         - `cd /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT-wt-test-coverage && /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/.venv/bin/pytest -q tpot-analyzer/tests/test_api.py tpot-analyzer/tests/test_hierarchy_builder.py tpot-analyzer/tests/test_list_scraping.py tpot-analyzer/tests/test_shadow_archive_consistency.py tpot-analyzer/tests/test_shadow_coverage.py tpot-analyzer/tests/test_shadow_enricher_orchestration.py tpot-analyzer/tests/test_shadow_enricher_utils.py tpot-analyzer/tests/test_x_api_client.py` → `108 passed, 1 warning`.
         - `cd /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT-wt-test-coverage && /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/.venv/bin/python tpot-analyzer/scripts/verify_test_inventory.py` → skip markers/call-count/reimplementation markers resolved; internal-state assertions and >300 LOC debt remain (tracked in ROADMAP).
+
+- [2026-03-05 11:13 IST] **Onboarding docs dry-run remediation: broken links + runnable commands (Codex GPT-5)**
+    - **Hypothesis**
+        - New contributors are blocked by dead README links and a few stale quickstart commands; updating docs to only existing paths and validated CLI invocations should make first-run onboarding reproducible.
+    - **Changes (line numbers + why)**
+        - `../README.md:5`: remove missing `grok-probe` project link so root docs no longer point to a non-existent directory.
+        - `../README.md:12`: clarify that this checkout currently includes `tpot-analyzer` as the active project entrypoint.
+        - `tpot-analyzer/README.md:285`: point coverage baseline reference to existing historical file (`docs/archive/test-coverage-baseline.md`).
+        - `tpot-analyzer/README.md:294`: point testing-principles reference to canonical guide (`docs/TESTING_METHODOLOGY.md`).
+        - `tpot-analyzer/README.md:382`: update center-user fix link to `docs/archive/CENTER_USER_FIX.md` (live path).
+        - `tpot-analyzer/README.md:383`: update bugfix log link to `docs/archive/BUGFIXES.md` (live path).
+        - `tpot-analyzer/README.md:384`: update test-mode link to `docs/guides/TEST_MODE.md` (live path).
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:27`: replace placeholder clone URL with neutral `<your-repo-url>` template.
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:91`: switch cookie setup command to module form (`python -m scripts.setup_cookies`).
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:94`: replace invalid `--max-seeds` flag with valid `--max-scrolls`.
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:105`: switch spectral build command to module form (`python -m scripts.build_spectral`) to avoid `ModuleNotFoundError: src`.
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:178`: switch rebuild command to module form (`python -m scripts.refresh_graph_snapshot`) for consistency with package entrypoints.
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:206`: switch troubleshooting spectral command to module form (`python -m scripts.build_spectral`).
+        - `tpot-analyzer/graph-explorer/README.md:8`: align Python prerequisite with project docs (`Python 3.9+`) to remove version mismatch.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_docs_hygiene` → `9/9` checks passing.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.build_spectral --help` → CLI usage renders (module entrypoint valid).
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.enrich_shadow_graph --help | rg "max-scrolls|--center"` → expected flags present.
+        - `cd /Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT && python3 <link-check snippet>` over onboarding docs (`README.md`, `tpot-analyzer/README.md`, `docs/index.md`, `docs/guides/QUICKSTART.md`, `docs/PLAYBOOK.md`, `graph-explorer/README.md`) → `NO_BROKEN_LINKS`.
+
+- [2026-03-05 14:40 IST] **Dev onboarding stabilization: optional NetworKit + baseline snapshot path (Codex GPT-5)**
+    - **Hypothesis**
+        - First-run onboarding failures are caused by (a) mandatory NetworKit build in base dependencies and (b) quickstart using spectral build as baseline despite missing snapshot preconditions.
+        - Moving NetworKit to an explicit optional dependency file and using `refresh_graph_snapshot` as the default quickstart path should make baseline setup reproducible on clean machines.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/requirements.txt:1`: remove `networkit==11.0` from base install contract so `pip install -r requirements.txt` no longer requires native NetworKit build toolchain.
+        - `tpot-analyzer/requirements-performance.txt:1` (NEW): add optional performance dependency manifest with `networkit==11.0` and explicit install intent for post-onboarding acceleration.
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:38`: add optional performance-install note (`requirements-performance.txt`) after baseline dependency install.
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:102`: switch Step 4 baseline from `python -m scripts.build_spectral` to `python -m scripts.refresh_graph_snapshot`.
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:120`: mark spectral generation as "Advanced (optional)" instead of baseline onboarding requirement.
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:216`: update "No graph data" troubleshooting command to `python -m scripts.refresh_graph_snapshot`.
+        - `tpot-analyzer/scripts/verify_dev_onboarding.py:1` (NEW): add phase verifier with explicit ✓/✗ checks for dependency contract and quickstart onboarding command invariants.
+        - `tpot-analyzer/docs/PLAYBOOK.md:71`: add `python3 -m scripts.verify_dev_onboarding` to canonical verification command set.
+        - `tpot-analyzer/docs/ROADMAP.md:261`: add follow-up item for explicit offline/local-only snapshot mode to prevent unexpected Supabase refresh during onboarding.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_dev_onboarding` → `6/6` checks passing.
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_docs_hygiene` → `9/9` checks passing.
+        - `tmpdir=$(mktemp -d /tmp/tpot-req-smoke.XXXXXX) && cd "$tmpdir" && python3 -m venv .venv && .venv/bin/pip install -r /Users/aditya/Documents/Ongoing\ Local/Project\ 2\ -\ Map\ TPOT/tpot-analyzer/requirements.txt` → base requirements install completed successfully (no NetworKit compile failure).
+        - `cd tpot-analyzer && .venv/bin/python -m scripts.refresh_graph_snapshot --output-dir /tmp/tpot-onboard-check-data --frontend-output /tmp/tpot-onboard-check-analysis.json` → snapshot refresh completed and emitted expected artifacts.
