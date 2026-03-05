@@ -258,6 +258,10 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   `coverage-driven`) and surface it in API/UI evidence cards.
 - Calibrate GRF probability outputs against held-out anchors (Platt/isotonic)
   and persist calibration metadata in membership responses.
+- Add an explicit offline/local-only snapshot mode for
+  `scripts.refresh_graph_snapshot` (or a quickstart flag pattern) so first-run
+  onboarding does not unexpectedly attempt Supabase refresh when local cache is
+  stale.
 - [x] Add membership endpoint integration into graph-explorer account panel so
   users can inspect probability/CI while navigating clusters
   (`graph-explorer/src/AccountMembershipPanel.jsx`,
