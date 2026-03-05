@@ -1,8 +1,8 @@
 # Golden Dataset — Curation & Active Learning
 
 <!--
-Last verified: 2026-03-01
-Code hash: 6c8670c
+Last verified: 2026-03-05
+Code hash: bb8bf98
 Verified by: agent
 -->
 

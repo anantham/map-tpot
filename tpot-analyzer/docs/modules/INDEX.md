@@ -1,7 +1,7 @@
 # Module Documentation Index
 
 <!--
-Last updated: 2026-03-01
+Last updated: 2026-03-05
 -->
 
 ## Modules
@@ -10,13 +10,13 @@ Last updated: 2026-03-01
 |--------|-----|--------|---------------|
 | `src/data/golden/` | [golden](golden.md) | current | 2026-02-27 |
 | `src/api/routes/golden.py` | [golden](golden.md) (API Routes section) | current | 2026-02-27 |
-| `src/shadow/` | — | undocumented | — |
-| `src/graph/` | — | undocumented | — |
+| `src/shadow/` | [shadow](shadow.md) | current | 2026-03-05 |
+| `src/graph/` | [graph](graph.md) | current | 2026-03-05 |
 | `src/communities/` | — | undocumented | — |
-| `src/data/` (non-golden) | — | undocumented | — |
+| `src/data/` (non-golden) | [data](data.md) | current | 2026-03-05 |
 | `src/api/cluster_routes.py` | — | undocumented | — |
 | `src/api/routes/branches.py` | — | undocumented | — |
-| `src/archive/` | — | undocumented | — |
+| `src/archive/` | [archive](archive.md) | current | 2026-03-05 |
 
 ## Active ASSERTIONs
 

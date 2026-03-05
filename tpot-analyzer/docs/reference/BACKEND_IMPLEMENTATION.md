@@ -1,7 +1,20 @@
 # Backend API Implementation Summary
 
+> **⚠ HISTORICAL DOCUMENT — accurate as of Phase 1 (2025-12-08)**
+>
+> This document describes the initial modular refactor that decomposed the monolithic `server.py`.
+> It is **out of date** for the current API surface. As of 2026-03, the server runs **11 Blueprints
+> with 40+ endpoints** across golden curation, communities, branches, extension, and cluster
+> hierarchy features not described here.
+>
+> **Current sources of truth:**
+> - Route inventory: `src/api/server.py` (blueprint registration, lines 118–135)
+> - Golden routes: `docs/modules/golden.md` (API Routes section)
+> - Feature intent: `docs/reference/FEATURES_INTENT.md`
+> - Architecture overview: `docs/reference/ENGINEERING_GUARDRAILS.md`
+
 **Date:** 2025-12-08
-**Status:** ✅ Complete (Modular Architecture)
+**Status:** ✅ Complete (Modular Architecture) — *Phase 1 baseline only*
 
 ---
 

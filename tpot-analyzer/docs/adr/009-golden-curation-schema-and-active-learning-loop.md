@@ -24,7 +24,7 @@ Without this, active learning remains ad hoc and cannot be validated as a depend
 - Human selected these constraints:
   - single reviewer,
   - fixed split now,
-  - queue score = entropy + model disagreement,
+  - queue score = `0.7 × entropy + 0.3 × disagreement`,
   - acceptance target: simulacrum Brier <= 0.18.
 
 ## Decision
@@ -50,7 +50,7 @@ Implement API surface under `/api/golden/*`:
 
 - Normalized rows enable strict validation, SQL-level analytics, and easy evaluation queries.
 - Versioned `*_set` records retain curation history while preserving one active label per reviewer/tweet/axis.
-- Queue score combines model uncertainty and cross-model disagreement, matching active-learning intent.
+- Queue score formula is `0.7 × entropy + 0.3 × disagreement` (constants `QUEUE_ENTROPY_WEIGHT`/`QUEUE_DISAGREEMENT_WEIGHT` in `src/data/golden/constants.py`). Entropy is weighted higher because self-uncertainty is a stronger signal for labeling value than cross-model disagreement; 70/30 was chosen empirically as a sensible prior pending calibration data.
 - Fixed split assignment is deterministic and stable across reruns.
 
 ## Assumptions
@@ -79,8 +79,42 @@ Implement API surface under `/api/golden/*`:
 - Additional schema complexity vs JSON blob simplicity.
 - Endpoint behavior depends on `tweets` availability in `archive_tweets.db`.
 
+### Brier score formula and threshold
+
+The implementation (`evals.py:63`) uses a **per-label normalized variant**:
+
+```
+BS_norm = mean_i( mean_k (pred_k − label_k)² )  =  BS_standard / K
+```
+
+This differs from the standard Brier score (`mean_i( sum_k (pred_k − label_k)² )`).
+
+**Why this choice:** K-invariance — if the system later extends to axes with a different
+number of classes (topic, functional), normalized scores remain comparable across axes.
+The standard formula scores a 4-class problem differently than a 6-class one in absolute
+terms.
+
+**Tradeoff:** The 0.18 threshold was set intuitively and is not calibrated to this
+formula. Under the normalized variant with K=4, a uniform random predictor scores
+~0.1875 on one-hot labels — so ≤ 0.18 is barely above random chance for one-hot labels.
+For soft labels (which this system uses), the random baseline is lower, so 0.18 may
+represent genuinely decent performance in practice, but this is unverified.
+
+**Follow-up constraint:** Before treating the 0.18 threshold as a meaningful acceptance
+criterion, compute the marginal-distribution baseline on the actual labeled set:
+
+```python
+# Compute once enough labels exist (≥ 100 labeled tweets)
+# baseline_score = BS_norm of always predicting the marginal label distribution
+# meaningful_threshold = baseline_score - 0.05  (5 points better than naive)
+```
+
+Until then, the threshold is a placeholder. Treat Brier scores from `run_evaluation()`
+as relative indicators (is the model improving across runs?) rather than absolute pass/fail.
+
 ### Follow-up
 
 - Add UI curation dashboard bindings to `/api/golden/*`.
 - Add optional dual-reviewer adjudication mode.
 - Extend schema to functional/topic axes after simulacrum loop stabilizes.
+- **Recalibrate the ≤ 0.18 threshold** once ≥ 100 labeled tweets exist (see Brier score note above).
