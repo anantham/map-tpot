@@ -5,7 +5,7 @@ Interactive frontend for visualizing the TPOT community graph. Built with Vite +
 ## Prerequisites
 
 - Node.js 18+
-- Python 3.10+ with virtualenv
+- Python 3.9+ with virtualenv
 - Access to the `tpot-analyzer` Python project and its data cache
 
 ## Architecture
