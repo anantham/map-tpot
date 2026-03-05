@@ -24,7 +24,7 @@ brew install python@3.11 node git
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/tpot-analyzer.git
+git clone <your-repo-url>
 cd tpot-analyzer
 
 # Create Python virtual environment
@@ -34,6 +34,9 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # Install Python dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
+
+# Optional: faster CPU metrics backend (may require local toolchain/OpenMP)
+# pip install -r requirements-performance.txt
 
 # Verify installation
 python -c "from src.api import server; print('✅ Python setup complete')"
@@ -88,10 +91,10 @@ PY
 
 ```bash
 # Setup Twitter cookies for scraping
-python scripts/setup_cookies.py
+python -m scripts.setup_cookies
 
 # Enrich graph starting from a seed account
-python -m scripts.enrich_shadow_graph --center your_twitter_handle --max-seeds 50
+python -m scripts.enrich_shadow_graph --center your_twitter_handle --max-scrolls 20
 ```
 
 ---
@@ -101,16 +104,23 @@ python -m scripts.enrich_shadow_graph --center your_twitter_handle --max-seeds 5
 The API serves precomputed graph data for performance:
 
 ```bash
-# Build spectral embedding and cluster hierarchy
-python scripts/build_spectral.py
+# Build API/frontend snapshot artifacts from local cache data
+python -m scripts.refresh_graph_snapshot
 
 # Verify snapshot was created
 ls -la data/graph_snapshot.*
+ls -la graph-explorer/public/analysis_output.json
 # Expected files:
 #   graph_snapshot.nodes.parquet
 #   graph_snapshot.edges.parquet
 #   graph_snapshot.meta.json
-#   graph_snapshot.spectral.npz
+#   analysis_output.json (under graph-explorer/public/)
+```
+
+**Advanced (optional):** once baseline setup works, generate spectral artifacts for cluster research workflows:
+
+```bash
+python -m scripts.build_spectral
 ```
 
 ---
@@ -175,7 +185,7 @@ cd graph-explorer && npm run dev
 | Task | Command |
 |------|---------|
 | Run tests | `make test` |
-| Rebuild graph | `python scripts/refresh_graph_snapshot.py` |
+| Rebuild graph | `python -m scripts.refresh_graph_snapshot` |
 | Check API health | `curl localhost:5001/api/health` |
 | Frontend E2E tests | `cd graph-explorer && npm run test:e2e:mock` |
 | Lint Python | `ruff check src/` |
@@ -203,7 +213,7 @@ kill -9 <PID>
 ### "No graph data" in frontend
 ```bash
 # Rebuild the snapshot
-python scripts/build_spectral.py
+python -m scripts.refresh_graph_snapshot
 # Restart the API
 python -m scripts.start_api_server
 ```
