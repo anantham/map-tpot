@@ -282,7 +282,7 @@ make test
 .venv/bin/python -m pytest tests/test_shadow_enrichment_integration.py -v
 ```
 
-Test coverage (~68% overall, see `docs/test-coverage-baseline.md` for module-level stats):
+Test coverage (~68% overall; historical module-level baseline in `docs/archive/test-coverage-baseline.md`):
 - ✅ Supabase connectivity, authentication, and cache expiry safeguards
 - ✅ DataFrame schema validation and network error handling
 - ✅ Shadow enrichment policy logic (age/delta triggers, skip behavior)
@@ -291,7 +291,7 @@ Test coverage (~68% overall, see `docs/test-coverage-baseline.md` for module-lev
 - ✅ Flask API endpoints powering the graph explorer
 - 🧪 191 pytest cases spanning unit, integration, and Selenium parsing suites
 
-Test suite follows the behavioral testing principles captured in `docs/test-coverage-baseline.md`.
+Test suite follows the behavioral testing principles captured in `docs/TESTING_METHODOLOGY.md`.
 
 ## Development Workflow
 
@@ -379,9 +379,9 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ## Documentation Guide
 
 - **[README.md](./README.md)** (this file) — Project overview, setup, architecture, and usage
-- **[CENTER_USER_FIX.md](./CENTER_USER_FIX.md)** — Fixes for center user prioritization and Twitter DOM changes (Oct 7-8, 2025)
-- **[BUGFIXES.md](./BUGFIXES.md)** — Graph Explorer MVP bug fixes (Oct 7, 2025)
-- **[TEST_MODE.md](./TEST_MODE.md)** — API server test mode for fast UI development
+- **[docs/archive/CENTER_USER_FIX.md](./docs/archive/CENTER_USER_FIX.md)** — Historical fix notes for center user prioritization and Twitter DOM changes (Oct 7-8, 2025)
+- **[docs/archive/BUGFIXES.md](./docs/archive/BUGFIXES.md)** — Historical Graph Explorer MVP bug-fix log (Oct 7, 2025)
+- **[docs/guides/TEST_MODE.md](./docs/guides/TEST_MODE.md)** — API server test mode for fast UI development
 - **[docs/BACKEND_IMPLEMENTATION.md](./docs/BACKEND_IMPLEMENTATION.md)** — Flask backend implementation summary (Option B)
 - **[docs/WORKLOG.md](./docs/WORKLOG.md)** — Detailed development log
 - **[docs/ROADMAP.md](./docs/ROADMAP.md)** — Forward-looking backlog (testing, features, infra)
