@@ -1,0 +1,8 @@
+# Optional performance dependencies for local acceleration.
+#
+# These packages are NOT required for baseline dev onboarding.
+# Install only after base setup succeeds:
+#   .venv/bin/pip install -r requirements-performance.txt
+#
+# NetworKit can require native toolchain/OpenMP setup depending on platform.
+networkit==11.0
