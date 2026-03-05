@@ -68,6 +68,7 @@ Interpreter + dependency contract (local):
 ```bash
 make verify-louvain-contract
 python3 -m scripts.verify_test_runner_contract
+python3 -m scripts.verify_dev_onboarding
 ```
 
 Backend smoke test suite (venv-enforced via `Makefile`):
