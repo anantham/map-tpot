@@ -2,6 +2,26 @@
 
 ## Phase 4.0: Tweet Classification + Content-Aware Clustering
 
+- [2026-03-06 04:56 UTC] **ADR-013 accuracy pass: align accepted contract with actual repo state (Codex GPT-5)**
+    - **Assumptions**
+        - The color-contract math is already accepted at the product level, so this pass should tighten documentation truthfulness without changing behavior.
+    - **Predicted outcome**
+        - `docs/adr/013-probabilistic-cluster-color-contract.md` no longer overstates current implementation status, no longer references nonexistent artifacts as if present, and matches the shipped backend/frontend color pipeline.
+    - **Confidence**
+        - `0.95`
+    - **Fallback plan**
+        - If the team wants a stricter “implemented only” ADR style, downgrade ADR-013 from `Accepted` to `Proposed` and move the deployment notes into a companion rollout doc instead of keeping them inline.
+    - **Changes (files + why)**
+        - `tpot-analyzer/docs/adr/013-probabilistic-cluster-color-contract.md:3-7`: keep the accepted decision, but add implementation-status language and widen scope so the GraphExplorer color-boundary rule is no longer out of scope.
+        - `tpot-analyzer/docs/adr/013-probabilistic-cluster-color-contract.md:13`: fix the old-formula wording so `argmax(...)` is not incorrectly described as a weight.
+        - `tpot-analyzer/docs/adr/013-probabilistic-cluster-color-contract.md:23`: clarify that ADR-013 is a rendering contract, not a commitment to one upstream membership engine.
+        - `tpot-analyzer/docs/adr/013-probabilistic-cluster-color-contract.md:33-75`: tighten metric descriptions and add a current-implementation note so the doc matches the existing unweighted matched-member aggregation in `src/communities/cluster_colors.py`.
+        - `tpot-analyzer/docs/adr/013-probabilistic-cluster-color-contract.md:131-151`: document the current API/rollout truth, including that `concentration` is backend-internal, the dedicated verifier is still pending, and the human approval gate happened on 2026-03-06.
+        - `tpot-analyzer/docs/adr/013-probabilistic-cluster-color-contract.md:167-168`: replace the nonexistent `scripts/build_fingerprints.py` reference with a truthful reference to the planned ADR-011 fingerprint pipeline.
+    - **Verification**
+        - Manual consistency check against `tpot-analyzer/src/communities/cluster_colors.py`, `tpot-analyzer/src/api/cluster_routes.py`, `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx`, and `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx`.
+        - No automated tests run; this was a documentation-only correction.
+
 - [2026-02-25 16:06 UTC] **Second pass: eliminate remaining React hook dependency warnings (Codex GPT-5)**
     - **Assumptions**
         - The remaining lint warnings are stale-dependency declarations (not behavioral bugs), so explicit dependency alignment should be behavior-preserving.
