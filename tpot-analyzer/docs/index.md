@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-02-25
+Last reviewed: 2026-03-08
 
 ## Start Here
 
@@ -25,6 +25,7 @@ Last reviewed: 2026-02-25
 | [Engineering Guardrails](reference/ENGINEERING_GUARDRAILS.md) | Empirical bug patterns mapped to invariants, tests, and migration policy |
 | [Features Intent](reference/FEATURES_INTENT.md) | Product/architecture intent for major behaviors |
 | [Enrichment Flow](reference/ENRICHMENT_FLOW.md) | Enrichment pipeline behavior and data movement |
+| [Tuning Parameters](reference/TUNING_PARAMETERS.md) | Magic numbers and tunable constants across subsystems |
 
 ## Guides
 
@@ -52,6 +53,7 @@ Last reviewed: 2026-02-25
 | Diagnostics | [docs/diagnostics/](diagnostics/) |
 
 Latest architecture decision:
+- [ADR 013: Probabilistic Cluster Color Contract and Uncertainty Rendering](adr/013-probabilistic-cluster-color-contract.md) (Accepted, 2026-03-06)
 - [ADR 011: Content-Aware Fingerprinting and Community Visualization](adr/011-content-aware-fingerprinting-and-community-visualization.md) (Proposed, 2026-02-25)
 - [ADR 010: Labeling Dashboard and LLM Eval Harness](adr/010-labeling-dashboard-and-llm-eval-harness.md) (Proposed, 2026-02-25)
 - [ADR 009: Golden Curation Schema and MVP A Active-Learning Loop](adr/009-golden-curation-schema-and-active-learning-loop.md) (Proposed, 2026-02-25)
