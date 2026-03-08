@@ -299,8 +299,10 @@ class SnapshotLoader:
                 if node_id in communities:
                     node_attrs["community"] = communities[node_id]
 
-                # Filter out None values
-                node_attrs = {k: v for k, v in node_attrs.items() if v is not None}
+                # Filter out None and NaN (pandas uses float NaN for missing numerics,
+                # which is not None and serialises to invalid JSON "NaN").
+                # v == v is False only for NaN (IEEE 754 property).
+                node_attrs = {k: v for k, v in node_attrs.items() if v is not None and v == v}
                 directed.add_node(node_id, **node_attrs)
 
             # Add edges with attributes

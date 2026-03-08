@@ -165,13 +165,18 @@ function MemberTable({ members, onSelectAccount, showFollowOnly,
 }
 
 
-export default function Communities({ ego: defaultEgo }) {
+export default function Communities({ ego: defaultEgo, initialAccountId }) {
   const [communities, setCommunities] = useState([])
   const [selectedCommunity, setSelectedCommunity] = useState(null)
   const [members, setMembers] = useState([])
 
   // Navigation: null = member list, account_id = deep dive
-  const [deepDiveAccountId, setDeepDiveAccountId] = useState(null)
+  const [deepDiveAccountId, setDeepDiveAccountId] = useState(initialAccountId || null)
+
+  // If App navigates here with a specific account, open it
+  useEffect(() => {
+    if (initialAccountId) setDeepDiveAccountId(initialAccountId)
+  }, [initialAccountId])
 
   const [loading, setLoading] = useState(true)
   const [membersLoading, setMembersLoading] = useState(false)

@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-02-27T05:33:07.249462Z",
+  "n_nodes": 8984,
+  "n_dims": 30,
+  "method": "normalized_laplacian",
+  "eigensolver": "arpack",
+  "eigensolver_params": {
+    "tol": 1e-10,
+    "maxiter": 5000
+  },
+  "linkage_method": "ward",
+  "approximate_clustering": false,
+  "computation_metrics": {
+    "laplacian_time_seconds": 0.006525754928588867,
+    "eigensolver_time_seconds": 2.7580859661102295,
+    "eigensolver_converged": true,
+    "eigenvalue_gap": 0.005679526859739326,
+    "linkage_method_used": "direct_ward",
+    "linkage_time_seconds": 1.2863502502441406,
+    "stability_ari_mean": 1.0,
+    "stability_ari_std": 0.0,
+    "total_time_seconds": 4.052015066146851
+  }
+}

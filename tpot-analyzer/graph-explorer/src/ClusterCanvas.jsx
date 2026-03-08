@@ -5,30 +5,73 @@ import { ZOOM_CONFIG } from './clusterCanvasConfig'
 
 const clamp = (val, min, max) => Math.min(max, Math.max(min, val))
 
-// Community color utilities
-function hexToRgb(hex) {
-  if (!hex) return null
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.test(hex) ? hex : null
-  if (!result) return null
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return { r, g, b }
+// ── ADR-013 color pipeline: hex → OKLCH → chroma-scaled → sRGB ───────────────
+// Hue is extracted from the community's stored hex color and held fixed.
+// Chroma is driven by the backend's principled chroma value (signal * confidence
+// * coverage * concentration), NOT by dominant_weight alone.
+
+const OKLCH_L = 0.68           // Fixed lightness for all community nodes
+const OKLCH_MAX_CHROMA = 0.26  // Max chroma in OKLCH (vivid but not out-of-gamut)
+const OKLCH_GRAY_L = 0.60      // Lightness for abstain/no-signal nodes
+
+function _toLinear(x) {
+  return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)
+}
+function _toSrgb(x) {
+  return x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055
 }
 
-function communityColor(baseHex, intensity) {
-  const rgb = hexToRgb(baseHex)
-  if (!rgb) return null
-  const gray = { r: 140, g: 140, b: 140 }
-  // Boost low intensities so even 3-5% reads as clearly colored
-  // sqrt curve: 0.01 -> 0.10, 0.05 -> 0.22, 0.10 -> 0.32, 0.50 -> 0.71, 1.0 -> 1.0
-  const raw = Math.max(0, Math.min(1, intensity))
-  const t = Math.sqrt(raw)
+/** Extract OKLCH hue (0–360) from a community hex string. Cached per hex. */
+const _hueCache = new Map()
+function hexToOklchHue(hex) {
+  if (!hex) return 0
+  if (_hueCache.has(hex)) return _hueCache.get(hex)
+  const r = _toLinear(parseInt(hex.slice(1, 3), 16) / 255)
+  const g = _toLinear(parseInt(hex.slice(3, 5), 16) / 255)
+  const b = _toLinear(parseInt(hex.slice(5, 7), 16) / 255)
+  const l_ = Math.cbrt(0.4121656120 * r + 0.5362752080 * g + 0.0514575653 * b)
+  const m_ = Math.cbrt(0.2118591070 * r + 0.6807189584 * g + 0.1074065790 * b)
+  const s_ = Math.cbrt(0.0883097947 * r + 0.2818474174 * g + 0.6302613616 * b)
+  const a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
+  const bv = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+  const hue = (Math.atan2(bv, a) * 180 / Math.PI + 360) % 360
+  _hueCache.set(hex, hue)
+  return hue
+}
+
+/** Render OKLCH(L, C, H) as { r, g, b } in 0–255 sRGB. */
+function oklchToRgb(L, C, H) {
+  const hRad = H * Math.PI / 180
+  const a = C * Math.cos(hRad)
+  const bv = C * Math.sin(hRad)
+  const l_ = L + 0.3963377774 * a + 0.2158037573 * bv
+  const m_ = L - 0.1055613458 * a - 0.0638541728 * bv
+  const s_ = L - 0.0894841775 * a - 1.2914855480 * bv
+  const l = l_ * l_ * l_
+  const m = m_ * m_ * m_
+  const s = s_ * s_ * s_
+  const r = _toSrgb(Math.max(0,  4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s))
+  const g = _toSrgb(Math.max(0, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s))
+  const b = _toSrgb(Math.max(0, -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s))
   return {
-    r: Math.round(gray.r + (rgb.r - gray.r) * t),
-    g: Math.round(gray.g + (rgb.g - gray.g) * t),
-    b: Math.round(gray.b + (rgb.b - gray.b) * t),
+    r: Math.round(Math.min(255, r * 255)),
+    g: Math.round(Math.min(255, g * 255)),
+    b: Math.round(Math.min(255, b * 255)),
   }
+}
+
+/**
+ * ADR-013: compute fill RGB for a community cluster node.
+ *
+ * @param {string} hex        - Community base hex color (hue source)
+ * @param {number} chroma     - Backend chroma value in [0, 1]
+ * @returns {{ r, g, b } | null}
+ */
+function communityFillColor(hex, chroma) {
+  if (!hex) return null
+  const H = hexToOklchHue(hex)
+  const C = Math.max(0, Math.min(OKLCH_MAX_CHROMA, chroma * OKLCH_MAX_CHROMA))
+  return oklchToRgb(OKLCH_L, C, H)
 }
 
 // Easing functions for smooth animations
@@ -1153,9 +1196,9 @@ export default function ClusterCanvas({
         // Green tint for newly appearing nodes
         gradient.addColorStop(0, '#86efac')
         gradient.addColorStop(1, '#22c55e')
-      } else if (node.communityColor && node.communityIntensity > 0.005) {
-        // Community color: interpolate gray -> community color by intensity
-        const cc = communityColor(node.communityColor, node.communityIntensity)
+      } else if (node.communityColor && (node.communityChroma ?? 0) > 0.02) {
+        // ADR-013: OKLCH fill driven by principled chroma (signal × confidence × coverage × concentration)
+        const cc = communityFillColor(node.communityColor, node.communityChroma ?? 0)
         if (cc) {
           gradient.addColorStop(0, `rgba(${cc.r}, ${cc.g}, ${cc.b}, 0.95)`)
           gradient.addColorStop(1, `rgba(${cc.r}, ${cc.g}, ${cc.b}, 0.65)`)
@@ -1164,25 +1207,51 @@ export default function ClusterCanvas({
           gradient.addColorStop(1, palette.nodeDefaultOuter)
         }
       } else {
+        // Abstain: low signal or no propagation data — render as neutral gray
         gradient.addColorStop(0, palette.nodeDefaultInner)
         gradient.addColorStop(1, palette.nodeDefaultOuter)
       }
       ctx.fillStyle = gradient
       ctx.fill()
 
-      // Impurity ring: thin outer ring of secondary community color
-      if (node.secondaryCommunityColor && node.secondaryCommunityIntensity > 0.1
-          && !node.containsEgo && !isDragged && !isHighlighted && !isPending && !isEntering) {
-        const sc = communityColor(node.secondaryCommunityColor, node.secondaryCommunityIntensity)
-        if (sc) {
-          ctx.save()
+      // Coverage hatch: diagonal lines when < 40% of members have propagation scores.
+      // Signals "many members unscored — color is provisional."
+      const nodeCoverage = node.coverage ?? 1.0
+      if (nodeCoverage < 0.4 && node.communityColor && !node.containsEgo && !isDragged && !isHighlighted && !isPending) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2)
+        ctx.clip()
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)'
+        ctx.lineWidth = 1.5
+        const spacing = Math.max(4, radius * 0.35)
+        const diag = radius * 2.2
+        for (let d = -diag; d < diag; d += spacing) {
           ctx.beginPath()
-          ctx.arc(p.x, p.y, radius + 1, 0, Math.PI * 2)
-          ctx.strokeStyle = `rgba(${sc.r}, ${sc.g}, ${sc.b}, ${Math.min(0.8, node.secondaryCommunityIntensity * 2)})`
-          ctx.lineWidth = 2
+          ctx.moveTo(p.x - radius + d, p.y - radius)
+          ctx.lineTo(p.x + d,          p.y + radius)
           ctx.stroke()
-          ctx.restore()
         }
+        ctx.restore()
+      }
+
+      // Ambiguity ring: secondary community hue when margin (top1-top2) is narrow.
+      // Ambiguity < 0.25 means the cluster is genuinely contested between two communities.
+      const nodeAmbiguity = node.ambiguity ?? 1.0
+      const secondaryWeight = node.secondaryCommunityWeight ?? 0
+      if (node.secondaryCommunityColor && nodeAmbiguity < 0.25 && secondaryWeight > 0.12
+          && !node.containsEgo && !isDragged && !isHighlighted && !isPending && !isEntering) {
+        const sH = hexToOklchHue(node.secondaryCommunityColor)
+        const sC = secondaryWeight * OKLCH_MAX_CHROMA
+        const sc = oklchToRgb(OKLCH_L, sC, sH)
+        const ringOpacity = Math.min(0.85, (0.25 - nodeAmbiguity) * 4 * secondaryWeight * 2)
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, radius + 2, 0, Math.PI * 2)
+        ctx.strokeStyle = `rgba(${sc.r}, ${sc.g}, ${sc.b}, ${ringOpacity})`
+        ctx.lineWidth = 2.5
+        ctx.stroke()
+        ctx.restore()
       }
       
       // Draw glow for dragged node

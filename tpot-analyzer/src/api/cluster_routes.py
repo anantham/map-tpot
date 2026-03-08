@@ -1213,23 +1213,34 @@ def _serialize_hierarchical_view(view) -> dict:
             "memberIds": c.member_node_ids,
         }
 
-        # Community color fields (graceful degradation when propagation unavailable)
+        # Community color fields — ADR-013 probabilistic contract.
+        # communityChroma is the canonical rendering signal (replaces old communityIntensity).
         if _propagation_data is not None and c.member_node_ids:
             ci = compute_cluster_community(_propagation_data, c.member_node_ids)
             result["communityColor"] = ci.dominant_color
             result["communityName"] = ci.dominant_name
             result["communityId"] = ci.dominant_id
-            result["communityIntensity"] = ci.dominant_intensity
+            result["communityChroma"] = ci.chroma            # ADR-013: use this for fill
+            result["signalStrength"] = ci.signal_strength
+            result["purity"] = ci.purity
+            result["ambiguity"] = ci.ambiguity
+            result["coverage"] = ci.coverage
+            result["confidence"] = ci.confidence
             result["secondaryCommunityColor"] = ci.secondary_color
-            result["secondaryCommunityIntensity"] = ci.secondary_intensity
+            result["secondaryCommunityWeight"] = ci.secondary_weight
             result["communityBreakdown"] = ci.breakdown
         else:
             result["communityColor"] = None
             result["communityName"] = None
             result["communityId"] = None
-            result["communityIntensity"] = 0
+            result["communityChroma"] = 0.0
+            result["signalStrength"] = 0.0
+            result["purity"] = 0.0
+            result["ambiguity"] = 0.0
+            result["coverage"] = 0.0
+            result["confidence"] = 0.0
             result["secondaryCommunityColor"] = None
-            result["secondaryCommunityIntensity"] = 0
+            result["secondaryCommunityWeight"] = 0.0
             result["communityBreakdown"] = []
 
         return result
