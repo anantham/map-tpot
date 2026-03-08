@@ -6,7 +6,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from .constants import AXIS_SIMULACRUM, SIMULACRUM_LABELS, SPLIT_NAMES
 from .schema import SCHEMA, now_iso, split_for_tweet, validate_distribution
@@ -208,6 +208,7 @@ class BaseGoldenStore:
         status: str,
         reviewer: str,
         limit: int,
+        preferred_account_ids: Optional[Set[str]] = None,
     ) -> List[Dict[str, Any]]:
         self._assert_axis(axis)
         if status not in {"all", "labeled", "unlabeled"}:
@@ -221,7 +222,10 @@ class BaseGoldenStore:
             # For unlabeled status (the common labeling case), use a fast NOT EXISTS
             # query instead of LEFT JOIN + sort across millions of rows.
             if status == "unlabeled":
-                return self._list_unlabeled_fast(conn, axis, split=split, reviewer=reviewer, limit=limit)
+                return self._list_unlabeled_fast(
+                    conn, axis, split=split, reviewer=reviewer, limit=limit,
+                    preferred_account_ids=preferred_account_ids,
+                )
 
             conditions = ["s.axis = ?"]
             params: List[Any] = [axis]
@@ -232,8 +236,8 @@ class BaseGoldenStore:
                 conditions.append("ls.id IS NOT NULL")
 
             query = f"""
-                SELECT t.tweet_id, t.account_id, t.username, t.full_text, t.created_at, t.reply_to_tweet_id,
-                       s.split, ls.id AS active_label_set_id
+                SELECT t.tweet_id, t.account_id, t.username, t.full_text, t.created_at,
+                       t.reply_to_tweet_id, t.reply_to_username, s.split, ls.id AS active_label_set_id
                 FROM tweets t
                 JOIN curation_split s ON s.tweet_id = t.tweet_id
                 LEFT JOIN tweet_label_set ls
@@ -257,27 +261,42 @@ class BaseGoldenStore:
         split: Optional[str],
         reviewer: str,
         limit: int,
+        preferred_account_ids: Optional[Set[str]] = None,
     ) -> List[Dict[str, Any]]:
-        """Fast path for unlabeled candidates with cold-start ordering.
+        """Unlabeled candidates ordered for maximum information gain.
 
-        Ordering strategy (optimized for information gain during labeling):
-          1. Prefer standalone tweets (reply_to_tweet_id IS NULL) — these are
-             self-contained and easier to classify without missing context.
-          2. Among standalone tweets, spread across different accounts to get
-             a diverse initial sample (one per account round-robin).
-          3. Falls back to reply tweets if standalone ones are exhausted.
+        Two paths:
 
-        Performance: per-account queries use tweets(account_id, reply_to_tweet_id)
-        index as the driving table (~1ms each) instead of scanning 3.8M
-        curation_split rows. Total: ~318 index seeks for full diversity.
+        WARM (uncertainty_queue has scores):
+          Sort by queue_score DESC (= 0.7×entropy + 0.3×disagreement) within
+          two priority tiers: in-graph accounts first, then the rest.
+          This surfaces the tweets the model is most confused about, which
+          yield the most bits of information per human label.
+
+        COLD (no queue scores yet — fresh start):
+          Round-robin one standalone tweet per account for diversity, with
+          in-graph accounts processed first. Replies fill remaining slots.
+          Diversity is the best proxy for information gain when we have no
+          model signal.
         """
-        # Build the per-account query. Critical: tweets t must be the driving
-        # table (via idx_tweets_account_reply) to avoid scanning curation_split.
         split_filter = "AND s.split = ?" if split is not None else ""
 
-        query = f"""
+        has_queue = conn.execute(
+            "SELECT 1 FROM uncertainty_queue WHERE axis = ? AND status = 'pending' LIMIT 1",
+            (axis,),
+        ).fetchone() is not None
+
+        if has_queue:
+            return self._list_unlabeled_by_score(
+                conn, axis, split=split, reviewer=reviewer, limit=limit,
+                preferred_account_ids=preferred_account_ids,
+                split_filter=split_filter,
+            )
+
+        # ── COLD PATH: per-account round-robin ───────────────────────────────
+        per_account_query = f"""
             SELECT t.tweet_id, t.account_id, t.username, t.full_text, t.created_at,
-                   t.reply_to_tweet_id, s.split
+                   t.reply_to_tweet_id, t.reply_to_username, s.split
             FROM tweets t
             JOIN curation_split s ON s.tweet_id = t.tweet_id AND s.axis = ?
             WHERE t.account_id = ?
@@ -293,12 +312,20 @@ class BaseGoldenStore:
             LIMIT 1
         """
 
-        # Phase 1: standalone tweets, one per account for diversity.
         account_ids = self._get_account_ids(conn)
+        if preferred_account_ids:
+            in_graph = [a for a in account_ids if a in preferred_account_ids]
+            out_graph = [a for a in account_ids if a not in preferred_account_ids]
+            account_ids = in_graph + out_graph
+            logger.debug(
+                "list_candidates (cold): %d in-graph, %d out-of-graph accounts",
+                len(in_graph), len(out_graph),
+            )
+
         rows: list = []
         for acct_id in account_ids:
             params = (axis, acct_id, split, reviewer) if split else (axis, acct_id, reviewer)
-            row = conn.execute(query, params).fetchone()
+            row = conn.execute(per_account_query, params).fetchone()
             if row is not None:
                 rows.append(row)
                 if len(rows) >= limit:
@@ -313,7 +340,7 @@ class BaseGoldenStore:
 
         reply_query = f"""
             SELECT t.tweet_id, t.account_id, t.username, t.full_text, t.created_at,
-                   t.reply_to_tweet_id, s.split
+                   t.reply_to_tweet_id, t.reply_to_username, s.split
             FROM tweets t
             JOIN curation_split s ON s.tweet_id = t.tweet_id AND s.axis = ?
             WHERE t.reply_to_tweet_id IS NOT NULL
@@ -358,12 +385,66 @@ class BaseGoldenStore:
                     "text": str(row["full_text"]),
                     "createdAt": row["created_at"],
                     "replyToTweetId": row["reply_to_tweet_id"],
+                    "replyToUsername": row["reply_to_username"] if row["reply_to_username"] else None,
                     "split": str(row["split"]),
                     "labelStatus": status,
                     **self._load_context(conn, str(row["tweet_id"]), row["reply_to_tweet_id"]),
                 }
             )
         return result
+
+    def _list_unlabeled_by_score(
+        self,
+        conn: sqlite3.Connection,
+        axis: str,
+        *,
+        split: Optional[str],
+        reviewer: str,
+        limit: int,
+        preferred_account_ids: Optional[Set[str]],
+        split_filter: str,
+    ) -> List[Dict[str, Any]]:
+        """WARM PATH: order unlabeled candidates by uncertainty queue score DESC.
+
+        Fetches limit*5 rows (enough to fill `limit` after in-graph filtering),
+        partitions into preferred/rest preserving score order within each tier,
+        then combines: preferred first, then rest.
+        """
+        fetch_n = limit * 5
+        score_query = f"""
+            SELECT t.tweet_id, t.account_id, t.username, t.full_text, t.created_at,
+                   t.reply_to_tweet_id, t.reply_to_username, s.split
+            FROM uncertainty_queue q
+            JOIN tweets t ON t.tweet_id = q.tweet_id
+            JOIN curation_split s ON s.tweet_id = q.tweet_id AND s.axis = q.axis
+            WHERE q.axis = ?
+              AND q.status = 'pending'
+              {split_filter}
+              AND NOT EXISTS (
+                  SELECT 1 FROM tweet_label_set ls
+                  WHERE ls.tweet_id = q.tweet_id
+                    AND ls.axis = q.axis
+                    AND ls.reviewer = ?
+                    AND ls.is_active = 1
+              )
+            ORDER BY q.queue_score DESC
+            LIMIT ?
+        """
+        params = (axis, split, reviewer, fetch_n) if split else (axis, reviewer, fetch_n)
+        all_rows = conn.execute(score_query, params).fetchall()
+
+        if preferred_account_ids:
+            preferred = [r for r in all_rows if str(r["account_id"]) in preferred_account_ids]
+            rest = [r for r in all_rows if str(r["account_id"]) not in preferred_account_ids]
+            ordered = preferred + rest
+            logger.debug(
+                "list_candidates (warm): %d preferred, %d rest, queue scores active",
+                len(preferred), len(rest),
+            )
+        else:
+            ordered = all_rows
+
+        return self._rows_to_candidates(conn, ordered[:limit], label_status="unlabeled")
 
     def _has_active_label(self, conn: sqlite3.Connection, *, tweet_id: str, axis: str, reviewer: str) -> bool:
         row = conn.execute(
