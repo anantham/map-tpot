@@ -19,7 +19,15 @@ class FeedFirehoseWriter:
 
     def _resolve_path(self, override_path: Optional[str]) -> Path:
         if override_path and str(override_path).strip():
-            return Path(str(override_path)).expanduser().resolve()
+            resolved = Path(str(override_path)).expanduser().resolve()
+            # Containment check: firehose path must be under the default path's parent.
+            allowed_base = self.default_path.parent.resolve()
+            if not str(resolved).startswith(str(allowed_base) + "/") and resolved != allowed_base:
+                raise ValueError(
+                    f"firehose path must be within {allowed_base}; "
+                    f"got {resolved}"
+                )
+            return resolved
         return self.default_path
 
     def append_events(

@@ -223,7 +223,7 @@ def test_interpret_rejects_non_allowlisted_model(golden_app: Flask, monkeypatch:
 
     resp = client.post(
         "/api/golden/interpret",
-        json={"text": "hello world", "model": "openai/gpt-4o"},
+        json={"text": "hello world", "model": "evilcorp/not-a-real-model"},
         environ_overrides={"REMOTE_ADDR": "127.0.0.1"},
     )
     assert resp.status_code == 400

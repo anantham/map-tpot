@@ -47,9 +47,13 @@ def update_extension_settings():
     """Update extension ingestion policy toggles and allowlist controls."""
     try:
         workspace_id, ego = require_scope(request)
+        policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
+        require_ingest_auth(policy, request)
         payload = parse_json_body(request)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 401
 
     update_args: dict[str, Any] = {}
     try:
@@ -204,6 +208,8 @@ def purge_feed_events_by_tag():
     """Delete feed events for accounts matched by a positive account tag."""
     try:
         workspace_id, ego = require_scope(request)
+        policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
+        require_ingest_auth(policy, request)
         payload = parse_json_body(request)
         tag = str(payload.get("tag") or "").strip()
         if not tag:
@@ -212,6 +218,8 @@ def purge_feed_events_by_tag():
         account_ids = get_tag_store().list_account_ids_for_tag(ego=ego, tag=tag)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 401
     except Exception as exc:
         logger.exception("tag-scope lookup failed workspace=%s ego=%s: %s", workspace_id, ego, exc)
         return jsonify({"error": "tag-scope lookup failed", "details": str(exc)}), 500
