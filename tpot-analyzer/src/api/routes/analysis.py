@@ -206,7 +206,7 @@ def run_analysis():
     manager: AnalysisManager = current_app.config["ANALYSIS_MANAGER"]
     
     if manager.is_running():
-        return jsonify({"status": "error", "message": "Analysis already running"}), 409
+        return jsonify({"error": "Analysis already running"}), 409
 
     # Start background task
     started = manager.start_analysis(_run_full_analysis_task)
@@ -214,7 +214,7 @@ def run_analysis():
     if started:
         return jsonify({"status": "started"})
     else:
-        return jsonify({"status": "error", "message": "Could not start analysis"}), 500
+        return jsonify({"error": "Could not start analysis"}), 500
 
 
 def _run_full_analysis_task(manager: AnalysisManager):

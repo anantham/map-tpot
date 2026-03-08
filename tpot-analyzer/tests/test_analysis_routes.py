@@ -495,7 +495,7 @@ class TestAnalysisJobLifecycle:
             resp = client.post("/api/analysis/run")
             assert resp.status_code == 409
             payload = resp.get_json()
-            assert "already running" in payload["message"]
+            assert "already running" in payload["error"]
         finally:
             event.set()  # Unblock the background thread
 

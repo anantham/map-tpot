@@ -87,16 +87,14 @@ def discover():
     if req_data is None:
         req_data = {}
     elif not isinstance(req_data, dict):
-        return jsonify({"error": {"code": "VALIDATION_ERROR", "message": "Request body must be a JSON object"}}), 400
+        return jsonify({"error": "Request body must be a JSON object", "code": "VALIDATION_ERROR"}), 400
 
     parsed_request, errors = validate_request(req_data)
     if errors:
         return jsonify({
-            "error": {
-                "code": "VALIDATION_ERROR",
-                "message": "Invalid request parameters",
-                "details": errors,
-            }
+            "error": "Invalid request parameters",
+            "code": "VALIDATION_ERROR",
+            "details": errors,
         }), 400
 
     cache_manager: CacheManager = current_app.config["CACHE_MANAGER"]
@@ -122,13 +120,11 @@ def discover():
         if not resolved_seeds:
             return jsonify(
                 {
-                    "error": {
-                        "code": "NO_VALID_SEEDS",
-                        "message": "None of the provided seeds exist in graph",
-                        "unknown_handles": unresolved_seeds,
-                    }
+                    "error": "None of the provided seeds exist in graph",
+                    "code": "NO_VALID_SEEDS",
+                    "unknown_handles": unresolved_seeds,
                 }
-            ), 200
+            ), 422
 
         pagerank_scores = compute_personalized_pagerank(
             directed_graph,
@@ -145,7 +141,7 @@ def discover():
         return jsonify(result)
     except Exception as exc:
         logger.exception("Discovery failed: %s", exc)
-        return jsonify({"error": {"code": "INTERNAL_ERROR", "message": str(exc)}}), 500
+        return jsonify({"error": str(exc), "code": "INTERNAL_ERROR"}), 500
 
 
 @discovery_bp.route("/ego-network", methods=["GET"])

@@ -93,8 +93,8 @@ class TestDiscoverValidation:
         resp = client.post("/api/subgraph/discover", json={})
         assert resp.status_code == 400
         body = resp.get_json()
-        assert body["error"]["code"] == "VALIDATION_ERROR"
-        assert "seeds" in body["error"]["details"][0]
+        assert body["code"] == "VALIDATION_ERROR"
+        assert "seeds" in body["details"][0]
 
     @pytest.mark.unit
     def test_empty_seeds_list_returns_400(self, discovery_app: Flask) -> None:
@@ -102,8 +102,8 @@ class TestDiscoverValidation:
         resp = client.post("/api/subgraph/discover", json={"seeds": []})
         assert resp.status_code == 400
         body = resp.get_json()
-        assert body["error"]["code"] == "VALIDATION_ERROR"
-        assert any("seeds" in d for d in body["error"]["details"])
+        assert body["code"] == "VALIDATION_ERROR"
+        assert any("seeds" in d for d in body["details"])
 
     @pytest.mark.unit
     def test_seeds_not_a_list_returns_400(self, discovery_app: Flask) -> None:
@@ -111,7 +111,7 @@ class TestDiscoverValidation:
         resp = client.post("/api/subgraph/discover", json={"seeds": "alice"})
         assert resp.status_code == 400
         body = resp.get_json()
-        assert body["error"]["code"] == "VALIDATION_ERROR"
+        assert body["code"] == "VALIDATION_ERROR"
 
     @pytest.mark.unit
     def test_too_many_seeds_returns_400(self, discovery_app: Flask) -> None:
@@ -120,7 +120,7 @@ class TestDiscoverValidation:
         resp = client.post("/api/subgraph/discover", json={"seeds": seeds})
         assert resp.status_code == 400
         body = resp.get_json()
-        assert "maximum" in body["error"]["details"][0].lower() or "seeds" in body["error"]["details"][0].lower()
+        assert "maximum" in body["details"][0].lower() or "seeds" in body["details"][0].lower()
 
     @pytest.mark.unit
     def test_non_string_seed_returns_400(self, discovery_app: Flask) -> None:
@@ -128,7 +128,7 @@ class TestDiscoverValidation:
         resp = client.post("/api/subgraph/discover", json={"seeds": [123]})
         assert resp.status_code == 400
         body = resp.get_json()
-        assert body["error"]["code"] == "VALIDATION_ERROR"
+        assert body["code"] == "VALIDATION_ERROR"
 
     @pytest.mark.unit
     def test_seed_too_long_returns_400(self, discovery_app: Flask) -> None:
@@ -136,8 +136,8 @@ class TestDiscoverValidation:
         resp = client.post("/api/subgraph/discover", json={"seeds": ["x" * 51]})
         assert resp.status_code == 400
         body = resp.get_json()
-        assert body["error"]["code"] == "VALIDATION_ERROR"
-        assert any("long" in d.lower() for d in body["error"]["details"])
+        assert body["code"] == "VALIDATION_ERROR"
+        assert any("long" in d.lower() for d in body["details"])
 
     @pytest.mark.unit
     def test_non_json_body_returns_400(self, discovery_app: Flask) -> None:
@@ -157,8 +157,8 @@ class TestDiscoverValidation:
         resp = client.post("/api/subgraph/discover", json=["alice"])
         assert resp.status_code == 400
         body = resp.get_json()
-        assert body["error"]["code"] == "VALIDATION_ERROR"
-        assert "JSON object" in body["error"]["message"]
+        assert body["code"] == "VALIDATION_ERROR"
+        assert "JSON object" in body["error"]
 
     @pytest.mark.unit
     def test_invalid_filter_max_distance_returns_400(self, discovery_app: Flask) -> None:
@@ -169,7 +169,7 @@ class TestDiscoverValidation:
         )
         assert resp.status_code == 400
         body = resp.get_json()
-        assert any("max_distance" in d for d in body["error"]["details"])
+        assert any("max_distance" in d for d in body["details"])
 
     @pytest.mark.unit
     def test_negative_min_overlap_returns_400(self, discovery_app: Flask) -> None:
@@ -207,7 +207,7 @@ class TestDiscoverSeedResolution:
         assert resp.status_code == 200
         body = resp.get_json()
         # Should NOT trigger NO_VALID_SEEDS since ALICE resolves.
-        assert "error" not in body or body.get("error", {}).get("code") != "NO_VALID_SEEDS"
+        assert body.get("code") != "NO_VALID_SEEDS"
 
     @pytest.mark.unit
     def test_at_prefix_stripped(self, discovery_app: Flask) -> None:
@@ -218,17 +218,17 @@ class TestDiscoverSeedResolution:
                 resp = client.post("/api/subgraph/discover", json={"seeds": ["@alice"]})
         assert resp.status_code == 200
         body = resp.get_json()
-        assert "error" not in body or body.get("error", {}).get("code") != "NO_VALID_SEEDS"
+        assert body.get("code") != "NO_VALID_SEEDS"
 
     @pytest.mark.unit
     def test_unknown_handles_return_no_valid_seeds(self, discovery_app: Flask) -> None:
-        """All seeds missing from graph → NO_VALID_SEEDS (HTTP 200 with error body)."""
+        """All seeds missing from graph → NO_VALID_SEEDS (HTTP 422)."""
         client = discovery_app.test_client()
         resp = client.post("/api/subgraph/discover", json={"seeds": ["nobody", "ghost"]})
-        assert resp.status_code == 200
+        assert resp.status_code == 422
         body = resp.get_json()
-        assert body["error"]["code"] == "NO_VALID_SEEDS"
-        assert set(body["error"]["unknown_handles"]) == {"nobody", "ghost"}
+        assert body["code"] == "NO_VALID_SEEDS"
+        assert set(body["unknown_handles"]) == {"nobody", "ghost"}
 
     @pytest.mark.unit
     def test_partial_resolution_warns_about_unresolved(self, discovery_app: Flask) -> None:
@@ -257,7 +257,7 @@ class TestDiscoverSeedResolution:
                 resp = client.post("/api/subgraph/discover", json={"seeds": ["acct_001"]})
         assert resp.status_code == 200
         body = resp.get_json()
-        assert "error" not in body or body.get("error", {}).get("code") != "NO_VALID_SEEDS"
+        assert body.get("code") != "NO_VALID_SEEDS"
 
 
 # ===========================================================================
@@ -278,8 +278,8 @@ class TestDiscoverErrorPaths:
             resp = client.post("/api/subgraph/discover", json={"seeds": ["alice"]})
         assert resp.status_code == 500
         body = resp.get_json()
-        assert body["error"]["code"] == "INTERNAL_ERROR"
-        assert "kaboom" in body["error"]["message"]
+        assert body["code"] == "INTERNAL_ERROR"
+        assert "kaboom" in body["error"]
 
     @pytest.mark.unit
     def test_graph_not_loaded_falls_through_to_error(
@@ -308,7 +308,7 @@ class TestDiscoverErrorPaths:
                 )
         assert resp.status_code == 500
         body = resp.get_json()
-        assert body["error"]["code"] == "INTERNAL_ERROR"
+        assert body["code"] == "INTERNAL_ERROR"
 
     @pytest.mark.unit
     def test_cached_result_returned_without_graph_access(self, discovery_app: Flask) -> None:
