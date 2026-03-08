@@ -5,6 +5,7 @@ import json
 import ipaddress
 import logging
 import os
+import sqlite3
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -23,7 +24,36 @@ _INTERPRET_ALLOWED_MODELS_ENV = "GOLDEN_INTERPRET_ALLOWED_MODELS"
 _INTERPRET_ALLOW_REMOTE_ENV = "GOLDEN_INTERPRET_ALLOW_REMOTE"
 _LOOPBACK_ADDRS = {"127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"}
 
+# Models available by default for loopback requests when no env override is set.
+# Set GOLDEN_INTERPRET_ALLOWED_MODELS=model1,model2 to restrict or expand.
+_INTERPRET_DEFAULT_MODELS = {
+    "moonshotai/kimi-k2",
+    "anthropic/claude-sonnet-4-5",
+    "anthropic/claude-opus-4",
+    "openai/gpt-4o",
+    "openai/gpt-4o-mini",
+    "google/gemini-pro-1.5",
+}
+
 logger = logging.getLogger(__name__)
+
+
+def _get_graph_account_ids() -> set:
+    """Return the set of account IDs present in the loaded graph, or empty set.
+
+    Uses the already-loaded SNAPSHOT_GRAPH from Flask app config — zero cost
+    if the graph isn't loaded yet (discovery tab not visited). Falls back
+    gracefully to empty set so candidate ordering degrades to the default.
+    """
+    try:
+        from flask import current_app
+        graph_result = current_app.config.get("SNAPSHOT_GRAPH")
+        if graph_result is None:
+            return set()
+        directed = getattr(graph_result, "directed", graph_result)
+        return {str(n) for n in directed.nodes()}
+    except Exception:
+        return set()
 
 golden_bp = Blueprint("golden", __name__, url_prefix="/api/golden")
 _golden_store: Optional[GoldenStore] = None
@@ -62,7 +92,7 @@ def _parse_limit(raw: Optional[str], *, default: int = 20, minimum: int = 1, max
 def _allowed_interpret_models() -> set[str]:
     raw = (os.environ.get(_INTERPRET_ALLOWED_MODELS_ENV) or "").strip()
     if not raw:
-        return {_INTERPRET_MODEL}
+        return set(_INTERPRET_DEFAULT_MODELS)
     return {m.strip() for m in raw.split(",") if m.strip()}
 
 
@@ -104,12 +134,14 @@ def get_candidates():
         # ensure_fixed_splits is fast when splits already exist (LIMIT 1 check).
         # Full bootstrap runs only on first call or after archive fetch adds new tweets.
         split_counts = store.ensure_fixed_splits(axis, assigned_by="system")
+        preferred = _get_graph_account_ids()
         candidates = store.list_candidates(
             axis,
             split=split,
             status=status,
             reviewer=reviewer,
             limit=limit,
+            preferred_account_ids=preferred or None,
         )
         return jsonify(
             {
@@ -341,6 +373,220 @@ def _build_interpret_prompt(tweet_text: str, thread_context: list, taxonomy: dic
 Rules: distribution values sum to 1.0. lucidity is 0.0-1.0. confidence is 0.0-1.0.""")
 
     return "\n".join(lines)
+
+
+@golden_bp.route("/accounts/<username>/profile", methods=["GET"])
+def get_account_profile(username):
+    """Return archive profile + recent tweets for a username."""
+    try:
+        snapshot_dir = get_snapshot_dir()
+        db_path = Path(snapshot_dir) / "archive_tweets.db"
+        if not db_path.exists():
+            return jsonify({"username": username, "profile": None, "recentTweets": []})
+
+        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+            conn.row_factory = sqlite3.Row
+
+            row = conn.execute(
+                "SELECT account_id, username, display_name, bio, location, website, created_at FROM profiles WHERE username = ? LIMIT 1",
+                (username,),
+            ).fetchone()
+
+            if not row:
+                return jsonify({"username": username, "profile": None, "recentTweets": []})
+
+            account_id = row["account_id"]
+
+            # Community membership
+            community_row = conn.execute(
+                """SELECT c.name, c.color, ca.weight
+                   FROM community_account ca
+                   JOIN community c ON c.id = ca.community_id
+                   WHERE ca.account_id = ?
+                   ORDER BY ca.weight DESC LIMIT 1""",
+                (account_id,),
+            ).fetchone()
+
+            # Followers/following counts within the archive
+            archive_followers = conn.execute(
+                "SELECT COUNT(*) FROM account_following WHERE following_account_id = ?",
+                (account_id,),
+            ).fetchone()[0]
+            archive_following = conn.execute(
+                "SELECT COUNT(*) FROM account_following WHERE account_id = ?",
+                (account_id,),
+            ).fetchone()[0]
+
+            # Total tweet/like counts from fetch log
+            fetch_row = conn.execute(
+                "SELECT tweet_count, like_count FROM fetch_log WHERE account_id = ? ORDER BY fetched_at DESC LIMIT 1",
+                (account_id,),
+            ).fetchone()
+
+            # Resolved/suspended status
+            resolved_row = conn.execute(
+                "SELECT status FROM resolved_accounts WHERE account_id = ? LIMIT 1",
+                (account_id,),
+            ).fetchone()
+
+            # Account note
+            note_row = conn.execute(
+                "SELECT note FROM account_note WHERE account_id = ? LIMIT 1",
+                (account_id,),
+            ).fetchone()
+
+            profile = {
+                "accountId": account_id,
+                "username": row["username"],
+                "displayName": row["display_name"],
+                "bio": row["bio"],
+                "location": row["location"],
+                "website": row["website"],
+                "createdAt": row["created_at"],
+                "community": {
+                    "name": community_row["name"],
+                    "color": community_row["color"],
+                    "weight": community_row["weight"],
+                } if community_row else None,
+                "archiveFollowers": archive_followers,
+                "archiveFollowing": archive_following,
+                "totalTweets": fetch_row["tweet_count"] if fetch_row else None,
+                "totalLikesGiven": fetch_row["like_count"] if fetch_row else None,
+                "resolvedStatus": resolved_row["status"] if resolved_row else None,
+                "accountNote": note_row["note"] if note_row else None,
+            }
+
+            tweet_rows = conn.execute(
+                """SELECT tweet_id, full_text, created_at, favorite_count, retweet_count
+                   FROM tweets
+                   WHERE account_id = ? AND reply_to_tweet_id IS NULL
+                   ORDER BY created_at DESC LIMIT 5""",
+                (account_id,),
+            ).fetchall()
+
+        recent_tweets = [
+            {
+                "tweetId": r["tweet_id"],
+                "text": r["full_text"],
+                "createdAt": r["created_at"],
+                "likeCount": r["favorite_count"] or 0,
+                "retweetCount": r["retweet_count"] or 0,
+            }
+            for r in tweet_rows
+        ]
+        return jsonify({"username": username, "profile": profile, "recentTweets": recent_tweets})
+    except Exception as exc:
+        logger.exception("get_account_profile failed: %s", exc)
+        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+
+
+@golden_bp.route("/tweets/<tweet_id>/replies", methods=["GET"])
+def get_tweet_replies(tweet_id):
+    """Return archived replies to a tweet from accounts in the community archive."""
+    try:
+        limit = _parse_limit(request.args.get("limit"), default=50, maximum=200)
+        snapshot_dir = get_snapshot_dir()
+        db_path = Path(snapshot_dir) / "archive_tweets.db"
+        if not db_path.exists():
+            return jsonify({"tweetId": tweet_id, "replies": [], "count": 0})
+
+        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """SELECT tweet_id, username, full_text, created_at,
+                          favorite_count, retweet_count
+                   FROM tweets
+                   WHERE reply_to_tweet_id = ?
+                   ORDER BY created_at ASC
+                   LIMIT ?""",
+                (tweet_id, limit),
+            ).fetchall()
+
+        replies = [
+            {
+                "tweetId": r["tweet_id"],
+                "username": r["username"],
+                "text": r["full_text"],
+                "createdAt": r["created_at"],
+                "likeCount": r["favorite_count"] or 0,
+                "retweetCount": r["retweet_count"] or 0,
+            }
+            for r in rows
+        ]
+        return jsonify({"tweetId": tweet_id, "replies": replies, "count": len(replies)})
+    except Exception as exc:
+        logger.exception("get_tweet_replies failed: %s", exc)
+        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+
+
+@golden_bp.route("/tweets/<tweet_id>/engagement", methods=["GET"])
+def get_tweet_engagement(tweet_id):
+    """Return archive-account likes and retweets for a tweet, with community info."""
+    try:
+        snapshot_dir = get_snapshot_dir()
+        db_path = Path(snapshot_dir) / "archive_tweets.db"
+        if not db_path.exists():
+            return jsonify({"tweetId": tweet_id, "likers": [], "retweeters": []})
+
+        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+            conn.row_factory = sqlite3.Row
+
+            # Use MAX(ca.weight) subquery to pick each account's primary community.
+            liker_rows = conn.execute(
+                """SELECT l.liker_username, l.liker_account_id,
+                          c.name AS community_name, c.color AS community_color
+                   FROM likes l
+                   LEFT JOIN community_account ca ON ca.account_id = l.liker_account_id
+                       AND ca.weight = (
+                           SELECT MAX(ca2.weight) FROM community_account ca2
+                           WHERE ca2.account_id = l.liker_account_id
+                       )
+                   LEFT JOIN community c ON c.id = ca.community_id
+                   WHERE l.tweet_id = ?
+                   GROUP BY l.liker_account_id
+                   ORDER BY l.liker_username""",
+                (tweet_id,),
+            ).fetchall()
+
+            rt_rows = conn.execute(
+                """SELECT r.username, r.account_id,
+                          c.name AS community_name, c.color AS community_color
+                   FROM retweets r
+                   LEFT JOIN community_account ca ON ca.account_id = r.account_id
+                       AND ca.weight = (
+                           SELECT MAX(ca2.weight) FROM community_account ca2
+                           WHERE ca2.account_id = r.account_id
+                       )
+                   LEFT JOIN community c ON c.id = ca.community_id
+                   WHERE r.tweet_id = ?
+                   GROUP BY r.account_id
+                   ORDER BY r.username""",
+                (tweet_id,),
+            ).fetchall()
+
+        def _person(r, uname_col, acct_col):
+            return {
+                "username": r[uname_col],
+                "accountId": r[acct_col],
+                "community": {"name": r["community_name"], "color": r["community_color"]}
+                if r["community_name"] else None,
+            }
+
+        return jsonify({
+            "tweetId": tweet_id,
+            "likers": [_person(r, "liker_username", "liker_account_id") for r in liker_rows],
+            "retweeters": [_person(r, "username", "account_id") for r in rt_rows],
+        })
+    except Exception as exc:
+        logger.exception("get_tweet_engagement failed: %s", exc)
+        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+
+
+@golden_bp.route("/interpret/models", methods=["GET"])
+def list_interpret_models():
+    """Return the list of models available for tweet interpretation."""
+    models = sorted(_allowed_interpret_models())
+    return jsonify({"models": models, "default": _INTERPRET_MODEL})
 
 
 @golden_bp.route("/interpret", methods=["POST"])
