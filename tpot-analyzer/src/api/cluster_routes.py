@@ -93,15 +93,6 @@ class ClusterCache:
     def inflight_clear(self, key: Tuple) -> None:
         self._inflight.pop(key, None)
 
-    def inflight_get(self, key: Tuple):
-        return self._inflight.get(key)
-
-    def inflight_set(self, key: Tuple, future):
-        self._inflight[key] = future
-
-    def inflight_clear(self, key: Tuple):
-        self._inflight.pop(key, None)
-
 
 # Global state
 _spectral_result = None

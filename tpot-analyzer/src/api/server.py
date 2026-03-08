@@ -62,7 +62,8 @@ def safe_jsonify(payload: Any, *, status: int = 200) -> Response:
 def create_app(config_overrides: Optional[dict] = None) -> Flask:
     """Initialize and configure the Flask application."""
     app = Flask(__name__)
-    CORS(app)  # Enable CORS for all routes by default
+    _cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+    CORS(app, origins=[o.strip() for o in _cors_origins if o.strip()])
 
     # Request-scoped correlation id + timing.
     @app.before_request
@@ -179,4 +180,4 @@ if __name__ == "__main__":
     # Dev server entry point
     app = create_app()
     port = int(os.getenv("PORT", 8000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=os.getenv("FLASK_DEBUG", "false").lower() == "true")

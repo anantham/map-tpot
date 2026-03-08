@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 from dataclasses import dataclass
 from datetime import datetime
@@ -301,8 +302,10 @@ class SnapshotLoader:
 
                 # Filter out None and NaN (pandas uses float NaN for missing numerics,
                 # which is not None and serialises to invalid JSON "NaN").
-                # v == v is False only for NaN (IEEE 754 property).
-                node_attrs = {k: v for k, v in node_attrs.items() if v is not None and v == v}
+                node_attrs = {
+                    k: v for k, v in node_attrs.items()
+                    if v is not None and not (isinstance(v, float) and math.isnan(v))
+                }
                 directed.add_node(node_id, **node_attrs)
 
             # Add edges with attributes
