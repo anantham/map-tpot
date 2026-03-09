@@ -132,8 +132,8 @@ def search_accounts():
     results = []
     for _, account_id in hits[:limit]:
         payload = node_lookup.get(account_id, {}) if isinstance(node_lookup, dict) else {}
-        username = payload.get("username") or payload.get("username_lc") or account_id
-        display_name = payload.get("display_name") or payload.get("displayName") or payload.get("display_name_lc") or ""
+        username = payload.get("username") or account_id
+        display_name = payload.get("display_name") or payload.get("displayName") or ""
         followers = payload.get("num_followers")
         bio = payload.get("bio")
         is_shadow = payload.get("shadow")
@@ -150,11 +150,8 @@ def search_accounts():
                 "id": account_id,
                 "username": username,
                 "displayName": display_name,
-                "display_name": display_name,  # backward-compatible alias
                 "numFollowers": followers_val,
-                "num_followers": followers_val,  # backward-compatible alias
                 "isShadow": bool(is_shadow),
-                "is_shadow": bool(is_shadow),  # backward-compatible alias
                 "bio": bio,
             }
         )
