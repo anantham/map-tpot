@@ -104,9 +104,9 @@ class TestAutocompleteEndpoint:
 
             # Verify first result (highest followers)
             assert data[0]["username"] == "eigenrobot"
-            assert data[0]["display_name"] == "eigenrobot"
-            assert data[0]["num_followers"] == 104602.0
-            assert data[0]["is_shadow"] is False
+            assert data[0]["displayName"] == "eigenrobot"
+            assert data[0]["numFollowers"] == 104602.0
+            assert data[0]["isShadow"] is False
 
     def test_autocomplete_handles_nan_followers(self, test_app):
         """Test that NaN values in followers are converted to null."""
@@ -117,7 +117,7 @@ class TestAutocompleteEndpoint:
             data = json.loads(response.data)
             assert len(data) == 1
             assert data[0]["username"] == "eigenstate"
-            assert data[0]["num_followers"] is None  # NaN should be null
+            assert data[0]["numFollowers"] is None  # NaN should be null
 
     def test_autocomplete_handles_infinity_followers(self, test_app):
         """Test that infinity values in followers are converted to null."""
@@ -128,7 +128,7 @@ class TestAutocompleteEndpoint:
             data = json.loads(response.data)
             assert len(data) == 1
             assert data[0]["username"] == "another"
-            assert data[0]["num_followers"] is None  # Infinity should be null
+            assert data[0]["numFollowers"] is None  # Infinity should be null
 
     def test_autocomplete_empty_query(self, test_app):
         """Test that empty query returns empty list."""
@@ -191,14 +191,14 @@ class TestAutocompleteEndpoint:
 
             # eigenrobot (104602) > EigenGender (7658) > rest have NaN/null
             assert data[0]["username"] == "eigenrobot"
-            assert data[0]["num_followers"] == 104602.0
+            assert data[0]["numFollowers"] == 104602.0
 
             assert data[1]["username"] == "EigenGender"
-            assert data[1]["num_followers"] == 7658.0
+            assert data[1]["numFollowers"] == 7658.0
 
             # The remaining users have NaN/null followers
             for i in range(2, len(data)):
-                assert data[i]["num_followers"] is None
+                assert data[i]["numFollowers"] is None
 
     def test_autocomplete_includes_shadow_accounts(self, test_app):
         """Test that shadow accounts are included in results."""
@@ -207,13 +207,13 @@ class TestAutocompleteEndpoint:
             data = json.loads(response.data)
 
             # Find shadow accounts
-            shadow_accounts = [d for d in data if d["is_shadow"]]
+            shadow_accounts = [d for d in data if d["isShadow"]]
             # We have 4 shadow accounts: EigenGender, eigenstate, eigenron, eigenlucy
             assert len(shadow_accounts) == 4
 
             # Verify shadow flag
             eigen_gender = next(d for d in data if d["username"] == "EigenGender")
-            assert eigen_gender["is_shadow"] is True
+            assert eigen_gender["isShadow"] is True
 
     def test_autocomplete_response_structure(self, test_app):
         """Test the structure of autocomplete response."""
@@ -226,16 +226,16 @@ class TestAutocompleteEndpoint:
 
             # Verify all expected fields are present
             assert "username" in result
-            assert "display_name" in result
-            assert "num_followers" in result
-            assert "is_shadow" in result
+            assert "displayName" in result
+            assert "numFollowers" in result
+            assert "isShadow" in result
             assert "bio" in result
 
             # Verify values
             assert result["username"] == "testuser"
-            assert result["display_name"] == "Test User"
-            assert result["num_followers"] == 100.0
-            assert result["is_shadow"] is False
+            assert result["displayName"] == "Test User"
+            assert result["numFollowers"] == 100.0
+            assert result["isShadow"] is False
             assert result["bio"] == "Test bio"
 
     def test_autocomplete_prefix_matching(self, test_app):

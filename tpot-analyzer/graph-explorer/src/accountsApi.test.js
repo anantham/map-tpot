@@ -128,10 +128,10 @@ describe('searchAccounts', () => {
     expect(fetchedUrl()).toBe('http://test-api/api/accounts/search?q=bob&limit=5')
   })
 
-  it('maps snake_case fields to camelCase', async () => {
+  it('maps camelCase fields from API response', async () => {
     mockFetch.mockResolvedValue(
       mockResponse([
-        { handle: 'alice', display_name: 'Alice W', num_followers: 42, is_shadow: true },
+        { handle: 'alice', displayName: 'Alice W', numFollowers: 42, isShadow: true },
       ]),
     )
     const result = await searchAccounts({ q: 'alice' })
@@ -142,26 +142,6 @@ describe('searchAccounts', () => {
       numFollowers: 42,
       isShadow: true,
     })
-  })
-
-  it('preserves existing camelCase fields over snake_case', async () => {
-    mockFetch.mockResolvedValue(
-      mockResponse([
-        {
-          handle: 'bob',
-          displayName: 'Bob Camel',
-          display_name: 'Bob Snake',
-          numFollowers: 100,
-          num_followers: 200,
-          isShadow: true,
-          is_shadow: false,
-        },
-      ]),
-    )
-    const result = await searchAccounts({ q: 'bob' })
-    expect(result[0].displayName).toBe('Bob Camel')
-    expect(result[0].numFollowers).toBe(100)
-    expect(result[0].isShadow).toBe(true)
   })
 
   it('defaults displayName to empty string, numFollowers to null, isShadow to false', async () => {

@@ -27,9 +27,9 @@ export const searchAccounts = async ({ q, limit = 20 }) => {
   if (!Array.isArray(payload)) return payload
   return payload.map((item) => ({
     ...item,
-    displayName: item?.displayName ?? item?.display_name ?? '',
-    numFollowers: item?.numFollowers ?? item?.num_followers ?? null,
-    isShadow: item?.isShadow ?? item?.is_shadow ?? false,
+    displayName: item?.displayName ?? '',
+    numFollowers: item?.numFollowers ?? null,
+    isShadow: item?.isShadow ?? false,
   }))
 }
 
