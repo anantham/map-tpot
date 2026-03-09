@@ -1,4 +1,11 @@
-"""Service for managing application-level caches."""
+"""Service for managing application-level caches.
+
+Intentionally in-memory only — these are ephemeral caches of computed results
+(graph responses, discovery outputs) that regenerate cheaply from the snapshot
+data on disk.  Losing them on restart costs one re-computation per unique
+request, which is the expected and acceptable behaviour.  There is no user
+data here that would benefit from persistence.
+"""
 from __future__ import annotations
 
 import logging

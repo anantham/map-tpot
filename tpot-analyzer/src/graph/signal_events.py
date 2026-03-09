@@ -1,4 +1,8 @@
-"""Signal event system for observable pipeline and validation."""
+"""Signal event system for observable pipeline and validation.
+
+NOTE: SignalEventStore already uses SQLite for persistence (data/signal_events.db).
+No migration needed — it was designed with durability from the start.
+"""
 
 import json
 import sqlite3

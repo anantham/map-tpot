@@ -28,14 +28,14 @@ from src.api.services.signal_feedback_store import SignalFeedbackStore
 # =============================================================================
 
 @pytest.fixture
-def analysis_app() -> Flask:
+def analysis_app(tmp_path) -> Flask:
     """Create a minimal Flask app with the analysis blueprint and injected services."""
     app = Flask(__name__)
     app.testing = True
 
     app.config["ANALYSIS_MANAGER"] = AnalysisManager()
     app.config["CACHE_MANAGER"] = CacheManager()
-    app.config["SIGNAL_FEEDBACK_STORE"] = SignalFeedbackStore()
+    app.config["SIGNAL_FEEDBACK_STORE"] = SignalFeedbackStore(db_path=tmp_path / "test_feedback.db")
     app.config["STARTUP_TIME"] = 1000000000.0
 
     app.register_blueprint(analysis_bp)
