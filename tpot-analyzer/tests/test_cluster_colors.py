@@ -90,7 +90,7 @@ def test_strong_community_cluster(tmp_path):
 
     assert info.dominant_name == "Alpha"
     assert info.dominant_color == "#ff0000"
-    assert info.dominant_intensity > 0.5
+    assert info.chroma > 0.3  # ADR-013 chroma uses composite formula; >0.3 confirms clear signal
 
 
 # --- Peripheral cluster ---
@@ -109,7 +109,7 @@ def test_peripheral_cluster(tmp_path):
     info = compute_cluster_community(prop, ["0", "1", "2"])
 
     # Intensity should be low — these nodes are mostly "none"
-    assert info.dominant_intensity < 0.3
+    assert info.chroma < 0.3
 
 
 # --- Mixed cluster ---
@@ -130,7 +130,7 @@ def test_mixed_cluster_has_secondary(tmp_path):
     assert info.dominant_name == "Alpha"
     assert info.secondary_name == "Beta"
     assert info.secondary_color == "#00ff00"
-    assert info.secondary_intensity > 0.1
+    assert info.secondary_weight > 0.1
 
 
 # --- Unknown member IDs ---
@@ -149,7 +149,7 @@ def test_unknown_member_ids_skipped(tmp_path):
     info = compute_cluster_community(prop, ["0", "unknown_99", "1"])
 
     assert info.dominant_name == "Alpha"
-    assert info.dominant_intensity > 0.5
+    assert info.chroma > 0.3  # ADR-013 chroma composite; >0.3 confirms clear signal
 
 
 # --- Empty members ---
@@ -165,7 +165,7 @@ def test_empty_members_returns_gray(tmp_path):
 
     assert info.dominant_color is None
     assert info.dominant_name is None
-    assert info.dominant_intensity == 0.0
+    assert info.chroma == 0.0
     assert info.breakdown == []
 
 

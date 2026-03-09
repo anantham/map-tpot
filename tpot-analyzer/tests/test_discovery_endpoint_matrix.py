@@ -61,8 +61,8 @@ def test_discovery_rejects_non_object_json_body(client):
     )
     assert response.status_code == 400
     payload = response.get_json()
-    assert payload["error"]["code"] == "VALIDATION_ERROR"
-    assert payload["error"]["message"] == "Request body must be a JSON object"
+    assert payload["code"] == "VALIDATION_ERROR"
+    assert payload["error"] == "Request body must be a JSON object"
 
 
 def test_discovery_returns_unknown_handles_for_all_unknown_seeds(client):
@@ -72,10 +72,10 @@ def test_discovery_returns_unknown_handles_for_all_unknown_seeds(client):
         data=json.dumps(payload),
         content_type="application/json",
     )
-    assert response.status_code == 200
+    assert response.status_code == 422
     data = response.get_json()
-    assert data["error"]["code"] == "NO_VALID_SEEDS"
-    assert data["error"]["unknown_handles"] == ["not_present_handle"]
+    assert data["code"] == "NO_VALID_SEEDS"
+    assert data["unknown_handles"] == ["not_present_handle"]
 
 
 def test_discovery_warns_when_mixed_known_and_unknown_seeds(client):
@@ -104,8 +104,8 @@ def test_discovery_rejects_out_of_range_filter_values(client):
     )
     assert response.status_code == 400
     body = response.get_json()
-    assert body["error"]["code"] == "VALIDATION_ERROR"
-    assert any("filters.max_distance" in detail for detail in body["error"]["details"])
+    assert body["code"] == "VALIDATION_ERROR"
+    assert any("filters.max_distance" in detail for detail in body["details"])
 
 
 def test_discovery_cache_returns_stable_request_identity_for_same_payload(client):
