@@ -240,8 +240,8 @@ def test_subgraph_discover_endpoint_rejects_invalid_payload(client):
     )
     assert response.status_code == 400
     data = json.loads(response.data)
-    assert data["error"]["code"] == "VALIDATION_ERROR"
-    assert any("seeds:" in detail for detail in data["error"]["details"])
+    assert data["code"] == "VALIDATION_ERROR"
+    assert any("seeds:" in detail for detail in data["details"])
 
 
 def test_error_handling_invalid_payload(client):
