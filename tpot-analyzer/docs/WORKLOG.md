@@ -1,5 +1,37 @@
 # Worklog - TPOT Analyzer
 
+## Tech Debt Sweep (2026-03-12)
+
+- [2026-03-12] **Phase F: Pattern unification — camelCase bridge, SQLite migration, test alignment**
+    - **Changes**
+        - `src/api/routes/accounts.py`: Removed snake_case backward-compat aliases (`display_name`, `num_followers`, `is_shadow`) — API now returns only camelCase.
+        - `graph-explorer/src/accountsApi.js`: Removed 3-way snake_case→camelCase fallback mapping.
+        - `graph-explorer/src/accountsApi.test.js`: Updated fixture and removed `preserves camelCase over snake_case` test.
+        - `tests/test_api_autocomplete.py`: Updated all assertions to camelCase field names.
+        - `src/api/services/signal_feedback_store.py`: Migrated from in-memory list to SQLite-backed store with WAL mode. Constructor accepts `db_path` for test isolation.
+        - `tests/test_signal_feedback_store.py`: All tests use `tmp_path` fixture. Added persistence round-trip and context JSON serialization tests.
+        - `tests/test_analysis_routes.py`: Fixture passes `tmp_path` to SignalFeedbackStore.
+        - `src/api/services/cache_manager.py`, `src/graph/signal_events.py`: Docstring clarifications (in-memory vs SQLite).
+        - `tests/test_api.py`, `tests/test_cluster_colors.py`, `tests/test_discovery_endpoint_matrix.py`: Aligned with flat error format, 422 status for NO_VALID_SEEDS, ADR-013 field renames.
+    - **Commits**: `34aa342`, `1559455`, `5cd38f7`
+    - **Test results**: 793 passed, 2 skipped, 0 failed (Python); 63 new frontend tests (Phase F.2)
+
+- [2026-03-12] **Phase F.2: Frontend test coverage for untested pure-logic modules**
+    - **Changes**
+        - `graph-explorer/src/clusterGeometry.test.js`: 28 tests covering clamp, toNumber, computeBaseCut, center, procrustesAlign, alignLayout.
+        - `graph-explorer/src/tweetText.test.jsx`: 19 tests covering decodeHtmlEntities, renderTweetText, avatarColor, formatTweetDate, formatShortDate.
+        - `graph-explorer/src/graphTransform.test.js`: 12 tests covering buildGraphView (null input, structural fallback, seed inclusion, shadow filtering, mutual-only, node properties, tpotness scoring, stats, case-insensitive seed resolution, bridge diagnostics).
+    - **Observations**
+        - `ClusterView.utils.js` is an exact duplicate of `clusterGeometry.js` (minus `alignLayout`). Consolidation opportunity.
+        - Procrustes alignment has inherent numerical imprecision for trivial/degenerate inputs (~0.2 RMS for identical point sets). Tests verify behavioral properties (rmsAfter < rmsBefore) rather than exact zeros.
+
+- [2026-03-12] **Phases B–E: Security hardening, test coverage, response contract, documentation**
+    - **Commits**: `adb3509` (security), `2a48f26` (65 route tests), `6cbb792` (error contract), `e8f60fb` (docs)
+    - **Security fixes**: Debug mode gated by env var, CORS restricted to allowlist, path traversal prevention in firehose, auth on extension write endpoints.
+    - **API contract**: Flattened error responses from nested `{error: {code, message}}` to `{error: string, code: string}`. NO_VALID_SEEDS now returns 422.
+    - **New test files**: `tests/test_discovery_routes.py` (22), `tests/test_graph_routes.py` (17), `tests/test_analysis_routes.py` (26).
+    - **Docs**: `docs/reference/TUNING_PARAMETERS.md`, `docs/index.md` updated.
+
 ## Phase 4.0: Tweet Classification + Content-Aware Clustering
 
 - [2026-03-06 04:56 UTC] **ADR-013 accuracy pass: align accepted contract with actual repo state (Codex GPT-5)**
