@@ -381,6 +381,108 @@ class TestExtractPropagatedHandles:
 
 
 # ---------------------------------------------------------------------------
+# Tests: get_sample_tweets
+# ---------------------------------------------------------------------------
+
+class TestSampleTweets:
+    """Tests for get_sample_tweets — top-N tweets by engagement."""
+
+    def _create_db_with_tweets(self, db_path):
+        """Create a test DB with a tweets table seeded with sample data."""
+        conn = sqlite3.connect(str(db_path))
+        conn.executescript("""
+            CREATE TABLE tweets (
+                tweet_id TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                username TEXT NOT NULL,
+                full_text TEXT NOT NULL,
+                favorite_count INTEGER DEFAULT 0,
+                retweet_count INTEGER DEFAULT 0
+            );
+            INSERT INTO tweets VALUES ('t1', 'acct1', 'alice', 'Top tweet by alice', 100, 20);
+            INSERT INTO tweets VALUES ('t2', 'acct1', 'alice', 'Second best', 50, 10);
+            INSERT INTO tweets VALUES ('t3', 'acct1', 'alice', 'Third tweet', 30, 5);
+            INSERT INTO tweets VALUES ('t4', 'acct1', 'alice', 'Fourth tweet low engagement', 1, 0);
+            INSERT INTO tweets VALUES ('t5', 'acct2', 'bob', 'Bob only tweet', 10, 2);
+        """)
+        conn.commit()
+        conn.close()
+
+    def test_returns_top_3_tweets_by_engagement(self, tmp_path):
+        db_path = tmp_path / "archive_tweets.db"
+        self._create_db_with_tweets(db_path)
+
+        from scripts.export_public_site import get_sample_tweets
+
+        tweets = get_sample_tweets(db_path, "acct1", limit=3)
+
+        assert len(tweets) == 3
+        assert tweets[0] == "Top tweet by alice"    # 100+20 = 120
+        assert tweets[1] == "Second best"           # 50+10 = 60
+        assert tweets[2] == "Third tweet"           # 30+5 = 35
+
+    def test_returns_empty_for_unknown_account(self, tmp_path):
+        db_path = tmp_path / "archive_tweets.db"
+        self._create_db_with_tweets(db_path)
+
+        from scripts.export_public_site import get_sample_tweets
+
+        tweets = get_sample_tweets(db_path, "nonexistent")
+        assert tweets == []
+
+    def test_truncates_to_280_chars(self, tmp_path):
+        db_path = tmp_path / "archive_tweets.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.executescript("""
+            CREATE TABLE tweets (
+                tweet_id TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                username TEXT NOT NULL,
+                full_text TEXT NOT NULL,
+                favorite_count INTEGER DEFAULT 0,
+                retweet_count INTEGER DEFAULT 0
+            );
+        """)
+        long_text = "A" * 500
+        conn.execute(
+            "INSERT INTO tweets VALUES (?, ?, ?, ?, ?, ?)",
+            ("t-long", "acct-long", "verbose", long_text, 999, 999),
+        )
+        conn.commit()
+        conn.close()
+
+        from scripts.export_public_site import get_sample_tweets
+
+        tweets = get_sample_tweets(db_path, "acct-long")
+        assert len(tweets) == 1
+        assert len(tweets[0]) == 280
+        assert tweets[0] == "A" * 280
+
+    def test_respects_limit_parameter(self, tmp_path):
+        db_path = tmp_path / "archive_tweets.db"
+        self._create_db_with_tweets(db_path)
+
+        from scripts.export_public_site import get_sample_tweets
+
+        tweets = get_sample_tweets(db_path, "acct1", limit=1)
+        assert len(tweets) == 1
+        assert tweets[0] == "Top tweet by alice"
+
+    def test_returns_empty_when_no_tweets_table(self, tmp_path):
+        """Gracefully handles DB without a tweets table."""
+        db_path = tmp_path / "no_tweets.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("CREATE TABLE dummy (id TEXT PRIMARY KEY)")
+        conn.commit()
+        conn.close()
+
+        from scripts.export_public_site import get_sample_tweets
+
+        tweets = get_sample_tweets(db_path, "acct1")
+        assert tweets == []
+
+
+# ---------------------------------------------------------------------------
 # Tests: run_export
 # ---------------------------------------------------------------------------
 
