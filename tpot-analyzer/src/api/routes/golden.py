@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import json
-import ipaddress
 import logging
 import os
+import secrets
 import sqlite3
 from pathlib import Path
 from typing import Optional
@@ -22,9 +22,7 @@ _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _INTERPRET_MODEL = "moonshotai/kimi-k2"
 _INTERPRET_ALLOWED_MODELS_ENV = "GOLDEN_INTERPRET_ALLOWED_MODELS"
 _INTERPRET_ALLOW_REMOTE_ENV = "GOLDEN_INTERPRET_ALLOW_REMOTE"
-_LOOPBACK_ADDRS = {"127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"}
-
-# Models available by default for loopback requests when no env override is set.
+# Models available by default when no env override is set.
 # Set GOLDEN_INTERPRET_ALLOWED_MODELS=model1,model2 to restrict or expand.
 _INTERPRET_DEFAULT_MODELS = {
     "moonshotai/kimi-k2",
@@ -96,18 +94,6 @@ def _allowed_interpret_models() -> set[str]:
     return {m.strip() for m in raw.split(",") if m.strip()}
 
 
-def _is_loopback_request() -> bool:
-    remote_addr = (request.remote_addr or "").strip()
-    if not remote_addr:
-        return False
-    if remote_addr in _LOOPBACK_ADDRS:
-        return True
-    try:
-        return ipaddress.ip_address(remote_addr).is_loopback
-    except ValueError:
-        return False
-
-
 def _enforce_interpret_access(*, model: str) -> None:
     allowed_models = _allowed_interpret_models()
     if model not in allowed_models:
@@ -115,10 +101,18 @@ def _enforce_interpret_access(*, model: str) -> None:
             f"model '{model}' is not allowed. Allowed models: {sorted(allowed_models)}"
         )
     allow_remote = (os.environ.get(_INTERPRET_ALLOW_REMOTE_ENV) or "").strip().lower() in {"1", "true", "yes"}
-    if not allow_remote and not _is_loopback_request():
-        raise PermissionError(
-            "interpret endpoint is local-only. Set GOLDEN_INTERPRET_ALLOW_REMOTE=1 to enable remote access."
-        )
+    if not allow_remote:
+        # When remote access is disabled, require a valid TPOT_EXTENSION_TOKEN.
+        # The old loopback-IP check was broken behind reverse proxies (Fly.io, nginx).
+        expected_token = (os.getenv("TPOT_EXTENSION_TOKEN") or "").strip()
+        received_token = (request.headers.get("X-TPOT-Extension-Token") or "").strip()
+        if not expected_token:
+            raise PermissionError(
+                "interpret endpoint requires TPOT_EXTENSION_TOKEN to be configured, "
+                "or set GOLDEN_INTERPRET_ALLOW_REMOTE=1 to allow open access."
+            )
+        if not received_token or not secrets.compare_digest(received_token, expected_token):
+            raise PermissionError("missing or invalid extension token for interpret endpoint")
 
 
 @golden_bp.route("/candidates", methods=["GET"])
@@ -158,10 +152,10 @@ def get_candidates():
         return jsonify({"error": str(exc)}), 400
     except RuntimeError as exc:
         logger.error("Golden candidates runtime error: %s", exc)
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "golden candidates query failed"}), 400
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden candidates failed: %s", exc)
-        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+        return jsonify({"error": "internal_error"}), 500
 
 
 @golden_bp.route("/labels", methods=["POST"])
@@ -199,7 +193,7 @@ def upsert_label():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden label upsert failed: %s", exc)
-        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+        return jsonify({"error": "internal_error"}), 500
 
 
 @golden_bp.route("/queue", methods=["GET"])
@@ -226,7 +220,7 @@ def get_queue():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden queue fetch failed: %s", exc)
-        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+        return jsonify({"error": "internal_error"}), 500
 
 
 @golden_bp.route("/predictions/run", methods=["POST"])
@@ -268,7 +262,7 @@ def ingest_predictions_run():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden predictions ingest failed: %s", exc)
-        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+        return jsonify({"error": "internal_error"}), 500
 
 
 @golden_bp.route("/eval/run", methods=["POST"])
@@ -303,7 +297,7 @@ def run_eval():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden eval failed: %s", exc)
-        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+        return jsonify({"error": "internal_error"}), 500
 
 
 @golden_bp.route("/metrics", methods=["GET"])
@@ -318,7 +312,7 @@ def get_metrics():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden metrics failed: %s", exc)
-        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+        return jsonify({"error": "internal_error"}), 500
 
 
 def _build_interpret_prompt(tweet_text: str, thread_context: list, taxonomy: dict) -> str:
@@ -477,7 +471,7 @@ def get_account_profile(username):
         return jsonify({"username": username, "profile": profile, "recentTweets": recent_tweets})
     except Exception as exc:
         logger.exception("get_account_profile failed: %s", exc)
-        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+        return jsonify({"error": "internal_error"}), 500
 
 
 @golden_bp.route("/tweets/<tweet_id>/replies", methods=["GET"])
@@ -516,7 +510,7 @@ def get_tweet_replies(tweet_id):
         return jsonify({"tweetId": tweet_id, "replies": replies, "count": len(replies)})
     except Exception as exc:
         logger.exception("get_tweet_replies failed: %s", exc)
-        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+        return jsonify({"error": "internal_error"}), 500
 
 
 @golden_bp.route("/tweets/<tweet_id>/engagement", methods=["GET"])
@@ -579,7 +573,7 @@ def get_tweet_engagement(tweet_id):
         })
     except Exception as exc:
         logger.exception("get_tweet_engagement failed: %s", exc)
-        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+        return jsonify({"error": "internal_error"}), 500
 
 
 @golden_bp.route("/interpret/models", methods=["GET"])
@@ -661,7 +655,7 @@ def interpret_tweet():
         return jsonify({"error": "parse_error", "detail": "LLM returned non-JSON response"}), 502
     except httpx.HTTPStatusError as exc:
         logger.error("OpenRouter error %s: %s", exc.response.status_code, exc.response.text[:200])
-        return jsonify({"error": "llm_error", "detail": str(exc)}), 502
+        return jsonify({"error": "llm_error", "detail": "upstream LLM service returned an error"}), 502
     except Exception as exc:  # pragma: no cover
         logger.exception("Interpret failed: %s", exc)
-        return jsonify({"error": "internal_error", "detail": str(exc)}), 500
+        return jsonify({"error": "internal_error"}), 500

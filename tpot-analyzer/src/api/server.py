@@ -11,8 +11,10 @@ from uuid import uuid4
 from pathlib import Path
 from typing import Any, Optional
 
-from flask import Flask, Response, g, request
+from flask import Flask, Response, g, jsonify, request
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from src.api import snapshot_loader
 from src.api.request_context import RequestIdFilter, clear_req_id, get_req_id, set_req_id
@@ -65,6 +67,22 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     _cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
     CORS(app, origins=[o.strip() for o in _cors_origins if o.strip()])
 
+    # Rate limiting — protects expensive endpoints from abuse.
+    # Default: 200 requests/minute per IP across all endpoints.
+    # Individual routes can override with stricter limits via @limiter.limit().
+    _default_rate = os.getenv("RATE_LIMIT_DEFAULT", "200 per minute")
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=[_default_rate],
+        storage_uri="memory://",
+    )
+    app.config["LIMITER"] = limiter  # expose for per-route decoration in blueprints
+
+    @app.errorhandler(429)
+    def _rate_limit_exceeded(e):
+        return jsonify({"error": "rate limit exceeded", "retry_after": e.description}), 429
+
     # Request-scoped correlation id + timing.
     @app.before_request
     def _tpot_request_context() -> None:
@@ -96,6 +114,19 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     @app.teardown_request
     def _tpot_request_teardown(_exc: Optional[BaseException]) -> None:
         clear_req_id()
+
+    # 0. Security defaults
+    app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB request body limit
+
+    @app.after_request
+    def _security_headers(response: Response) -> Response:
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if not app.debug:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
 
     # 1. Configuration
     app.config["STARTUP_TIME"] = time.time()
@@ -134,6 +165,23 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     snapshot_dir = get_snapshot_dir()
     init_cluster_routes(snapshot_dir)
     app.register_blueprint(cluster_bp)
+
+    # 4. Per-route rate limits for expensive operations.
+    # The default (200/min) covers most endpoints; these are stricter overrides.
+    _interpret_limit = os.getenv("RATE_LIMIT_INTERPRET", "10 per hour")
+    _cluster_limit = os.getenv("RATE_LIMIT_CLUSTER_BUILD", "30 per minute")
+    _search_limit = os.getenv("RATE_LIMIT_SEARCH", "60 per minute")
+    _discovery_limit = os.getenv("RATE_LIMIT_DISCOVERY", "20 per minute")
+
+    for view_name, limit in [
+        ("golden.interpret_tweet", _interpret_limit),
+        ("clusters.get_clusters", _cluster_limit),
+        ("accounts.search_accounts", _search_limit),
+        ("discovery.discover", _discovery_limit),
+    ]:
+        view_fn = app.view_functions.get(view_name)
+        if view_fn:
+            limiter.limit(limit)(view_fn)
 
     logger.info("TPOT Analyzer API initialized")
     return app

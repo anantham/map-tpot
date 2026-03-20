@@ -279,7 +279,7 @@ class TestDiscoverErrorPaths:
         assert resp.status_code == 500
         body = resp.get_json()
         assert body["code"] == "INTERNAL_ERROR"
-        assert "kaboom" in body["error"]
+        assert body["error"] == "discovery failed"  # generic msg, no exception leak
 
     @pytest.mark.unit
     def test_graph_not_loaded_falls_through_to_error(

@@ -88,7 +88,7 @@ def update_extension_settings():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
         logger.exception("failed to update extension settings workspace=%s ego=%s", workspace_id, ego)
-        return jsonify({"error": "settings update failed", "details": str(exc)}), 500
+        return jsonify({"error": "settings update failed"}), 500
 
     return jsonify({"status": "ok", "settings": settings.as_dict()})
 
@@ -129,7 +129,7 @@ def ingest_feed_events():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
         logger.exception("feed event ingest failed workspace=%s ego=%s: %s", workspace_id, ego, exc)
-        return jsonify({"error": "feed event ingest failed", "details": str(exc)}), 500
+        return jsonify({"error": "feed event ingest failed"}), 500
 
     firehose_status = {
         "enabled": bool(policy.firehose_enabled),
@@ -199,7 +199,7 @@ def get_raw_feed_events():
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:
         logger.exception("raw feed query failed workspace=%s ego=%s: %s", workspace_id, ego, exc)
-        return jsonify({"error": "raw feed query failed", "details": str(exc)}), 500
+        return jsonify({"error": "raw feed query failed"}), 500
     return jsonify(payload)
 
 
@@ -222,7 +222,7 @@ def purge_feed_events_by_tag():
         return jsonify({"error": str(exc)}), 401
     except Exception as exc:
         logger.exception("tag-scope lookup failed workspace=%s ego=%s: %s", workspace_id, ego, exc)
-        return jsonify({"error": "tag-scope lookup failed", "details": str(exc)}), 500
+        return jsonify({"error": "tag-scope lookup failed"}), 500
 
     if dry_run:
         return jsonify(
