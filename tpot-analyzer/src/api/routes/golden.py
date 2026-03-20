@@ -315,6 +315,72 @@ def get_metrics():
         return jsonify({"error": "internal_error"}), 500
 
 
+@golden_bp.route("/tags", methods=["POST"])
+def save_tags():
+    """Save topic tags for a tweet."""
+    data = request.get_json(silent=True) or {}
+    try:
+        tweet_id = str(data.get("tweet_id") or data.get("tweetId") or "").strip()
+        if not tweet_id:
+            raise ValueError("tweet_id is required")
+        tags = data.get("tags")
+        if not isinstance(tags, list):
+            raise ValueError("tags must be a list of strings")
+        added_by = (data.get("added_by") or data.get("addedBy") or "human").strip() or "human"
+        category = data.get("category")
+
+        store = _get_store()
+        count = store.save_tags(
+            tweet_id=tweet_id,
+            tags=tags,
+            added_by=added_by,
+            category=category,
+        )
+        return jsonify({"status": "ok", "tweetId": tweet_id, "count": count})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Golden save_tags failed: %s", exc)
+        return jsonify({"error": "internal_error"}), 500
+
+
+@golden_bp.route("/tags/<tweet_id>", methods=["GET"])
+def get_tweet_tags(tweet_id):
+    """Return all tags for a given tweet."""
+    try:
+        store = _get_store()
+        tags = store.get_tags_for_tweet(tweet_id)
+        return jsonify({"tweetId": tweet_id, "tags": tags})
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Golden get_tweet_tags failed: %s", exc)
+        return jsonify({"error": "internal_error"}), 500
+
+
+@golden_bp.route("/tags/<tweet_id>/<tag>", methods=["DELETE"])
+def delete_tweet_tag(tweet_id, tag):
+    """Remove a single tag from a tweet."""
+    try:
+        store = _get_store()
+        removed = store.remove_tag(tweet_id=tweet_id, tag=tag)
+        return jsonify({"status": "ok", "removed": removed})
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Golden delete_tweet_tag failed: %s", exc)
+        return jsonify({"error": "internal_error"}), 500
+
+
+@golden_bp.route("/tags/vocabulary", methods=["GET"])
+def get_tag_vocabulary():
+    """Return all previously used tags with usage counts."""
+    try:
+        limit = _parse_limit(request.args.get("limit"), default=200, maximum=1000)
+        store = _get_store()
+        tags = store.get_tag_vocabulary(limit=limit)
+        return jsonify({"tags": tags})
+    except Exception as exc:  # pragma: no cover
+        logger.exception("Golden get_tag_vocabulary failed: %s", exc)
+        return jsonify({"error": "internal_error"}), 500
+
+
 def _build_interpret_prompt(tweet_text: str, thread_context: list, taxonomy: dict) -> str:
     """Build the few-shot interpretation prompt from taxonomy.yaml golden examples."""
     sim = taxonomy.get("simulacrum", {})
