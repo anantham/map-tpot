@@ -403,10 +403,23 @@ function AuthorCard({ profile, recentTweets, loading, onViewInCommunities }) {
 
 // ─── Interpretation panel ─────────────────────────────────────────────────────
 
-function InterpretationPanel({ interp, loading, error }) {
+function InterpretationPanel({ interp, loading, error, model }) {
   if (loading) return (
-    <div style={{ padding: 16, color: T.textMuted, textAlign: 'center', fontSize: 14, fontFamily: T.font }}>
-      Reading tweet…
+    <div style={{ padding: 16, textAlign: 'center', fontFamily: T.font }}>
+      <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 8 }}>
+        Sending tweet to <strong style={{ color: T.blue }}>{model || 'LLM'}</strong>…
+      </div>
+      <div style={{ fontSize: 12, color: T.textLight, lineHeight: 1.6 }}>
+        Classifying simulacrum levels, analyzing epistemic stance, extracting topic tags
+      </div>
+      <div style={{ marginTop: 10, height: 3, background: T.border, borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', background: T.blue, borderRadius: 2,
+          animation: 'interpret-progress 2s ease-in-out infinite',
+          width: '40%',
+        }} />
+      </div>
+      <style>{`@keyframes interpret-progress { 0% { margin-left: 0 } 50% { margin-left: 60% } 100% { margin-left: 0 } }`}</style>
     </div>
   )
   if (error) return <div style={{ padding: 16, color: '#c0392b', fontSize: 13 }}>{error}</div>
@@ -910,12 +923,12 @@ export default function Labeling({ reviewer = 'human', onNavigate }) {
                     whiteSpace: 'nowrap', fontFamily: T.font,
                   }}
                 >
-                  {interpLoading ? 'Reading…' : interp ? 'Re-read' : 'Get AI reading'}
+                  {interpLoading ? `Analyzing via ${selectedModel.split('/').pop()}…` : interp ? 'Re-analyze' : 'Get AI reading'}
                 </button>
               </div>
 
               <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 4, padding: 16 }}>
-                <InterpretationPanel interp={interp} loading={interpLoading} error={interpError} />
+                <InterpretationPanel interp={interp} loading={interpLoading} error={interpError} model={selectedModel} />
               </div>
             </>
           )}
