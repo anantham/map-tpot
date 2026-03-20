@@ -91,12 +91,7 @@ export default function CommunityCard({
       className={`community-card ${isClassified ? 'card-classified' : 'card-propagated'} ${isGenerating ? 'generating' : ''}`}
       id="community-card"
     >
-      {isGenerating && (
-        <>
-          <div className="card-shimmer" />
-          <div className="generating-text">Generating your card...</div>
-        </>
-      )}
+      {isGenerating && <div className="card-shimmer" />}
 
       <div className="card-header">
         <span className="card-handle">@{handle}</span>

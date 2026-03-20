@@ -32,6 +32,12 @@ function ResultArea({ result, communityMap }) {
         aiImageUrl={imageUrl}
         generationStatus={status}
       />
+      {status === 'generating' && (
+        <div className="generating-banner">
+          <span className="generating-typewriter">Crafting your collectible card</span>
+          <span className="generating-dots" />
+        </div>
+      )}
       <CardDownload
         handle={result.handle}
         displayName={result.displayName}
