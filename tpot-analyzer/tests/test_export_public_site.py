@@ -289,7 +289,7 @@ class TestExtractPropagatedHandles:
         # node-1 ("frank"): passes all gates
         assert "frank" in result
 
-    def test_abstain_mask_skips_node(self, npz_file):
+    def test_abstain_mask_ignored_for_public_site(self, npz_file):
         from scripts.export_public_site import extract_propagated_handles
 
         classified_ids = set()
@@ -298,8 +298,9 @@ class TestExtractPropagatedHandles:
         result = extract_propagated_handles(
             npz_file, username_map, classified_ids, 0.05, 0.10,
         )
-        # node-3 has abstain_mask=True
-        assert "harry" not in result
+        # node-3 has abstain_mask=True but we ignore it for public site reach
+        # harry has max weight 0.5 which passes the threshold
+        assert "harry" in result
 
     def test_low_max_weight_skips_node(self, npz_file):
         from scripts.export_public_site import extract_propagated_handles
