@@ -18,3 +18,373 @@ h1 { font-size: 2rem; margin-bottom: 0.5rem; }
 .tagline { color: #888; margin-bottom: 0.5rem; }
 .stats { color: #555; font-size: 0.85rem; margin-bottom: 2rem; }
 .loading { text-align: center; padding: 4rem; color: #666; }
+
+/* ── Search Bar ── */
+
+.search-bar {
+  position: relative;
+  max-width: 480px;
+  margin: 0 auto 2rem;
+  text-align: left;
+}
+
+.search-input-wrap {
+  display: flex;
+  gap: 0;
+}
+
+.search-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: #e0e0e0;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  border-color: #555;
+}
+
+.search-input::placeholder {
+  color: #555;
+}
+
+.search-btn {
+  padding: 0.75rem 1.25rem;
+  background: #2a2a2a;
+  border: 1px solid #333;
+  border-radius: 0 8px 8px 0;
+  color: #ccc;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.search-btn:hover {
+  background: #333;
+}
+
+/* ── Suggestions Dropdown ── */
+
+.suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.suggestion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.suggestion:hover,
+.suggestion.highlighted {
+  background: #252525;
+}
+
+.suggestion-handle {
+  color: #e0e0e0;
+  font-size: 0.95rem;
+}
+
+.suggestion-tier {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tier-classified {
+  background: #1a3a2a;
+  color: #4ade80;
+}
+
+.tier-propagated {
+  background: #2a2a2a;
+  color: #888;
+}
+
+/* ── Result Area ── */
+
+.result-area {
+  max-width: 520px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+/* ── Community Card ── */
+
+.community-card {
+  background: #1a1a1a;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.card-classified {
+  border: 1px solid #444;
+}
+
+.card-propagated {
+  border: 1px solid #2a2a2a;
+}
+
+.card-header {
+  margin-bottom: 0.5rem;
+}
+
+.card-handle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #e0e0e0;
+}
+
+.card-display-name {
+  display: block;
+  font-size: 0.9rem;
+  color: #888;
+  margin-top: 0.15rem;
+}
+
+.card-bio {
+  font-size: 0.85rem;
+  color: #999;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+  white-space: pre-line;
+}
+
+/* ── Community Bars ── */
+
+.card-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 0.75rem;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar-label {
+  width: 45%;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: #bbb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.bar-track {
+  flex: 1;
+  height: 16px;
+  background: #2a2a2a;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  min-width: 4px;
+  transition: width 0.4s ease-out;
+}
+
+.bar-pct {
+  width: 3rem;
+  text-align: right;
+  font-size: 0.8rem;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.card-note {
+  font-size: 0.8rem;
+  color: #666;
+  font-style: italic;
+  margin-top: 0.5rem;
+}
+
+.card-footer {
+  font-size: 0.75rem;
+  color: #444;
+  text-align: right;
+  margin-top: 0.75rem;
+}
+
+/* ── Contribute Prompt ── */
+
+.contribute-prompt {
+  background: #141414;
+  border: 1px solid #222;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.contribute-missing {
+  font-size: 1rem;
+  color: #ccc;
+  margin-bottom: 1rem;
+}
+
+.contribute-missing strong {
+  color: #e0e0e0;
+}
+
+.contribute-title {
+  font-size: 1rem;
+  color: #ddd;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
+.contribute-subtitle {
+  font-size: 0.85rem;
+  color: #777;
+  margin-bottom: 0.75rem;
+}
+
+.contribute-paths {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.contribute-paths li {
+  font-size: 0.9rem;
+}
+
+.contribute-paths a {
+  color: #6cb4ee;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.contribute-paths a:hover {
+  text-decoration: underline;
+  color: #8fcaff;
+}
+
+.path-desc {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+/* ── Download Button ── */
+
+.download-btn {
+  display: block;
+  width: 100%;
+  padding: 0.7rem;
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: #bbb;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 1rem;
+}
+
+.download-btn:hover {
+  background: #1a1a1a;
+  border-color: #666;
+  color: #e0e0e0;
+}
+
+/* ── Search Again ── */
+
+.search-again-btn {
+  display: block;
+  width: 100%;
+  padding: 0.7rem;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  color: #999;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 0.5rem;
+}
+
+.search-again-btn:hover {
+  background: #222;
+  color: #ccc;
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 480px) {
+  .app {
+    padding: 1.5rem 0.75rem;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .search-input {
+    font-size: 0.9rem;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .search-btn {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .community-card {
+    padding: 1rem;
+  }
+
+  .card-handle {
+    font-size: 1.1rem;
+  }
+
+  .bar-label {
+    width: 40%;
+    font-size: 0.75rem;
+  }
+
+  .bar-pct {
+    font-size: 0.75rem;
+    width: 2.5rem;
+  }
+
+  .contribute-prompt {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .bar-label {
+    width: 35%;
+  }
+}
