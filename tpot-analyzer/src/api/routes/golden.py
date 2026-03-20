@@ -428,9 +428,11 @@ def _build_interpret_prompt(tweet_text: str, thread_context: list, taxonomy: dic
   "cluster_hypothesis": "which TPOT subcommunity this suggests (e.g. rationalist, woo, EA, dharma, e/acc, none)",
   "ingroup_signal": "what community or tribe is being signaled to, or 'none' if l1",
   "meme_role": "one of: originating | amplifying | remixing | none",
-  "confidence": 0.0
+  "confidence": 0.0,
+  "suggested_tags": ["tag1", "tag2", "tag3"]
 }
-Rules: distribution values sum to 1.0. lucidity is 0.0-1.0. confidence is 0.0-1.0.""")
+Rules for suggested_tags: 3-5 fine-grained topic tags describing what this tweet is ABOUT at the object level. Examples: "alignment", "jhanas", "LLM psychology", "gender", "attention mechanisms", "crypto", "meditation", "game theory", "consciousness". Be specific, not generic.
+Distribution values must sum to 1.0. lucidity is 0.0-1.0. confidence is 0.0-1.0.""")
 
     return "\n".join(lines)
 

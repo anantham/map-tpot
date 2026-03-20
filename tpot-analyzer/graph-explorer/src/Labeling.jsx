@@ -778,6 +778,13 @@ export default function Labeling({ reviewer = 'human', onNavigate }) {
       const result = await interpretTweet({ text: tweet.text, threadContext: tweet.threadContext || [], model: selectedModel })
       setInterp(result)
       if (result.distribution) setDist(normalize(result.distribution))
+      // Auto-suggest tags from LLM interpretation
+      if (result.suggested_tags && Array.isArray(result.suggested_tags)) {
+        setSelectedTags(prev => {
+          const merged = new Set([...prev, ...result.suggested_tags.map(t => t.toLowerCase().trim())])
+          return [...merged]
+        })
+      }
     } catch (e) {
       setInterpError(e.message)
     } finally {
