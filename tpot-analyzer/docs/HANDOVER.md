@@ -1,104 +1,112 @@
-# Handover: 2026-03-19
+# Handover: 2026-03-20
 
 ## Session Summary
 
-Took the project from "research tool" to "deployed public site." Started with a tech debt surface scan (5 dimensions, 26 issues), triaged to 6 worth fixing, implemented security hardening (error sanitization, loopback fix, rate limiting, headers). Then pivoted to the real goal: public hosting. Interviewed the user to capture the distribution vision (power users + casual users, static site, growth flywheel). Designed, specced, and built the "Find My Ingroup" static site — export pipeline + Vite/React frontend. Deployed to Vercel at https://amiingroup.vercel.app with 9,263 searchable accounts.
+Massive session. Took the project from security hardening through full public site deployment with AI-generated collectible cards, then pivoted to improving the labeling pipeline for the content-aware community detection phase.
 
-Session ended with a new feature direction: **JIT collectible card generation** using OpenRouter image generation, replacing the current bar-chart cards with AI-generated collectible-style artwork per account.
-
-## Commits This Session
+## Commits This Session (main branch, not pushed)
 - `596924c` fix(security): harden API for production deployment
-- `34177bd` docs(public-site): add design spec and implementation plan
-- `a3a8267` feat(public-site): add export config for public site
-- `3f9793f` feat(public-site): add export script for Find My Ingroup data pipeline
+- `34177bd` docs(public-site): design spec and implementation plan
+- `a3a8267` feat(public-site): add export config
+- `3f9793f` feat(public-site): add export script (28 tests)
 - `eb7f3ec` feat(public-site): scaffold Vite + React app
-- `1608039` feat(public-site): add SearchBar, CommunityCard, ContributePrompt, CardDownload components
-- `6479fc5` chore: gitignore public-site generated data and build artifacts
-- `5757eb3` docs(audit): full doc audit remediation
-- `47333d1` fix(export): relax abstain gate for public site reach
-- `f4d05c2` chore: add vercel-generated gitignore for public-site
+- `1608039` feat(public-site): SearchBar, CommunityCard, ContributePrompt, CardDownload
+- `47333d1` fix(export): relax abstain gate (551 → 9,263 accounts)
+- `f4d05c2` chore: vercel gitignore
+- Multiple JIT card commits: serverless function, prompt builder, BYOK settings, tarot styling
+- `544b676` fix: switch to ioredis for Redis Cloud
+- `b937ca1` fix: correct Gemini model ID
+- `f4522af` fix: typewriter generating banner
+- `1419dca` feat: shareable URLs and copy-link button
+- `8e29793` fix: grayscale AI cards for propagated accounts
+- `ee2eafe` feat: about page with methodology + infographics
+- `6e676e0` feat: homepage redesign with hero + community showcase
+- `865170b` feat: per-user rate limit (10 free generations)
+- Golden tags system: backend + frontend + LLM suggestions
+- Likes index fix (85s → 0.001s)
+- Tweet date links to x.com
 
-PUSHED: No — 10 commits ahead of origin/main
+PUSHED: No — many commits ahead of origin
+
+## What's Deployed
+- **https://amiingroup.vercel.app** — public site with AI collectible cards
+- Vercel env vars: OPENROUTER_API_KEY, CARD_DAILY_BUDGET=5.00, KV_REDIS_URL
+- Redis Cloud for caching + budget tracking (may need REST credentials verified)
 
 ## Pending Threads
 
-### Continue Immediately
-1. **JIT Collectible Card Generation**
-   - Status: Vision agreed, not designed or implemented
-   - What: Replace bar-chart community cards with AI-generated collectible artwork
-   - Key decisions already made:
-     - Use OpenRouter (Gemini Flash image preview) for generation
-     - Vercel serverless function (`/api/generate-card`) proxies calls with curator's API key
-     - $5/day budget cap, first-come-first-served
-     - Settings icon for BYOK (bring your own key) stored in localStorage
-     - Unified prompt template: same collectible card aesthetic for all accounts
-     - Prompt uses account data: bio, tweets, communities, mutuals for personalization
-   - Architecture needed: Vercel serverless function (new — site was fully static before)
-   - Next step: Design the prompt template + serverless function, then implement
-   - Files to create: `public-site/api/generate-card.js` (Vercel serverless), prompt template
-   - Cost model: ~$0.02/image at Gemini Flash rates, $5/day = ~250 cards/day
-   - Consider: card caching (don't regenerate same handle within 24h)
+### Continue Immediately: Account-First Labeling Workflow
 
-### Blocked
-None
+**The big insight from this session:** Simulacrum levels should be assigned at the ACCOUNT level indexed by time, not per-tweet. Each tweet is a sample from the account's epistemic generator at that timestamp. With enough samples across time, you reconstruct the trajectory.
+
+**What to build:**
+1. **Account picker in labeling UI** — let user choose which account to label (start with @eshear, @repligate, @Plinz, @nickcammarata)
+2. **Batch mode** — show 10-20 tweets from one account sorted by date
+3. **Account-level summary** — after labeling N tweets, show the aggregate L1/L2/L3/L4 distribution for that account over time
+4. **Temporal trajectory view** — plot how the account's epistemic stance shifts over months/years
+
+**No schema change needed** — tweet labels already have account_id + created_at. Aggregation is downstream.
+
+**Accounts not in archive:** @Plinz and @nickcammarata are NOT in the archive (only @eshear and @repligate found). May need to fetch their data.
+
+### Continue: About Page Rewrite
+
+**The current about page is too technical.** User wants a story-first approach:
+1. Start with PEOPLE (Aditya, Arun, Devi) not nodes
+2. Motivate each algorithm step (WHY, not just HOW)
+3. Explain what data we have and what contributing unlocks
+4. Frame communities as attractors/gravitational fields, not boxes
+5. Regenerate infographics with `google/gemini-3-pro-image-preview` (better text rendering)
+6. Add representative accounts per community
+
+**Narrative arc designed but not yet written:**
+People → The question → The data → The gap → Follow graph (motivated) → Natural groups (motivated) → Naming communities (motivated) → Reaching everyone (motivated) → Your card → Contribute
+
+### Continue: Content-Aware Community Detection
+
+**Key insight:** Topic tags (object-level: "alignment", "jhanas", "LLM psychology") may be more useful for community discovery than simulacrum levels. The current 14 communities are topic-based (from follow/retweet NMF), so topic classification on tweets would directly validate and refine them.
+
+**Two competing axes identified:**
+1. Community discovery: what groups exist? (unsupervised)
+2. Community assignment: who belongs where? (classification)
+
+These interact — tweet content may reveal NEW communities the graph didn't find.
+
+**Approach:** Topic tags from human labeling bootstrap automatic classification. LLM suggests tags, human curates. The tag vocabulary grows organically and becomes the feature set for content-aware NMF.
 
 ### Deferred
-1. **Spec/export schema mismatch** — The spec doc (`2026-03-19-find-my-ingroup-design.md`) diverges from actual implementation on JSON schema details (meta.counts nesting, search.json entry shapes). The frontend and export are internally consistent. Update the spec to match reality, or leave as-is since the JIT cards feature will change the frontend significantly anyway.
-
-2. **Abstain gate tuning** — Currently at 0.08 threshold with abstain_mask ignored. Only 253 propagated handles had the mask=False; ignoring it expanded to 8,965. If label propagation is re-run with better seeds (after more golden labeling), revisit these thresholds.
-
-3. **Tech debt items deferred from scan** — graphTransform.js tests, Discovery/Labeling component tests, ADRs for cluster expansion. See the tech debt scan output earlier in this session.
+1. **Gallery view** — show all previously generated cards in a browsable gallery. Redis already caches them.
+2. **Video generation** (Veo 3.1) — v2 stretch goal
+3. **Profile pic as input** — v2 user upload
+4. **OpenGraph previews** — server-rendered social cards for link sharing
 
 ## Key Context
 
 ### Architecture (as of now)
-- **Export script**: `scripts/export_public_site.py` reads SQLite + NPZ + Parquet, produces `data.json` (169KB, 14 communities + 298 classified) and `search.json` (5.3MB, 9,263 handles)
-- **Frontend**: `tpot-analyzer/public-site/` — Vite + React, single page app
-- **Deployed**: https://amiingroup.vercel.app (alias set manually via `vercel alias set`)
-- **Community data**: 14 NMF communities with names/colors, 298 direct members, 8,965 propagated from follow graph
+- **Public site:** `tpot-analyzer/public-site/` — Vite + React, deployed to Vercel
+- **Serverless function:** `public-site/api/generate-card.js` — OpenRouter Gemini image gen, ioredis caching
+- **Export:** `scripts/export_public_site.py` — 33 tests, produces data.json + search.json
+- **Budget:** $5/day global (Redis) + 10/user (localStorage), configurable
+- **Labeling:** Topic tags added to golden schema, LLM suggests tags on interpret
 
-### The visual design intent for JIT cards
-- User wants "collectible card" aesthetic — not progress bars
-- Each card should be unique, generated from the account's actual data
-- Grayscale cards for propagated accounts should STILL incentivize data contribution
-- The prompt should use: bio, sample tweets, community names + weights, mutual connections
-- Same prompt template for all cards (unified aesthetic, like a trading card series)
-- Generated images should be downloadable as PNG (replaces current canvas-to-PNG)
+### User Preferences (captured in memory)
+- Prefers JIT generation over precomputation
+- Wants justification for every fix before implementing
+- Sees communities as attractors/gravitational fields, not static boxes
+- Wants the about page to tell a story starting with people, not math
 
-### Security hardening already done
-- `MAX_CONTENT_LENGTH` (16MB), security headers (HSTS, X-Frame-Options, etc.)
-- Error sanitization: 18 sites, no `str(exc)` leaked to clients
-- `/golden/interpret`: token-based auth replacing broken loopback check
-- Flask-Limiter: 200/min default, 10/hr interpret, 30/min clusters
-- Dockerfile: non-root `appuser`
-- `cluster_routes.py`: `@_require_loaded` decorator, `_parse_lens()`, `_require_ego()` helpers
-
-### The user's vision (captured in VISION.md)
-- Two user types: power users (clone repo, run locally) and casual users (visit static site)
-- Publishing workflow: local analysis → static JSON export → deploy to Vercel
-- Growth flywheel: grayscale cards → "contribute your data to see yourself in color"
-- Open source: framework + data bundled (v1), separable later if demand
-
-## Learnings Captured
-- [x] Updated VISION.md with distribution model sections
-- [x] Created docs/reference/ENVIRONMENT_VARIABLES.md
-- [x] Created design spec: docs/superpowers/specs/2026-03-19-find-my-ingroup-design.md
-- [x] Created implementation plan: docs/superpowers/plans/2026-03-19-find-my-ingroup.md
-
-## Running Processes
-None — all background tasks completed
+### Things That Need Fixing
+- Vercel deployment protection was disabled — may want to re-enable for preview deployments only
+- Redis REST credentials may not be fully configured (KV_REDIS_URL is set but REST API URL/token unclear)
+- @Plinz and @nickcammarata not in archive — need data fetch
+- About page infographics have spelling errors (Gemini Flash text rendering) — regenerate with Pro
 
 ## Resume Instructions
-1. Read this handover doc
-2. Read VISION.md "Distribution" section for the user's product vision
-3. Design the JIT collectible card feature:
-   - Vercel serverless function at `/api/generate-card`
-   - OpenRouter integration (Gemini Flash image preview)
-   - $5/day budget tracking (could use KV store or simple file-based counter)
-   - Prompt template that creates unified collectible aesthetic
-   - Settings icon for BYOK
-   - Card caching strategy (24h by handle?)
-4. Consider pushing the 10 commits to origin first
+1. Read this handover
+2. Push commits to origin (many ahead)
+3. Build account-first labeling workflow (the immediate next feature)
+4. Start with: account picker → batch tweet display → temporal sorting
+5. Then: rewrite about page with story arc
 
 ---
-*Handover by Claude at high context usage*
+*Handover by Claude at high context usage, 2026-03-20*
