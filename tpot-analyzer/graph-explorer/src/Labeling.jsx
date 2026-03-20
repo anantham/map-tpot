@@ -527,7 +527,7 @@ function TagChip({ label, onRemove, muted }) {
   )
 }
 
-function TagInput({ tweetId, onTagsChange }) {
+function TagInput({ tweetId, onTagsChange, suggestedTags }) {
   const [input, setInput] = useState('')
   const [selectedTags, setSelectedTags] = useState([])
   const [vocabulary, setVocabulary] = useState([])
@@ -540,6 +540,16 @@ function TagInput({ tweetId, onTagsChange }) {
       .then(data => setVocabulary(data.tags || []))
       .catch(() => {})
   }, [])
+
+  // Merge in LLM-suggested tags when they arrive
+  useEffect(() => {
+    if (suggestedTags && suggestedTags.length > 0) {
+      setSelectedTags(prev => {
+        const merged = new Set([...prev, ...suggestedTags])
+        return [...merged]
+      })
+    }
+  }, [suggestedTags])
 
   // Load existing tags when tweet changes
   useEffect(() => {
@@ -700,6 +710,7 @@ export default function Labeling({ reviewer = 'human', onNavigate }) {
   const [dist, setDist] = useState({ l1: 0.7, l2: 0.1, l3: 0.2, l4: 0.0 })
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [suggestedTags, setSuggestedTags] = useState([])
   const [submitted, setSubmitted] = useState(false)
 
   const [interp, setInterp] = useState(null)
@@ -791,12 +802,9 @@ export default function Labeling({ reviewer = 'human', onNavigate }) {
       const result = await interpretTweet({ text: tweet.text, threadContext: tweet.threadContext || [], model: selectedModel })
       setInterp(result)
       if (result.distribution) setDist(normalize(result.distribution))
-      // Auto-suggest tags from LLM interpretation
+      // Pass suggested tags down to TagInput
       if (result.suggested_tags && Array.isArray(result.suggested_tags)) {
-        setSelectedTags(prev => {
-          const merged = new Set([...prev, ...result.suggested_tags.map(t => t.toLowerCase().trim())])
-          return [...merged]
-        })
+        setSuggestedTags(result.suggested_tags.map(t => t.toLowerCase().trim()))
       }
     } catch (e) {
       setInterpError(e.message)
@@ -998,7 +1006,7 @@ export default function Labeling({ reviewer = 'human', onNavigate }) {
           {tweet && (
             <Section title="Topic tags">
               <div style={{ padding: 14 }}>
-                <TagInput tweetId={tweet.tweetId} />
+                <TagInput tweetId={tweet.tweetId} suggestedTags={suggestedTags} />
               </div>
             </Section>
           )}
