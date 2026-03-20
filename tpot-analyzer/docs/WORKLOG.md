@@ -1,5 +1,24 @@
 # Worklog - TPOT Analyzer
 
+## Doc Audit & Remediation (2026-03-19)
+
+- [2026-03-19] **Full-codebase doc audit (expansion:doc-audit skill)**
+    - **Findings**: 10 issues (0 P0, 4 P1, 5 P2, 1 P3)
+    - Key P1s: ADR-010 title says "ADR 009", camelCase violations across communities/branches/preview APIs, golden API has 5 endpoints beyond ADR-010 spec with no backend tests, communities module had no canonical module doc
+    - P2s: broken ADR links in graph.md, proof hash stale, ROADMAP missing shadow/ decomposition plans
+    - **Human review**: Caught 10 hard errors in initial audit report — subagent hallucinated endpoints, missed WORKLOG entries, claimed zero test coverage where tests exist. Feedback memory saved to prevent recurrence.
+
+- [2026-03-19] **Remediation — doc fixes + test backfill**
+    - **Changes**
+        - `docs/adr/010-labeling-dashboard-and-llm-eval-harness.md`: Fixed title "ADR 009" → "ADR 010"
+        - `docs/modules/graph.md:53-54`: Fixed broken ADR links (006/007 filename mismatch)
+        - `docs/proofs/split-determinism.md`: Updated code hash `bb8bf98` → `3bfe1da`, last verified → 2026-03-19
+        - `docs/ROADMAP.md`: Added decomposition plans for enricher.py (2449 LOC), selenium_worker.py (2173 LOC), shadow_store.py (1252 LOC), expansion_strategy.py (1013 LOC)
+        - `docs/modules/communities.md`: **NEW** — canonical module doc covering store (2-layer architecture), versioning (branch/snapshot), cluster_colors (ADR-013 contract), preview, all API endpoints
+        - `docs/modules/INDEX.md`: Updated communities from "undocumented" to current, fixed golden.md date, added branches.py reference
+        - `tests/test_golden_support_routes.py`: **NEW** — 17 integration tests covering profile (4), replies (5), engagement (5), interpret/models (3). Found retweets table schema limitation (PK = tweet_id prevents multi-retweeter lookup).
+    - **Test results**: 17 new tests passing, 6 existing golden route tests still passing
+
 ## Tech Debt Sweep (2026-03-12)
 
 - [2026-03-12] **Phase F: Pattern unification — camelCase bridge, SQLite migration, test alignment**

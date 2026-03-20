@@ -312,6 +312,10 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterView.jsx` and `tpot-analyzer/graph-explorer/src/data.js` into focused modules/hooks (<300 LOC each); current files exceed 1100 LOC and 700 LOC.
 - Decompose `tpot-analyzer/src/api/cluster_routes.py` into focused route/service modules (<300 LOC each); current file is >1000 LOC and now contains both hierarchy and membership endpoints.
+- Decompose `tpot-analyzer/src/shadow/enricher.py` (2449 LOC) into orchestration, retry/backoff, state management, and API dispatch modules (<300 LOC each); current file mixes all four concerns.
+- Decompose `tpot-analyzer/src/shadow/selenium_worker.py` (2173 LOC) into browser control, HTML parsing, and network handling modules (<300 LOC each); tightly coupled to enricher — decompose both together.
+- Decompose `tpot-analyzer/src/data/shadow_store.py` (1252 LOC) into focused store modules by table domain (<300 LOC each); currently mixes multi-table CRUD with business logic.
+- Decompose `tpot-analyzer/src/graph/hierarchy/expansion_strategy.py` (1013 LOC) into scoring, strategy selection, and memoization modules (<300 LOC each).
 - Add ADR documenting testability refactor decisions (fixtures, helper extraction, verification scripts).
 
 ## Infrastructure / Observability
