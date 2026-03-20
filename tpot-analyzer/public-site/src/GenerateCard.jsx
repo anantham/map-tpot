@@ -12,7 +12,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { buildCardRequest } from "./cardPrompt";
 
-const MODEL = "google/gemini-2.5-flash-image-preview";
+const MODEL = "google/gemini-2.5-flash-image";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const RETRY_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
