@@ -9,7 +9,11 @@ const BAR_TRACK_W = 240
 const BAR_PCT_W = 60
 const CORNER_R = 12
 
-export default function CardDownload({ handle, displayName, tier, memberships, communityMap }) {
+// AI card dimensions (2:3 ratio)
+const AI_CARD_W = 600
+const AI_CARD_H = 900
+
+export default function CardDownload({ handle, displayName, tier, memberships, communityMap, aiImageUrl }) {
   const isClassified = tier === 'classified'
 
   const bars = (memberships || [])
@@ -24,7 +28,126 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
     })
     .sort((a, b) => b.weight - a.weight)
 
-  const download = useCallback(() => {
+  /**
+   * Download with AI image: load the image, composite with gradient overlay + text.
+   */
+  const downloadAiCard = useCallback(async () => {
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    canvas.width = AI_CARD_W
+    canvas.height = AI_CARD_H
+
+    // Load AI image
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+
+    await new Promise((resolve, reject) => {
+      img.onload = resolve
+      img.onerror = () => reject(new Error('Failed to load AI image'))
+      img.src = aiImageUrl
+    })
+
+    // Draw image (cover the canvas)
+    const imgAspect = img.width / img.height
+    const canvasAspect = AI_CARD_W / AI_CARD_H
+    let drawW, drawH, drawX, drawY
+
+    if (imgAspect > canvasAspect) {
+      // Image is wider — fit height, crop sides
+      drawH = AI_CARD_H
+      drawW = AI_CARD_H * imgAspect
+      drawX = (AI_CARD_W - drawW) / 2
+      drawY = 0
+    } else {
+      // Image is taller — fit width, crop top/bottom
+      drawW = AI_CARD_W
+      drawH = AI_CARD_W / imgAspect
+      drawX = 0
+      drawY = (AI_CARD_H - drawH) / 2
+    }
+
+    // Clip to rounded rect
+    ctx.beginPath()
+    roundRect(ctx, 0, 0, AI_CARD_W, AI_CARD_H, CORNER_R)
+    ctx.clip()
+
+    ctx.drawImage(img, drawX, drawY, drawW, drawH)
+
+    // Gradient overlay at bottom
+    const gradient = ctx.createLinearGradient(0, AI_CARD_H * 0.55, 0, AI_CARD_H)
+    gradient.addColorStop(0, 'rgba(10, 14, 39, 0)')
+    gradient.addColorStop(0.3, 'rgba(10, 14, 39, 0.6)')
+    gradient.addColorStop(1, 'rgba(10, 14, 39, 0.95)')
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, AI_CARD_W, AI_CARD_H)
+
+    // Text overlay
+    let y = AI_CARD_H - 180
+
+    // Handle
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, sans-serif'
+    ctx.fillText(`@${handle}`, CARD_PAD, y)
+    y += 32
+
+    // Display name
+    if (displayName && isClassified) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
+      ctx.font = '18px -apple-system, BlinkMacSystemFont, sans-serif'
+      ctx.fillText(displayName, CARD_PAD, y)
+      y += 28
+    }
+
+    y += 8
+
+    // Community labels
+    for (const bar of bars) {
+      // Color dot
+      ctx.fillStyle = isClassified ? bar.color : '#555'
+      ctx.beginPath()
+      ctx.arc(CARD_PAD + 6, y - 4, 5, 0, Math.PI * 2)
+      ctx.fill()
+
+      // Name
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
+      ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif'
+      ctx.fillText(bar.name, CARD_PAD + 18, y)
+
+      // Percentage
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
+      ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif'
+      const pctText = `${bar.pct}%`
+      const pctWidth = ctx.measureText(pctText).width
+      ctx.fillText(pctText, AI_CARD_W - CARD_PAD - pctWidth, y)
+
+      y += 22
+    }
+
+    // Golden border
+    ctx.strokeStyle = 'rgba(212, 175, 55, 0.5)'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    roundRect(ctx, 1.5, 1.5, AI_CARD_W - 3, AI_CARD_H - 3, CORNER_R)
+    ctx.stroke()
+
+    // Footer
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
+    ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif'
+    ctx.textAlign = 'right'
+    ctx.fillText('findmyingroup.com', AI_CARD_W - CARD_PAD, AI_CARD_H - 16)
+    ctx.textAlign = 'left'
+
+    // Download
+    const link = document.createElement('a')
+    link.download = `ingroup-${handle}.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+  }, [handle, displayName, isClassified, bars, aiImageUrl])
+
+  /**
+   * Download fallback bar-chart card (existing behavior).
+   */
+  const downloadBarCard = useCallback(() => {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
 
@@ -135,10 +258,21 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
     link.download = `ingroup-${handle}.png`
     link.href = canvas.toDataURL('image/png')
     link.click()
-  }, [handle, displayName, tier, bars, isClassified, communityMap])
+  }, [handle, displayName, tier, bars, isClassified])
+
+  const handleDownload = useCallback(() => {
+    if (aiImageUrl) {
+      downloadAiCard().catch((err) => {
+        console.error('[CardDownload] AI card download failed, falling back:', err)
+        downloadBarCard()
+      })
+    } else {
+      downloadBarCard()
+    }
+  }, [aiImageUrl, downloadAiCard, downloadBarCard])
 
   return (
-    <button className="download-btn" onClick={download}>
+    <button className="download-btn" onClick={handleDownload}>
       Download your card
     </button>
   )
