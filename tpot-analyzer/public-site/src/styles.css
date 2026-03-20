@@ -723,6 +723,141 @@ h1 { font-size: 2rem; margin-bottom: 0.5rem; }
   color: #ccc;
 }
 
+/* ── Enrich Link ── */
+
+.enrich-link {
+  color: rgba(212, 175, 55, 0.9);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.enrich-link:hover {
+  color: rgba(212, 175, 55, 1);
+  text-decoration-style: solid;
+}
+
+/* ── About Page ── */
+
+.about-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+  color: #d0d0d0;
+  line-height: 1.7;
+}
+
+.about-back {
+  display: inline-block;
+  color: #888;
+  text-decoration: none;
+  font-size: 0.9rem;
+  margin-bottom: 2rem;
+}
+
+.about-back:hover { color: #ccc; }
+
+.about-title {
+  font-size: 2rem;
+  color: #e8e8e8;
+  margin-bottom: 0.5rem;
+}
+
+.about-intro {
+  font-size: 1.05rem;
+  color: #aaa;
+  margin-bottom: 2.5rem;
+  border-left: 3px solid rgba(212, 175, 55, 0.4);
+  padding-left: 1rem;
+}
+
+.about-section {
+  margin-bottom: 2.5rem;
+}
+
+.about-section h2 {
+  font-size: 1.2rem;
+  color: #e0e0e0;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid #222;
+}
+
+.about-section p {
+  color: #bbb;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+.about-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0;
+}
+
+.about-section ul li {
+  color: #bbb;
+  padding: 0.3rem 0 0.3rem 1.2rem;
+  position: relative;
+}
+
+.about-section ul li::before {
+  content: '\2022';
+  color: rgba(212, 175, 55, 0.6);
+  position: absolute;
+  left: 0;
+}
+
+.about-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.signal-tag {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 20px;
+  color: #aaa;
+}
+
+.about-cta {
+  background: #111;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid #222;
+}
+
+.about-repo-link {
+  display: inline-block;
+  color: rgba(212, 175, 55, 0.8);
+  text-decoration: none;
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.about-repo-link:hover {
+  color: rgba(212, 175, 55, 1);
+  text-decoration: underline;
+}
+
+.about-footer {
+  text-align: center;
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #222;
+}
+
+.about-footer a {
+  color: #888;
+  text-decoration: none;
+}
+
+.about-footer a:hover { color: #ccc; }
+
 /* ── Responsive ── */
 
 @media (max-width: 480px) {

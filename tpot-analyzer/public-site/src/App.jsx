@@ -5,6 +5,7 @@ import ContributePrompt from './ContributePrompt'
 import CardDownload from './CardDownload'
 import Settings, { SettingsIcon } from './Settings'
 import { useCardGeneration } from './GenerateCard'
+import About from './About'
 
 /**
  * ResultArea — always mounts when a classified/propagated result exists,
@@ -173,6 +174,11 @@ export default function App() {
     const url = new URL(window.location)
     url.searchParams.delete('handle')
     window.history.replaceState({}, '', url)
+  }
+
+  // Simple path routing (no library needed)
+  if (window.location.pathname === '/about') {
+    return <About />
   }
 
   if (!data) return <div className="loading">Loading...</div>
