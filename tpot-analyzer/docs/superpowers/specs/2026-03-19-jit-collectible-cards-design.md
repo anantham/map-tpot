@@ -13,8 +13,9 @@ Replace the bar-chart community cards with AI-generated tarot-style collectible 
 ```
 Browser                          Vercel Serverless              OpenRouter
 +----------+                    +--------------+              +----------+
-| User     | POST /api/card     | /api/card.js |  Gemini      | Image    |
-| searches | ------------------>| - budget cap | ------------>| Gen API  |
+| User     | POST /api/         | generate-    |  Gemini      | Image    |
+| searches |   generate-card    | card.js      |              | Gen API  |
+| handle   | ------------------>| - budget cap | ------------>|          |
 | handle   |                    | - prompt     |              |          |
 |          | <------------------| - cache 24h  | <------------|  base64  |
 | Card     |  { imageUrl, ... } |              |              |  PNG     |
@@ -78,6 +79,12 @@ Uses Vercel KV (free tier: 30K requests/month, 256MB storage):
 
 **Budget cap:** $5.00/day, configurable via `CARD_DAILY_BUDGET` env var.
 
+**Cost tracking:** Parse `usage.completion_tokens` from the OpenRouter response and multiply by `$30/1_000_000` for accurate per-request cost tracking. Do not use a hardcoded estimate — actual cost is ~$0.04/image for Gemini Flash, yielding ~125 cards/day at the $5 cap.
+
+**Concurrent request lock:** Before generating, set `cache:{handle}` to `"pending"` with NX (set-if-not-exists) and 30s TTL. If key already exists as `"pending"`, return `202 Accepted` with `Retry-After: 5` header. This prevents double-charging for simultaneous requests for the same handle.
+
+**Vercel KV limits:** Free tier allows 30K requests/month, 3K/day. Each generation consumes ~5 KV ops. At ~125 cards/day, that's ~625 KV ops/day — safely within the daily ceiling.
+
 ### OpenRouter Integration
 
 **Model:** `google/gemini-2.5-flash-image-preview` (cheapest image-capable model)
@@ -95,7 +102,11 @@ Uses Vercel KV (free tier: 30K requests/month, 256MB storage):
 }
 ```
 
-**Response parsing:** Extract base64 image from `choices[0].message.images[0].image_url.url`.
+**Response parsing:** Extract base64 image from `choices[0].message.images[0].image_url.url`. If `choices[0].message.images` is undefined or empty, treat as generation failure and return `500 { error: "generation_failed" }`. The `content` field may be null or empty when the model outputs only an image — do not rely on it.
+
+**Timeout:** Vercel Hobby plan has a 10s function timeout. Gemini Flash image generation takes 3-8s. Set an 8s abort on the OpenRouter fetch to avoid silent timeout. If generation doesn't complete in time, return `500 { error: "generation_timeout" }`.
+
+**Prompt assembly:** Built via plain JavaScript string concatenation in the serverless function — no template library needed.
 
 ## Prompt Template
 
@@ -202,16 +213,19 @@ Subtle gear icon in the site header (top-right). Opens a minimal modal:
 └─────────────────────────────────────────┘
 ```
 
-- Key stored in `localStorage` (never sent to our server)
+- Key stored in `localStorage` (never sent to our server, never logged to console)
 - When key is set, requests go direct to OpenRouter from browser (CORS-allowed)
 - When key is cleared, falls back to serverless function with curator's key
 - Badge in header: "Using your key" or nothing (default)
+- BYOK requests must be debounced — only one generation request in-flight at a time per handle. If a request is already in-flight, the second call is a no-op.
 
 ## Sample Tweets for Prompt
 
 For classified accounts (298), the export script should include a `sample_tweets` field with 3 representative tweets selected by engagement (likes + retweets). This enriches the prompt with the account's actual voice.
 
-**Export script change:** Query `archive_tweets.db` for top 3 tweets by `favorite_count + retweet_count` for each classified account. Add to `data.json` accounts:
+**Export script change:** Query `archive_tweets.db` table `tweets` for top 3 tweets by `favorite_count + retweet_count` where `account_id` matches the classified account's `id`. Tweets are matched via `account_id` column in the `tweets` table. If an account has no tweets in the archive, `sample_tweets` is an empty array `[]`. Truncate tweet text to 280 chars. Size impact: 298 accounts x 3 tweets x ~100 chars ≈ 90KB additional in `data.json` — acceptable.
+
+Add to `data.json` accounts:
 
 ```json
 {
@@ -237,12 +251,24 @@ For propagated accounts: no tweets available, prompt uses communities + bio only
 | `KV_REST_API_URL` | Vercel KV connection (auto-set when KV is linked) |
 | `KV_REST_API_TOKEN` | Vercel KV auth (auto-set) |
 
+## Vercel Config Change
+
+The existing `vercel.json` rewrite rule must be updated to exclude `/api/` paths, otherwise the serverless function will be unreachable:
+
+```json
+"rewrites": [
+  { "source": "/((?!api/|data\\.json|search\\.json|assets/).*)", "destination": "/index.html" }
+]
+```
+
+Also add `"maxDuration": 10` to the function config (Hobby plan ceiling).
+
 ## File Structure (new/modified)
 
 ```
 public-site/
   api/
-    generate-card.js          <- Vercel serverless function
+    generate-card.js          <- Vercel serverless function (Node.js 20.x)
   src/
     App.jsx                   <- modified: add settings icon, AI card state
     CommunityCard.jsx         <- modified: layered rendering with AI image
