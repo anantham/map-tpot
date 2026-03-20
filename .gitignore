@@ -64,6 +64,12 @@ test-results/
 tpot-analyzer/data/account_tags.db*
 CLAUDE.md
 
+# Public site (generated data + build artifacts)
+tpot-analyzer/public-site/public/data.json
+tpot-analyzer/public-site/public/search.json
+tpot-analyzer/public-site/node_modules/
+tpot-analyzer/public-site/dist/
+
 # Root-level package files (not part of the project)
 /package.json
 /package-lock.json
