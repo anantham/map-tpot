@@ -183,17 +183,40 @@ export default function App() {
 
   if (!data) return <div className="loading">Loading...</div>
 
+  const communities = data.communities || []
+
   return (
     <div className="app">
       <div className="app-header">
-        <h1>{data.meta.site_name}</h1>
         <SettingsIcon onClick={() => setSettingsOpen(true)} />
       </div>
-      <p className="tagline">Find where you belong in TPOT</p>
-      <p className="stats">{data.meta.counts.total_searchable.toLocaleString()} accounts indexed</p>
 
       {!result && (
-        <SearchBar onResult={handleResult} />
+        <div className="hero">
+          <h1 className="hero-title">{data.meta.site_name}</h1>
+          <p className="hero-tagline">Discover which corners of TPOT you belong to</p>
+
+          <SearchBar onResult={handleResult} />
+
+          <div className="community-showcase">
+            <p className="showcase-label">14 communities mapped</p>
+            <div className="showcase-tags">
+              {communities.map(c => (
+                <span key={c.id} className="showcase-tag" style={{ borderColor: c.color, color: c.color }}>
+                  {c.name}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="hero-footer">
+            <span className="hero-stat">{data.meta.counts.total_searchable.toLocaleString()} accounts indexed</span>
+            <span className="hero-sep">&middot;</span>
+            <a href="/about" className="hero-link">How it works</a>
+            <span className="hero-sep">&middot;</span>
+            <a href={data.meta.links.repo} target="_blank" rel="noopener noreferrer" className="hero-link">Open source</a>
+          </div>
+        </div>
       )}
 
       {result && (

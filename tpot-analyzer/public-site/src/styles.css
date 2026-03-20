@@ -10,22 +10,105 @@ body {
 .app {
   max-width: 640px;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 1rem 1rem;
   text-align: center;
 }
 
 /* ── App Header ── */
 
 .app-header {
-  position: relative;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  justify-content: flex-end;
+  padding: 0.5rem 0;
 }
 
-h1 { font-size: 2rem; margin-bottom: 0.5rem; }
-.tagline { color: #888; margin-bottom: 0.5rem; }
-.stats { color: #555; font-size: 0.85rem; margin-bottom: 2rem; }
+/* ── Hero (landing page) ── */
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: calc(100vh - 4rem);
+  justify-content: center;
+  gap: 0;
+}
+
+.hero-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #e8e8e8;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.5px;
+}
+
+.hero-tagline {
+  color: #888;
+  font-size: 1.05rem;
+  margin-bottom: 2rem;
+}
+
+.community-showcase {
+  margin-top: 2.5rem;
+  width: 100%;
+}
+
+.showcase-label {
+  font-size: 0.8rem;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 0.75rem;
+}
+
+.showcase-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.showcase-tag {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid;
+  border-radius: 20px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.showcase-tag:hover {
+  opacity: 1;
+}
+
+.hero-footer {
+  margin-top: 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.hero-stat {
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.hero-sep {
+  color: #333;
+}
+
+.hero-link {
+  font-size: 0.8rem;
+  color: #777;
+  text-decoration: none;
+}
+
+.hero-link:hover {
+  color: #aaa;
+  text-decoration: underline;
+}
+
 .loading { text-align: center; padding: 4rem; color: #666; }
 
 /* ── Search Bar ── */
