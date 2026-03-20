@@ -1,10 +1,11 @@
 """Flask routes for hierarchical cluster visualization (expand/collapse)."""
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
-import pickle
+import pickle  # used for cached adjacency matrix (local files only, not user input)
 import time
 import hashlib
 from collections import OrderedDict
@@ -359,6 +360,32 @@ def _estimate_account_coverage(account_id: str) -> Dict[str, float]:
     }
 
 
+def _require_loaded(f):
+    """Decorator: return 503 if cluster data hasn't been initialized."""
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        if _spectral_result is None or _adjacency is None:
+            return jsonify({"error": "Cluster data not loaded"}), 503
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def _parse_lens() -> str:
+    """Extract and validate the lens query parameter."""
+    lens = request.args.get("lens", "full", type=str)
+    if lens not in _available_lenses:
+        lens = "full"
+    return lens
+
+
+def _require_ego() -> str:
+    """Extract ego query param, raising ValueError if missing."""
+    ego = (request.args.get("ego") or "").strip()
+    if not ego:
+        raise ValueError("ego query param is required")
+    return ego
+
+
 def init_cluster_routes(data_dir: Path = Path("data")) -> None:
     """Initialize cluster routes state (data load + caches).
 
@@ -508,10 +535,9 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
 
 
 @cluster_bp.route("", methods=["GET"])
+@_require_loaded
 def get_clusters():
     """Return hierarchical cluster view with expand/collapse support."""
-    if _spectral_result is None or _adjacency is None:
-        return jsonify({"error": "Cluster data not loaded"}), 503
     req_arg = request.args.get("reqId", type=str)
     req_id = req_arg if req_arg else uuid4().hex[:8]
     start_total = time.time()
@@ -533,9 +559,7 @@ def get_clusters():
     expand_depth = max(0.0, min(1.0, expand_depth))
     alpha = request.args.get("alpha", 0.0, type=float)
     alpha = max(0.0, min(1.0, alpha))
-    lens = request.args.get("lens", "full", type=str)
-    if lens not in _available_lenses:
-        lens = "full"
+    lens = _parse_lens()
 
     # Select spectral + adjacency + metadata based on lens
     active_spectral = _spectral_result
@@ -677,7 +701,7 @@ def get_clusters():
     except Exception as exc:
         logger.exception("clusters build failed req=%s expanded=%s collapsed=%s: %s", req_id, expanded_ids, collapsed_ids, exc)
         _cache.inflight_clear(cache_key)
-        return jsonify({"error": str(exc), "req_id": req_id}), 500
+        return jsonify({"error": "cluster build failed", "req_id": req_id}), 500
     finally:
         _cache.inflight_clear(cache_key)
 
@@ -722,10 +746,9 @@ def get_clusters():
 
 
 @cluster_bp.route("/<cluster_id>/members", methods=["GET"])
+@_require_loaded
 def get_cluster_members(cluster_id: str):
     """Return members for a cluster from cached view."""
-    if _spectral_result is None:
-        return jsonify({"error": "Cluster data not loaded"}), 503
 
     granularity = request.args.get("n", 25, type=int)
     granularity = max(5, min(500, granularity))
@@ -741,9 +764,7 @@ def get_cluster_members(cluster_id: str):
     louvain_weight = max(0.0, min(1.0, louvain_weight))
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
-    lens = request.args.get("lens", "full", type=str)
-    if lens not in _available_lenses:
-        lens = "full"
+    lens = _parse_lens()
 
     # Select spectral/adjacency/metadata based on lens
     active_spectral = _spectral_result
@@ -835,14 +856,14 @@ def get_cluster_members(cluster_id: str):
 
 
 @cluster_bp.route("/<cluster_id>/tag_summary", methods=["GET"])
+@_require_loaded
 def get_cluster_tag_summary(cluster_id: str):
     """Return per-tag counts (IN/NOT IN) for a cluster's members (scoped by ego)."""
-    if _spectral_result is None:
-        return jsonify({"error": "Cluster data not loaded"}), 503
 
-    ego = (request.args.get("ego", "", type=str) or "").strip()
-    if not ego:
-        return jsonify({"error": "ego query param is required"}), 400
+    try:
+        ego = _require_ego()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     granularity = request.args.get("n", 25, type=int)
     granularity = max(5, min(500, granularity))
@@ -857,9 +878,7 @@ def get_cluster_tag_summary(cluster_id: str):
     louvain_weight = max(0.0, min(1.0, louvain_weight))
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
-    lens = request.args.get("lens", "full", type=str)
-    if lens not in _available_lenses:
-        lens = "full"
+    lens = _parse_lens()
 
     # Select spectral/adjacency/metadata based on lens
     active_spectral = _spectral_result
@@ -972,10 +991,9 @@ def get_cluster_tag_summary(cluster_id: str):
 
 
 @cluster_bp.route("/accounts/<account_id>/membership", methods=["GET"])
+@_require_loaded
 def get_account_membership(account_id: str):
     """Return TPOT-membership probability for one account using GRF anchors."""
-    if _spectral_result is None or _adjacency is None:
-        return jsonify({"error": "Cluster data not loaded"}), 503
 
     if not _membership_engine_enabled():
         return jsonify(
@@ -985,9 +1003,10 @@ def get_account_membership(account_id: str):
             }
         ), 400
 
-    ego = (request.args.get("ego", "", type=str) or "").strip()
-    if not ego:
-        return jsonify({"error": "ego query param is required"}), 400
+    try:
+        ego = _require_ego()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     node_id = str(account_id)
     node_index = _node_id_to_idx.get(node_id)
@@ -1121,10 +1140,9 @@ def delete_cluster_label(cluster_id: str):
 
 
 @cluster_bp.route("/<cluster_id>/preview", methods=["GET"])
+@_require_loaded
 def preview_cluster(cluster_id: str):
     """Return expand/collapse preview without mutating state."""
-    if _spectral_result is None:
-        return jsonify({"error": "Cluster data not loaded"}), 503
     granularity = request.args.get("n", 25, type=int)
     granularity = max(5, min(500, granularity))
     expanded_arg = request.args.get("expanded", "")
@@ -1137,9 +1155,7 @@ def preview_cluster(cluster_id: str):
     budget = max(5, budget)
     expand_depth = request.args.get("expand_depth", 0.5, type=float)
     expand_depth = max(0.0, min(1.0, expand_depth))
-    lens = request.args.get("lens", "full", type=str)
-    if lens not in _available_lenses:
-        lens = "full"
+    lens = _parse_lens()
 
     active_spectral = _spectral_result
     if lens == "tpot" and _tpot_spectral is not None:

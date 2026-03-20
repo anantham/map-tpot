@@ -68,7 +68,7 @@ class AnalysisManager:
                     logger.exception("Analysis failed")
                     with self._lock:
                         self._status["status"] = "failed"
-                        self._status["error"] = str(e)
+                        self._status["error"] = "analysis failed; check server logs"
                         self._status["finished_at"] = time.time()
 
             self._thread = threading.Thread(target=_wrapper, daemon=True)

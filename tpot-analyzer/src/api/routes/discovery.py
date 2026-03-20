@@ -141,7 +141,7 @@ def discover():
         return jsonify(result)
     except Exception as exc:
         logger.exception("Discovery failed: %s", exc)
-        return jsonify({"error": str(exc), "code": "INTERNAL_ERROR"}), 500
+        return jsonify({"error": "discovery failed", "code": "INTERNAL_ERROR"}), 500
 
 
 @discovery_bp.route("/ego-network", methods=["GET"])

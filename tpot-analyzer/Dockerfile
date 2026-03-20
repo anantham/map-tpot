@@ -35,8 +35,10 @@ COPY config/ ./config/
 COPY data/graph_snapshot.* ./data/
 COPY data/.gitkeep ./data/
 
-# Create logs directory
-RUN mkdir -p logs
+# Create non-root user and logs directory
+RUN useradd --create-home --shell /bin/bash appuser \
+    && mkdir -p logs \
+    && chown -R appuser:appuser /app
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
@@ -44,6 +46,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV SNAPSHOT_DIR=/app/data
 ENV TPOT_LOG_DIR=/app/logs
 ENV API_LOG_LEVEL=INFO
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8080

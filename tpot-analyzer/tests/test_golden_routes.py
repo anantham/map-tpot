@@ -204,36 +204,39 @@ def test_predictions_queue_and_eval_roundtrip(golden_app: Flask, tmp_path: Path)
 
 
 @pytest.mark.integration
-def test_interpret_rejects_remote_by_default(golden_app: Flask) -> None:
+def test_interpret_rejects_without_token(golden_app: Flask, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without TPOT_EXTENSION_TOKEN configured, interpret rejects with 403."""
     client = golden_app.test_client()
+    monkeypatch.delenv("TPOT_EXTENSION_TOKEN", raising=False)
 
     resp = client.post(
         "/api/golden/interpret",
         json={"text": "hello world"},
-        environ_overrides={"REMOTE_ADDR": "10.10.0.2"},
     )
     assert resp.status_code == 403
-    assert "local-only" in resp.get_json()["error"]
+    assert "TPOT_EXTENSION_TOKEN" in resp.get_json()["error"]
 
 
 @pytest.mark.integration
 def test_interpret_rejects_non_allowlisted_model(golden_app: Flask, monkeypatch: pytest.MonkeyPatch) -> None:
     client = golden_app.test_client()
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("TPOT_EXTENSION_TOKEN", "test-token")
 
     resp = client.post(
         "/api/golden/interpret",
         json={"text": "hello world", "model": "evilcorp/not-a-real-model"},
-        environ_overrides={"REMOTE_ADDR": "127.0.0.1"},
+        headers={"X-TPOT-Extension-Token": "test-token"},
     )
     assert resp.status_code == 400
     assert "not allowed" in resp.get_json()["error"]
 
 
 @pytest.mark.integration
-def test_interpret_allows_loopback_and_returns_json(golden_app: Flask, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_interpret_with_valid_token_returns_json(golden_app: Flask, monkeypatch: pytest.MonkeyPatch) -> None:
     client = golden_app.test_client()
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("TPOT_EXTENSION_TOKEN", "test-token")
 
     class _FakeResponse:
         def raise_for_status(self) -> None:
@@ -268,7 +271,7 @@ def test_interpret_allows_loopback_and_returns_json(golden_app: Flask, monkeypat
     resp = client.post(
         "/api/golden/interpret",
         json={"text": "hello world"},
-        environ_overrides={"REMOTE_ADDR": "127.0.0.1"},
+        headers={"X-TPOT-Extension-Token": "test-token"},
     )
     assert resp.status_code == 200
     payload = resp.get_json()

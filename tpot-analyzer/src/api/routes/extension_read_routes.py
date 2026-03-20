@@ -42,7 +42,7 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
                 account_id,
                 exc,
             )
-            return jsonify({"error": "account feed summary failed", "details": str(exc)}), 500
+            return jsonify({"error": "account feed summary failed"}), 500
         return jsonify(summary)
 
     @blueprint.route("/exposure/top", methods=["GET"])
@@ -66,7 +66,7 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
             return jsonify({"error": str(exc)}), 400
         except Exception as exc:
             logger.exception("top exposure query failed workspace=%s ego=%s: %s", workspace_id, ego, exc)
-            return jsonify({"error": "top exposure query failed", "details": str(exc)}), 500
+            return jsonify({"error": "top exposure query failed"}), 500
         return jsonify(
             {
                 "workspaceId": workspace_id,

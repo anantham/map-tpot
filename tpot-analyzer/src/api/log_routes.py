@@ -45,6 +45,6 @@ def write_log():
             f.write(line + "\n")
     except Exception as exc:  # pragma: no cover - best-effort logging
         logger.warning("Failed to persist frontend log: %s", exc)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "failed to persist log"}), 500
 
     return jsonify({"status": "ok"}), 200

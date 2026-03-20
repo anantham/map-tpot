@@ -205,7 +205,7 @@ def upsert_account_tag(account_id: str):
         )
     except Exception as exc:
         logger.warning("Tag upsert failed ego=%s account=%s tag=%s: %s", ego, account_id, tag, exc)
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "tag upsert failed"}), 400
     return jsonify({"status": "ok", "tag": asdict(saved)})
 
 

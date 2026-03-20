@@ -109,6 +109,66 @@ The math finds natural groupings. Humans give those groupings meaning. The meani
 
 ---
 
+## Distribution: How This Reaches Users
+
+### Two User Types
+
+**Power users** clone the repo, feed their own API keys, and run the full pipeline locally. They label tweets, shape community boundaries, name their clusters, and produce a personal ontology of their corner of Twitter. The labeling UI, classification pipeline, and clustering tools are all local-first — computation happens on your machine, data stays on your disk. A power user IS the admin of their own instance.
+
+**Casual users** visit a published URL and type their Twitter handle. They see where they sit in the power user's community map — soft membership percentages across named communities. No account needed, no API keys, no local setup. Just curiosity and a handle.
+
+### The Casual User Experience
+
+The MVP experience is a lightweight static site (Vercel or equivalent). The flow:
+
+1. **Landing page** — search bar. "Find your ingroup."
+2. **Type your handle** — instant client-side lookup against a pre-computed static JSON index.
+3. **Results card** — soft community placement as percentage bars with human-curated community names. "80% Post-rationalist, 15% AI Safety, 5% Woo." Provocative-by-design — the labels are part of the appeal.
+4. **Downloadable PNG** — "Share your card" button generates a screenshot-ready image client-side (canvas-to-PNG, zero server cost). This is the viral mechanic.
+5. **"Explore the map" link** — optional deeper view. A simplified cluster visualization showing the user's position in the full community landscape. Heavier to load, but available for the curious.
+
+**If the handle isn't found:** a banner with three paths to get included:
+- DM the power user directly (fastest — they add your data to their local pipeline)
+- Upload your Twitter data export to the [Community Archive](https://github.com/community-archive) (benefits the whole community)
+- Clone the repo and become a power user yourself
+
+This creates a **growth flywheel**: people want to see their results, so they contribute their data. The power user periodically re-fetches the latest community archive accounts and re-publishes with an expanded index.
+
+### The Publishing Workflow
+
+All computation happens locally. Publishing is just exporting the results:
+
+1. Power user runs the full pipeline locally: labeling, classification, clustering, community naming
+2. A build step exports the results as **static JSON** — every account's community membership scores, community metadata (names, colors, descriptions), and a simplified cluster layout for the map view
+3. The static site (a lightweight React/Vite app) ships with this JSON baked in. Client-side lookup, client-side rendering, client-side PNG generation. Zero backend in production.
+4. Deploy to Vercel/Netlify/GitHub Pages. Cost: free or near-free.
+5. To update: re-run the pipeline with new data, re-export, re-deploy.
+
+The published site is a **read-only snapshot** of the power user's analysis at a point in time. It does not connect to any backend, database, or API. The full research tools (labeling UI, LLM interpretation, branch management) stay local-only.
+
+### Open Source Strategy
+
+**Current model (v1):** One repo, framework and data bundled. Someone who clones it gets the tool AND the specific TPOT analysis (community labels, graph snapshots, golden dataset). They can fork and modify, run their own labeling, publish their own version.
+
+**Future model (if demand exists):** Separate the framework (the pipeline, the UIs, the static site generator) from the data (a specific power user's community ontology). The framework becomes a reusable tool; each power user maintains their own data repo. This separation happens only if multiple people actually want to run their own analyses — premature abstraction otherwise.
+
+### What Gets Published vs What Stays Local
+
+| Artifact | Published (static site) | Local only (power user) |
+|----------|------------------------|------------------------|
+| Community names + colors | Yes | Yes |
+| Account membership scores | Yes (pre-computed JSON) | Yes (live in SQLite) |
+| Simplified cluster layout | Yes (for map view) | Yes (full spectral data) |
+| Account handles + display names | Yes (public Twitter data) | Yes |
+| Tweet text / labels / golden dataset | No | Yes |
+| Labeling UI | No | Yes |
+| LLM interpretation | No | Yes |
+| Branch management | No | Yes |
+| Classification pipeline | No | Yes |
+| API keys / secrets | No | Yes (in .env) |
+
+---
+
 ## The Deeper Question
 
 This project started with "where does TPOT end?"
