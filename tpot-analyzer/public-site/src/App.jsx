@@ -11,8 +11,8 @@ import About from './About'
  * ResultArea — always mounts when a classified/propagated result exists,
  * so that `useCardGeneration` is called unconditionally (React hook rules).
  */
-function ResultArea({ result, communityMap }) {
-  const { imageUrl, status } = useCardGeneration({
+function ResultArea({ result, communityMap, links }) {
+  const { imageUrl, status, remaining } = useCardGeneration({
     handle: result.handle,
     bio: result.bio,
     memberships: result.memberships,
@@ -38,6 +38,18 @@ function ResultArea({ result, communityMap }) {
           <span className="generating-typewriter">Crafting your collectible card</span>
           <span className="generating-dots" />
         </div>
+      )}
+      {(status === 'user_exhausted' || status === 'exhausted') && (
+        <div className="exhausted-banner">
+          <p className="exhausted-title">Free card generations used up</p>
+          <p className="exhausted-text">
+            You can <a href="#" onClick={(e) => { e.preventDefault(); document.querySelector('.settings-icon')?.click() }}>add your own OpenRouter key</a> for
+            unlimited generations, or <a href={links?.curator_dm} target="_blank" rel="noopener noreferrer">contact the curator</a> to reset your limit.
+          </p>
+        </div>
+      )}
+      {status === 'generated' && remaining > 0 && remaining < 5 && (
+        <p className="gen-remaining">{remaining} free generation{remaining !== 1 ? 's' : ''} remaining</p>
       )}
       <CardDownload
         handle={result.handle}
@@ -225,6 +237,7 @@ export default function App() {
             <ResultArea
               result={result}
               communityMap={communityMap}
+              links={data.meta.links}
             />
           )}
 

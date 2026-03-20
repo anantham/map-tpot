@@ -763,6 +763,47 @@ body {
   color: #e0e0e0;
 }
 
+/* ── Generation Limits ── */
+
+.exhausted-banner {
+  background: rgba(200, 50, 50, 0.1);
+  border: 1px solid rgba(200, 50, 50, 0.3);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.exhausted-title {
+  color: #e0a0a0;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.exhausted-text {
+  color: #999;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.exhausted-text a {
+  color: rgba(212, 175, 55, 0.9);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.exhausted-text a:hover {
+  color: rgba(212, 175, 55, 1);
+}
+
+.gen-remaining {
+  text-align: center;
+  font-size: 0.75rem;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+
 /* ── Share Button ── */
 
 .share-btn {

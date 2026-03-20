@@ -17,6 +17,20 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const RETRY_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
 const LOCALSTORAGE_KEY = "openrouter_key";
+const GEN_COUNT_KEY = "ingroup_gen_count";
+const MAX_FREE_GENS = 10;
+
+function getGenCount() {
+  try { return parseInt(localStorage.getItem(GEN_COUNT_KEY) || '0', 10); } catch { return 0; }
+}
+
+function incrementGenCount() {
+  try {
+    const count = getGenCount() + 1;
+    localStorage.setItem(GEN_COUNT_KEY, String(count));
+    return count;
+  } catch { return 0; }
+}
 
 /**
  * Build the image generation prompt text.
@@ -145,17 +159,28 @@ async function generateServerless(cardRequest, signal, retryCount = 0) {
 export function useCardGeneration({ handle, bio, memberships, sampleTweets, communityMap, tier }) {
   const [imageUrl, setImageUrl] = useState(null);
   const [status, setStatus] = useState("idle");
+  const [remaining, setRemaining] = useState(() => Math.max(0, MAX_FREE_GENS - getGenCount()));
   const inflightRef = useRef(null); // tracks current in-flight handle
   const abortRef = useRef(null);
 
   const generate = useCallback(async () => {
-    // Only generate for classified accounts with communities
+    // Only generate for accounts with communities
     if (!handle || !memberships || memberships.length === 0) {
       return;
     }
 
     // Debounce: skip if already generating for this handle
     if (inflightRef.current === handle) {
+      return;
+    }
+
+    // Check per-user limit (skip for BYOK users)
+    let byokKey = null;
+    try { byokKey = localStorage.getItem(LOCALSTORAGE_KEY); } catch {}
+
+    if (!byokKey && getGenCount() >= MAX_FREE_GENS) {
+      setStatus("user_exhausted");
+      setRemaining(0);
       return;
     }
 
@@ -180,14 +205,6 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
         communityMap,
       });
 
-      // Check for BYOK key
-      let byokKey = null;
-      try {
-        byokKey = localStorage.getItem(LOCALSTORAGE_KEY);
-      } catch {
-        // localStorage unavailable (private browsing, etc.)
-      }
-
       let url;
       if (byokKey) {
         // Direct call with user's key
@@ -202,6 +219,11 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
       if (inflightRef.current === handle) {
         setImageUrl(url);
         setStatus("generated");
+        // Increment per-user generation count (only for serverless path)
+        if (!byokKey) {
+          const newCount = incrementGenCount();
+          setRemaining(Math.max(0, MAX_FREE_GENS - newCount));
+        }
       }
     } catch (err) {
       if (err.name === "AbortError") {
@@ -238,5 +260,5 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
     };
   }, [handle]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { imageUrl, status };
+  return { imageUrl, status, remaining };
 }
