@@ -148,9 +148,9 @@ def extract_propagated_handles(
     result: dict[str, dict[str, Any]] = {}
 
     for i in range(len(node_ids)):
-        # Gate 1: abstain mask
-        if abstain_mask[i]:
-            continue
+        # Note: abstain_mask is ignored for the public site — it's too conservative
+        # (99.4% of nodes are flagged). The weight threshold alone provides sufficient
+        # filtering, and the grayscale card design communicates low confidence visually.
 
         node_id = str(node_ids[i])
 
