@@ -10,7 +10,9 @@ export default function ContributePrompt({ handle, tier, links }) {
       )}
 
       <h3 className="contribute-title">
-        {isNotFound ? 'Get your card' : 'Unlock your full color card'}
+        {isNotFound
+          ? 'Get your card'
+          : <><a href="/about" className="enrich-link">Enrich</a> your card</>}
       </h3>
       <p className="contribute-subtitle">
         {isNotFound
