@@ -9,8 +9,14 @@ export default function ContributePrompt({ handle, tier, links }) {
         </p>
       )}
 
-      <h3 className="contribute-title">Want to see your full color card?</h3>
-      <p className="contribute-subtitle">Contribute your Twitter data through any of these paths:</p>
+      <h3 className="contribute-title">
+        {isNotFound ? 'Get your card' : 'Unlock your full color card'}
+      </h3>
+      <p className="contribute-subtitle">
+        {isNotFound
+          ? 'Contribute your Twitter data to get a personalized community card:'
+          : 'Your card is based on network position only. Share your tweets to get a richer, full-color analysis:'}
+      </p>
 
       <ul className="contribute-paths">
         <li>

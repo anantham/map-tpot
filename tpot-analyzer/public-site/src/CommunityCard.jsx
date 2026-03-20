@@ -48,7 +48,7 @@ export default function CommunityCard({
     return (
       <div
         ref={cardRef}
-        className="card-ai-container"
+        className={`card-ai-container ${!isClassified ? 'card-ai-grayscale' : ''}`}
         id="community-card"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
