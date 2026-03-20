@@ -201,6 +201,38 @@ def extract_propagated_handles(
 # 4. run_export
 # ---------------------------------------------------------------------------
 
+def get_sample_tweets(
+    db_path: Path, account_id: str, limit: int = 3,
+) -> list[str]:
+    """Return top tweets by engagement (favorite_count + retweet_count).
+
+    Args:
+        db_path: Path to SQLite DB containing a ``tweets`` table.
+        account_id: The account whose tweets to fetch.
+        limit: Max number of tweets to return (default 3).
+
+    Returns:
+        List of tweet texts (each truncated to 280 chars), ordered by
+        engagement descending. Returns ``[]`` when the account has no
+        tweets or the ``tweets`` table does not exist.
+    """
+    conn = sqlite3.connect(str(db_path))
+    try:
+        rows = conn.execute(
+            """SELECT full_text FROM tweets
+               WHERE account_id = ?
+               ORDER BY (favorite_count + retweet_count) DESC
+               LIMIT ?""",
+            (account_id, limit),
+        ).fetchall()
+        return [row[0][:280] for row in rows]
+    except sqlite3.OperationalError:
+        # Table may not exist (e.g. test DBs without tweets)
+        return []
+    finally:
+        conn.close()
+
+
 def _safe_followers(val: Any) -> int | None:
     """Convert num_followers (float64, may be NaN) to int or None."""
     if val is None:
@@ -284,6 +316,7 @@ def run_export(
             acct["display_name"] = None
             acct["bio"] = None
             acct["followers"] = None
+        acct["sample_tweets"] = get_sample_tweets(db_path, acct["id"])
 
     # --- Propagated handles ---
     npz_path = data_dir / "community_propagation.npz"
