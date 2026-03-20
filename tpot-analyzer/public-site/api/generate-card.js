@@ -2,7 +2,7 @@
  * Vercel serverless function: POST /api/generate-card
  *
  * Generates a collectible card image via OpenRouter (Gemini 2.5 Flash).
- * Uses @upstash/redis for caching and daily budget tracking.
+ * Uses Redis (ioredis) for caching and daily budget tracking.
  *
  * Body: { handle, bio, communities: [{name, color, weight}], tweets: [string] }
  * Returns: { imageUrl, cached, model } | { error, code }
@@ -10,11 +10,45 @@
 
 let kv = null;
 try {
-  const { Redis } = require("@upstash/redis");
-  const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (redisUrl && redisToken) {
-    kv = new Redis({ url: redisUrl, token: redisToken });
+  const Redis = require("ioredis");
+  const redisUrl = process.env.KV_REDIS_URL;
+  if (redisUrl) {
+    kv = new Redis(redisUrl, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 3000,
+      lazyConnect: true,
+    });
+    // ioredis API adapter — wrap to match our get/set/del/incrbyfloat/expire pattern
+    const rawRedis = kv;
+    kv = {
+      async get(key) {
+        try { await rawRedis.connect(); } catch {}
+        return rawRedis.get(key);
+      },
+      async set(key, value, opts) {
+        try { await rawRedis.connect(); } catch {}
+        if (opts?.nx && opts?.ex) {
+          const result = await rawRedis.set(key, typeof value === 'object' ? JSON.stringify(value) : value, 'EX', opts.ex, 'NX');
+          return result === 'OK';
+        }
+        if (opts?.ex) {
+          return rawRedis.set(key, typeof value === 'object' ? JSON.stringify(value) : value, 'EX', opts.ex);
+        }
+        return rawRedis.set(key, typeof value === 'object' ? JSON.stringify(value) : value);
+      },
+      async del(key) {
+        try { await rawRedis.connect(); } catch {}
+        return rawRedis.del(key);
+      },
+      async incrbyfloat(key, amount) {
+        try { await rawRedis.connect(); } catch {}
+        return rawRedis.incrbyfloat(key, amount);
+      },
+      async expire(key, seconds) {
+        try { await rawRedis.connect(); } catch {}
+        return rawRedis.expire(key, seconds);
+      },
+    };
   }
 } catch {
   // Redis unavailable — graceful degradation (no cache, no budget enforcement)
