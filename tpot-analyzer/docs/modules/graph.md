@@ -50,8 +50,8 @@ works well). Automatically choosing the strategy that reveals the most meaningfu
 ### ADR references
 
 - [ADR-001: Spectral Clustering Visualization](../adr/001-spectral-clustering-visualization.md)
-- [ADR-006: Shared Tagging and Anchor-Conditioned TPOT Membership](../adr/006-shared-tagging-and-anchor-conditioned-tpot-membership.md)
-- [ADR-007: Observation-Aware Clustering and Membership Inference](../adr/007-observation-aware-clustering-membership-inference.md)
+- [ADR-006: Shared Tagging and TPOT Membership](../adr/006-shared-tagging-and-tpot-membership.md)
+- [ADR-007: Observation-Aware Clustering and Membership](../adr/007-observation-aware-clustering-membership.md)
 
 ---
 

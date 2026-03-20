@@ -1,4 +1,4 @@
-# ADR 009: Labeling Dashboard and LLM Evaluation Harness
+# ADR 010: Labeling Dashboard and LLM Evaluation Harness
 
 - Status: Proposed
 - Date: 2026-02-25
