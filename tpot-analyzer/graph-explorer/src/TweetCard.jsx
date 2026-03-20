@@ -9,9 +9,10 @@ import { renderTweetText, avatarColor, formatTweetDate, decodeHtmlEntities } fro
 export default function TweetCard({ tweet }) {
   if (!tweet) return null
 
-  const { username, text, createdAt, replyToTweetId, replyToUsername, threadContext = [] } = tweet
+  const { tweetId, username, text, createdAt, replyToTweetId, replyToUsername, threadContext = [] } = tweet
 
   const dateStr = formatTweetDate(createdAt)
+  const tweetUrl = `https://x.com/${username}/status/${tweetId}`
 
   return (
     <div style={{
@@ -91,7 +92,11 @@ export default function TweetCard({ tweet }) {
                 replying to <span style={{ color: '#0084b4' }}>@{replyToUsername}</span>
               </span>
             )}
-            <span style={{ fontSize: 12, color: '#8899a6', marginLeft: 'auto' }}>{dateStr}</span>
+            <a href={tweetUrl} target="_blank" rel="noopener noreferrer"
+               style={{ fontSize: 12, color: '#8899a6', marginLeft: 'auto', textDecoration: 'none' }}
+               onMouseOver={e => e.target.style.textDecoration = 'underline'}
+               onMouseOut={e => e.target.style.textDecoration = 'none'}
+            >{dateStr}</a>
           </div>
 
           {/* Tweet text — decoded + linkified */}
