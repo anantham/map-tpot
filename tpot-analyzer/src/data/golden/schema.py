@@ -96,10 +96,20 @@ CREATE TABLE IF NOT EXISTS evaluation_run (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS tweet_tags (
+    tweet_id TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    category TEXT,
+    added_by TEXT NOT NULL DEFAULT 'human',
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (tweet_id, tag)
+);
+
 CREATE INDEX IF NOT EXISTS idx_curation_split_axis_split ON curation_split(axis, split);
 CREATE INDEX IF NOT EXISTS idx_label_set_lookup ON tweet_label_set(tweet_id, axis, reviewer, is_active);
 CREATE INDEX IF NOT EXISTS idx_prediction_lookup ON model_prediction_set(tweet_id, axis, model_name, prompt_version);
 CREATE INDEX IF NOT EXISTS idx_queue_axis_status ON uncertainty_queue(axis, status, queue_score DESC);
+CREATE INDEX IF NOT EXISTS idx_tweet_tags_tag ON tweet_tags(tag);
 """
 
 

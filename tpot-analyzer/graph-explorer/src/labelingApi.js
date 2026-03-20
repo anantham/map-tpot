@@ -84,3 +84,34 @@ export async function submitLabel({ tweetId, distribution, note, reviewer = 'hum
   })
   return res.json()
 }
+
+export async function saveTags({ tweetId, tags, addedBy = 'human', category } = {}) {
+  const res = await apiFetch(`${BASE}/tags`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      tweet_id: tweetId,
+      tags,
+      added_by: addedBy,
+      category: category || undefined,
+    }),
+  })
+  return res.json()
+}
+
+export async function fetchTweetTags(tweetId) {
+  const res = await apiFetch(`${BASE}/tags/${encodeURIComponent(tweetId)}`)
+  return res.json()
+}
+
+export async function deleteTweetTag(tweetId, tag) {
+  const res = await apiFetch(`${BASE}/tags/${encodeURIComponent(tweetId)}/${encodeURIComponent(tag)}`, {
+    method: 'DELETE',
+  })
+  return res.json()
+}
+
+export async function fetchTagVocabulary({ limit = 200 } = {}) {
+  const res = await apiFetch(`${BASE}/tags/vocabulary?limit=${limit}`)
+  return res.json()
+}

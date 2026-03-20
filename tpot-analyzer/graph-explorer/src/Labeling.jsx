@@ -7,7 +7,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import TweetCard from './TweetCard'
-import { fetchCandidate, fetchMetrics, fetchInterpretModels, fetchReplies, fetchEngagement, fetchAuthorProfile, interpretTweet, submitLabel } from './labelingApi'
+import { fetchCandidate, fetchMetrics, fetchInterpretModels, fetchReplies, fetchEngagement, fetchAuthorProfile, interpretTweet, submitLabel, saveTags, fetchTweetTags, deleteTweetTag, fetchTagVocabulary } from './labelingApi'
 import { renderTweetText, avatarColor, formatTweetDate, formatShortDate, decodeHtmlEntities } from './tweetText'
 
 const LEVELS = ['l1', 'l2', 'l3', 'l4']
@@ -491,6 +491,192 @@ function Section({ title, badge, children }) {
   )
 }
 
+// ─── Tag input ───────────────────────────────────────────────────────────────
+
+function TagChip({ label, onRemove, muted }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3,
+      padding: '2px 8px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+      background: muted ? T.bg : T.blueLight,
+      color: muted ? T.textMuted : T.blue,
+      border: `1px solid ${muted ? T.border : T.blueDim}`,
+      cursor: onRemove ? 'pointer' : 'default',
+      marginRight: 4, marginBottom: 4,
+      transition: 'background 0.15s',
+    }}
+      onClick={onRemove}
+      title={onRemove ? `Remove "${label}"` : label}
+    >
+      {label}
+      {onRemove && <span style={{ fontSize: 14, lineHeight: 1, marginLeft: 2, color: T.textLight }}>x</span>}
+    </span>
+  )
+}
+
+function TagInput({ tweetId, onTagsChange }) {
+  const [input, setInput] = useState('')
+  const [selectedTags, setSelectedTags] = useState([])
+  const [vocabulary, setVocabulary] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  // Load vocabulary once
+  useEffect(() => {
+    fetchTagVocabulary({ limit: 200 })
+      .then(data => setVocabulary(data.tags || []))
+      .catch(() => {})
+  }, [])
+
+  // Load existing tags when tweet changes
+  useEffect(() => {
+    if (!tweetId) { setSelectedTags([]); return }
+    fetchTweetTags(tweetId)
+      .then(data => {
+        const existing = (data.tags || []).map(t => t.tag)
+        setSelectedTags(existing)
+      })
+      .catch(() => setSelectedTags([]))
+  }, [tweetId])
+
+  const addTag = useCallback((tag) => {
+    const normalized = tag.trim().toLowerCase()
+    if (!normalized) return
+    setSelectedTags(prev => {
+      if (prev.includes(normalized)) return prev
+      return [...prev, normalized]
+    })
+    setInput('')
+    setShowSuggestions(false)
+  }, [])
+
+  const removeTag = useCallback((tag) => {
+    setSelectedTags(prev => prev.filter(t => t !== tag))
+    // Also delete from backend immediately
+    if (tweetId) {
+      deleteTweetTag(tweetId, tag).catch(() => {})
+    }
+  }, [tweetId])
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      if (input.trim()) addTag(input)
+    } else if (e.key === 'Backspace' && !input && selectedTags.length > 0) {
+      removeTag(selectedTags[selectedTags.length - 1])
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false)
+    }
+  }
+
+  // Save tags to backend
+  const handleSave = async () => {
+    if (!tweetId || selectedTags.length === 0) return
+    setSaving(true)
+    try {
+      await saveTags({ tweetId, tags: selectedTags })
+      if (onTagsChange) onTagsChange(selectedTags)
+    } catch (_e) {
+      // error is logged by apiFetch
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Auto-save when tags change (debounced effect)
+  useEffect(() => {
+    if (!tweetId || selectedTags.length === 0) return
+    const timer = setTimeout(() => {
+      saveTags({ tweetId, tags: selectedTags }).catch(() => {})
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [tweetId, selectedTags])
+
+  // Filter suggestions based on input
+  const query = input.trim().toLowerCase()
+  const suggestions = query
+    ? vocabulary
+        .filter(v => v.tag.includes(query) && !selectedTags.includes(v.tag))
+        .slice(0, 10)
+    : []
+
+  // Top 20 most-used tags for quick selection (exclude already selected)
+  const quickTags = vocabulary
+    .filter(v => !selectedTags.includes(v.tag))
+    .slice(0, 20)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Selected tags */}
+      {selectedTags.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+          {selectedTags.map(tag => (
+            <TagChip key={tag} label={tag} onRemove={() => removeTag(tag)} />
+          ))}
+        </div>
+      )}
+
+      {/* Text input with autocomplete */}
+      <div style={{ position: 'relative' }}>
+        <input
+          type="text"
+          value={input}
+          onChange={e => { setInput(e.target.value); setShowSuggestions(true) }}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          placeholder="Type a tag and press Enter..."
+          style={{
+            width: '100%', background: T.card, border: `1px solid ${T.border}`,
+            borderRadius: 4, color: T.text, fontSize: 12, padding: '6px 8px',
+            boxSizing: 'border-box', fontFamily: T.font,
+          }}
+        />
+        {/* Autocomplete dropdown */}
+        {showSuggestions && suggestions.length > 0 && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+            background: T.card, border: `1px solid ${T.border}`, borderRadius: 4,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)', maxHeight: 160, overflowY: 'auto',
+          }}>
+            {suggestions.map(s => (
+              <div key={s.tag}
+                onMouseDown={() => addTag(s.tag)}
+                style={{
+                  padding: '5px 10px', cursor: 'pointer', fontSize: 12,
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  borderBottom: `1px solid ${T.bg}`,
+                }}
+                onMouseOver={e => e.currentTarget.style.background = T.blueLight}
+                onMouseOut={e => e.currentTarget.style.background = T.card}
+              >
+                <span style={{ color: T.text }}>{s.tag}</span>
+                <span style={{ color: T.textLight, fontSize: 10 }}>{s.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Quick-select: top used tags */}
+      {quickTags.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: T.textLight, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>
+            Popular tags
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+            {quickTags.map(v => (
+              <span key={v.tag} onClick={() => addTag(v.tag)} style={{ cursor: 'pointer' }}>
+                <TagChip label={v.tag} muted />
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Labeling({ reviewer = 'human', onNavigate }) {
@@ -788,7 +974,16 @@ export default function Labeling({ reviewer = 'human', onNavigate }) {
             </div>
           </div>
 
-          {/* 2. Author profile — below classification */}
+          {/* 2. Topic tags */}
+          {tweet && (
+            <Section title="Topic tags">
+              <div style={{ padding: 14 }}>
+                <TagInput tweetId={tweet.tweetId} />
+              </div>
+            </Section>
+          )}
+
+          {/* 3. Author profile — below classification */}
           {(authorProfile || authorLoading) && (
             <Section title="Author">
               <AuthorCard
@@ -804,7 +999,7 @@ export default function Labeling({ reviewer = 'human', onNavigate }) {
             </Section>
           )}
 
-          {/* 3. Quick reference */}
+          {/* 4. Quick reference */}
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
             <div style={{ padding: '8px 14px', background: T.bg, borderBottom: `1px solid ${T.border}` }}>
               <h4 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: T.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
