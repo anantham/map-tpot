@@ -3,10 +3,51 @@ import SearchBar from './SearchBar'
 import CommunityCard from './CommunityCard'
 import ContributePrompt from './ContributePrompt'
 import CardDownload from './CardDownload'
+import Settings, { SettingsIcon } from './Settings'
+import { useCardGeneration } from './GenerateCard'
+
+/**
+ * ResultArea — always mounts when a classified/propagated result exists,
+ * so that `useCardGeneration` is called unconditionally (React hook rules).
+ */
+function ResultArea({ result, communityMap }) {
+  const { imageUrl, status } = useCardGeneration({
+    handle: result.handle,
+    bio: result.bio,
+    memberships: result.memberships,
+    sampleTweets: result.sampleTweets || [],
+    communityMap,
+    tier: result.tier,
+  })
+
+  return (
+    <>
+      <CommunityCard
+        handle={result.handle}
+        displayName={result.displayName}
+        bio={result.bio}
+        tier={result.tier}
+        memberships={result.memberships}
+        communityMap={communityMap}
+        aiImageUrl={imageUrl}
+        generationStatus={status}
+      />
+      <CardDownload
+        handle={result.handle}
+        displayName={result.displayName}
+        tier={result.tier}
+        memberships={result.memberships}
+        communityMap={communityMap}
+        aiImageUrl={imageUrl}
+      />
+    </>
+  )
+}
 
 export default function App() {
   const [data, setData] = useState(null)
   const [result, setResult] = useState(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     fetch('/data.json').then(r => r.json()).then(setData)
@@ -43,6 +84,7 @@ export default function App() {
           displayName: account.display_name,
           bio: account.bio,
           memberships: account.memberships,
+          sampleTweets: account.sample_tweets || [],
         })
       } else {
         // Fallback: handle not found in accountMap (shouldn't happen)
@@ -52,6 +94,7 @@ export default function App() {
           displayName: null,
           bio: null,
           memberships: searchResult.memberships || [],
+          sampleTweets: [],
         })
       }
     } else if (searchResult.tier === 'propagated') {
@@ -61,6 +104,7 @@ export default function App() {
         displayName: null,
         bio: null,
         memberships: searchResult.memberships || [],
+        sampleTweets: [],
       })
     } else {
       setResult({
@@ -78,7 +122,10 @@ export default function App() {
 
   return (
     <div className="app">
-      <h1>{data.meta.site_name}</h1>
+      <div className="app-header">
+        <h1>{data.meta.site_name}</h1>
+        <SettingsIcon onClick={() => setSettingsOpen(true)} />
+      </div>
       <p className="tagline">Find where you belong in TPOT</p>
       <p className="stats">{data.meta.counts.total_searchable.toLocaleString()} accounts indexed</p>
 
@@ -89,23 +136,10 @@ export default function App() {
       {result && (
         <div className="result-area">
           {(result.tier === 'classified' || result.tier === 'propagated') && (
-            <>
-              <CommunityCard
-                handle={result.handle}
-                displayName={result.displayName}
-                bio={result.bio}
-                tier={result.tier}
-                memberships={result.memberships}
-                communityMap={communityMap}
-              />
-              <CardDownload
-                handle={result.handle}
-                displayName={result.displayName}
-                tier={result.tier}
-                memberships={result.memberships}
-                communityMap={communityMap}
-              />
-            </>
+            <ResultArea
+              result={result}
+              communityMap={communityMap}
+            />
           )}
 
           {result.tier === 'propagated' && (
@@ -129,6 +163,8 @@ export default function App() {
           </button>
         </div>
       )}
+
+      <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   )
 }
