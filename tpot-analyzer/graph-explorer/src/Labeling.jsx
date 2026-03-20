@@ -226,7 +226,11 @@ function ReplyThread({ replies, loading, error }) {
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                 <span style={{ fontWeight: 700, color: '#14171a', fontSize: 14 }}>@{r.username}</span>
-                <span style={{ fontSize: 12, color: T.textMuted }}>{dateStr}</span>
+                <a href={`https://x.com/${r.username}/status/${r.tweetId}`} target="_blank" rel="noopener noreferrer"
+                   style={{ fontSize: 12, color: T.textMuted, textDecoration: 'none' }}
+                   onMouseOver={e => e.target.style.textDecoration = 'underline'}
+                   onMouseOut={e => e.target.style.textDecoration = 'none'}
+                >{dateStr}</a>
                 {(r.likeCount > 0 || r.retweetCount > 0) && (
                   <span style={{ marginLeft: 'auto', fontSize: 11, color: T.textLight }}>
                     {r.likeCount > 0 && `♥ ${r.likeCount}`}
