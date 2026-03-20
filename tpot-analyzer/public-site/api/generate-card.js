@@ -2,7 +2,7 @@
  * Vercel serverless function: POST /api/generate-card
  *
  * Generates a collectible card image via OpenRouter (Gemini 2.5 Flash).
- * Uses @vercel/kv for caching and daily budget tracking.
+ * Uses @upstash/redis for caching and daily budget tracking.
  *
  * Body: { handle, bio, communities: [{name, color, weight}], tweets: [string] }
  * Returns: { imageUrl, cached, model } | { error, code }
@@ -10,9 +10,14 @@
 
 let kv = null;
 try {
-  kv = require("@vercel/kv").kv;
+  const { Redis } = require("@upstash/redis");
+  const redisUrl = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const redisToken = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (redisUrl && redisToken) {
+    kv = new Redis({ url: redisUrl, token: redisToken });
+  }
 } catch {
-  // KV unavailable — graceful degradation (no cache, no budget enforcement)
+  // Redis unavailable — graceful degradation (no cache, no budget enforcement)
 }
 
 const MODEL = "google/gemini-2.5-flash-image-preview";
