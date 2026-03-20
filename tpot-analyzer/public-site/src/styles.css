@@ -775,6 +775,13 @@ h1 { font-size: 2rem; margin-bottom: 0.5rem; }
   margin-bottom: 2.5rem;
 }
 
+.about-infographic {
+  width: 100%;
+  border-radius: 8px;
+  margin-bottom: 1.25rem;
+  border: 1px solid #222;
+}
+
 .about-section h2 {
   font-size: 1.2rem;
   color: #e0e0e0;

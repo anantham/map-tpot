@@ -10,18 +10,22 @@ export default function About() {
         that actually exist in the follow graph.
       </p>
 
+      <img className="about-infographic" src="/about/5-full-pipeline.png" alt="Full pipeline: follow graph to your card" />
+
       <section className="about-section">
         <h2>The Base Signal: Follow Graph</h2>
+        <img className="about-infographic" src="/about/1-follow-graph.png" alt="Follow graph to adjacency matrix" />
         <p>
-          We start with who follows whom. The follow graph is represented as a sparse
-          adjacency matrix. For accounts with incomplete data, we apply observation-aware
-          edge weighting to correct for partial observability &mdash; if we only see 40%
-          of someone's follows, the edges we do see get upweighted.
+          We start with who follows whom &mdash; 95,057 accounts and 319,771 edges. The follow
+          graph is represented as a sparse adjacency matrix. For accounts with incomplete data,
+          we apply inverse-probability edge weighting to correct for partial observability &mdash;
+          if we only see 40% of someone's follows, the edges we do see get upweighted.
         </p>
       </section>
 
       <section className="about-section">
         <h2>Spectral Embedding + Hierarchical Clustering</h2>
+        <img className="about-infographic" src="/about/2-spectral-embedding.png" alt="Laplacian to eigenvectors to clusters" />
         <p>
           We build a normalized graph Laplacian from the adjacency matrix and extract its
           top eigenvectors. These eigenvectors give every account a position in a
@@ -39,6 +43,7 @@ export default function About() {
 
       <section className="about-section">
         <h2>Named Communities: NMF over TF-IDF</h2>
+        <img className="about-infographic" src="/about/3-nmf-decomposition.png" alt="NMF matrix factorization for communities" />
         <p>
           The named communities you see on your card come from a separate process. We build a
           behavioral feature matrix: each row is an account, columns are who they follow and
@@ -61,6 +66,7 @@ export default function About() {
 
       <section className="about-section">
         <h2>Label Propagation: Spreading Knowledge Through the Graph</h2>
+        <img className="about-infographic" src="/about/4-label-propagation.png" alt="Color spreading from seed nodes through the network" />
         <p>
           For the ~9,000 accounts that aren't directly classified, we use harmonic label
           propagation &mdash; a Gaussian Random Field (GRF) style Laplacian solve that spreads
