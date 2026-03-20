@@ -54,7 +54,7 @@ try {
   // Redis unavailable — graceful degradation (no cache, no budget enforcement)
 }
 
-const MODEL = "google/gemini-2.5-flash-image-preview";
+const MODEL = "google/gemini-2.5-flash-image";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const ABORT_TIMEOUT_MS = 8000; // 8s abort (Vercel Hobby ceiling = 10s)
 
