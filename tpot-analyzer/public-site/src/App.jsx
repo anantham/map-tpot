@@ -46,7 +46,26 @@ function ResultArea({ result, communityMap }) {
         communityMap={communityMap}
         aiImageUrl={imageUrl}
       />
+      <ShareButton handle={result.handle} />
     </>
+  )
+}
+
+function ShareButton({ handle }) {
+  const [copied, setCopied] = useState(false)
+
+  const copyLink = () => {
+    const url = `${window.location.origin}?handle=${encodeURIComponent(handle)}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <button className="share-btn" onClick={copyLink}>
+      {copied ? 'Link copied!' : 'Share this card'}
+    </button>
   )
 }
 
@@ -54,6 +73,10 @@ export default function App() {
   const [data, setData] = useState(null)
   const [result, setResult] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [pendingHandle, setPendingHandle] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return (params.get('handle') || '').replace(/^@/, '').trim().toLowerCase() || null
+  })
 
   useEffect(() => {
     fetch('/data.json').then(r => r.json()).then(setData)
@@ -79,7 +102,32 @@ export default function App() {
     return m
   }, [data])
 
+  // Auto-search from URL param (?handle=xxx) once data + search index are loaded
+  useEffect(() => {
+    if (!data || !pendingHandle) return
+    setPendingHandle(null)
+
+    // Load search.json and look up the handle
+    fetch('/search.json')
+      .then(r => r.json())
+      .then(searchData => {
+        const entry = searchData[pendingHandle]
+        if (entry) {
+          handleResult({ handle: pendingHandle, ...entry })
+        } else {
+          handleResult({ handle: pendingHandle, tier: 'not_found' })
+        }
+      })
+      .catch(() => {
+        handleResult({ handle: pendingHandle, tier: 'not_found' })
+      })
+  }, [data, pendingHandle])
+
   const handleResult = (searchResult) => {
+    // Update URL with handle param (without page reload)
+    const url = new URL(window.location)
+    url.searchParams.set('handle', searchResult.handle)
+    window.history.replaceState({}, '', url)
     if (searchResult.tier === 'classified') {
       // Look up full account from data.json via lowercased handle
       const account = accountMap.get(searchResult.handle)
@@ -122,6 +170,9 @@ export default function App() {
 
   const handleSearchAgain = () => {
     setResult(null)
+    const url = new URL(window.location)
+    url.searchParams.delete('handle')
+    window.history.replaceState({}, '', url)
   }
 
   if (!data) return <div className="loading">Loading...</div>
