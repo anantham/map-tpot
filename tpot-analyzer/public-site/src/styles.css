@@ -14,6 +14,15 @@ body {
   text-align: center;
 }
 
+/* ── App Header ── */
+
+.app-header {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 h1 { font-size: 2rem; margin-bottom: 0.5rem; }
 .tagline { color: #888; margin-bottom: 0.5rem; }
 .stats { color: #555; font-size: 0.85rem; margin-bottom: 2rem; }
@@ -236,6 +245,325 @@ h1 { font-size: 2rem; margin-bottom: 0.5rem; }
   margin-top: 0.75rem;
 }
 
+/* ── AI Card Container ── */
+
+.card-ai-container {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  max-width: 400px;
+  margin: 0 auto 1rem;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 2px solid rgba(212, 175, 55, 0.3);
+  box-shadow: 0 0 20px rgba(147, 51, 234, 0.2);
+  transition: transform 0.15s ease;
+}
+
+.card-ai-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-ai-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(10, 14, 39, 0.95) 0%,
+    rgba(10, 14, 39, 0.6) 35%,
+    transparent 65%
+  );
+}
+
+.card-ai-text {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1.25rem;
+}
+
+.card-ai-handle {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.15rem;
+}
+
+.card-ai-display-name {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0.75rem;
+}
+
+.card-ai-communities {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.card-ai-community-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+}
+
+.card-ai-community-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.card-ai-community-name {
+  color: rgba(255, 255, 255, 0.85);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-ai-community-pct {
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+.card-ai-footer {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.25);
+  text-align: right;
+  margin-top: 0.5rem;
+}
+
+/* ── Shimmer Loading ── */
+
+@keyframes shimmer {
+  0% { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+
+.card-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 2s infinite;
+  z-index: 2;
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+/* ── Golden Glow Pulse (during generation) ── */
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(212, 175, 55, 0.2); }
+  50% { box-shadow: 0 0 40px rgba(212, 175, 55, 0.5); }
+}
+
+.community-card.generating {
+  position: relative;
+  animation: glow-pulse 2s infinite;
+}
+
+/* ── Generating Text Overlay ── */
+
+.generating-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(212, 175, 55, 0.7);
+  font-size: 0.85rem;
+  z-index: 3;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ── Settings Icon ── */
+
+.settings-icon-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #666;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.settings-icon-btn:hover {
+  color: #aaa;
+  border-color: #333;
+}
+
+.settings-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+}
+
+/* ── Settings Modal ── */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.settings-modal {
+  background: rgba(26, 26, 26, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid #333;
+  border-radius: 16px;
+  padding: 1.75rem;
+  max-width: 420px;
+  width: calc(100% - 2rem);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.settings-modal h3 {
+  font-size: 1.1rem;
+  color: #e0e0e0;
+  margin-bottom: 0.75rem;
+}
+
+.settings-description {
+  font-size: 0.85rem;
+  color: #888;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.settings-description a {
+  color: #6cb4ee;
+  text-decoration: none;
+}
+
+.settings-description a:hover {
+  text-decoration: underline;
+}
+
+.settings-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+.settings-key-input {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 8px;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.settings-key-input:focus {
+  border-color: #555;
+}
+
+.settings-key-input::placeholder {
+  color: #555;
+}
+
+.settings-save-btn {
+  padding: 0.6rem 1rem;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: #ccc;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-save-btn:hover:not(:disabled) {
+  background: #333;
+  color: #e0e0e0;
+}
+
+.settings-save-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.settings-saved-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0;
+  margin-bottom: 1rem;
+}
+
+.settings-status {
+  font-size: 0.9rem;
+  color: #4ade80;
+}
+
+.settings-clear-btn {
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #999;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-clear-btn:hover {
+  border-color: #666;
+  color: #e0e0e0;
+}
+
+.settings-close-btn {
+  display: block;
+  width: 100%;
+  padding: 0.6rem;
+  background: transparent;
+  border: 1px solid #333;
+  border-radius: 8px;
+  color: #888;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.settings-close-btn:hover {
+  background: #1a1a1a;
+  color: #ccc;
+}
+
 /* ── Contribute Prompt ── */
 
 .contribute-prompt {
@@ -380,6 +708,22 @@ h1 { font-size: 2rem; margin-bottom: 0.5rem; }
 
   .contribute-prompt {
     padding: 1rem;
+  }
+
+  .card-ai-container {
+    max-width: 100%;
+  }
+
+  .card-ai-handle {
+    font-size: 1.1rem;
+  }
+
+  .card-ai-text {
+    padding: 1rem;
+  }
+
+  .settings-modal {
+    padding: 1.25rem;
   }
 }
 
