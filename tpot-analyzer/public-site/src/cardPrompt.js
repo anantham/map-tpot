@@ -24,6 +24,7 @@ export function buildCardRequest({ handle, bio, memberships, sampleTweets, commu
         name: community?.name || m.community_name || "Unknown",
         color: community?.color || "#666",
         weight: m.weight,
+        description: community?.description || "",
       };
     })
     .sort((a, b) => b.weight - a.weight);
