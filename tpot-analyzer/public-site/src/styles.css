@@ -989,6 +989,67 @@ body {
 
 .about-footer a:hover { color: #ccc; }
 
+/* --- About page: progressive disclosure --- */
+.about-disclosure {
+  margin: 1rem 0;
+  border: 1px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.about-disclosure summary {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: #ddd;
+  background: #1a1a2e;
+  user-select: none;
+}
+.about-disclosure summary:hover {
+  background: #22223a;
+}
+.about-disclosure[open] summary {
+  border-bottom: 1px solid #333;
+}
+.about-disclosure-body {
+  padding: 1rem;
+  color: #bbb;
+  line-height: 1.7;
+}
+.about-disclosure-body p {
+  margin: 0.5rem 0;
+}
+.about-formula {
+  font-family: 'Georgia', serif;
+  font-size: 1.1rem;
+  text-align: center;
+  padding: 0.75rem;
+  color: #e0d0ff;
+  background: #12121f;
+  border-radius: 6px;
+  margin: 0.75rem 0;
+}
+.about-caveat {
+  font-size: 0.9rem;
+  color: #999;
+  border-left: 3px solid #555;
+  padding-left: 0.75rem;
+  margin-top: 0.75rem;
+}
+.about-badge {
+  font-size: 0.75rem;
+  color: #888;
+  font-weight: 400;
+}
+.about-aside {
+  font-size: 0.9rem;
+  color: #999;
+  font-style: italic;
+}
+.about-origin {
+  font-size: 1.05rem;
+  line-height: 1.8;
+}
+
 /* ── Responsive ── */
 
 @media (max-width: 480px) {
