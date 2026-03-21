@@ -1,112 +1,140 @@
-# Handover: 2026-03-20
+# Handover: 2026-03-20 (Session 2)
 
 ## Session Summary
 
-Massive session. Took the project from security hardening through full public site deployment with AI-generated collectible cards, then pivoted to improving the labeling pipeline for the content-aware community detection phase.
+Massive labeling session. Developed the full data model for tweet-level community evidence through hands-on labeling of @repligate's tweets. Discovered that NMF massively under-represents community membership (repligate = 100% Qualia Research per NMF, but tweet evidence shows 39.7% LLM Whisperers, 24.7% Qualia, 17.8% AI Safety). Built an interactive HTML labeling queue. Identified 3 potential new communities. User decided to stay within TPOT graph (not expand to external builder cluster) and wants to build the community evolution layer next.
 
-## Commits This Session (main branch, not pushed)
-- `596924c` fix(security): harden API for production deployment
-- `34177bd` docs(public-site): design spec and implementation plan
-- `a3a8267` feat(public-site): add export config
-- `3f9793f` feat(public-site): add export script (28 tests)
-- `eb7f3ec` feat(public-site): scaffold Vite + React app
-- `1608039` feat(public-site): SearchBar, CommunityCard, ContributePrompt, CardDownload
-- `47333d1` fix(export): relax abstain gate (551 → 9,263 accounts)
-- `f4d05c2` chore: vercel gitignore
-- Multiple JIT card commits: serverless function, prompt builder, BYOK settings, tarot styling
-- `544b676` fix: switch to ioredis for Redis Cloud
-- `b937ca1` fix: correct Gemini model ID
-- `f4522af` fix: typewriter generating banner
-- `1419dca` feat: shareable URLs and copy-link button
-- `8e29793` fix: grayscale AI cards for propagated accounts
-- `ee2eafe` feat: about page with methodology + infographics
-- `6e676e0` feat: homepage redesign with hero + community showcase
-- `865170b` feat: per-user rate limit (10 free generations)
-- Golden tags system: backend + frontend + LLM suggestions
-- Likes index fix (85s → 0.001s)
-- Tweet date links to x.com
+## Commits This Session
+- `0d2cf78` feat(labeling): data model v2 for tweet-level community evidence
 
-PUSHED: No — many commits ahead of origin
-
-## What's Deployed
-- **https://amiingroup.vercel.app** — public site with AI collectible cards
-- Vercel env vars: OPENROUTER_API_KEY, CARD_DAILY_BUDGET=5.00, KV_REDIS_URL
-- Redis Cloud for caching + budget tracking (may need REST credentials verified)
+PUSHED: No — now 38 commits ahead of origin
 
 ## Pending Threads
 
-### Continue Immediately: Account-First Labeling Workflow
+### Continue Immediately: Community Evolution Layer
 
-**The big insight from this session:** Simulacrum levels should be assigned at the ACCOUNT level indexed by time, not per-tweet. Each tweet is a sample from the account's epistemic generator at that timestamp. With enough samples across time, you reconstruct the trajectory.
+**User's key question:** "What does it mean to make a community description, color, and how is it defined? By accounts? Tweets?"
+
+The evidence layer is built (tags, bits, postures, simulacrum). What's missing is the **community evolution layer** — the mechanism that:
+1. Takes accumulated tag/bits evidence
+2. Proposes community description updates
+3. Detects when a community should split (tag bimodality within community)
+4. Detects when communities should merge (tag overlap between communities)
+5. Creates new communities from `new-community-signal` tags
+6. Updates community colors/names/descriptions
+
+**Current community descriptions** are in `community` table (`description` column) — static one-paragraph bios written at NMF creation time. None incorporate tweet evidence.
 
 **What to build:**
-1. **Account picker in labeling UI** — let user choose which account to label (start with @eshear, @repligate, @Plinz, @nickcammarata)
-2. **Batch mode** — show 10-20 tweets from one account sorted by date
-3. **Account-level summary** — after labeling N tweets, show the aggregate L1/L2/L3/L4 distribution for that account over time
-4. **Temporal trajectory view** — plot how the account's epistemic stance shifts over months/years
+- A script/function that reads all bits + thematic tags for accounts in a community
+- Computes whether the community's internal variance suggests a split
+- Proposes updated description text based on accumulated tags
+- Surfaces to human for approval (human gate)
 
-**No schema change needed** — tweet labels already have account_id + created_at. Aggregation is downstream.
+### Continue: Finish @repligate Labeling
 
-**Accounts not in archive:** @Plinz and @nickcammarata are NOT in the archive (only @eshear and @repligate found). May need to fetch their data.
+- 19/45 tweets labeled with full data model (domains, themes, specific, postures, bits, simulacrum, notes)
+- 26 tweets remaining in HTML queue (`labeling_queue.html`)
+- Top-3 community ranking is stable but minor communities and subcommunity structure would benefit from more data
+- **IMPORTANT**: Must navigate to each tweet via Chrome to see images/links/context. Several early labels were wrong because images weren't checked.
+- User wants to continue labeling to build more data for community evolution
 
-### Continue: About Page Rewrite
+### Continue: Label More TPOT Accounts
 
-**The current about page is too technical.** User wants a story-first approach:
-1. Start with PEOPLE (Aditya, Arun, Devi) not nodes
-2. Motivate each algorithm step (WHY, not just HOW)
-3. Explain what data we have and what contributing unlocks
-4. Frame communities as attractors/gravitational fields, not boxes
-5. Regenerate infographics with `google/gemini-3-pro-image-preview` (better text rendering)
-6. Add representative accounts per community
+After repligate, label accounts from OTHER communities to get cross-community evidence:
+- Pick accounts from Builders, highbies, Contemplative Practitioners, etc.
+- These ARE in the archive (unlike the builder cluster accounts)
+- Goal: 40 accounts total for k-fold cross-validation
 
-**Narrative arc designed but not yet written:**
-People → The question → The data → The gap → Follow graph (motivated) → Natural groups (motivated) → Naming communities (motivated) → Reaching everyone (motivated) → Your card → Contribute
+### Deferred: External Builder Cluster
 
-### Continue: Content-Aware Community Detection
+User listed 17 accounts (karpathy, Teknium, alexocheema, etc.) — none in archive, most not in TPOT graph at all. User decided to shelve this and focus on TPOT first. Saved to `docs/LABELING_NEXT_ACCOUNTS.md`.
 
-**Key insight:** Topic tags (object-level: "alignment", "jhanas", "LLM psychology") may be more useful for community discovery than simulacrum levels. The current 14 communities are topic-based (from follow/retweet NMF), so topic classification on tweets would directly validate and refine them.
+### Deferred: On-Demand Tweet Enrichment
 
-**Two competing axes identified:**
-1. Community discovery: what groups exist? (unsupervised)
-2. Community assignment: who belongs where? (classification)
+31% of tweets have t.co links (images, videos, quote tweets) not stored in DB. Designed JIT enrichment via twitterapi.io but not built. For now, using Chrome browser to view context manually during labeling.
 
-These interact — tweet content may reveal NEW communities the graph didn't find.
+### Deferred: About Page Rewrite
 
-**Approach:** Topic tags from human labeling bootstrap automatic classification. LLM suggests tags, human curates. The tag vocabulary grows organically and becomes the feature set for content-aware NMF.
-
-### Deferred
-1. **Gallery view** — show all previously generated cards in a browsable gallery. Redis already caches them.
-2. **Video generation** (Veo 3.1) — v2 stretch goal
-3. **Profile pic as input** — v2 user upload
-4. **OpenGraph previews** — server-rendered social cards for link sharing
+Story-first narrative approach. See previous handover for details.
 
 ## Key Context
 
-### Architecture (as of now)
-- **Public site:** `tpot-analyzer/public-site/` — Vite + React, deployed to Vercel
-- **Serverless function:** `public-site/api/generate-card.js` — OpenRouter Gemini image gen, ioredis caching
-- **Export:** `scripts/export_public_site.py` — 33 tests, produces data.json + search.json
-- **Budget:** $5/day global (Redis) + 10/user (localStorage), configurable
-- **Labeling:** Topic tags added to golden schema, LLM suggests tags on interpret
+### Data Model v2 (Per Tweet)
+Full spec in `docs/LABELING_PIPELINE_DESIGN.md`. Summary:
+1. **Domain tags** (`domain:AI`, `domain:philosophy`, etc.) — category='domain'
+2. **Thematic tags** (`theme:AI-consciousness`, etc.) — category='thematic'
+3. **Specific tags** (fine-grained, unlimited) — category=NULL
+4. **Posture tags** (`posture:original-insight`, etc.) — category='posture'
+5. **Bits** (`bits:LLM-Whisperers:+3`) — category='bits', log-likelihood ratios, PRIOR-INDEPENDENT
+6. **Simulacrum distribution** — L1/L2/L3/L4 in `tweet_label_prob`
+7. **New community signals** (`new-community-signal:AI Mystics`) — category='new-community'
+8. **Notes** — free text in `tweet_label_set.note`
 
-### User Preferences (captured in memory)
-- Prefers JIT generation over precomputation
-- Wants justification for every fix before implementing
-- Sees communities as attractors/gravitational fields, not static boxes
-- Wants the about page to tell a story starting with people, not math
+### Golden Dataset State (in archive_tweets.db)
+- 252 tags in `tweet_tags` (across all categories)
+- 19 notes in `tweet_label_set` (reviewer='aditya')
+- 19 simulacrum distributions in `tweet_label_prob`
+- All for @repligate (account_id: 1359981346119155719)
 
-### Things That Need Fixing
-- Vercel deployment protection was disabled — may want to re-enable for preview deployments only
-- Redis REST credentials may not be fully configured (KV_REDIS_URL is set but REST API URL/token unclear)
-- @Plinz and @nickcammarata not in archive — need data fetch
-- About page infographics have spelling errors (Gemini Flash text rendering) — regenerate with Pro
+### @repligate Community Profile (from 19 tweets, 73 bits total)
+```
+  39.7%  LLM Whisperers (+29 bits)
+  24.7%  Qualia Research (+18 bits)
+  17.8%  AI Safety (+13 bits)
+  11.0%  Contemplative Practitioners (+8 bits)
+   5.5%  Emergence & Self-Transformation (+4 bits)
+   1.4%  highbies (+1 bits)
+```
+vs NMF prior: 100% Qualia Research, 0% everything else
+
+### @repligate Simulacrum Signature
+L1=40%, L2=4%, L3=24%, L4=29% — truth-tracking + meta-aware, almost zero persuasion
+
+### New Community Signals
+- "AI Theorists / Ontologists" — from simulacra LessWrong post
+- "Alignment via narrative/archetypes" — from archetype-attractors thread
+- "AI Mystics" — from AI-as-enlightenment-vehicle tweet
+
+### NMF Bias (Systematic)
+- NMF seed accounts: avg 3.1 communities, max weight 0.740
+- Propagated accounts: avg 4.3 communities, max weight 0.503
+- Root cause: NMF sparsity constraint concentrates, label propagation smooths
+- Fix: tweet-level tag evidence adds missing dimensions
+
+### Approach B: Bottom-Up Communities (User's Choice)
+- 14 NMF communities are just one prior
+- Tags accumulate → account×tag matrix → clustering discovers communities
+- Communities can split, merge, or be born
+- Each reclustering is a versioned snapshot (branch system exists)
+
+### Bits System (Prior-Independent Evidence)
+- +1 bit = 2x more likely if member (weak)
+- +2 bits = 4x (moderate)
+- +3 bits = 8x (strong)
+- +4 bits = 16x (diagnostic)
+- Additive: 3 tweets with +2 each = +6 total
+- Anyone can apply different priors and reuse the same evidence
+
+### Critical Labeling Lesson
+ALWAYS navigate to the tweet on X and view images/links/context before tagging. Several labels were wrong when done from text-only. The Chrome browser tools (screenshot, zoom, navigate) work for this.
+
+## User Preferences (This Session)
+- Prefers bottom-up community discovery (Approach B) over hierarchical
+- Wants prior-independent evidence (bits) so different people can use different priors
+- Wants k-fold cross-validation at account level, not fixed splits
+- Wants tags to capture multiple levels (domain, theme, specific, posture)
+- Wants dry runs before committing to DB — show thinking, get feedback
+- Context is everything — always fetch full tweet context (images, replies, quote tweets)
+- Interested in community evolution layer: how do community descriptions, boundaries, colors change based on evidence?
+- Decided to stay within TPOT graph rather than expand to external builder cluster
 
 ## Resume Instructions
-1. Read this handover
-2. Push commits to origin (many ahead)
-3. Build account-first labeling workflow (the immediate next feature)
-4. Start with: account picker → batch tweet display → temporal sorting
-5. Then: rewrite about page with story arc
+1. Read this handover + `docs/LABELING_PIPELINE_DESIGN.md`
+2. **Build community evolution layer** — the mechanism that takes tag/bits evidence and proposes community description updates, splits, merges, new communities
+3. Continue labeling remaining 26 @repligate tweets (use Chrome for context)
+4. Then label accounts from OTHER TPOT communities for cross-community breadth
+5. Goal: 40 accounts for k-fold cross-validation
 
 ---
 *Handover by Claude at high context usage, 2026-03-20*
