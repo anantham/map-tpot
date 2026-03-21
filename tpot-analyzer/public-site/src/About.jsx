@@ -38,7 +38,7 @@ export default function About({ meta }) {
       <section className="about-section">
         <h2>What Your Card Means</h2>
 
-        <div className="about-aside">
+        <div className="about-tier">
           <span className="about-badge about-badge--color">Colorful card</span>
           <p>
             <strong>{classifiedStr} accounts</strong> have colorful cards. This means we
@@ -48,7 +48,7 @@ export default function About({ meta }) {
           </p>
         </div>
 
-        <div className="about-aside">
+        <div className="about-tier">
           <span className="about-badge about-badge--gray">Grayscale card</span>
           <p>
             <strong>{propagatedStr} accounts</strong> have grayscale cards. This means your

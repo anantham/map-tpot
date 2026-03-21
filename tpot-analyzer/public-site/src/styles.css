@@ -1039,11 +1039,33 @@ body {
   font-size: 0.75rem;
   color: #888;
   font-weight: 400;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
 }
-.about-aside {
-  font-size: 0.9rem;
-  color: #999;
-  font-style: italic;
+.about-badge--color {
+  color: rgba(212, 175, 55, 0.85);
+}
+.about-badge--gray {
+  color: #777;
+}
+.about-tier {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid #333;
+}
+.about-tier p {
+  margin: 0.25rem 0 0;
+  color: #bbb;
+  line-height: 1.6;
+}
+.about-section h3 {
+  font-size: 1rem;
+  color: #ccc;
+  margin-bottom: 0.5rem;
+  margin-top: 1.25rem;
+  font-weight: 600;
 }
 .about-origin {
   font-size: 1.05rem;
