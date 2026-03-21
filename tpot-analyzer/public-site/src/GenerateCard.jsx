@@ -95,35 +95,57 @@ function buildPromptText({ handle, bio, communities, tweets }) {
   const primary = sorted[0];
   const secondary = sorted[1];
 
-  const communityLines = sorted
-    .map((c) => `- ${c.name} (${Math.round(c.weight * 100)}%) [${c.color}]`)
-    .join("\n");
+  let prompt = `Generate a collectible tarot-style card image.
 
-  const tweetSection =
-    tweets && tweets.length > 0
-      ? `\nSample tweets by @${handle}:\n${tweets.slice(0, 5).map((t) => `> ${t}`).join("\n")}\n`
-      : "";
+SUBJECT: @${handle}
+${bio ? `BIO: ${bio}` : ""}
 
-  return `Design a collectible tarot-style card for a Twitter/X personality.
+PRIMARY COMMUNITY (${Math.round(primary.weight * 100)}%): ${primary.name}
+  Spirit: ${(primary.description || primary.name).slice(0, 200)}
+  Color: ${primary.color}
+`;
 
-Card subject: @${handle}
-${bio ? `Bio: ${bio}` : ""}
+  if (secondary) {
+    prompt += `
+SECONDARY COMMUNITY (${Math.round(secondary.weight * 100)}%): ${secondary.name}
+  Spirit: ${(secondary.description || secondary.name).slice(0, 200)}
+  Color: ${secondary.color}
+`;
+  }
 
-Community memberships:
-${communityLines}
-${tweetSection}
-Visual direction:
-- Vertical 2:3 tarot card format with ornate border
-- Primary color theme: ${primary.color} (${primary.name})
+  if (tweets && tweets.length > 0) {
+    prompt += `
+REPRESENTATIVE TWEETS (these reveal the person's voice and interests):
+${tweets.slice(0, 3).map((t, i) => `  ${i + 1}. ${t.slice(0, 200)}`).join("\n")}
+`;
+  }
+
+  prompt += `
+VISUAL REQUIREMENTS:
+- Vertical 2:3 tarot card, ornate border, dark background
+- Primary color: ${primary.color} (${primary.name})
 ${secondary ? `- Secondary accent: ${secondary.color} (${secondary.name})` : ""}
-- Dark background (#1a1a1a or similar)
-- Include the handle "@${handle}" as text on the card
-- Mystical/arcane aesthetic: think constellation maps, sacred geometry, subtle glow effects
-- The card should feel like a collectible trading card — premium, shareable
-- Do NOT include any real human faces or photographs
-- Use abstract symbols, cosmic imagery, or stylized avatars instead
+- The card should visually EMBODY what this person cares about
+- Use the tweets and bio to choose symbolic imagery (not literal illustrations)
+- Example: an ML researcher → neural network constellations, data streams as rivers
+- Example: a contemplative practitioner → mandalas, meditation geometry, inner light
+- Example: a builder/founder → forges, architectures, crystalline structures
+- Mystical/arcane aesthetic: sacred geometry, constellation maps, subtle glow
 
-Style: digital art, high contrast, rich colors against dark background, tarot card aesthetic`;
+TEXT ON CARD (keep minimal):
+- The handle "@${handle}" at top or bottom
+- NO other text. No quotes, no community names, no descriptions, no paragraphs
+- Let the imagery speak. The card is a portrait, not an infographic.
+
+CRITICAL CONSTRAINTS:
+- Do NOT include real human faces or photographs
+- Use abstract symbols, cosmic imagery, stylized avatars
+- NO walls of text, NO labels beyond the handle
+- The card should be visually striking enough to share on social media
+
+Style: premium collectible trading card, digital art, high contrast, rich saturated colors`;
+
+  return prompt;
 }
 
 /**
