@@ -18,7 +18,52 @@ const RETRY_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
 const LOCALSTORAGE_KEY = "openrouter_key";
 const GEN_COUNT_KEY = "ingroup_gen_count";
+const CARD_CACHE_KEY = "ingroup_card_cache";
 const MAX_FREE_GENS = 10;
+
+// --- Card image cache ---
+
+function getCardCache() {
+  try {
+    return JSON.parse(localStorage.getItem(CARD_CACHE_KEY) || '{}');
+  } catch { return {}; }
+}
+
+function getCachedCard(handle) {
+  const cache = getCardCache();
+  return cache[handle.toLowerCase()] || null;
+}
+
+function cacheCard(handle, imageUrl) {
+  try {
+    const cache = getCardCache();
+    cache[handle.toLowerCase()] = {
+      url: imageUrl,
+      cachedAt: Date.now(),
+    };
+    localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(cache));
+  } catch (e) {
+    // localStorage full — evict oldest entries and retry
+    if (e.name === 'QuotaExceededError') {
+      try {
+        const cache = getCardCache();
+        const entries = Object.entries(cache).sort((a, b) => a[1].cachedAt - b[1].cachedAt);
+        // Remove oldest half
+        const keep = Object.fromEntries(entries.slice(Math.floor(entries.length / 2)));
+        keep[handle.toLowerCase()] = { url: imageUrl, cachedAt: Date.now() };
+        localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(keep));
+      } catch { /* give up */ }
+    }
+  }
+}
+
+/** Get all cached cards as an array sorted by most recent first. */
+export function getAllCachedCards() {
+  const cache = getCardCache();
+  return Object.entries(cache)
+    .map(([handle, entry]) => ({ handle, url: entry.url, cachedAt: entry.cachedAt }))
+    .sort((a, b) => b.cachedAt - a.cachedAt);
+}
 
 function getGenCount() {
   try { return parseInt(localStorage.getItem(GEN_COUNT_KEY) || '0', 10); } catch { return 0; }
@@ -174,6 +219,14 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
       return;
     }
 
+    // Check cache first — skip API call if we have a cached card
+    const cached = getCachedCard(handle);
+    if (cached) {
+      setImageUrl(cached.url);
+      setStatus("generated");
+      return;
+    }
+
     // Check per-user limit (skip for BYOK users)
     let byokKey = null;
     try { byokKey = localStorage.getItem(LOCALSTORAGE_KEY); } catch {}
@@ -219,6 +272,8 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
       if (inflightRef.current === handle) {
         setImageUrl(url);
         setStatus("generated");
+        // Cache the generated card for instant recall
+        cacheCard(handle, url);
         // Increment per-user generation count (only for serverless path)
         if (!byokKey) {
           const newCount = incrementGenCount();
