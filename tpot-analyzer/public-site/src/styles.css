@@ -22,8 +22,20 @@ body {
 
 .app-header {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   padding: 0.5rem 0;
+}
+.app-back {
+  color: #666;
+  text-decoration: none;
+  font-size: 18px;
+  padding: 4px 8px;
+}
+.app-back:hover {
+  color: #e0e0e0;
+}
+.app-header-spacer {
+  flex: 1;
 }
 
 /* ── Hero (landing page) ── */
