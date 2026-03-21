@@ -31,6 +31,7 @@ def community_db(tmp_path):
         CREATE TABLE community (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
+            short_name TEXT,
             description TEXT,
             color TEXT,
             seeded_from_run TEXT,
@@ -46,15 +47,25 @@ def community_db(tmp_path):
             updated_at TEXT NOT NULL,
             PRIMARY KEY (community_id, account_id)
         );
+        CREATE TABLE account_community_bits (
+            account_id TEXT NOT NULL,
+            community_id TEXT NOT NULL,
+            total_bits INTEGER NOT NULL DEFAULT 0,
+            tweet_count INTEGER NOT NULL DEFAULT 0,
+            pct REAL NOT NULL DEFAULT 0.0,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (account_id, community_id),
+            FOREIGN KEY (community_id) REFERENCES community(id)
+        );
     """)
     # Seed 2 communities
     conn.execute(
-        "INSERT INTO community VALUES (?, ?, ?, ?, NULL, NULL, '2026-01-01', '2026-01-01')",
-        ("comm-a", "Builders", "People who build things", "#9b59b6"),
+        "INSERT INTO community VALUES (?, ?, ?, ?, ?, NULL, NULL, '2026-01-01', '2026-01-01')",
+        ("comm-a", "Builders", "Builders", "People who build things", "#9b59b6"),
     )
     conn.execute(
-        "INSERT INTO community VALUES (?, ?, ?, ?, NULL, NULL, '2026-01-01', '2026-01-01')",
-        ("comm-b", "Thinkers", "People who think deeply", "#e67e22"),
+        "INSERT INTO community VALUES (?, ?, ?, ?, ?, NULL, NULL, '2026-01-01', '2026-01-01')",
+        ("comm-b", "Thinkers", "Thinkers", "People who think deeply", "#e67e22"),
     )
     # Seed accounts: 3 in comm-a, 2 in comm-b, 1 shared
     conn.executemany(
@@ -183,8 +194,9 @@ class TestExtractCommunities:
         conn = sqlite3.connect(str(db_path))
         conn.executescript("""
             CREATE TABLE community (
-                id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT,
-                color TEXT, seeded_from_run TEXT, seeded_from_idx INTEGER,
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, short_name TEXT,
+                description TEXT, color TEXT, seeded_from_run TEXT,
+                seeded_from_idx INTEGER,
                 created_at TEXT NOT NULL, updated_at TEXT NOT NULL
             );
             CREATE TABLE community_account (
@@ -254,6 +266,82 @@ class TestExtractClassifiedAccounts:
         result = extract_classified_accounts(community_db, min_weight=0.05)
         ids = [a["id"] for a in result]
         assert "acct-3" not in ids
+
+    def test_bits_override_nmf_for_same_account(self, community_db):
+        """Accounts with bits data (posterior) should use bits, not NMF (prior)."""
+        from scripts.export_public_site import extract_classified_accounts
+
+        # acct-1 has NMF weight 0.95 in comm-a. Add bits data showing different profile.
+        conn = sqlite3.connect(str(community_db))
+        conn.executemany(
+            "INSERT INTO account_community_bits VALUES (?, ?, ?, ?, ?, '2026-01-01')",
+            [
+                ("acct-1", "comm-a", 40, 10, 40.0),  # 40% in comm-a
+                ("acct-1", "comm-b", 60, 15, 60.0),  # 60% in comm-b
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        result = extract_classified_accounts(community_db, min_weight=0.05)
+        acct1 = next(a for a in result if a["id"] == "acct-1")
+        # Should have 2 memberships from bits, not 1 from NMF
+        assert len(acct1["memberships"]) == 2
+        # comm-b should be higher weight (60%) > comm-a (40%)
+        weights = {m["community_id"]: m["weight"] for m in acct1["memberships"]}
+        assert weights["comm-b"] == pytest.approx(0.60, abs=0.01)
+        assert weights["comm-a"] == pytest.approx(0.40, abs=0.01)
+
+    def test_bits_and_nmf_accounts_coexist(self, community_db):
+        """Accounts without bits should still use NMF."""
+        from scripts.export_public_site import extract_classified_accounts
+
+        # Add bits for acct-1 only
+        conn = sqlite3.connect(str(community_db))
+        conn.execute(
+            "INSERT INTO account_community_bits VALUES (?, ?, ?, ?, ?, '2026-01-01')",
+            ("acct-1", "comm-b", 100, 20, 100.0),
+        )
+        conn.commit()
+        conn.close()
+
+        result = extract_classified_accounts(community_db, min_weight=0.05)
+        ids = {a["id"] for a in result}
+        # acct-1 uses bits, acct-2 and acct-4 still use NMF
+        assert "acct-1" in ids
+        assert "acct-2" in ids
+        assert "acct-4" in ids
+
+        # acct-1 should have bits-derived membership (only comm-b)
+        acct1 = next(a for a in result if a["id"] == "acct-1")
+        assert len(acct1["memberships"]) == 1
+        assert acct1["memberships"][0]["community_id"] == "comm-b"
+
+        # acct-2 should still have NMF memberships
+        acct2 = next(a for a in result if a["id"] == "acct-2")
+        nmf_comms = {m["community_id"] for m in acct2["memberships"]}
+        assert "comm-a" in nmf_comms
+
+    def test_bits_low_pct_filtered_by_min_weight(self, community_db):
+        """Bits with pct below min_weight*100 should be filtered out."""
+        from scripts.export_public_site import extract_classified_accounts
+
+        conn = sqlite3.connect(str(community_db))
+        conn.executemany(
+            "INSERT INTO account_community_bits VALUES (?, ?, ?, ?, ?, '2026-01-01')",
+            [
+                ("acct-1", "comm-a", 90, 20, 97.0),  # 97% -> weight 0.97, passes
+                ("acct-1", "comm-b", 3, 1, 3.0),      # 3% -> weight 0.03, below 0.05
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        result = extract_classified_accounts(community_db, min_weight=0.05)
+        acct1 = next(a for a in result if a["id"] == "acct-1")
+        # Only comm-a should pass (0.97 > 0.05), comm-b filtered (0.03 < 0.05)
+        assert len(acct1["memberships"]) == 1
+        assert acct1["memberships"][0]["community_id"] == "comm-a"
 
 
 # ---------------------------------------------------------------------------
