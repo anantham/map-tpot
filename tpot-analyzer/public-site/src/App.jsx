@@ -7,6 +7,7 @@ import Settings, { SettingsIcon } from './Settings'
 import { useCardGeneration } from './GenerateCard'
 import About from './About'
 import CommunityPage from './CommunityPage'
+import CardGallery from './CardGallery'
 import useRouting from './useRouting'
 
 /**
@@ -190,6 +191,10 @@ export default function App() {
     return <About meta={data?.meta} />
   }
 
+  if (window.location.pathname === '/gallery') {
+    return <CardGallery onMemberClick={handleMemberClick} onBack={handleSearchAgain} />
+  }
+
   if (!data) return <div className="loading">Loading...</div>
 
   const communities = data.communities || []
@@ -249,6 +254,8 @@ export default function App() {
             <span className="hero-stat">{data.meta.counts.total_searchable.toLocaleString()} accounts indexed</span>
             <span className="hero-sep">&middot;</span>
             <a href="/about" className="hero-link">How it works</a>
+            <span className="hero-sep">&middot;</span>
+            <a href="/gallery" className="hero-link">Card gallery</a>
             <span className="hero-sep">&middot;</span>
             <a href={data.meta.links.repo} target="_blank" rel="noopener noreferrer" className="hero-link">Open source</a>
           </div>
