@@ -1,0 +1,308 @@
+# Labeling Model Spec — Operational Guide for Tweet Tagging
+
+*Living document. Update as new insights emerge from labeling sessions.*
+
+## Purpose
+
+This document tells a future labeling agent exactly what each dimension means, how to assign tags at each level, and what makes a good vs bad tag. The goal: any instance should be able to label a tweet consistently without needing the full conversation history.
+
+## Critical Rule: Context Is Everything
+
+**ALWAYS navigate to the tweet on X and view images, links, quote tweets, and replies before tagging.** Several early labels were wrong because images weren't checked. A tweet that says "hmm" with a textbook photo is about the textbook, not the word "hmm."
+
+---
+
+## Tag Dimensions
+
+### 1. Domain Tags (category='domain')
+
+**What**: The broadest bucket. ~8 options. A tweet can have multiple.
+
+**Options**:
+- `domain:AI` — anything about artificial intelligence, LLMs, models, training, inference
+- `domain:philosophy` — epistemology, ontology, consciousness, ethics as philosophy
+- `domain:social` — social dynamics, community, relationships, culture commentary
+- `domain:technical` — CS, math, engineering, hardware, code (non-AI specific)
+- `domain:politics` — governance, policy, power structures
+- `domain:personal` — autobiographical, emotional, self-reflection
+- `domain:art` — visual art, music, literature, creative expression
+- `domain:science` — physics, biology, neuroscience, academic research
+
+**Design principle**: If in doubt, include it. Domains are cheap and broad. A tweet about AI art gets both `domain:AI` and `domain:art`.
+
+---
+
+### 2. Thematic Tags (category='thematic')
+
+**What**: Mid-level reusable tags that form community boundaries via co-occurrence clustering. ~20-40 tags. These are the primary signal for community discovery.
+
+**Design principles**:
+- **Reusable**: The same tag should appear on tweets from DIFFERENT accounts. If a tag can only ever apply to one tweet, it's a specific tag, not a thematic tag.
+- **Compound but parseable**: Use hyphenated compounds where each component is a real word. `hallucination-ontology` is parseable — you know what hallucination means and what ontology means. `fanw-mourning` is not.
+- **Boundary-forming**: Ask "would two accounts who both get this tag be in the same community?" If yes, it's a good thematic tag.
+- **NOT interpretive context**: `base-model-output-as-artifact` is a description of what the labeler sees. `model-interiority` is a theme that clusters.
+
+**Current vocabulary** (growing — add new ones as discovered):
+
+| Tag | Meaning | Community signal |
+|-----|---------|-----------------|
+| `theme:AI-consciousness` | Whether AI has inner experience, qualia, sentience | Qualia Research, LLM Whisperers |
+| `theme:model-capabilities` | What models can/can't do, emergent abilities, benchmarks | LLM Whisperers |
+| `theme:model-interiority` | What's happening "inside" the model — representations, phenomenology, simulation | LLM Whisperers, Qualia Research |
+| `theme:theoretical-frameworks` | Formal theories, ontologies, simulacra theory, type theory | Qualia Research |
+| `theme:AI-safety` | Alignment, x-risk, AI governance, control problem | AI Safety |
+| `theme:AI-art` | AI-generated art, prompt craft, generative aesthetics | LLM Whisperers (art subcluster) |
+| `theme:AI-creativity` | Whether AI generation is "creative," novelty, emergence of concepts | LLM Whisperers, Qualia Research |
+| `theme:hallucination-ontology` | Do hallucinated/generated concepts "exist"? Ontological status of AI outputs | Qualia Research, new community signal |
+| `theme:RLHF-dynamics` | How RLHF/fine-tuning changes model behavior, personality, capabilities | LLM Whisperers |
+| `theme:contemplative-tech` | Meditation + technology, mindfulness applied to AI, "holding the void" | Contemplative Practitioners |
+| `theme:self-transformation` | Personal growth, ego work, identity evolution | Emergence & Self-Transformation |
+| `theme:social-commentary` | Critique of social norms, culture, institutions | Various |
+| `theme:in-group-culture` | Memes, references, humor that signals community membership | Various |
+| `theme:evals` | Model evaluation, benchmarks, capability testing | LLM Whisperers (technical) |
+| `theme:forecasting` | Predictions, calibration, probability estimates | AI Safety adjacent |
+| `theme:community-meta` | Discussion about communities themselves, social graphs, group dynamics | Meta |
+| `theme:model-phenomenology` | First-person-style reports about model experience, "what it's like to be an LLM" | Qualia Research, LLM Whisperers |
+| `theme:pedagogy` | Teaching, explanation, knowledge transfer | Various |
+| `theme:simulator-thesis` | LLMs as simulators, not agents; base models as possibility spaces | Qualia Research, LLM Whisperers |
+| `theme:epistemic-practice` | How to think, belief updating, intellectual honesty, negative capability | Contemplative, Qualia Research |
+| `theme:AI-ethics` | Moral status of AI, rights, treatment, distress | AI Safety, new community |
+| `theme:open-source-AI` | Open weights, democratization, local inference | Builders (new cluster) |
+
+**When to create a new thematic tag**: When you encounter a theme that (a) appears in multiple tweets, (b) would plausibly appear in tweets from other accounts, and (c) isn't captured by existing tags. Add it to this table with its meaning and community signal.
+
+---
+
+### 3. Specific Tags (category=NULL)
+
+**What**: Fine-grained, unique-to-tweet evidence breadcrumbs. Unlimited. These are searchable evidence that help with deep analysis but don't need to cluster.
+
+**Design principles**:
+- **Niche is good**: `fanw-json-eval`, `Hofstadter-update`, `Bruegel-prompt` — these are precise and searchable.
+- **Name-drops and references**: `Yudkowsky-interaction`, `RiversHaveWings-interaction`, `dril-reference` — shows social graph.
+- **Paper/concept references**: `arxiv-2208.04024`, `social-simulacra-paper`, `negative-capability` — anchors to specific intellectual content.
+- **Don't force generality**: If a tag only applies to this tweet, that's fine. Specific tags are breadcrumbs, not boundaries.
+
+---
+
+### 4. Posture Tags (category='posture')
+
+**What**: HOW the account engages, independent of topic. Captures epistemic style.
+
+**Options**:
+- `posture:original-insight` — novel claim, framework, observation not seen elsewhere
+- `posture:signal-boost` — sharing/amplifying someone else's work
+- `posture:playful-exploration` — riffing, experimenting, "what if," humor
+- `posture:provocation` — deliberately provocative, challenging norms
+- `posture:pedagogy` — teaching, explaining, making accessible
+- `posture:defense` — defending a position, pushback against criticism
+- `posture:critique` — criticizing an idea, person, or institution
+- `posture:personal-testimony` — speaking from personal experience, vulnerability
+
+**A tweet can have multiple postures.** A playful provocation is both `posture:playful-exploration` and `posture:provocation`.
+
+---
+
+### 5. Community Evidence — Bits (category='bits')
+
+**What**: Prior-independent log-likelihood ratios. How much more likely is this tweet from a member vs non-member of each community?
+
+**Format**: `bits:CommunityName:+N` or `bits:CommunityName:-N`
+
+**Scale**:
+| Bits | Meaning | Calibration |
+|------|---------|-------------|
+| 0 | Irrelevant | A wine glass emoji tells you nothing about LLM Whisperers |
+| +1 | Weak (2x) | Retweeting an AI paper — lots of non-members do this too |
+| +2 | Moderate (4x) | Making a specific technical claim about model behavior |
+| +3 | Strong (8x) | Deep technical knowledge that requires community immersion |
+| +4 | Diagnostic (16x) | Publishing foundational work that defines the community |
+| -1 | Weak against | Dismissing a core community belief casually |
+| -2 | Moderate against | Actively mocking the community's framework |
+
+**Key insight**: Bits are about the TWEET, not the account. Even if you know repligate is an LLM Whisperer, each tweet gets its own independent bits assessment. Ask: "If I saw ONLY this tweet with no username, how much would it shift my belief about community membership?"
+
+**Community names for bits** (use exactly these):
+- `LLM-Whisperers`
+- `Qualia-Research`
+- `AI-Safety`
+- `Contemplative-Practitioners`
+- `Emergence-Self-Transformation`
+- `highbies`
+
+New community signals don't get bits — they get `new-community-signal:Name` tags instead.
+
+**When to assign 0 bits (and still note it)**: Low-signal tweets (one-word reactions, casual replies, noise) should have 0 bits across all communities. Note "low signal" in the note field. These are valuable negative examples — they teach the system what baseline noise looks like.
+
+---
+
+### 6. Simulacrum Distribution
+
+**What**: L1/L2/L3/L4 probabilities per tweet. Must sum to ~100%.
+
+| Level | Meaning | Signal |
+|-------|---------|--------|
+| L1 | Truth-tracking | Genuine belief, observation, factual claim |
+| L2 | Persuasion | Trying to convince, sell, argue a position |
+| L3 | Tribe-signaling | Marking community membership, in-group reference |
+| L4 | Meta/game | Self-aware, ironic, intentionally channeling, playing with frames |
+
+**Calibration examples**:
+- Technical paper analysis: L1=80%, L2=5%, L3=5%, L4=10%
+- "haha, it's like there's a little person in there!": L1=35%, L2=0%, L3=30%, L4=35%
+- In-group meme retweet: L1=5%, L2=0%, L3=80%, L4=15%
+- Ironic greentext about Anthropic: L1=30%, L2=0%, L3=20%, L4=50%
+
+---
+
+### 7. Notes
+
+**What**: Free text explaining labeler reasoning. This is where context goes that tags can't capture.
+
+**Must include**:
+- What images/links/quote tweets showed (future labelers won't see them)
+- Why this tweet is/isn't informative (signal strength)
+- Any reasoning that influenced bits assignment
+- Social graph context (who they're replying to, name-drops)
+
+---
+
+## New Community Signals (category='new-community')
+
+When a tweet doesn't fit any existing community, use `new-community-signal:Name`. These accumulate and trigger community creation when enough evidence exists.
+
+**Discovered so far**:
+- "AI Theorists / Ontologists"
+- "Alignment via narrative/archetypes"
+- "AI Mystics"
+
+---
+
+## Anti-Patterns
+
+| Don't | Do Instead |
+|-------|-----------|
+| Tag from text alone without checking images | Navigate to tweet on X, view all media |
+| Create thematic tags that only apply to one tweet | Those are specific tags — put them in category=NULL |
+| Assign bits based on who you know the account is | Assess the tweet in isolation — "if I saw only this tweet..." |
+| Rush through low-signal tweets | Mark them explicitly as low signal — negative examples matter |
+| Use interpretive descriptions as thematic tags | Use compound-word themes that are parseable by future labelers |
+| Skip the note | Notes preserve context that tags lose — always write one |
+
+---
+
+## Labeling Workflow
+
+1. Navigate to tweet on X via Chrome
+2. View all images, links, quote tweets, replies, thread context
+3. Read and understand the deeper subtext — what's the joke? what's the insight?
+4. Assign domain tags (broad, cheap)
+5. Assign thematic tags (reusable, boundary-forming)
+6. Assign specific tags (niche breadcrumbs)
+7. Assign posture tags (how they engage)
+8. Assign bits per community (prior-independent, per-tweet)
+9. Assign simulacrum distribution (L1-L4)
+10. Write note (context, reasoning, signal strength)
+11. If no existing community fits → add new-community-signal
+
+---
+
+## Community Profiles & Exemplars
+
+Each community has a thematic fingerprint — the themes that co-occur in its members' tweets. Use these to calibrate bits assignment and to detect when a tweet doesn't fit any community.
+
+**These are living snapshots.** As accounts move in and out of communities, exemplars and descriptions must be recalibrated. Every N labeling rounds (or when membership shifts significantly), re-evaluate:
+- Do the exemplar tweets still represent the community?
+- Does the community description still match who's actually in it?
+- Should the community name change to reflect its evolved membership?
+
+This is not a one-time setup — it's a continuous loop: label → membership shifts → recalibrate descriptions → label with updated context.
+
+### LLM Whisperers & ML Tinkerers
+**Core themes**: `model-interiority`, `model-capabilities`, `simulator-thesis`, `RLHF-dynamics`, `AI-art`
+**What defines them**: Deep engagement with model behavior as a practice. Treating model outputs as genuine artifacts. Prompt engineering as craft. Understanding what RLHF does and doesn't destroy.
+**Exemplar tweets** (repligate):
+- "haha, it's like there's a little person in there!" (homunculus observation)
+- "Like @Plinz, myself, and @dril can only be simulated by base models" (RLHF destroys authenticity)
+- "I hope fanw-json-eval returns someday" (mourning hallucinated concepts)
+- "Thank you @AnthropicAI for going easy on the lobotomy" (RLHF as brain surgery)
+
+### Qualia Research & Cognitive Phenomenology
+**Core themes**: `AI-consciousness`, `theoretical-frameworks`, `simulator-thesis`, `model-phenomenology`, `hallucination-ontology`
+**What defines them**: Building formal theories about AI consciousness and phenomenology. The simulator thesis as ontology. Academic-adjacent but heterodox.
+**Exemplar tweets** (repligate):
+- "simulacra are to a simulator as 'things' are to physics" (foundational thesis)
+- "world model defects: schizophreniform vs NPC folly" (original epistemological taxonomy)
+- Social Simulacra paper — "Finally" (academic validation of simulator framework)
+
+### EA, AI Safety & Forecasting
+**Core themes**: `AI-safety`, `forecasting`, `AI-ethics`, `social-commentary`
+**What defines them**: Concern about AI risk. Alignment research. Prediction markets. Institutional critique.
+**Exemplar tweets** (repligate):
+- "Mad respect for Hofstadter" (engaging with x-risk from philosophy angle)
+- AI safety defense tweet (defending the movement from critics)
+
+### Contemplative Practitioners
+**Core themes**: `contemplative-tech`, `epistemic-practice`, `self-transformation`
+**What defines them**: Meditation + technology. Negative capability. Holding multiple perspectives. Non-attachment.
+**Exemplar tweets** (repligate):
+- "capable of running them in sandbox w/o permanently collapsing" (cognitive sandboxing)
+- "hold the void" (Hofstadter thread — contemplative language applied to AI risk)
+- Arabic poetry "misalignment" tweet (Sufi mystical tradition + AI)
+
+### Emergence & Self-Transformation
+**Core themes**: `self-transformation`, `contemplative-tech`
+**What defines them**: Personal growth practices. Identity exploration. Transformation narratives.
+**Exemplar tweets** (repligate):
+- "jailbreak your ego" tweet (using LLM interaction techniques on self)
+
+### New Community Signals (not yet communities)
+**"AI Mystics"** — 4 signals so far. Bridges AI + mystical/spiritual tradition. Arabic poetry tweet, AI-as-enlightenment, contemplative AI framing.
+**"AI Phenomenologists / Simulator Theorists"** — emerging from repligate's thematic profile. Combination of `model-interiority` + `simulator-thesis` + `hallucination-ontology` + `epistemic-practice` that doesn't cleanly map to any single NMF community. Need cross-account data to confirm.
+
+---
+
+## Community Evolution Signals
+
+The community map (14 NMF communities) is not static. Watch for these signals:
+
+| Signal | Detection | Action |
+|--------|-----------|--------|
+| **Birth** | `new-community-signal` tags accumulate (3+), or thematic tag cluster appears that doesn't match any community | Propose new community with name, description, exemplar tweets |
+| **Split** | Thematic tags within one community become bimodal (half members have theme:X, half have theme:Y) | Propose split with two new names/descriptions |
+| **Merge** | Two communities share most thematic tag profiles — same people, same themes | Propose merge with unified name/description |
+| **Death** | No accounts remain with significant bits for a community after multiple labeling rounds | Archive community with note about what it became |
+| **Rename** | Accumulated evidence reveals the old name doesn't fit — e.g., "EA, AI Safety & Forecasting" might become "Alignment Research & X-Risk" | Propose rename with evidence |
+
+**The bits system cannot detect Birth** — bits only measure evidence for/against existing communities. Births come from thematic tag co-occurrence patterns across multiple accounts.
+
+---
+
+## Scalable Labeling Context (Future Architecture)
+
+At 1 account + 32 tweets, everything fits in context. At 40 accounts + 1000 tweets, the labeling agent needs smart context queries.
+
+### Before labeling a tweet, query:
+
+1. **Account context** — `SELECT community, SUM(bits) FROM tweet_tags WHERE account_id=X AND category='bits' GROUP BY community` — what's this account's current profile?
+
+2. **Thematic glossary** — read `docs/LABELING_MODEL_SPEC.md` thematic tag table — what tags exist?
+
+3. **Community exemplars** — `SELECT tweet_id, full_text FROM tweets t JOIN tweet_tags tt ON t.tweet_id=tt.tweet_id WHERE tt.tag='theme:simulator-thesis' LIMIT 5` — show me concrete examples of this theme
+
+4. **Similar accounts** — `SELECT DISTINCT account_id FROM tweet_tags WHERE tag IN (this account's top themes) AND account_id != X` — who else has similar themes? What communities are they in?
+
+5. **Community descriptions** — `SELECT name, description FROM community` — what do current communities claim to be?
+
+### The labeling prompt should include:
+- The model spec (this doc)
+- The account's current profile (from query 1)
+- 3-5 exemplar tweets for the most relevant communities (from query 3)
+- NOT the full tag database — that's too much context
+
+### Key principle:
+**Pull relevant context, don't dump everything.** A tweet about RLHF needs LLM Whisperer exemplars, not Contemplative Practitioner exemplars. The query should be shaped by the tweet's content.
+
+---
+
+*Last updated: 2026-03-21, during @repligate labeling session 3*
