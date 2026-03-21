@@ -144,6 +144,7 @@ export default function App() {
   const {
     result, setResult,
     communityResult,
+    pathname,
     pendingHandle, pendingCommunity,
     showCommunity, showResult, showHome,
     handleCommunityClick, handleBackFromCommunity,
@@ -213,11 +214,11 @@ export default function App() {
   }
 
   // Simple path routing (no library needed)
-  if (window.location.pathname === '/about') {
+  if (pathname === '/about') {
     return <About meta={data?.meta} />
   }
 
-  if (window.location.pathname === '/gallery') {
+  if (pathname === '/gallery') {
     return <CardGallery onMemberClick={handleMemberClick} onBack={handleSearchAgain} />
   }
 
