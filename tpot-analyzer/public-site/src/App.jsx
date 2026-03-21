@@ -190,7 +190,7 @@ export default function App() {
 
   // Simple path routing (no library needed)
   if (window.location.pathname === '/about') {
-    return <About />
+    return <About meta={data?.meta} />
   }
 
   if (!data) return <div className="loading">Loading...</div>
@@ -211,7 +211,7 @@ export default function App() {
           <SearchBar onResult={handleResult} />
 
           <div className="community-showcase">
-            <p className="showcase-label">14 communities mapped</p>
+            <p className="showcase-label">{communities.length} communities mapped</p>
             <div className="showcase-tags">
               {communities.map(c => (
                 <span key={c.id} className="showcase-tag" style={{ borderColor: c.color, color: c.color }}>
