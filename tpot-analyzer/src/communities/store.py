@@ -63,12 +63,24 @@ CREATE TABLE IF NOT EXISTS community_definition (
 CREATE TABLE IF NOT EXISTS community (
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL,
+    short_name       TEXT,
     description      TEXT,
     color            TEXT,
     seeded_from_run  TEXT,
     seeded_from_idx  INTEGER,
     created_at       TEXT NOT NULL,
     updated_at       TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS account_community_bits (
+    account_id   TEXT NOT NULL,
+    community_id TEXT NOT NULL,
+    total_bits   INTEGER NOT NULL DEFAULT 0,
+    tweet_count  INTEGER NOT NULL DEFAULT 0,
+    pct          REAL NOT NULL DEFAULT 0.0,
+    updated_at   TEXT NOT NULL,
+    PRIMARY KEY (account_id, community_id),
+    FOREIGN KEY (community_id) REFERENCES community(id)
 );
 
 CREATE TABLE IF NOT EXISTS community_account (
