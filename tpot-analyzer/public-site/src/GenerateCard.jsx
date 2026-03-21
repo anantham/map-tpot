@@ -274,6 +274,19 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
         setStatus("generated");
         // Cache the generated card for instant recall
         cacheCard(handle, url);
+        // Submit BYOK-generated cards to server gallery
+        // (serverless path already stores in gallery via generate-card.js)
+        if (byokKey) {
+          fetch('/api/gallery-submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              handle,
+              imageUrl: url,
+              communities: cardRequest.communities,
+            }),
+          }).catch(() => {}); // fire-and-forget
+        }
         // Increment per-user generation count (only for serverless path)
         if (!byokKey) {
           const newCount = incrementGenCount();

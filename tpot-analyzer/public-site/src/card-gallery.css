@@ -65,10 +65,24 @@
 }
 
 .gallery-card-handle {
-  padding: 8px 10px;
+  padding: 6px 10px 2px;
   font-size: 12px;
   color: rgba(212, 175, 55, 0.85);
   text-align: center;
+}
+
+.gallery-card-communities {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  padding: 2px 10px 8px;
+}
+
+.gallery-card-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
 }
 
 @media (max-width: 480px) {
