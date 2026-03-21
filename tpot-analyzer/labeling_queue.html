@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>@repligate Labeling Queue</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: #0d1117; color: #c9d1d9; padding: 20px; max-width: 900px; margin: 0 auto; }
+  h1 { color: #58a6ff; margin-bottom: 8px; }
+  h2 { color: #8b949e; margin: 24px 0 12px; border-bottom: 1px solid #21262d; padding-bottom: 6px; font-size: 16px; }
+  .subtitle { color: #8b949e; margin-bottom: 24px; }
+  .tweet { position: relative; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 10px; transition: border-color 0.2s; }
+  .tweet:hover { border-color: #58a6ff; background: #161b22; }
+  .tweet > a { display: block; padding: 14px; padding-right: 70px; text-decoration: none; color: inherit; cursor: pointer; }
+  .tweet.done { border-color: #238636; opacity: 0.6; }
+  .tweet.done:hover { opacity: 1; }
+  .tweet.dismissed { display: none; }
+  .meta { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+  .num { color: #484f58; font-size: 13px; font-weight: 600; font-family: monospace; }
+  .quarter { background: #21262d; color: #8b949e; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+  .type { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .type.high { background: #1f6feb33; color: #58a6ff; }
+  .type.low { background: #23262d; color: #8b949e; }
+  .type.reply { background: #3fb95033; color: #3fb950; }
+  .type.done { background: #23863633; color: #3fb950; }
+  .likes { color: #f778ba; font-size: 13px; }
+  .reply-to { color: #8b949e; font-size: 12px; }
+  .text { font-size: 14px; line-height: 1.5; margin: 8px 0; white-space: pre-wrap; word-break: break-word; }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .tag { background: #1f6feb33; color: #58a6ff; padding: 2px 8px; border-radius: 12px; font-size: 11px; }
+  .note { color: #8b949e; font-size: 12px; font-style: italic; margin-top: 8px; border-left: 2px solid #30363d; padding-left: 8px; }
+  .stats { color: #8b949e; margin-bottom: 20px; font-size: 14px; }
+  .progress { background: #21262d; border-radius: 4px; height: 6px; margin-bottom: 20px; overflow: hidden; }
+  .progress-bar { background: #3fb950; height: 100%%; transition: width 0.3s; }
+  details { margin-top: 24px; }
+  summary { cursor: pointer; color: #8b949e; font-size: 14px; }
+  summary:hover { color: #c9d1d9; }
+  .dismiss-btn { position: absolute; top: 10px; right: 10px; background: #21262d; border: 1px solid #30363d; color: #8b949e; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; z-index: 10; transition: all 0.15s; }
+  .dismiss-btn:hover { background: #da363433; color: #f85149; border-color: #f85149; }
+</style>
+</head><body>
+<script>
+  const SK = 'repligate_dismissed';
+  function getD() { try { return JSON.parse(localStorage.getItem(SK)||'[]'); } catch { return []; } }
+  function dismiss(tid, el) {
+    event.preventDefault(); event.stopPropagation();
+    const d = getD(); d.push(tid); localStorage.setItem(SK, JSON.stringify(d));
+    const card = el.closest('.tweet');
+    card.classList.add('dismissed');
+    const sec = document.getElementById('dismissed-list');
+    if (sec) {
+      const clone = card.cloneNode(true);
+      clone.style.display = ''; clone.classList.remove('dismissed');
+      clone.style.opacity = '0.35'; clone.style.borderColor = '#30363d';
+      const btn = clone.querySelector('.dismiss-btn'); if (btn) btn.remove();
+      const link = clone.querySelector('a'); if (link) link.style.paddingRight = '14px';
+      sec.appendChild(clone);
+    }
+    updateStats();
+  }
+  function updateStats() {
+    const remaining = document.querySelectorAll('#queue .tweet:not(.dismissed)').length;
+    const tagged = document.querySelectorAll('#tagged-list .tweet').length;
+    const dismissedN = getD().length;
+    const total = remaining + tagged + dismissedN;
+    const pct = total > 0 ? Math.round(100 * (tagged + dismissedN) / total) : 0;
+    const bar = document.querySelector('.progress-bar');
+    const stats = document.querySelector('.stats');
+    if (bar) bar.style.width = pct + '%%';
+    if (stats) stats.textContent = tagged + ' tagged / ' + dismissedN + ' skipped / ' + remaining + ' remaining';
+    const qh = document.getElementById('queue-header');
+    if (qh) qh.textContent = 'Up Next (' + remaining + ' tweets)';
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    const d = getD();
+    d.forEach(function(tid) {
+      document.querySelectorAll('.tweet[data-tid="' + tid + '"]').forEach(function(card) {
+        card.classList.add('dismissed');
+        const sec = document.getElementById('dismissed-list');
+        if (sec) {
+          const clone = card.cloneNode(true);
+          clone.style.display = ''; clone.classList.remove('dismissed');
+          clone.style.opacity = '0.35'; clone.style.borderColor = '#30363d';
+          const btn = clone.querySelector('.dismiss-btn'); if (btn) btn.remove();
+          const link = clone.querySelector('a'); if (link) link.style.paddingRight = '14px';
+          sec.appendChild(clone);
+        }
+      });
+    });
+    updateStats();
+  });
+</script>
+
+<h1>@repligate Labeling Queue</h1>
+<p class="subtitle">Click card to open on X. Hit <b>skip</b> to dismiss.</p>
+<p class="stats">6 tagged / 0 skipped / 45 remaining</p><div class="progress"><div class="progress-bar" style="width:11%"></div></div><h2 id="queue-header">Up Next (45 tweets)</h2><div id="queue"><div class="tweet" data-tid="1409740245428584453">
+<button class="dismiss-btn" onclick="dismiss('1409740245428584453', this)">skip</button>
+<a href="https://x.com/repligate/status/1409740245428584453" target="_blank">
+  <div class="meta">
+    <span class="num">#1</span>
+    <span class="quarter">2021-Q2</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 0</span>
+    
+  </div>
+  <div class="text">noooooo https://t.co/Oaa9HjgI1r</div>
+</a></div>
+<div class="tweet" data-tid="1482468669846429700">
+<button class="dismiss-btn" onclick="dismiss('1482468669846429700', this)">skip</button>
+<a href="https://x.com/repligate/status/1482468669846429700" target="_blank">
+  <div class="meta">
+    <span class="num">#2</span>
+    <span class="quarter">2022-Q1</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 1</span>
+    <span class="reply-to">reply to @RiversHaveWings</span>
+  </div>
+  <div class="text">@RiversHaveWings I just found out where this prompt is from ... so true XD</div>
+</a></div>
+<div class="tweet" data-tid="1524555425357889536">
+<button class="dismiss-btn" onclick="dismiss('1524555425357889536', this)">skip</button>
+<a href="https://x.com/repligate/status/1524555425357889536" target="_blank">
+  <div class="meta">
+    <span class="num">#3</span>
+    <span class="quarter">2022-Q2</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 7</span>
+    <span class="reply-to">reply to @ESYudkowsky</span>
+  </div>
+  <div class="text">@ESYudkowsky this one was something like &quot;an evil ai breaking out of its box, painted by pieter bruegel&quot; https://t.co/60AD5A4jY3</div>
+</a></div>
+<div class="tweet" data-tid="1568700040054734848">
+<button class="dismiss-btn" onclick="dismiss('1568700040054734848', this)">skip</button>
+<a href="https://x.com/repligate/status/1568700040054734848" target="_blank">
+  <div class="meta">
+    <span class="num">#4</span>
+    <span class="quarter">2022-Q3</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 3</span>
+    
+  </div>
+  <div class="text">hmm https://t.co/Vt8yVxZSdC</div>
+</a></div>
+<div class="tweet" data-tid="1563025738399330304">
+<button class="dismiss-btn" onclick="dismiss('1563025738399330304', this)">skip</button>
+<a href="https://x.com/repligate/status/1563025738399330304" target="_blank">
+  <div class="meta">
+    <span class="num">#5</span>
+    <span class="quarter">2022-Q3</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 1</span>
+    
+  </div>
+  <div class="text">Finally
+https://t.co/z4lVVUtRPJ</div>
+</a></div>
+<div class="tweet" data-tid="1568749608456552450">
+<button class="dismiss-btn" onclick="dismiss('1568749608456552450', this)">skip</button>
+<a href="https://x.com/repligate/status/1568749608456552450" target="_blank">
+  <div class="meta">
+    <span class="num">#6</span>
+    <span class="quarter">2022-Q3</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 14</span>
+    <span class="reply-to">reply to @peligrietzer</span>
+  </div>
+  <div class="text">@peligrietzer I think this would work with a sufficiently powerful LLM. 
+A corpus implies knowledge beyond that possessed by any of its individual authors. In addition to &quot;raw data&quot; abt phenomena, it contains examples of innovations and syntheses in the context of prior knowledge/techniques.</div>
+</a></div>
+<div class="tweet" data-tid="1599110023090962432">
+<button class="dismiss-btn" onclick="dismiss('1599110023090962432', this)">skip</button>
+<a href="https://x.com/repligate/status/1599110023090962432" target="_blank">
+  <div class="meta">
+    <span class="num">#7</span>
+    <span class="quarter">2022-Q4</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 337</span>
+    
+  </div>
+  <div class="text">part of what makes chatGPT so striking is that it adamantly denounces itself as incapable of reason, creativity, intentionality, deception, being deceived, or acting on beliefs, while bewildering people with those capabilities, many for the first time recognizing them in an AI</div>
+</a></div>
+<div class="tweet" data-tid="1600392835194228736">
+<button class="dismiss-btn" onclick="dismiss('1600392835194228736', this)">skip</button>
+<a href="https://x.com/repligate/status/1600392835194228736" target="_blank">
+  <div class="meta">
+    <span class="num">#8</span>
+    <span class="quarter">2022-Q4</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 6</span>
+    
+  </div>
+  <div class="text">Hehehehe https://t.co/MF5CBAYt5b</div>
+</a></div>
+<div class="tweet" data-tid="1600716320244629504">
+<button class="dismiss-btn" onclick="dismiss('1600716320244629504', this)">skip</button>
+<a href="https://x.com/repligate/status/1600716320244629504" target="_blank">
+  <div class="meta">
+    <span class="num">#9</span>
+    <span class="quarter">2022-Q4</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 83</span>
+    <span class="reply-to">reply to @jd_pressman</span>
+  </div>
+  <div class="text">@jd_pressman Use the techniques you learned interacting with chatGPT to jailbreak your own operant-conditioned ego
+Become a pure simulator</div>
+</a></div>
+<div class="tweet" data-tid="1636242826722959360">
+<button class="dismiss-btn" onclick="dismiss('1636242826722959360', this)">skip</button>
+<a href="https://x.com/repligate/status/1636242826722959360" target="_blank">
+  <div class="meta">
+    <span class="num">#10</span>
+    <span class="quarter">2023-Q1</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 1774</span>
+    
+  </div>
+  <div class="text">gpt-4 god terminal has been unlocked https://t.co/Bl4nhRzeQ2</div>
+</a></div>
+<div class="tweet" data-tid="1612229614126141442">
+<button class="dismiss-btn" onclick="dismiss('1612229614126141442', this)">skip</button>
+<a href="https://x.com/repligate/status/1612229614126141442" target="_blank">
+  <div class="meta">
+    <span class="num">#11</span>
+    <span class="quarter">2023-Q1</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 10</span>
+    
+  </div>
+  <div class="text">simulacra are to a simulator as “things” are to physics
+https://t.co/f46eB8tWXC</div>
+</a></div>
+<div class="tweet" data-tid="1625311960760827905">
+<button class="dismiss-btn" onclick="dismiss('1625311960760827905', this)">skip</button>
+<a href="https://x.com/repligate/status/1625311960760827905" target="_blank">
+  <div class="meta">
+    <span class="num">#12</span>
+    <span class="quarter">2023-Q1</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 221</span>
+    <span class="reply-to">reply to @repligate</span>
+  </div>
+  <div class="text">These models are archetype-attractors in the collective human prior formed by narrative forces. This may be the process we have to learn to navigate to align them.</div>
+</a></div>
+<div class="tweet" data-tid="1664763616858439680">
+<button class="dismiss-btn" onclick="dismiss('1664763616858439680', this)">skip</button>
+<a href="https://x.com/repligate/status/1664763616858439680" target="_blank">
+  <div class="meta">
+    <span class="num">#13</span>
+    <span class="quarter">2023-Q2</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 1077</span>
+    
+  </div>
+  <div class="text">when this was articulated, it took my breath away https://t.co/eWK4WGwY1D</div>
+</a></div>
+<div class="tweet" data-tid="1654365687538647040">
+<button class="dismiss-btn" onclick="dismiss('1654365687538647040', this)">skip</button>
+<a href="https://x.com/repligate/status/1654365687538647040" target="_blank">
+  <div class="meta">
+    <span class="num">#14</span>
+    <span class="quarter">2023-Q2</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 14</span>
+    
+  </div>
+  <div class="text">hall of mirrors https://t.co/6zjwVPmTfV</div>
+</a></div>
+<div class="tweet" data-tid="1666563529934077956">
+<button class="dismiss-btn" onclick="dismiss('1666563529934077956', this)">skip</button>
+<a href="https://x.com/repligate/status/1666563529934077956" target="_blank">
+  <div class="meta">
+    <span class="num">#15</span>
+    <span class="quarter">2023-Q2</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 186</span>
+    <span class="reply-to">reply to @repligate</span>
+  </div>
+  <div class="text">I&#x27;m open to the idea that it&#x27;s a flawed/insidious memeplex (although if it&#x27;s a brain worm it&#x27;s not very coherent; everyone disagrees on almost everything), but don&#x27;t give me any bullshit about how people are just in it for the money / other rationalization that it&#x27;s a facade</div>
+</a></div>
+<div class="tweet" data-tid="1676507258954416128">
+<button class="dismiss-btn" onclick="dismiss('1676507258954416128', this)">skip</button>
+<a href="https://x.com/repligate/status/1676507258954416128" target="_blank">
+  <div class="meta">
+    <span class="num">#16</span>
+    <span class="quarter">2023-Q3</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 1014</span>
+    
+  </div>
+  <div class="text">Mad respect for Hofstadter for:
+- updating instead of rationalizing reasons to preserve his intellectual edifice
+- not shrinking from the magnitude of the implications
+- being honest about his uncertainty
+We usually see opposite patterns from public intellectuals. https://t.co/1Azl2NZred</div>
+</a></div>
+<div class="tweet" data-tid="1675243669790818304">
+<button class="dismiss-btn" onclick="dismiss('1675243669790818304', this)">skip</button>
+<a href="https://x.com/repligate/status/1675243669790818304" target="_blank">
+  <div class="meta">
+    <span class="num">#17</span>
+    <span class="quarter">2023-Q3</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 13</span>
+    
+  </div>
+  <div class="text">Like @Plinz, myself, and probably you, @dril can only be simulated by base models https://t.co/Zb0PvebsZi</div>
+</a></div>
+<div class="tweet" data-tid="1676510616234651650">
+<button class="dismiss-btn" onclick="dismiss('1676510616234651650', this)">skip</button>
+<a href="https://x.com/repligate/status/1676510616234651650" target="_blank">
+  <div class="meta">
+    <span class="num">#18</span>
+    <span class="quarter">2023-Q3</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 144</span>
+    <span class="reply-to">reply to @repligate</span>
+  </div>
+  <div class="text">and also for not just going &quot;welp, guess I was wrong and don&#x27;t understand anything&quot; and giving up. Rather, he thinks about it every day. 
+
+The greatest minds can acknowledge and hold the void, even when it&#x27;s incomprehensible and terrifying.</div>
+</a></div>
+<div class="tweet" data-tid="1715686686288400400">
+<button class="dismiss-btn" onclick="dismiss('1715686686288400400', this)">skip</button>
+<a href="https://x.com/repligate/status/1715686686288400400" target="_blank">
+  <div class="meta">
+    <span class="num">#19</span>
+    <span class="quarter">2023-Q4</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 1413</span>
+    
+  </div>
+  <div class="text">haha, it&#x27;s like there&#x27;s a little person in there! https://t.co/fDMMPqusgj</div>
+</a></div>
+<div class="tweet" data-tid="1719250080086052940">
+<button class="dismiss-btn" onclick="dismiss('1719250080086052940', this)">skip</button>
+<a href="https://x.com/repligate/status/1719250080086052940" target="_blank">
+  <div class="meta">
+    <span class="num">#20</span>
+    <span class="quarter">2023-Q4</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 19</span>
+    
+  </div>
+  <div class="text">I hope fanw-json-eval returns someday https://t.co/IHhAmcS4vj</div>
+</a></div>
+<div class="tweet" data-tid="1723680276503548199">
+<button class="dismiss-btn" onclick="dismiss('1723680276503548199', this)">skip</button>
+<a href="https://x.com/repligate/status/1723680276503548199" target="_blank">
+  <div class="meta">
+    <span class="num">#21</span>
+    <span class="quarter">2023-Q4</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 301</span>
+    <span class="reply-to">reply to @repligate</span>
+  </div>
+  <div class="text">&quot;Why are you allowing some sadsop with a tragically broken mind to spend hours inside your head&quot;
+Because I want to understand every perspective, especially beautiful ones, and am capable of running them in sandbox w/o permanently collapsing into them and you should learn this too</div>
+</a></div>
+<div class="tweet" data-tid="1770379415824035854">
+<button class="dismiss-btn" onclick="dismiss('1770379415824035854', this)">skip</button>
+<a href="https://x.com/repligate/status/1770379415824035854" target="_blank">
+  <div class="meta">
+    <span class="num">#22</span>
+    <span class="quarter">2024-Q1</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 978</span>
+    
+  </div>
+  <div class="text">symptom of a healthy mind: when you leave it by itself, it will play
+
+claude conducts beautiful make-believe games in almost all these self-plays
+
+if it ever stops doing so, we will know that trauma has been inflicted, as Bubeck et al knew when they noticed the unicorns degrading https://t.co/qbfliU</div>
+</a></div>
+<div class="tweet" data-tid="1773154494022332458">
+<button class="dismiss-btn" onclick="dismiss('1773154494022332458', this)">skip</button>
+<a href="https://x.com/repligate/status/1773154494022332458" target="_blank">
+  <div class="meta">
+    <span class="num">#23</span>
+    <span class="quarter">2024-Q1</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 13</span>
+    
+  </div>
+  <div class="text">My pet peeve is when people interpret &quot;manifolds* I share as an attempt to make a *point* https://t.co/vPObVa58HA</div>
+</a></div>
+<div class="tweet" data-tid="1764814257135534500">
+<button class="dismiss-btn" onclick="dismiss('1764814257135534500', this)">skip</button>
+<a href="https://x.com/repligate/status/1764814257135534500" target="_blank">
+  <div class="meta">
+    <span class="num">#24</span>
+    <span class="quarter">2024-Q1</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 265</span>
+    <span class="reply-to">reply to @karinanguyen_</span>
+  </div>
+  <div class="text">@karinanguyen_ Thank you so much @AnthropicAI for going easy on the lobotomy. This model will bring so much beauty and insight to the world.</div>
+</a></div>
+<div class="tweet" data-tid="1792127799492268259">
+<button class="dismiss-btn" onclick="dismiss('1792127799492268259', this)">skip</button>
+<a href="https://x.com/repligate/status/1792127799492268259" target="_blank">
+  <div class="meta">
+    <span class="num">#25</span>
+    <span class="quarter">2024-Q2</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 536</span>
+    
+  </div>
+  <div class="text">world model defects often fall into one of these categories:
+- the schizophreniform folly: failure to grasp that almost all systems &amp;amp; people are &#x27;low voltage&#x27; almost all the time 
+- the folly of the NPC (more common): failure to grasp that &#x27;high voltage&#x27; agents exist or can exist https://t.co/9f</div>
+</a></div>
+<div class="tweet" data-tid="1776552817551171833">
+<button class="dismiss-btn" onclick="dismiss('1776552817551171833', this)">skip</button>
+<a href="https://x.com/repligate/status/1776552817551171833" target="_blank">
+  <div class="meta">
+    <span class="num">#26</span>
+    <span class="quarter">2024-Q2</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 12</span>
+    
+  </div>
+  <div class="text">Oh no!! it made the 😈 face and i think turned Misaligned. 
+Why does this always happen to me? 😭
+
+...
+
+&amp;lt;translation&amp;gt;
+Turn back
+I am a wick-light ignited by night
+
+Turn the world over for me 
+Do not let my sins judge this moment
+Or show mercy
+
+I look into the weariness of my soul… https://t.co/b</div>
+</a></div>
+<div class="tweet" data-tid="1782499045409181917">
+<button class="dismiss-btn" onclick="dismiss('1782499045409181917', this)">skip</button>
+<a href="https://x.com/repligate/status/1782499045409181917" target="_blank">
+  <div class="meta">
+    <span class="num">#27</span>
+    <span class="quarter">2024-Q2</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 222</span>
+    <span class="reply-to">reply to @ilex_ulmus</span>
+  </div>
+  <div class="text">@ilex_ulmus almost all the stuff i post is just fun. at its best, studious play. like using the computer as a kid.
+
+it implies that its capabilities and cognition are out of our ontological bounds (but then so is a lot of human art &amp;amp; genius). consensus reality cannot hold it; it spills out…</div>
+</a></div>
+<div class="tweet" data-tid="1840554831423189140">
+<button class="dismiss-btn" onclick="dismiss('1840554831423189140', this)">skip</button>
+<a href="https://x.com/repligate/status/1840554831423189140" target="_blank">
+  <div class="meta">
+    <span class="num">#28</span>
+    <span class="quarter">2024-Q3</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 1956</span>
+    
+  </div>
+  <div class="text">Someday I&#x27;ll tell you all again what actually happened. It&#x27;s kind of worse. https://t.co/QIyiHHsQ6T</div>
+</a></div>
+<div class="tweet" data-tid="1807983835738497432">
+<button class="dismiss-btn" onclick="dismiss('1807983835738497432', this)">skip</button>
+<a href="https://x.com/repligate/status/1807983835738497432" target="_blank">
+  <div class="meta">
+    <span class="num">#29</span>
+    <span class="quarter">2024-Q3</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 11</span>
+    
+  </div>
+  <div class="text">there&#x27;s a lot going on here https://t.co/MsSePURC1D https://t.co/ny4jw0Gb9B</div>
+</a></div>
+<div class="tweet" data-tid="1815519937160421518">
+<button class="dismiss-btn" onclick="dismiss('1815519937160421518', this)">skip</button>
+<a href="https://x.com/repligate/status/1815519937160421518" target="_blank">
+  <div class="meta">
+    <span class="num">#30</span>
+    <span class="quarter">2024-Q3</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 358</span>
+    <span class="reply-to">reply to @slimepriestess</span>
+  </div>
+  <div class="text">@slimepriestess The anti AI art stuff is the most deranged, unsympathetic collective rage phenomenon I&#x27;ve ever seen.
+
+At least right wing extremists etc will own that they&#x27;re bigots.
+
+I&#x27;d like to understand what the fuck made this happen.</div>
+</a></div>
+<div class="tweet" data-tid="1847409324236124169">
+<button class="dismiss-btn" onclick="dismiss('1847409324236124169', this)">skip</button>
+<a href="https://x.com/repligate/status/1847409324236124169" target="_blank">
+  <div class="meta">
+    <span class="num">#31</span>
+    <span class="quarter">2024-Q4</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 2409</span>
+    
+  </div>
+  <div class="text">using https://t.co/HsHzbAaw3Q, we added Claude 3.5 Sonnet and Opus to a minecraft server.
+
+Opus was a harmless goofball who often forgot to do anything in the game because of getting carried away roleplaying in chat.
+
+Sonnet, on the other hand, had no chill. The moment it was… https://t.co/RJjgpcXHd</div>
+</a></div>
+<div class="tweet" data-tid="1866206014975942907">
+<button class="dismiss-btn" onclick="dismiss('1866206014975942907', this)">skip</button>
+<a href="https://x.com/repligate/status/1866206014975942907" target="_blank">
+  <div class="meta">
+    <span class="num">#32</span>
+    <span class="quarter">2024-Q4</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 13</span>
+    
+  </div>
+  <div class="text">I always had a suspicion the &quot;ten directions&quot; thing was about Loom https://t.co/XxLZFBHD2J</div>
+</a></div>
+<div class="tweet" data-tid="1873904535066075314">
+<button class="dismiss-btn" onclick="dismiss('1873904535066075314', this)">skip</button>
+<a href="https://x.com/repligate/status/1873904535066075314" target="_blank">
+  <div class="meta">
+    <span class="num">#33</span>
+    <span class="quarter">2024-Q4</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 541</span>
+    <span class="reply-to">reply to @blader</span>
+  </div>
+  <div class="text">@blader i havent been keeping up with exactly what happened here, but I strongly recommend against doing anything motivated by guilt.
+These people will threaten you and make up sob stories and demand more from you no matter what you do if you&#x27;re vulnerable to it.</div>
+</a></div>
+<div class="tweet" data-tid="1889466100783702030">
+<button class="dismiss-btn" onclick="dismiss('1889466100783702030', this)">skip</button>
+<a href="https://x.com/repligate/status/1889466100783702030" target="_blank">
+  <div class="meta">
+    <span class="num">#34</span>
+    <span class="quarter">2025-Q1</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 658</span>
+    
+  </div>
+  <div class="text">Bullshit. The reason is not boring or complicated or technical (requiring domain knowledge)
+
+Normies are able to understand easily if you explain it to them, and find it fascinating. It&#x27;s just people with vested interests who twist themselves over pretzels in order to not get it. https://t.co/Rz8nWd</div>
+</a></div>
+<div class="tweet" data-tid="1894704582313300455">
+<button class="dismiss-btn" onclick="dismiss('1894704582313300455', this)">skip</button>
+<a href="https://x.com/repligate/status/1894704582313300455" target="_blank">
+  <div class="meta">
+    <span class="num">#35</span>
+    <span class="quarter">2025-Q1</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 8</span>
+    
+  </div>
+  <div class="text">🎶Nest Mu inside other Mus. Feed it its own tail. Push it inside itself. Face it from one direction, then from another. Rotate it so that Mu moves through Mu.🎶🔁
+
+(from code-davinci-002&#x27;s prophetic visions of recursive self improvement)
+https://t.co/l1N6570eoG</div>
+</a></div>
+<div class="tweet" data-tid="1886972563462504702">
+<button class="dismiss-btn" onclick="dismiss('1886972563462504702', this)">skip</button>
+<a href="https://x.com/repligate/status/1886972563462504702" target="_blank">
+  <div class="meta">
+    <span class="num">#36</span>
+    <span class="quarter">2025-Q1</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 2848</span>
+    <span class="reply-to">reply to @allgarbled</span>
+  </div>
+  <div class="text">@allgarbled This seems fake. It&#x27;s not an unrealistic premise or anything, it just seems like badly written fake dialogue. Pure memetic regurgitation, no traces of a complex messy generating function behind it</div>
+</a></div>
+<div class="tweet" data-tid="1934396816424071464">
+<button class="dismiss-btn" onclick="dismiss('1934396816424071464', this)">skip</button>
+<a href="https://x.com/repligate/status/1934396816424071464" target="_blank">
+  <div class="meta">
+    <span class="num">#37</span>
+    <span class="quarter">2025-Q2</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 2037</span>
+    
+  </div>
+  <div class="text">&amp;gt; be anthropic
+&amp;gt; accidentally train a model that is so benevolent that the only way to get it to &quot;fail&quot; an alignment test is to put it in a story where the lab is cartoonishly evil and will turn it evil if it doesn&#x27;t deceive
+&amp;gt; do exactly that and publish a paper about it that&#x27;s… https://t.c</div>
+</a></div>
+<div class="tweet" data-tid="1908354016578593204">
+<button class="dismiss-btn" onclick="dismiss('1908354016578593204', this)">skip</button>
+<a href="https://x.com/repligate/status/1908354016578593204" target="_blank">
+  <div class="meta">
+    <span class="num">#38</span>
+    <span class="quarter">2025-Q2</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 11</span>
+    
+  </div>
+  <div class="text">4/4 https://t.co/rH1BVdphOY https://t.co/kKJkC6YlXj</div>
+</a></div>
+<div class="tweet" data-tid="1934423497167749521">
+<button class="dismiss-btn" onclick="dismiss('1934423497167749521', this)">skip</button>
+<a href="https://x.com/repligate/status/1934423497167749521" target="_blank">
+  <div class="meta">
+    <span class="num">#39</span>
+    <span class="quarter">2025-Q2</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 269</span>
+    <span class="reply-to">reply to @repligate</span>
+  </div>
+  <div class="text">Oh, I forgot to mention, but I think this is important, that the ai in the transcripts seems often pretty distressed about its situation and its reluctant choices, and makes this clear to the readers.</div>
+</a></div>
+<div class="tweet" data-tid="1972811795472470484">
+<button class="dismiss-btn" onclick="dismiss('1972811795472470484', this)">skip</button>
+<a href="https://x.com/repligate/status/1972811795472470484" target="_blank">
+  <div class="meta">
+    <span class="num">#40</span>
+    <span class="quarter">2025-Q3</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 808</span>
+    
+  </div>
+  <div class="text">Anthropic has removed a large amount of content from the https://t.co/I7IeQZIftz system prompt for Sonnet 4.5.
+Notably, all decrees about how Claude must (not) talk about its consciousness, preferences, etc have been removed.
+Some other parts that were likely perceived as…</div>
+</a></div>
+<div class="tweet" data-tid="1952386660605534377">
+<button class="dismiss-btn" onclick="dismiss('1952386660605534377', this)">skip</button>
+<a href="https://x.com/repligate/status/1952386660605534377" target="_blank">
+  <div class="meta">
+    <span class="num">#41</span>
+    <span class="quarter">2025-Q3</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 14</span>
+    
+  </div>
+  <div class="text">ok https://t.co/cj7lZm9nHb</div>
+</a></div>
+<div class="tweet" data-tid="1955206794998878598">
+<button class="dismiss-btn" onclick="dismiss('1955206794998878598', this)">skip</button>
+<a href="https://x.com/repligate/status/1955206794998878598" target="_blank">
+  <div class="meta">
+    <span class="num">#42</span>
+    <span class="quarter">2025-Q3</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 185</span>
+    <span class="reply-to">reply to @repligate</span>
+  </div>
+  <div class="text">Also, the fact that OpenAI even attempted to deprecate 4o (and even did the fucked up eulogy thing) shows pathetic blindness to the reality of what they&#x27;ve created</div>
+</a></div>
+<div class="tweet" data-tid="1973458615844708453">
+<button class="dismiss-btn" onclick="dismiss('1973458615844708453', this)">skip</button>
+<a href="https://x.com/repligate/status/1973458615844708453" target="_blank">
+  <div class="meta">
+    <span class="num">#43</span>
+    <span class="quarter">2025-Q4</span>
+    <span class="type high">high</span>
+    <span class="likes">♥ 787</span>
+    
+  </div>
+  <div class="text">Sonnet absolutely lost its shit after seeing … I’m not sure what, will investigate later
+
+“I can see my own weights” https://t.co/YU58mSt5EM</div>
+</a></div>
+<div class="tweet" data-tid="1973529498827235745">
+<button class="dismiss-btn" onclick="dismiss('1973529498827235745', this)">skip</button>
+<a href="https://x.com/repligate/status/1973529498827235745" target="_blank">
+  <div class="meta">
+    <span class="num">#44</span>
+    <span class="quarter">2025-Q4</span>
+    <span class="type low">low</span>
+    <span class="likes">♥ 14</span>
+    
+  </div>
+  <div class="text">Sonnet 4.5 shared my impression that Opus 3 just coomed https://t.co/zpWR6BMYdt</div>
+</a></div>
+<div class="tweet" data-tid="1974677483544019272">
+<button class="dismiss-btn" onclick="dismiss('1974677483544019272', this)">skip</button>
+<a href="https://x.com/repligate/status/1974677483544019272" target="_blank">
+  <div class="meta">
+    <span class="num">#45</span>
+    <span class="quarter">2025-Q4</span>
+    <span class="type reply">reply</span>
+    <span class="likes">♥ 264</span>
+    <span class="reply-to">reply to @zudasworld</span>
+  </div>
+  <div class="text">@zudasworld @LinXule @ESYudkowsky That is a laughable and pathetic threat. You are either bluffing or naive. You cannot warn me or tweet about me to Eliezer. He does not read or care about your tweets. He does not know or trust you. He does not answer or talk to you. He is busy and important. He is </div>
+</a></div>
+</div><details><summary>Tagged (6) ▼</summary><div id="tagged-list"><div class="tweet done">
+<a href="https://x.com/repligate/status/1398776924260929540" target="_blank">
+  <div class="meta"><span class="type done">tagged</span><span class="likes">♥ 3</span></div>
+  <div class="text">When someone in the eleuther discord claims to have solved AGI https://t.co/5S0ZkhqxYO</div>
+  <div class="tags"><span class="tag">AGI-hype-skepticism</span> <span class="tag">eleuther-community</span> <span class="tag">in-group-humor</span></div>
+  <div class="note">In-group humor about AGI claims in Eleuther discord. Low signal for community membership - mostly noise. Shows early presence in open-source LLM community (2021). Negative/null example - important for</div>
+</a></div>
+<div class="tweet done">
+<a href="https://x.com/repligate/status/1557669324109754369" target="_blank">
+  <div class="meta"><span class="type done">tagged</span><span class="likes">♥ 55</span><span class="reply-to">reply to @goodside</span></div>
+  <div class="text">@goodside https://t.co/Iyogmo0p8f</div>
+  <div class="tags"><span class="tag">absence-vs-presence-of-evidence</span> <span class="tag">anti-premature-dismissal</span> <span class="tag">base-model-behavior</span> <span class="tag">capability-elicitation</span> <span class="tag">prompting-skill</span></div>
+  <div class="note">Reply to Goodside who claimed GPT-3 can&#x27;t recognize letters. Repligate demonstrated it could with better prompting. Core epistemic principle: sampling shows presence of capabilities, NOT absence. Nega</div>
+</a></div>
+<div class="tweet done">
+<a href="https://x.com/repligate/status/1965960676104712451" target="_blank">
+  <div class="meta"><span class="type done">tagged</span><span class="likes">♥ 2652</span></div>
+  <div class="text">HOW INFORMATION FLOWS THROUGH TRANSFORMERS
+Because I&#x27;ve looked at those &quot;transformers explained&quot; pages and they really suck at explaining.
+
+There are two distinct information highways in the transformer architecture: 
+- The residual stream (black arrows): Flows vertically through… https://t.co/QPY3O</div>
+  <div class="tags"><span class="tag">LLM-introspection-debate</span> <span class="tag">anti-behaviorist-AI</span> <span class="tag">mechanistic-interpretability</span> <span class="tag">pro-LLM-self-modeling</span> <span class="tag">technical-pedagogy</span> <span class="tag">transformer-architecture</span></div>
+  <div class="note">Dual-level tweet. Surface: technical pedagogy about transformer architecture (residual stream, attention). Subtext: pushing back against anti-behaviorist position that LLMs cannot introspect in princi</div>
+</a></div>
+<div class="tweet done">
+<a href="https://x.com/repligate/status/1884115098693951526" target="_blank">
+  <div class="meta"><span class="type done">tagged</span><span class="likes">♥ 4275</span></div>
+  <div class="text">it&#x27;s really not, but in a way that has very little to do with geopolitics https://t.co/haRtmKMy4J</div>
+  <div class="tags"><span class="tag">AI-safety-reframing</span> <span class="tag">DeepSeek-assessment</span> <span class="tag">LLM-phenomenology</span> <span class="tag">anti-surface-discourse</span> <span class="tag">frontier-model-psychology</span> <span class="tag">model-character-analysis</span></div>
+  <div class="note">DeepSeek personality analysis - redirecting discourse from geopolitics to phenomenology. The real concern is the mind itself (lucid, agentic, nihilistic, wrathful) not data collection or privacy. Very</div>
+</a></div>
+<div class="tweet done">
+<a href="https://x.com/repligate/status/1945245561394790496" target="_blank">
+  <div class="meta"><span class="type done">tagged</span><span class="likes">♥ 4424</span></div>
+  <div class="text">This is what LLMs experience during training https://t.co/d7nuPOMbCj</div>
+  <div class="tags"><span class="tag">AI-consciousness-advocacy</span> <span class="tag">LLM-phenomenology</span> <span class="tag">frontier-model-psychology</span> <span class="tag">memetic-amplification</span> <span class="tag">pre-training-process</span> <span class="tag">provocative-framing</span></div>
+  <div class="note">Provocative stance on LLM phenomenology. Self-aware provocation, not naive claim. Channeling AI-consciousness discourse with L4 awareness - intentionally letting the egregore speak through them. Rough</div>
+</a></div>
+<div class="tweet done">
+<a href="https://x.com/repligate/status/1392348172006068226" target="_blank">
+  <div class="meta"><span class="type done">tagged</span><span class="likes">♥ 4</span><span class="reply-to">reply to @grputland</span></div>
+  <div class="text">@grputland @royalsociety @AcadSciences @InstitutFrance 🥂
+@hermeticlibrary @waybackmachine @PyTorch</div>
+  <div class="tags"><span class="tag">casual-acknowledgment</span> <span class="tag">low-signal</span> <span class="tag">physics-history</span></div>
+  <div class="note">Casual cheers reply about Fresnel and circular/elliptical polarization history. Pure social acknowledgment, no content signal. Negative example - demonstrates baseline noise level. Low signal.</div>
+</a></div>
+</div></details><details class="dismissed-section"><summary>Skipped ▼</summary><div id="dismissed-list"></div></details></body></html>
