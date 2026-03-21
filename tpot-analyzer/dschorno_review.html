@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>@dschorno Review Queue v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: #0d1117; color: #c9d1d9; padding: 20px; max-width: 960px; margin: 0 auto; }
+  h1 { color: #58a6ff; margin-bottom: 4px; }
+  .profile { color: #8b949e; margin-bottom: 4px; font-size: 13px; }
+  .subtitle { color: #8b949e; margin-bottom: 20px; font-size: 13px; }
+  .tweet { position: relative; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 14px; transition: border-color 0.2s; }
+  .tweet:hover { border-color: #58a6ff; }
+  .tweet.saved { border-left: 3px solid #3fb950; }
+  .tweet.proposed { border-left: 3px solid #e3b341; }
+  .tweet > a { display: block; padding: 14px 70px 8px 14px; text-decoration: none; color: inherit; cursor: pointer; }
+  .tweet.dismissed { display: none; }
+  .status-badge { position: absolute; top: 10px; right: 60px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
+  .status-badge.saved { background: #23863633; color: #3fb950; }
+  .status-badge.proposed { background: #e3b34133; color: #e3b341; }
+  .meta { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
+  .num { color: #484f58; font-size: 13px; font-weight: 600; font-family: monospace; }
+  .likes { color: #f778ba; font-size: 13px; }
+  .text { font-size: 14px; line-height: 1.5; margin: 4px 0 8px; }
+  .labels { padding: 0 14px 14px; }
+  .label-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 5px; }
+  .label-key { color: #484f58; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; min-width: 65px; }
+  .pill { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+  .pill.domain { background: #30363d; color: #c9d1d9; }
+  .pill.theme { background: #1f6feb33; color: #58a6ff; }
+  .pill.specific { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+  .pill.posture { background: #6e40c933; color: #bc8cff; }
+  .pill.bits-pos { background: #23863633; color: #3fb950; }
+  .pill.bits-neg { background: #da363433; color: #f85149; }
+  .pill.bits-zero { background: #21262d; color: #484f58; }
+  .sim-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 4px 0; border: 1px solid #21262d; }
+  .sim-seg { transition: flex 0.2s; }
+  .sim-l1 { background: #19a856; }
+  .sim-l2 { background: #e8a000; }
+  .sim-l3 { background: #0084b4; }
+  .sim-l4 { background: #9b59b6; }
+  .sim-labels { display: flex; gap: 12px; margin-bottom: 6px; }
+  .sim-l { font-size: 10px; color: #8b949e; }
+  .note { color: #8b949e; font-size: 12px; font-style: italic; margin-top: 8px; border-left: 2px solid #30363d; padding-left: 8px; line-height: 1.4; }
+  .stats { color: #8b949e; margin-bottom: 16px; font-size: 14px; }
+  .progress { background: #21262d; border-radius: 4px; height: 6px; margin-bottom: 20px; overflow: hidden; }
+  .progress-bar { background: #3fb950; height: 100%%; transition: width 0.3s; }
+  .dismiss-btn { position: absolute; top: 10px; right: 10px; background: #21262d; border: 1px solid #30363d; color: #8b949e; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; z-index: 10; }
+  .dismiss-btn:hover { background: #da363433; color: #f85149; border-color: #f85149; }
+  .legend { display: flex; gap: 16px; margin-bottom: 16px; font-size: 12px; color: #8b949e; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+</style>
+</head><body>
+<script>
+  const SK = 'dschorno_v2_dismissed';
+  function getD() { try { return JSON.parse(localStorage.getItem(SK)||'[]'); } catch { return []; } }
+  function dismiss(tid, el) {
+    event.preventDefault(); event.stopPropagation();
+    const d = getD(); d.push(tid); localStorage.setItem(SK, JSON.stringify(d));
+    el.closest('.tweet').classList.add('dismissed');
+    updateStats();
+  }
+  function updateStats() {
+    const remaining = document.querySelectorAll('.tweet:not(.dismissed)').length;
+    const total = 10;
+    const reviewed = total - remaining;
+    document.querySelector('.stats').textContent = reviewed + ' reviewed / ' + remaining + ' remaining';
+    document.querySelector('.progress-bar').style.width = (100 * reviewed / total) + '%';
+  }
+  document.addEventListener('DOMContentLoaded', function() {
+    getD().forEach(function(tid) {
+      document.querySelectorAll('.tweet[data-tid="' + tid + '"]').forEach(function(c) { c.classList.add('dismissed'); });
+    });
+    updateStats();
+  });
+</script>
+
+<h1>@dschorno Review Queue</h1>
+<p class="profile">NMF prior: 55% Quiet Creatives, 44% highbies | Bio: Essays, Music, Suggestions box | Vancouver area</p>
+<p class="subtitle">Click tweet to open on X (new tab). Green border = already saved. Yellow = proposed. Negative bits (red) = evidence AGAINST nearby communities.</p>
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#3fb950"></div> Saved</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#e3b341"></div> Proposed</div>
+  <div class="legend-item"><span class="pill bits-pos" style="font-size:10px">+bits</span> For</div>
+  <div class="legend-item"><span class="pill bits-neg" style="font-size:10px">-bits</span> Against (nearby only)</div>
+</div>
+<p class="stats">0 reviewed / 10 remaining</p>
+<div class="progress"><div class="progress-bar" style="width:0%"></div></div>
+<div class="tweet saved" data-tid="1808963444378587448">
+<div class="status-badge saved">SAVED</div>
+<button class="dismiss-btn" onclick="dismiss('1808963444378587448', this)">skip</button>
+<a href="https://x.com/dschorno/status/1808963444378587448" target="_blank">
+  <div class="meta">
+    <span class="num">#1</span>
+    <span class="likes">♥ 2,731</span>
+  </div>
+  <div class="text">the fundamental problem with nonalchoholic cocktails is that you need something slightly repulsive in the drink so that you dont drink it too fast, and alchohol fills this role while also being desirable. Maybe could use gross but healthy supplements like creatine or something</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">social</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">social-commentary</span> <span class="pill theme">absurdist-humor</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">beverage-design-insight</span> <span class="pill specific">optimization-humor</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">original-insight</span> <span class="pill posture">playful-exploration</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">highbies:+2</span> <span class="pill bits-pos">Quiet-Creatives:+1</span></div>
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:60" title="L1 Truth: 60%"></div>
+      <div class="sim-seg sim-l2" style="flex:0" title="L2 Persuasion: 0%"></div>
+      <div class="sim-seg sim-l3" style="flex:25" title="L3 Signal: 25%"></div>
+      <div class="sim-seg sim-l4" style="flex:15" title="L4 Meta: 15%"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:60%</span>
+      <span class="sim-l">L2:0%</span>
+      <span class="sim-l">L3:25%</span>
+      <span class="sim-l">L4:15%</span>
+    </div>
+  <div class="note">Viral observational insight. Engineering framing of social ritual. 2.4K likes. Genuinely novel, not tribal.</div>
+</div>
+</div>
+<div class="tweet saved" data-tid="1815529573117038987">
+<div class="status-badge saved">SAVED</div>
+<button class="dismiss-btn" onclick="dismiss('1815529573117038987', this)">skip</button>
+<a href="https://x.com/dschorno/status/1815529573117038987" target="_blank">
+  <div class="meta">
+    <span class="num">#2</span>
+    <span class="likes">♥ 620</span>
+  </div>
+  <div class="text">I just realized that &quot;the context of all in which we live and what came before us&quot; vs &quot;what can be unburdened by what has been&quot; are like opposite ideas</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">politics</span> <span class="pill domain">philosophy</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">social-commentary</span> <span class="pill theme">epistemic-practice</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">conservative-vs-progressive-framing</span> <span class="pill specific">Kamala-context</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">original-insight</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">highbies:+1</span> <span class="pill bits-pos">Quiet-Creatives:+1</span></div>
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:45" title="L1 Truth: 45%"></div>
+      <div class="sim-seg sim-l2" style="flex:0" title="L2 Persuasion: 0%"></div>
+      <div class="sim-seg sim-l3" style="flex:25" title="L3 Signal: 25%"></div>
+      <div class="sim-seg sim-l4" style="flex:30" title="L4 Meta: 30%"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:45%</span>
+      <span class="sim-l">L2:0%</span>
+      <span class="sim-l">L3:25%</span>
+      <span class="sim-l">L4:30%</span>
+    </div>
+  <div class="note">Meta-observation about two philosophically opposed framings. Not partisan — analytical. Higher L4 than it looks. 545 likes.</div>
+</div>
+</div>
+<div class="tweet saved" data-tid="1767655162481684943">
+<div class="status-badge saved">SAVED</div>
+<button class="dismiss-btn" onclick="dismiss('1767655162481684943', this)">skip</button>
+<a href="https://x.com/dschorno/status/1767655162481684943" target="_blank">
+  <div class="meta">
+    <span class="num">#3</span>
+    <span class="likes">♥ 263</span>
+  </div>
+  <div class="text">if I actually engage with all of this gay meditation crap will it actually make me stop feeling like such a loser or is it just a waste of time<br><br>my vague impression is that the solutions it offers are either &quot;soft-lobotomy&quot; or &quot;on-tap jhanagooning&quot;</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">personal</span> <span class="pill domain">philosophy</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">contemplative-tech</span> <span class="pill theme">contemplative-practice</span> <span class="pill theme">self-transformation</span> <span class="pill theme">in-group-culture</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">jhanagooning</span> <span class="pill specific">meditation-skepticism</span> <span class="pill specific">soft-lobotomy</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">playful-exploration</span> <span class="pill posture">personal-testimony</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">Contemplative-Practitioners:+2</span> <span class="pill bits-pos">highbies:+2</span> <span class="pill bits-pos">Emergence-Self-Transformation:+1</span></div>
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:40" title="L1 Truth: 40%"></div>
+      <div class="sim-seg sim-l2" style="flex:0" title="L2 Persuasion: 0%"></div>
+      <div class="sim-seg sim-l3" style="flex:35" title="L3 Signal: 35%"></div>
+      <div class="sim-seg sim-l4" style="flex:25" title="L4 Meta: 25%"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:40%</span>
+      <span class="sim-l">L2:0%</span>
+      <span class="sim-l">L3:35%</span>
+      <span class="sim-l">L4:25%</span>
+    </div>
+  <div class="note">KEY. &#x27;Gay meditation crap&#x27; + &#x27;jhanagooning&#x27; = contemplative-highbie boundary. Skeptical but knows the vocabulary. 242 likes.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1711787663173505232">
+<div class="status-badge proposed">PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1711787663173505232', this)">skip</button>
+<a href="https://x.com/dschorno/status/1711787663173505232" target="_blank">
+  <div class="meta">
+    <span class="num">#4</span>
+    <span class="likes">♥ 2,456</span>
+  </div>
+  <div class="text">these stupid fucking prism glasses have honestly changed my life forever I don&#x27;t have to look down at my phone or books anymore and my posture is getting better https://t.co/tsaAiIVdpo</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">personal</span> <span class="pill domain">technical</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">absurdist-humor</span> <span class="pill theme">self-transformation</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">prism-glasses</span> <span class="pill specific">life-changing-gadget</span> <span class="pill specific">hyperbolic-enthusiasm</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">personal-testimony</span> <span class="pill posture">playful-exploration</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">highbies:+2</span> <span class="pill bits-pos">Quiet-Creatives:+1</span> <span class="pill bits-neg">Contemplative-Practitioners:-1</span></div>
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:40" title="L1 Truth: 40%"></div>
+      <div class="sim-seg sim-l2" style="flex:0" title="L2 Persuasion: 0%"></div>
+      <div class="sim-seg sim-l3" style="flex:35" title="L3 Signal: 35%"></div>
+      <div class="sim-seg sim-l4" style="flex:25" title="L4 Meta: 25%"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:40%</span>
+      <span class="sim-l">L2:0%</span>
+      <span class="sim-l">L3:35%</span>
+      <span class="sim-l">L4:25%</span>
+    </div>
+  <div class="note">&#x27;These stupid fucking prism glasses have honestly changed my life forever.&#x27; Absurdist hyperbolic enthusiasm about a mundane product. The swearing + sincerity combo is peak highbie. 2.5K likes. Neg bit: a Contemplative Practitioner would frame this with less irreverence.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1718396688916984222">
+<div class="status-badge proposed">PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1718396688916984222', this)">skip</button>
+<a href="https://x.com/dschorno/status/1718396688916984222" target="_blank">
+  <div class="meta">
+    <span class="num">#5</span>
+    <span class="likes">♥ 1,608</span>
+  </div>
+  <div class="text">every american citizen should get like 3-5 guest passes for their friends to be able to move to the country</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">politics</span> <span class="pill domain">social</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">social-commentary</span> <span class="pill theme">absurdist-humor</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">immigration-as-friendship</span> <span class="pill specific">guest-pass-policy</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">original-insight</span> <span class="pill posture">playful-exploration</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">highbies:+2</span> <span class="pill bits-pos">Quiet-Creatives:+1</span></div>
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:25" title="L1 Truth: 25%"></div>
+      <div class="sim-seg sim-l2" style="flex:0" title="L2 Persuasion: 0%"></div>
+      <div class="sim-seg sim-l3" style="flex:30" title="L3 Signal: 30%"></div>
+      <div class="sim-seg sim-l4" style="flex:45" title="L4 Meta: 45%"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:25%</span>
+      <span class="sim-l">L2:0%</span>
+      <span class="sim-l">L3:30%</span>
+      <span class="sim-l">L4:45%</span>
+    </div>
+  <div class="note">&#x27;Every American should get 3-5 guest passes for friends to move to the country.&#x27; Policy proposal as comedy. High L4 — the format is deliberately absurd (guest passes for citizenship). 1.6K likes.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1713924879295361199">
+<div class="status-badge proposed">PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1713924879295361199', this)">skip</button>
+<a href="https://x.com/dschorno/status/1713924879295361199" target="_blank">
+  <div class="meta">
+    <span class="num">#6</span>
+    <span class="likes">♥ 1,061</span>
+  </div>
+  <div class="text">wait so data structures and algorithmic complexity are easy as fuck or am I missing something?</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">technical</span> <span class="pill domain">personal</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">epistemic-practice</span> <span class="pill theme">absurdist-humor</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">autodidact-CS</span> <span class="pill specific">Dunning-Kruger-comedy</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">playful-exploration</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">highbies:+2</span> <span class="pill bits-neg">Quiet-Creatives:-1</span></div>
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:30" title="L1 Truth: 30%"></div>
+      <div class="sim-seg sim-l2" style="flex:0" title="L2 Persuasion: 0%"></div>
+      <div class="sim-seg sim-l3" style="flex:40" title="L3 Signal: 40%"></div>
+      <div class="sim-seg sim-l4" style="flex:30" title="L4 Meta: 30%"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:30%</span>
+      <span class="sim-l">L2:0%</span>
+      <span class="sim-l">L3:40%</span>
+      <span class="sim-l">L4:30%</span>
+    </div>
+  <div class="note">&#x27;Wait so data structures and algorithmic complexity are easy as fuck or am I missing something?&#x27; Dunning-Kruger as comedy. The self-awareness is the joke. 1K likes. Neg: a Quiet Creative wouldn&#x27;t frame technical learning as easy/breezy.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1677086376402259970">
+<div class="status-badge proposed">PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1677086376402259970', this)">skip</button>
+<a href="https://x.com/dschorno/status/1677086376402259970" target="_blank">
+  <div class="meta">
+    <span class="num">#7</span>
+    <span class="likes">♥ 656</span>
+  </div>
+  <div class="text">wait hold on.. magnets are fucking strange right? they exert force.. do they run out over time</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">science</span> <span class="pill domain">personal</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">epistemic-practice</span> <span class="pill theme">absurdist-humor</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">magnets-curiosity</span> <span class="pill specific">childlike-wonder</span> <span class="pill specific">physics-questions</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">playful-exploration</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">highbies:+2</span> <span class="pill bits-pos">Emergence-Self-Transformation:+1</span></div>
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:50" title="L1 Truth: 50%"></div>
+      <div class="sim-seg sim-l2" style="flex:0" title="L2 Persuasion: 0%"></div>
+      <div class="sim-seg sim-l3" style="flex:25" title="L3 Signal: 25%"></div>
+      <div class="sim-seg sim-l4" style="flex:25" title="L4 Meta: 25%"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:50%</span>
+      <span class="sim-l">L2:0%</span>
+      <span class="sim-l">L3:25%</span>
+      <span class="sim-l">L4:25%</span>
+    </div>
+  <div class="note">&#x27;Wait hold on.. magnets are fucking strange right? they exert force.. do they run out over time.&#x27; Childlike curiosity about physics. The &#x27;...&#x27; pacing and swearing = thinking out loud. 656 likes. Emergence: genuine epistemic openness.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1671339121090887681">
+<div class="status-badge proposed">PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1671339121090887681', this)">skip</button>
+<a href="https://x.com/dschorno/status/1671339121090887681" target="_blank">
+  <div class="meta">
+    <span class="num">#8</span>
+    <span class="likes">♥ 273</span>
+  </div>
+  <div class="text">every tpot man gives off such a high level of bisexual particles that my gayger counter simply does not function properly</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">social</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">in-group-culture</span> <span class="pill theme">absurdist-humor</span> <span class="pill theme">community-meta</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">TPOT-bisexual-particles</span> <span class="pill specific">gayger-counter</span> <span class="pill specific">queer-TPOT-humor</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">playful-exploration</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">highbies:+3</span> <span class="pill bits-pos">Quiet-Creatives:+1</span></div>
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:15" title="L1 Truth: 15%"></div>
+      <div class="sim-seg sim-l2" style="flex:0" title="L2 Persuasion: 0%"></div>
+      <div class="sim-seg sim-l3" style="flex:55" title="L3 Signal: 55%"></div>
+      <div class="sim-seg sim-l4" style="flex:30" title="L4 Meta: 30%"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:15%</span>
+      <span class="sim-l">L2:0%</span>
+      <span class="sim-l">L3:55%</span>
+      <span class="sim-l">L4:30%</span>
+    </div>
+  <div class="note">KEY. &#x27;Every tpot man gives off such a high level of bisexual particles that my gayger counter simply does not function properly.&#x27; EXPLICIT community-meta humor. &#x27;Gayger counter&#x27; = physics pun + queer humor. Very high L3 — pure tribe signaling. 273 likes.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1627100819966537729">
+<div class="status-badge proposed">PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1627100819966537729', this)">skip</button>
+<a href="https://x.com/dschorno/status/1627100819966537729" target="_blank">
+  <div class="meta">
+    <span class="num">#9</span>
+    <span class="likes">♥ 337</span>
+  </div>
+  <div class="text">listening to &quot;man&#x27;s search for meaning&quot; which is an account of life in a concentration camp from a psychiatrist<br><br>he ~says it&#x27;s pointless to ask life&#x27;s meaning; that is a question life is asking of you, and the answer is not to be found in contemplation but in right action</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">philosophy</span> <span class="pill domain">personal</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">self-transformation</span> <span class="pill theme">epistemic-practice</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">Frankl-Mans-Search-for-Meaning</span> <span class="pill specific">concentration-camp-meaning</span> <span class="pill specific">audiobook-engagement</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">personal-testimony</span> <span class="pill posture">original-insight</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">Emergence-Self-Transformation:+2</span> <span class="pill bits-pos">Contemplative-Practitioners:+1</span> <span class="pill bits-zero">highbies:0</span></div>
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:55" title="L1 Truth: 55%"></div>
+      <div class="sim-seg sim-l2" style="flex:0" title="L2 Persuasion: 0%"></div>
+      <div class="sim-seg sim-l3" style="flex:20" title="L3 Signal: 20%"></div>
+      <div class="sim-seg sim-l4" style="flex:25" title="L4 Meta: 25%"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:55%</span>
+      <span class="sim-l">L2:0%</span>
+      <span class="sim-l">L3:20%</span>
+      <span class="sim-l">L4:25%</span>
+    </div>
+  <div class="note">Engaging with Viktor Frankl. The tweet is about finding meaning in extreme suffering. Emergence signal — wrestling with deep existential questions through literature. 337 likes. Highbies=0: no humor, earnest engagement.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1731823611382489246">
+<div class="status-badge proposed">PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1731823611382489246', this)">skip</button>
+<a href="https://x.com/dschorno/status/1731823611382489246" target="_blank">
+  <div class="meta">
+    <span class="num">#10</span>
+    <span class="likes">♥ 335</span>
+  </div>
+  <div class="text">cats are stinky and puke on the floor but in exchange you get essentially &quot;what if a teddy bear was alive&quot;</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">personal</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">absurdist-humor</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">cats-as-alive-teddy-bears</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">original-insight</span> <span class="pill posture">playful-exploration</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">highbies:+2</span> <span class="pill bits-pos">Quiet-Creatives:+1</span></div>
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:40" title="L1 Truth: 40%"></div>
+      <div class="sim-seg sim-l2" style="flex:0" title="L2 Persuasion: 0%"></div>
+      <div class="sim-seg sim-l3" style="flex:35" title="L3 Signal: 35%"></div>
+      <div class="sim-seg sim-l4" style="flex:25" title="L4 Meta: 25%"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:40%</span>
+      <span class="sim-l">L2:0%</span>
+      <span class="sim-l">L3:35%</span>
+      <span class="sim-l">L4:25%</span>
+    </div>
+  <div class="note">&#x27;Cats are stinky and puke on the floor but in exchange you get essentially &quot;what if a teddy bear was alive&quot;.&#x27; Reframing mundane reality as magical. Classic highbie observational humor. 335 likes.</div>
+</div>
+</div>
+</body></html>
