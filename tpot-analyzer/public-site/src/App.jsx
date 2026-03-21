@@ -229,6 +229,10 @@ export default function App() {
   return (
     <div className={showCommunity ? "app app-wide" : "app"}>
       <div className="app-header">
+        {showResult && (
+          <a className="app-back" href="/" onClick={(e) => { e.preventDefault(); handleSearchAgain() }}>←</a>
+        )}
+        <div className="app-header-spacer" />
         <SettingsIcon onClick={() => setSettingsOpen(true)} />
       </div>
 
@@ -316,9 +320,6 @@ export default function App() {
             />
           )}
 
-          <button className="search-again-btn" onClick={handleSearchAgain}>
-            Search again
-          </button>
         </div>
       )}
 
