@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import re
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -70,11 +71,43 @@ def extract_communities(db_path: Path) -> list[dict[str, Any]]:
 # 2. extract_classified_accounts
 # ---------------------------------------------------------------------------
 
+def _extract_bits_accounts(
+    conn: sqlite3.Connection,
+    min_weight: float = 0.05,
+) -> dict[str, list[dict]]:
+    """Extract accounts with human-validated bits data (posterior).
+
+    Returns dict: {account_id: [{community_id, weight}]}.
+    Converts pct (0-100) to weight (0-1) for compatibility with NMF format.
+    """
+    rows = conn.execute(
+        "SELECT account_id, community_id, pct FROM account_community_bits "
+        "ORDER BY account_id, pct DESC"
+    ).fetchall()
+
+    accounts: dict[str, list[dict]] = {}
+    for r in rows:
+        weight = r["pct"] / 100.0
+        if weight < min_weight:
+            continue
+        aid = r["account_id"]
+        if aid not in accounts:
+            accounts[aid] = []
+        accounts[aid].append({
+            "community_id": r["community_id"],
+            "weight": round(weight, 4),
+        })
+    return accounts
+
+
 def extract_classified_accounts(
     db_path: Path,
     min_weight: float = 0.05,
 ) -> list[dict[str, Any]]:
-    """Query community_account for distinct accounts with weight >= min_weight.
+    """Extract accounts with community memberships, preferring bits over NMF.
+
+    For accounts with human-validated bits data (posterior), uses that.
+    For all other accounts, falls back to NMF-derived community_account (prior).
 
     Returns list of dicts: {id, tier="classified", memberships: [{community_id, weight}]}.
     Accounts whose ALL memberships fall below min_weight are excluded entirely.
@@ -82,6 +115,16 @@ def extract_classified_accounts(
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     try:
+        # Check if bits table exists
+        has_bits = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='account_community_bits'"
+        ).fetchone()
+
+        bits_accounts: dict[str, list[dict]] = {}
+        if has_bits:
+            bits_accounts = _extract_bits_accounts(conn, min_weight)
+
+        # NMF accounts (prior) — skip accounts that have bits data
         rows = conn.execute(
             """
             SELECT account_id, community_id, weight
@@ -92,10 +135,11 @@ def extract_classified_accounts(
             (min_weight,),
         ).fetchall()
 
-        # Group by account_id
         accounts: dict[str, list[dict]] = {}
         for r in rows:
             aid = r["account_id"]
+            if aid in bits_accounts:
+                continue  # posterior supersedes prior
             if aid not in accounts:
                 accounts[aid] = []
             accounts[aid].append({
@@ -103,9 +147,12 @@ def extract_classified_accounts(
                 "weight": round(r["weight"], 4),
             })
 
+        # Merge: bits accounts + NMF accounts
+        all_accounts = {**accounts, **bits_accounts}
+
         return [
             {"id": aid, "tier": "classified", "memberships": memberships}
-            for aid, memberships in sorted(accounts.items())
+            for aid, memberships in sorted(all_accounts.items())
         ]
     finally:
         conn.close()
@@ -245,6 +292,147 @@ def _safe_followers(val: Any) -> int | None:
         return None
 
 
+# ---------------------------------------------------------------------------
+# Slug generation and registry
+# ---------------------------------------------------------------------------
+
+def slugify_name(name):
+    """Convert community name to URL-safe slug."""
+    s = name.lower()
+    s = s.replace("&", "")
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    s = s.strip("-")
+    return s
+
+
+def load_slug_registry(path):
+    """Load slug registry from JSON file. Returns empty dict if file missing."""
+    path = Path(path)
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+
+def save_slug_registry(path, registry):
+    """Write slug registry to JSON file."""
+    path = Path(path)
+    with open(path, "w") as f:
+        json.dump(registry, f, indent=2, sort_keys=True)
+
+
+def assign_slugs(communities, registry):
+    """Assign slugs to communities, preserving existing. Handles collisions."""
+    updated = dict(registry)
+    used_slugs = set(updated.values())
+    for c in communities:
+        cid = c["id"]
+        if cid not in updated:
+            base = slugify_name(c["name"])
+            slug = base
+            counter = 2
+            while slug in used_slugs:
+                slug = f"{base}-{counter}"
+                counter += 1
+            updated[cid] = slug
+            used_slugs.add(slug)
+    return updated
+
+
+# ---------------------------------------------------------------------------
+# Tweet type detection and selection
+# ---------------------------------------------------------------------------
+
+def detect_tweet_types(db_path, account_id, tweet_ids):
+    """Classify tweets as tweet/reply/retweet/thread."""
+    if not tweet_ids:
+        return {}
+    conn = sqlite3.connect(str(db_path))
+    try:
+        placeholders = ",".join("?" for _ in tweet_ids)
+        rows = conn.execute(f"""
+            SELECT tweet_id, full_text, reply_to_tweet_id, created_at
+            FROM tweets
+            WHERE tweet_id IN ({placeholders}) AND account_id = ?
+        """, [*tweet_ids, account_id]).fetchall()
+
+        tweet_data = {}
+        for row in rows:
+            tweet_data[row[0]] = {
+                "text": row[1] or "",
+                "reply_to": row[2],
+                "created_at": row[3],
+            }
+
+        from datetime import timedelta
+        timestamps = []
+        for tid in tweet_ids:
+            if tid in tweet_data and tweet_data[tid]["created_at"]:
+                try:
+                    dt = datetime.strptime(tweet_data[tid]["created_at"], "%Y-%m-%d %H:%M:%S")
+                    timestamps.append((tid, dt))
+                except ValueError:
+                    pass
+        timestamps.sort(key=lambda x: x[1])
+
+        thread_ids = set()
+        for i in range(len(timestamps) - 1):
+            if timestamps[i + 1][1] - timestamps[i][1] <= timedelta(minutes=5):
+                thread_ids.add(timestamps[i][0])
+                thread_ids.add(timestamps[i + 1][0])
+
+        result = {}
+        for tid in tweet_ids:
+            if tid not in tweet_data:
+                result[tid] = "tweet"
+            elif tweet_data[tid]["text"].startswith("RT @"):
+                result[tid] = "retweet"
+            elif tweet_data[tid]["reply_to"]:
+                result[tid] = "reply"
+            elif tid in thread_ids:
+                result[tid] = "thread"
+            else:
+                result[tid] = "tweet"
+    finally:
+        conn.close()
+    return result
+
+
+def select_community_tweets(db_path, account_id, n=5):
+    """Select top tweets by engagement (fav + rt*2) with type detection."""
+    conn = sqlite3.connect(str(db_path))
+    try:
+        rows = conn.execute("""
+            SELECT tweet_id, full_text, created_at, favorite_count, retweet_count
+            FROM tweets
+            WHERE account_id = ?
+            ORDER BY (favorite_count + retweet_count * 2) DESC
+            LIMIT ?
+        """, [account_id, n]).fetchall()
+    except Exception:
+        conn.close()
+        return []
+    conn.close()
+
+    if not rows:
+        return []
+
+    tweet_ids = [r[0] for r in rows]
+    types = detect_tweet_types(db_path, account_id, tweet_ids)
+
+    return [
+        {
+            "id": r[0],
+            "text": (r[1] or "")[:280],
+            "created_at": r[2],
+            "type": types.get(r[0], "tweet"),
+            "favorite_count": r[3] or 0,
+            "retweet_count": r[4] or 0,
+        }
+        for r in rows
+    ]
+
+
 def run_export(
     data_dir: Path,
     output_dir: Path,
@@ -318,6 +506,45 @@ def run_export(
             acct["followers"] = None
         acct["sample_tweets"] = get_sample_tweets(db_path, acct["id"])
 
+    # --- Slug assignment ---
+    slug_registry_path = Path(output_dir) / "slug_registry.json"
+    slug_registry = load_slug_registry(slug_registry_path)
+    slug_registry = assign_slugs(communities, slug_registry)
+    for c in communities:
+        c["slug"] = slug_registry[c["id"]]
+
+    # --- Enrich communities with featured members ---
+    for c in communities:
+        cid = c["id"]
+        members_with_weight = []
+        for acct in classified:
+            if not acct.get("username"):
+                continue
+            for m in acct["memberships"]:
+                if m["community_id"] == cid:
+                    members_with_weight.append({
+                        "username": acct["username"],
+                        "display_name": acct.get("display_name", ""),
+                        "bio": acct.get("bio", ""),
+                        "weight": m["weight"],
+                        "account_id": acct["id"],
+                    })
+                    break
+        members_with_weight.sort(key=lambda x: x["weight"], reverse=True)
+
+        featured = members_with_weight[:5]
+        for fm in featured:
+            fm["tweets"] = select_community_tweets(db_path, fm["account_id"], n=5)
+            del fm["account_id"]
+
+        all_members_list = [
+            {"username": m["username"], "display_name": m["display_name"], "bio": m["bio"]}
+            for m in members_with_weight[5:]
+        ]
+
+        c["featured_members"] = featured
+        c["all_members"] = all_members_list
+
     # --- Propagated handles ---
     npz_path = data_dir / "community_propagation.npz"
     if npz_path.exists():
@@ -379,6 +606,8 @@ def run_export(
     search_path = output_dir / "search.json"
     search_path.write_text(json.dumps(search_index, indent=None, ensure_ascii=False))
     logger.info("Wrote %s (%d bytes)", search_path, search_path.stat().st_size)
+
+    save_slug_registry(slug_registry_path, slug_registry)
 
     # --- Summary ---
     print(f"\n{'='*60}")

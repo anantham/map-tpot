@@ -195,7 +195,7 @@ export default function App() {
   const communities = data.communities || []
 
   return (
-    <div className="app">
+    <div className={showCommunity ? "app app-wide" : "app"}>
       <div className="app-header">
         <SettingsIcon onClick={() => setSettingsOpen(true)} />
       </div>
