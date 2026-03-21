@@ -6,12 +6,14 @@ import CardDownload from './CardDownload'
 import Settings, { SettingsIcon } from './Settings'
 import { useCardGeneration } from './GenerateCard'
 import About from './About'
+import CommunityPage from './CommunityPage'
+import useRouting from './useRouting'
 
 /**
  * ResultArea — always mounts when a classified/propagated result exists,
  * so that `useCardGeneration` is called unconditionally (React hook rules).
  */
-function ResultArea({ result, communityMap, links }) {
+function ResultArea({ result, communityMap, links, onCommunityClick }) {
   const { imageUrl, status, remaining } = useCardGeneration({
     handle: result.handle,
     bio: result.bio,
@@ -32,6 +34,7 @@ function ResultArea({ result, communityMap, links }) {
         communityMap={communityMap}
         aiImageUrl={imageUrl}
         generationStatus={status}
+        onCommunityClick={onCommunityClick}
       />
       {status === 'generating' && (
         <div className="generating-banner">
@@ -84,12 +87,7 @@ function ShareButton({ handle }) {
 
 export default function App() {
   const [data, setData] = useState(null)
-  const [result, setResult] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [pendingHandle, setPendingHandle] = useState(() => {
-    const params = new URLSearchParams(window.location.search)
-    return (params.get('handle') || '').replace(/^@/, '').trim().toLowerCase() || null
-  })
 
   useEffect(() => {
     fetch('/data.json').then(r => r.json()).then(setData)
@@ -115,10 +113,20 @@ export default function App() {
     return m
   }, [data])
 
+  // Three-way routing: community > handle > homepage
+  const {
+    result, setResult,
+    communityResult,
+    pendingHandle, pendingCommunity,
+    showCommunity, showResult, showHome,
+    handleCommunityClick, handleBackFromCommunity,
+    handleMemberClick, handleSearchAgain,
+  } = useRouting(data, accountMap)
+
   // Auto-search from URL param (?handle=xxx) once data + search index are loaded
   useEffect(() => {
     if (!data || !pendingHandle) return
-    setPendingHandle(null)
+    if (pendingCommunity) return  // community takes precedence
 
     // Load search.json and look up the handle
     fetch('/search.json')
@@ -138,15 +146,12 @@ export default function App() {
 
   const handleResult = (searchResult) => {
     // Update URL with handle param (without page reload)
-    const url = new URL(window.location)
-    url.searchParams.set('handle', searchResult.handle)
-    window.history.replaceState({}, '', url)
+    window.history.replaceState({}, '', `/?handle=${searchResult.handle}`)
     if (searchResult.tier === 'classified') {
-      // Look up full account from data.json via lowercased handle
       const account = accountMap.get(searchResult.handle)
       if (account) {
         setResult({
-          handle: account.username,  // preserve original casing
+          handle: account.username,
           tier: 'classified',
           displayName: account.display_name,
           bio: account.bio,
@@ -154,7 +159,6 @@ export default function App() {
           sampleTweets: account.sample_tweets || [],
         })
       } else {
-        // Fallback: handle not found in accountMap (shouldn't happen)
         setResult({
           handle: searchResult.handle,
           tier: 'classified',
@@ -181,13 +185,6 @@ export default function App() {
     }
   }
 
-  const handleSearchAgain = () => {
-    setResult(null)
-    const url = new URL(window.location)
-    url.searchParams.delete('handle')
-    window.history.replaceState({}, '', url)
-  }
-
   // Simple path routing (no library needed)
   if (window.location.pathname === '/about') {
     return <About meta={data?.meta} />
@@ -203,7 +200,25 @@ export default function App() {
         <SettingsIcon onClick={() => setSettingsOpen(true)} />
       </div>
 
-      {!result && (
+      {showCommunity && !communityResult.notFound && (
+        <CommunityPage
+          community={communityResult}
+          communities={data.communities}
+          communityMap={communityMap}
+          onBack={handleBackFromCommunity}
+          onMemberClick={handleMemberClick}
+          onCommunityClick={handleCommunityClick}
+        />
+      )}
+
+      {showCommunity && communityResult.notFound && (
+        <div className="not-found">
+          <p>Community "{communityResult.slug}" not found.</p>
+          <button onClick={handleBackFromCommunity}>← Back to Find My Ingroup</button>
+        </div>
+      )}
+
+      {showHome && (
         <div className="hero">
           <h1 className="hero-title">{data.meta.site_name}</h1>
           <p className="hero-tagline">Discover which corners of TPOT you belong to</p>
@@ -214,9 +229,18 @@ export default function App() {
             <p className="showcase-label">{communities.length} communities mapped</p>
             <div className="showcase-tags">
               {communities.map(c => (
-                <span key={c.id} className="showcase-tag" style={{ borderColor: c.color, color: c.color }}>
+                <a
+                  key={c.id}
+                  className="showcase-tag"
+                  style={{ borderColor: c.color, color: c.color }}
+                  href={`/?community=${c.slug}`}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleCommunityClick(c.slug)
+                  }}
+                >
                   {c.name}
-                </span>
+                </a>
               ))}
             </div>
           </div>
@@ -231,13 +255,14 @@ export default function App() {
         </div>
       )}
 
-      {result && (
+      {showResult && (
         <div className="result-area">
           {(result.tier === 'classified' || result.tier === 'propagated') && (
             <ResultArea
               result={result}
               communityMap={communityMap}
               links={data.meta.links}
+              onCommunityClick={handleCommunityClick}
             />
           )}
 
