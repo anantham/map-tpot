@@ -1054,6 +1054,38 @@ body {
 .about-badge--gray {
   color: #777;
 }
+.about-recall-table {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  background: #12121f;
+  border-radius: 8px;
+}
+.about-recall-table h3 {
+  font-size: 0.85rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.75rem;
+}
+.about-recall-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.about-recall-table th {
+  text-align: left;
+  color: #999;
+  font-weight: 400;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid #333;
+}
+.about-recall-table td {
+  padding: 0.4rem 0.5rem;
+  color: #ccc;
+}
+.about-recall-table tr:last-child td {
+  border-bottom: none;
+}
 .about-tier {
   margin: 1rem 0;
   padding: 0.75rem 1rem;
