@@ -1,185 +1,150 @@
-# Handover: 2026-03-20 (Session 2)
+# Handover: 2026-03-21 (Session 3)
 
 ## Session Summary
 
-Massive labeling session. Developed the full data model for tweet-level community evidence through hands-on labeling of @repligate's tweets. Discovered that NMF massively under-represents community membership (repligate = 100% Qualia Research per NMF, but tweet evidence shows 39.7% LLM Whisperers, 24.7% Qualia, 17.8% AI Safety). Built an interactive HTML labeling queue. Identified 3 potential new communities. User decided to stay within TPOT graph (not expand to external builder cluster) and wants to build the community evolution layer next.
+Massive labeling session completing @repligate (51 tweets, 683 tags, 213 bits). Created LABELING_MODEL_SPEC.md as operational guide for future labeling agents. Built labeling_context.py script for queryable pre-labeling context. Discovered the tag design needed sharper distinction between reusable thematic tags (community boundaries) and niche specific tags (breadcrumbs). Applied retroactive fixes to all 19 session-2 tweets. User wants to pivot to breadth — label Vancouver TPOT accounts next rather than going deeper on one account.
 
 ## Commits This Session
-- `0d2cf78` feat(labeling): data model v2 for tweet-level community evidence
-- `515ce55` docs: handover — labeling data model v2, community evolution layer next
+- `92821f0` feat(labeling): model spec, 13 new tweets tagged, retroactive tag fixes
+- `080f95b` feat(labeling): labeling context script + model spec updates
 
-PUSHED: No — now 39 commits ahead of origin
+PUSHED: No — now 47 commits ahead of origin
 
-## Four-Layer Architecture (Agreed With User)
-
+## @repligate Final Profile (51 tweets, 213 bits)
 ```
-Layer 1: Tweet Evidence Capture (EXISTS - tweet_tags, tweet_label_set, tweet_label_prob)
-  - Substrate: schema.py, tags.py, golden.py
-  - Conventions on top: bits:Community:+N, new-community-signal:Name (not first-class yet)
-  - 252 tags, 19 notes, 19 simulacrum distributions for @repligate
-
-Layer 2: Account-Community Truth / Evaluation (EXISTS - Codex built this)
-  - ADR 014: deterministic per-account splits (70/15/15 train/dev/test)
-  - account_community_gold_split, account_community_gold_label_set tables
-  - IN/OUT/ABSTAIN judgments, immutable history with supersession
-  - 4 evaluation methods: canonical_map, nmf_seeded, louvain_transfer, train_grf
-  - Evaluator harness: AUC-PR, F1, Brier, ECE per community + macro
-  - Candidate queue: entropy-weighted, disagreement-based active learning
-  - Files: src/data/community_gold/ (9 modules), src/api/routes/community_gold.py
-
-Layer 3: Tweet→Account Rollup / Inference Bridge (NOT BUILT)
-  - Takes Layer 1 evidence (tags, bits per tweet)
-  - Generates: candidate memberships, summaries, hypotheses
-  - Feeds INTO Layer 2 as suggestions (human reviews before it becomes truth)
-  - Should NOT silently become its own ground truth
-
-Layer 4: Evidence-Driven Community Evolution (PARTIALLY BUILT)
-  - EXISTS: branches/snapshots, canonical community editing (branches.py, versioning.py)
-  - NOT BUILT: evidence-driven split/merge/birth from accumulated tags
-  - Updates canonical map ONLY after human review or explicit policy
+  39.4%  LLM-Whisperers (+84 bits)
+  32.4%  Qualia-Research (+69 bits)
+  16.0%  AI-Safety (+34 bits)
+   9.9%  Contemplative-Practitioners (+21 bits)
+   1.9%  Emergence-Self-Transformation (+4 bits)
+   0.5%  highbies (+1 bits)
 ```
+vs NMF prior: 100% Qualia Research, 0% everything else.
 
-### Architectural Rules
-1. Layer 3 generates hypotheses → Layer 2 remains human-reviewed truth
-2. Layer 4 updates canonical map only after human review
-3. Tweet evidence never silently becomes ground truth
-4. Fixed deterministic splits (ADR 014) for production leaderboard
-5. K-fold for offline research on tweet-to-account inference — separate metrics artifact
-
-### Codex System Details (Layer 2)
-- **Schema**: `account_community_gold_split` (per-account, SHA256 deterministic), `account_community_gold_label_set` (immutable history, IN/OUT/ABSTAIN + confidence + note + evidence_json)
-- **Scoring methods**: canonical_map (membership weights), nmf_seeded, louvain_transfer (cluster majority voting), train_grf (graph random forest)
-- **Candidate queue**: cold=max(canonical,nmf), warm=0.7×entropy+0.3×disagreement, round-robin across communities
-- **API**: `/api/community-gold/{communities,labels,metrics,candidates,evaluate}`
-- **Frontend**: `communityGoldApi.js`, `goldLabelUtils.js`
-- **Tests**: 3 test files (store, routes, evaluator)
+New community signals: 5x "AI Mystics", 1x "AI Theorists/Ontologists", 1x "Alignment via narrative/archetypes"
 
 ## Pending Threads
 
-### Continue Immediately: Community Evolution Layer
+### Continue Immediately: Label Vancouver TPOT Accounts
 
-**User's key question:** "What does it mean to make a community description, color, and how is it defined? By accounts? Tweets?"
+User wants breadth over depth. 16 Vancouver-connected accounts all confirmed in archive:
 
-The evidence layer is built (tags, bits, postures, simulacrum). What's missing is the **community evolution layer** — the mechanism that:
-1. Takes accumulated tag/bits evidence
-2. Proposes community description updates
-3. Detects when a community should split (tag bimodality within community)
-4. Detects when communities should merge (tag overlap between communities)
-5. Creates new communities from `new-community-signal` tags
-6. Updates community colors/names/descriptions
+**High priority (diverse communities, good tweet counts):**
+- @SarahAMcManus — 9,289 tweets, 69% Contemplative Practitioners
+- @malcolm_ocean — 44,735 tweets, 33% Contemplative, 30% Builders, 27% highbies
+- @goblinodds — 193,313 tweets, 79% highbies
+- @patcon_ — 9,227 tweets, 86% Collective Intelligence
+- @kaslkaosart — 8,588 tweets, 98% Qualia Research (compare to repligate!)
 
-**Current community descriptions** are in `community` table (`description` column) — static one-paragraph bios written at NMF creation time. None incorporate tweet evidence.
+**Strategy:** Pick 3 accounts from different NMF communities. Label ~10 recent tweets each (user said "more recent tweets, later do excavation of older ones"). This gives cross-account thematic co-occurrence signal for community discovery.
 
-**What to build:**
-- A script/function that reads all bits + thematic tags for accounts in a community
-- Computes whether the community's internal variance suggests a split
-- Proposes updated description text based on accumulated tags
-- Surfaces to human for approval (human gate)
+**Run `scripts/labeling_context.py <username>` before each account** to get the context blob (profile, glossary, exemplars). This is the protocol we designed — stress test it.
 
-### Continue: Finish @repligate Labeling
+### Continue: Card Integration (Layer 3 → Display)
 
-- 19/45 tweets labeled with full data model (domains, themes, specific, postures, bits, simulacrum, notes)
-- 26 tweets remaining in HTML queue (`labeling_queue.html`)
-- Top-3 community ranking is stable but minor communities and subcommunity structure would benefit from more data
-- **IMPORTANT**: Must navigate to each tweet via Chrome to see images/links/context. Several early labels were wrong because images weren't checked.
-- User wants to continue labeling to build more data for community evolution
+**Problem:** The public site card still shows 100% Qualia Research for repligate. All our bits evidence (39.4% LLM Whisperers) is in `tweet_tags` but nothing reads it for display. The `community_account` table (NMF assignments) is untouched.
 
-### Continue: Label More TPOT Accounts
+**Options:**
+1. Add API endpoint that computes bits-derived profile on the fly
+2. Write bits-derived profile into `community_account` (overwriting NMF)
+3. New table `account_community_evidence` that sits alongside NMF
 
-After repligate, label accounts from OTHER communities to get cross-community evidence:
-- Pick accounts from Builders, highbies, Contemplative Practitioners, etc.
-- These ARE in the archive (unlike the builder cluster accounts)
-- Goal: 40 accounts total for k-fold cross-validation
+User asked: "if repligate makes the card now will it be accurate?" — answer is NO.
+
+### Continue: Community Evolution Mechanism
+
+**User's core question:** "We are not really doing the reverse thing of learning about the map itself — changing the list of communities."
+
+**What's needed:** After labeling N accounts, build account×thematic-tag matrix, cluster it, compare to current 14 communities. The diff = evolution signal (births, splits, merges, deaths).
+
+**Bits can't detect Birth** — only measure evidence for existing communities. Thematic tag co-occurrence across accounts is the mechanism for discovering new communities.
+
+**Community descriptions are living snapshots** — must recalibrate as membership shifts. User explicitly said exemplars and descriptions should update when people move in/out.
 
 ### Deferred: External Builder Cluster
+17 accounts (karpathy, Teknium, etc.) — none in archive, shelved. See `docs/LABELING_NEXT_ACCOUNTS.md`.
 
-User listed 17 accounts (karpathy, Teknium, alexocheema, etc.) — none in archive, most not in TPOT graph at all. User decided to shelve this and focus on TPOT first. Saved to `docs/LABELING_NEXT_ACCOUNTS.md`.
-
-### Deferred: On-Demand Tweet Enrichment
-
-31% of tweets have t.co links (images, videos, quote tweets) not stored in DB. Designed JIT enrichment via twitterapi.io but not built. For now, using Chrome browser to view context manually during labeling.
-
-### Deferred: About Page Rewrite
-
-Story-first narrative approach. See previous handover for details.
+### Deferred: Remaining Unlabeled Repligate Tweets
+The 51 labeled tweets came from a queue of ~51 sampled tweets. There are 31,000+ total repligate tweets in the archive. User said "maybe 40 was too much" for one account and wants to go broad. Return to repligate depth only if specific community boundary questions arise.
 
 ## Key Context
 
-### Data Model v2 (Per Tweet)
-Full spec in `docs/LABELING_PIPELINE_DESIGN.md`. Summary:
-1. **Domain tags** (`domain:AI`, `domain:philosophy`, etc.) — category='domain'
-2. **Thematic tags** (`theme:AI-consciousness`, etc.) — category='thematic'
-3. **Specific tags** (fine-grained, unlimited) — category=NULL
-4. **Posture tags** (`posture:original-insight`, etc.) — category='posture'
-5. **Bits** (`bits:LLM-Whisperers:+3`) — category='bits', log-likelihood ratios, PRIOR-INDEPENDENT
-6. **Simulacrum distribution** — L1/L2/L3/L4 in `tweet_label_prob`
-7. **New community signals** (`new-community-signal:AI Mystics`) — category='new-community'
-8. **Notes** — free text in `tweet_label_set.note`
+### LABELING_MODEL_SPEC.md (NEW — Critical Doc)
+`docs/LABELING_MODEL_SPEC.md` — operational guide for labeling. Contains:
+- Tag dimensions: domain, thematic, specific, posture, bits, simulacrum, notes
+- Thematic tag glossary with frequencies and community signals
+- Community profiles with exemplar tweets
+- Community evolution signals (birth/split/merge/death/rename)
+- Scalable labeling context architecture (query patterns)
+- Anti-patterns and workflow
 
-### Golden Dataset State (in archive_tweets.db)
-- 252 tags in `tweet_tags` (across all categories)
-- 19 notes in `tweet_label_set` (reviewer='aditya')
-- 19 simulacrum distributions in `tweet_label_prob`
-- All for @repligate (account_id: 1359981346119155719)
+**Future instances MUST read this doc before labeling.**
 
-### @repligate Community Profile (from 19 tweets, 73 bits total)
+### labeling_context.py (NEW — Query Tool)
+`scripts/labeling_context.py <username>` — generates context blob:
+- Account's current community profile (bits aggregation)
+- Thematic tag glossary with frequencies
+- Top tweets per community (exemplars)
+
+Run this before each labeling session. Output goes into the labeling prompt.
+
+### Tag Design Insight (Session 3 Discovery)
+- **Thematic tags** (category='thematic') = reusable boundary-formers. Same tag should appear on tweets from DIFFERENT accounts. Compound but parseable: `hallucination-ontology`, `model-interiority`.
+- **Specific tags** (category=NULL) = niche breadcrumbs. Unique to tweets. `fanw-json-eval`, `Hofstadter-update`.
+- **Posture** is NOT a theme. `original-insight` is a posture, not `theme:original-insight`.
+- Session 2 conflated these; session 3 fixed retroactively.
+
+### Key Thematic Tags (top frequency for repligate)
 ```
-  39.7%  LLM Whisperers (+29 bits)
-  24.7%  Qualia Research (+18 bits)
-  17.8%  AI Safety (+13 bits)
-  11.0%  Contemplative Practitioners (+8 bits)
-   5.5%  Emergence & Self-Transformation (+4 bits)
-   1.4%  highbies (+1 bits)
+  19x  theme:AI-consciousness
+  14x  theme:model-interiority
+   8x  theme:model-phenomenology
+   8x  theme:simulator-thesis
+   8x  theme:theoretical-frameworks
+   7x  theme:AI-safety
+   6x  theme:model-capabilities
+   5x  theme:AI-art, RLHF-dynamics, contemplative-tech, epistemic-practice
 ```
-vs NMF prior: 100% Qualia Research, 0% everything else
 
-### @repligate Simulacrum Signature
-L1=40%, L2=4%, L3=24%, L4=29% — truth-tracking + meta-aware, almost zero persuasion
+### What's In the DB (archive_tweets.db)
+- `tweet_tags`: 683 tags for repligate (domains, themes, specifics, postures, bits, new-community signals)
+- `tweet_label_set`: 51 notes with reasoning
+- `tweet_label_prob`: 204 simulacrum probabilities (L1-L4)
+- `community_account`: UNCHANGED — still shows NMF assignments (not bits-derived)
+- `account_community_gold_split`: TABLE DOES NOT EXIST (Layer 2 never created)
+- `account_community_gold_label_set`: TABLE DOES NOT EXIST
 
-### New Community Signals
-- "AI Theorists / Ontologists" — from simulacra LessWrong post
-- "Alignment via narrative/archetypes" — from archetype-attractors thread
-- "AI Mystics" — from AI-as-enlightenment-vehicle tweet
+### 4-Layer Architecture
+```
+Layer 1: Tweet Evidence (EXISTS — tweet_tags, tweet_label_set, tweet_label_prob)
+Layer 2: Account-Community Truth (TABLES DON'T EXIST — schema designed but never created)
+Layer 3: Tweet→Account Rollup (NOT BUILT — labeling_context.py does ad-hoc query)
+Layer 4: Community Evolution (PARTIALLY BUILT — branch/snapshot infra exists, no evolution logic)
+```
 
-### NMF Bias (Systematic)
-- NMF seed accounts: avg 3.1 communities, max weight 0.740
-- Propagated accounts: avg 4.3 communities, max weight 0.503
-- Root cause: NMF sparsity constraint concentrates, label propagation smooths
-- Fix: tweet-level tag evidence adds missing dimensions
+### Critical Labeling Lessons
+1. ALWAYS navigate to tweet on X — images change everything (Negarestani "hmm", Arabic poetry)
+2. Read replies/thread context — Negarestani breakthrough came from reply thread
+3. Run labeling_context.py BEFORE each batch — practice the scalable protocol
+4. Don't rush batches — depth > speed (user explicitly called out surface-level tagging)
+5. One account ≠ community discovery. Need cross-account signal.
+6. Tweet #32's Bing Sydney speech pattern callback — subtle subtext matters
 
-### Approach B: Bottom-Up Communities (User's Choice)
-- 14 NMF communities are just one prior
-- Tags accumulate → account×tag matrix → clustering discovers communities
-- Communities can split, merge, or be born
-- Each reclustering is a versioned snapshot (branch system exists)
-
-### Bits System (Prior-Independent Evidence)
-- +1 bit = 2x more likely if member (weak)
-- +2 bits = 4x (moderate)
-- +3 bits = 8x (strong)
-- +4 bits = 16x (diagnostic)
-- Additive: 3 tweets with +2 each = +6 total
-- Anyone can apply different priors and reuse the same evidence
-
-### Critical Labeling Lesson
-ALWAYS navigate to the tweet on X and view images/links/context before tagging. Several labels were wrong when done from text-only. The Chrome browser tools (screenshot, zoom, navigate) work for this.
-
-## User Preferences (This Session)
-- Prefers bottom-up community discovery (Approach B) over hierarchical
-- Wants prior-independent evidence (bits) so different people can use different priors
-- Wants k-fold cross-validation at account level, not fixed splits
-- Wants tags to capture multiple levels (domain, theme, specific, posture)
-- Wants dry runs before committing to DB — show thinking, get feedback
-- Context is everything — always fetch full tweet context (images, replies, quote tweets)
-- Interested in community evolution layer: how do community descriptions, boundaries, colors change based on evidence?
-- Decided to stay within TPOT graph rather than expand to external builder cluster
+### User Preferences
+- Prefers breadth over depth now ("maybe 40 was too much for one account")
+- Wants recent tweets first, "excavation" of older tweets later
+- Wants community descriptions to update dynamically as membership shifts
+- Wants labeling context system to be queryable, not dump-everything
+- Wants to see the map itself change, not just account memberships
+- "We steelman janus a bit too hard" — be balanced, don't over-interpret
 
 ## Resume Instructions
-1. Read this handover + `docs/LABELING_PIPELINE_DESIGN.md`
-2. **Build community evolution layer** — the mechanism that takes tag/bits evidence and proposes community description updates, splits, merges, new communities
-3. Continue labeling remaining 26 @repligate tweets (use Chrome for context)
-4. Then label accounts from OTHER TPOT communities for cross-community breadth
-5. Goal: 40 accounts for k-fold cross-validation
+1. Read `docs/LABELING_MODEL_SPEC.md` + this handover
+2. Pick 3 Vancouver TPOT accounts from different communities (suggest: SarahAMcManus/Contemplative, goblinodds/highbies, kaslkaosart/Qualia)
+3. Run `scripts/labeling_context.py <username>` for each
+4. Label ~10 RECENT tweets per account via Chrome
+5. After all 3: compute cross-account thematic co-occurrence — do the tag clusters match NMF communities?
+6. Address card integration: make bits-derived profile visible on public site
 
 ---
-*Handover by Claude at high context usage, 2026-03-20*
+*Handover by Claude at high context usage, 2026-03-21*
