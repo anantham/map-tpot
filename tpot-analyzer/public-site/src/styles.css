@@ -526,10 +526,9 @@ body {
 /* ── Settings Icon ── */
 
 .settings-icon-btn {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  position: fixed;
+  right: 16px;
+  top: 16px;
   background: none;
   border: 1px solid transparent;
   border-radius: 8px;
