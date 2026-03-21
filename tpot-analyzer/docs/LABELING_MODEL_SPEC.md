@@ -125,6 +125,10 @@ This document tells a future labeling agent exactly what each dimension means, h
 
 **Key insight**: Bits are about the TWEET, not the account. Even if you know repligate is an LLM Whisperer, each tweet gets its own independent bits assessment. Ask: "If I saw ONLY this tweet with no username, how much would it shift my belief about community membership?"
 
+**Sustained engagement vs one-off dismissal**: Using community vocabulary — even skeptically — is positive evidence for community membership. "If I actually engage with all of this gay meditation crap" uses insider terms ("jhanagooning", "soft-lobotomy") that only someone immersed in the discourse would know. This is `Contemplative-Practitioners:+2`, not `-1`. The skepticism IS the engagement.
+
+The rule: **If someone is IN the discourse — arguing, questioning, riffing, even mocking — they are part of the community.** Sustained engagement from any angle = positive bits. Only a one-off dismissal from outside the discourse (no insider vocabulary, no follow-up, no sustained interest) = negative bits. Communities are defined by shared attention, not shared agreement.
+
 **Community names for bits** (use exactly these — these match `community.short_name` in DB):
 - `LLM-Whisperers`
 - `Qualia-Research`
