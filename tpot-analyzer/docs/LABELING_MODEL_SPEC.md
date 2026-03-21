@@ -69,6 +69,8 @@ This document tells a future labeling agent exactly what each dimension means, h
 | `theme:AI-ethics` | Moral status of AI, rights, treatment, distress | AI Safety, new community |
 | `theme:open-source-AI` | Open weights, democratization, local inference | Builders (new cluster) |
 | `theme:creative-expression` | Making art, music, zines, multimedia, personal creative output | Quiet Creatives |
+| `theme:contemplative-practice` | Meditation, jhana, breathwork, IFS, somatic practices — the practice itself, distinct from `contemplative-tech` (practice + technology intersection) | Contemplative Practitioners |
+| `theme:absurdist-humor` | Comedic lightness, not taking yourself seriously, crowdsourcing absurd life decisions, playful irreverence as art form | highbies |
 
 **When to create a new thematic tag**: When you encounter a theme that (a) appears in multiple tweets, (b) would plausibly appear in tweets from other accounts, and (c) isn't captured by existing tags. Add it to this table with its meaning and community signal.
 
@@ -204,15 +206,62 @@ When a tweet doesn't fit any existing community, use `new-community-signal:Name`
 
 1. Navigate to tweet on X via Chrome
 2. View all images, links, quote tweets, replies, thread context
-3. Read and understand the deeper subtext — what's the joke? what's the insight?
-4. Assign domain tags (broad, cheap)
-5. Assign thematic tags (reusable, boundary-forming)
-6. Assign specific tags (niche breadcrumbs)
-7. Assign posture tags (how they engage)
-8. Assign bits per community (prior-independent, per-tweet)
-9. Assign simulacrum distribution (L1-L4)
-10. Write note (context, reasoning, signal strength)
-11. If no existing community fits → add new-community-signal
+3. **Scan engagement** — who replied, liked, quoted? (see Engagement Signal below)
+4. Read and understand the deeper subtext — what's the joke? what's the insight?
+5. Assign domain tags (broad, cheap)
+6. Assign thematic tags (reusable, boundary-forming)
+7. Assign specific tags (niche breadcrumbs)
+8. Assign posture tags (how they engage)
+9. Assign bits per community (prior-independent, per-tweet)
+10. Assign simulacrum distribution (L1-L4)
+11. Write note (context, reasoning, signal strength, notable engagers)
+12. If no existing community fits → add new-community-signal
+
+---
+
+## Engagement Signal (Credibility & Discovery)
+
+When viewing a tweet on X, the engagement around it is community evidence. This is currently captured manually in notes; eventually it should be automated via API.
+
+### Signal hierarchy (strongest → weakest)
+
+| Action | Signal strength | What it means |
+|--------|----------------|---------------|
+| **Follow** | Strongest | "I endorse this person's ongoing output" |
+| **Retweet/Quote** | Strong | "I want my audience to see this specific thought" |
+| **Like** | Moderate | "I approve of this" |
+| **Reply** | Variable | Could be agreement, disagreement, or just social connection |
+
+### Two-way credibility flow
+
+Engagement creates a bidirectional signal:
+
+1. **Inbound credibility**: If high-TPOT accounts (confirmed members with many TPOT followers) engage with a tweet, the tweeter gains TPOT credibility. Like LessWrong karma — you accumulate credibility from engagement by credible accounts.
+
+2. **Account discovery**: Unknown accounts found engaging with confirmed TPOT tweets are candidates for monitoring. If @unknown_account replies thoughtfully to a labeled tweet, they may be TPOT-adjacent and worth investigating.
+
+### What to capture during labeling
+
+When viewing a tweet's replies and engagement:
+- **Note known TPOT accounts** that replied/liked/quoted in the labeling note
+- **Flag unknown accounts** that appear engaged — add to a discovery queue for later investigation
+- **Track engagement patterns** — does this tweeter consistently get engagement from one community cluster? That's membership evidence independent of content.
+
+### Negative bits: nearby communities only
+
+**Negative bits are for communities the account is expected to be in, not distant ones.**
+
+- `bits:Quiet-Creatives:-1` on a tweet from a 55% Quiet Creatives account that's unexpectedly uncreative → **useful signal**
+- `bits:LLM-Whisperers:-1` on a chips tweet from someone who was never expected to be an LLM Whisperer → **noise, skip it**
+
+The question for negative bits: "Would this tweet surprise me coming from a member of this community?" If no surprise, no negative bits.
+
+### Future automation
+
+This engagement analysis is currently manual (viewing replies on X via Chrome). The data already exists in our archive (likes, follows, retweets tables). Future work:
+- Script to compute engagement-weighted TPOT credibility scores
+- Automatic discovery queue from reply threads of labeled tweets
+- API-based engagement scanning instead of manual Chrome navigation
 
 ---
 

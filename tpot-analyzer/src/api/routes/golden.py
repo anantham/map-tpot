@@ -382,7 +382,7 @@ def get_tag_vocabulary():
 
 
 def _build_interpret_prompt(tweet_text: str, thread_context: list, taxonomy: dict) -> str:
-    """Build the few-shot interpretation prompt from taxonomy.yaml golden examples."""
+    """Build the LEGACY interpretation prompt. Use _build_rich_interpret_prompt for full labeling."""
     sim = taxonomy.get("simulacrum", {})
     levels = sim.get("levels", {})
 
@@ -433,6 +433,156 @@ def _build_interpret_prompt(tweet_text: str, thread_context: list, taxonomy: dic
 }
 Rules for suggested_tags: 3-5 fine-grained topic tags describing what this tweet is ABOUT at the object level. Examples: "alignment", "jhanas", "LLM psychology", "gender", "attention mechanisms", "crypto", "meditation", "game theory", "consciousness". Be specific, not generic.
 Distribution values must sum to 1.0. lucidity is 0.0-1.0. confidence is 0.0-1.0.""")
+
+    return "\n".join(lines)
+
+
+def _build_rich_interpret_prompt(
+    tweet_text: str,
+    thread_context: list,
+    labeling_ctx: dict,
+) -> str:
+    """Build enriched interpretation prompt with full DB context.
+
+    Includes: account profile, engagement, similar labeled tweets,
+    community profiles, thematic glossary, full output schema.
+    """
+    lines = [
+        "You are a TPOT community tweet labeler. You assign multi-dimensional labels to tweets",
+        "to build evidence about which communities the tweeter belongs to.\n",
+    ]
+
+    # --- Account metadata ---
+    username = labeling_ctx.get("username")
+    created_at = labeling_ctx.get("created_at")
+    account_meta = labeling_ctx.get("account_meta", {})
+    if username or created_at or account_meta:
+        lines.append("TWEET METADATA:")
+        if username:
+            lines.append(f"  Author: @{username}")
+        if account_meta.get("display_name"):
+            lines.append(f"  Display name: {account_meta['display_name']}")
+        if account_meta.get("bio"):
+            lines.append(f"  Bio: {account_meta['bio'][:200]}")
+        if created_at:
+            lines.append(f"  Posted: {created_at}")
+        lines.append("")
+
+    # --- Account profile ---
+    profile = labeling_ctx.get("account_profile", {})
+    if profile.get("communities"):
+        source = profile["source"]
+        lines.append(f"ACCOUNT PROFILE (source: {source}):")
+        for c in profile["communities"]:
+            if source == "bits":
+                lines.append(f"  {c['pct']:.1f}%  {c['short_name']} ({c['bits']:+d} bits)")
+            else:
+                lines.append(f"  {c['weight']:.0%}  {c['short_name']}")
+        lines.append("")
+
+    # --- Engagement context ---
+    engagement = labeling_ctx.get("engagement", {})
+    replies = engagement.get("replies", [])
+    likes = engagement.get("likes", [])
+    if replies or likes:
+        lines.append("ENGAGEMENT ON THIS TWEET:")
+        if replies:
+            lines.append("  Replies:")
+            for r in replies[:8]:
+                comm = f" [{r['community']}({r['weight']:.0%})]" if r.get("community") else " [unclassified]"
+                lines.append(f"    @{r['username']}{comm}: \"{r['text'][:80]}\"")
+        if likes:
+            lines.append(f"  Classified accounts who liked ({len(likes)} total):")
+            for l in likes[:8]:
+                lines.append(f"    @{l['username']} [{l['community']}({l['weight']:.0%})]")
+        lines.append("")
+
+    # --- Similar labeled tweets ---
+    similar = labeling_ctx.get("similar_tweets", [])
+    if similar:
+        lines.append("SIMILAR ALREADY-LABELED TWEETS (same thematic tags):")
+        for s in similar[:4]:
+            lines.append(f"  @{s['username']}: \"{s['text'][:150]}\"")
+            lines.append(f"    themes: {', '.join(s['themes'])}")
+            if s['bits']:
+                bits_str = ", ".join(f"{k}:{v:+d}" for k, v in sorted(s['bits'].items(), key=lambda x: -abs(x[1])))
+                lines.append(f"    bits: {bits_str}")
+            if s.get('note'):
+                lines.append(f"    note: {s['note'][:150]}")
+            lines.append("")
+
+    # --- Community profiles ---
+    communities = labeling_ctx.get("communities", [])
+    if communities:
+        lines.append("COMMUNITY PROFILES:")
+        for c in communities:
+            desc = c['description'][:200] if c.get('description') else 'no description'
+            lines.append(f"  {c['short_name']}: {desc}")
+        lines.append("")
+
+    # --- Thematic tag glossary ---
+    glossary = labeling_ctx.get("thematic_glossary", [])
+    if glossary:
+        lines.append("THEMATIC TAG GLOSSARY (use these, or propose new ones):")
+        for g in glossary[:30]:
+            lines.append(f"  {g['count']:>3}x  {g['tag']}")
+        lines.append("")
+
+    # --- Thread context ---
+    if thread_context:
+        lines.append("THREAD CONTEXT (parent tweets):")
+        for t in thread_context:
+            author = t.get("author", {}).get("userName", "?")
+            text = (t.get("text") or "").strip()[:300]
+            lines.append(f'  @{author}: "{text}"')
+        lines.append("")
+
+    # --- Simulacrum levels ---
+    lines.append("""SIMULACRUM LEVELS:
+  L1 (Truth-tracking): Genuine belief, observation, factual claim. Would retract if wrong.
+  L2 (Persuasion): Trying to convince, sell, argue a position. Shaped for audience.
+  L3 (Tribe-signaling): Marking community membership, in-group reference, belonging signal.
+  L4 (Meta/game): Self-aware, ironic, intentionally channeling, playing with frames.
+""")
+
+    # --- Bits scale ---
+    lines.append("""BITS SCALE (prior-independent log-likelihood ratios):
+  +1 = weak (2x more likely if community member)
+  +2 = moderate (4x)
+  +3 = strong (8x)
+  +4 = diagnostic (16x)
+  -1 = weak against (only for NEARBY communities the account is expected to be in)
+  -2 = moderate against
+  0 = irrelevant to this community
+  Assess the tweet IN ISOLATION — "if I saw only this tweet with no username..."
+""")
+
+    # --- The tweet ---
+    lines.append(f'NOW LABEL THIS TWEET:\n"{tweet_text.strip()[:500]}"\n')
+
+    # --- Output schema ---
+    lines.append("""Return ONLY valid JSON with this structure:
+{
+  "domains": ["domain:AI", "domain:philosophy"],
+  "themes": ["theme:model-interiority", "theme:AI-consciousness"],
+  "specifics": ["specific-tag-1", "specific-tag-2"],
+  "postures": ["posture:original-insight", "posture:playful-exploration"],
+  "bits": {"LLM-Whisperers": +2, "Qualia-Research": +1, "highbies": -1},
+  "distribution": {"l1": 0.4, "l2": 0.1, "l3": 0.2, "l4": 0.3},
+  "note": "2-3 sentences: what the tweet means, why these bits, notable engagement context",
+  "new_community_signals": [],
+  "confidence": 0.8
+}
+
+Rules:
+- domains: use domain:X format. Options: AI, philosophy, social, technical, politics, personal, art, science
+- themes: use theme:X format. Prefer existing tags from glossary. Create new ones sparingly.
+- specifics: fine-grained breadcrumbs unique to this tweet. Niche is good.
+- postures: how the account engages. Options: original-insight, signal-boost, playful-exploration, provocation, pedagogy, defense, critique, personal-testimony
+- bits: ONLY for communities relevant to this tweet. Include negative bits ONLY for nearby communities the account is expected to be in. Skip distant communities entirely.
+- distribution: L1+L2+L3+L4 must sum to 1.0
+- new_community_signals: if tweet doesn't fit any community, propose a name
+- confidence: 0.0-1.0""")
 
     return "\n".join(lines)
 
@@ -653,12 +803,17 @@ def list_interpret_models():
 
 @golden_bp.route("/interpret", methods=["POST"])
 def interpret_tweet():
-    """Call LLM to classify and interpret a tweet. Returns distribution + narrative."""
+    """Call LLM to classify and interpret a tweet. Returns distribution + narrative.
+
+    Accepts either:
+      - {text, threadContext, model} — legacy mode (simulacrum only)
+      - {tweet_id, model, mode: "rich"} — enriched mode (full labeling with DB context)
+    """
     data = request.get_json(silent=True) or {}
     try:
+        mode = data.get("mode", "legacy")
+        tweet_id = data.get("tweet_id")
         tweet_text = str(data.get("text") or data.get("tweet_text") or "").strip()
-        if not tweet_text:
-            raise ValueError("text is required")
         thread_context = data.get("threadContext") or data.get("thread_context") or []
         if not isinstance(thread_context, list):
             raise ValueError("threadContext must be a list")
@@ -669,12 +824,25 @@ def interpret_tweet():
         if not api_key:
             raise ValueError("OPENROUTER_API_KEY not set")
 
-        taxonomy = {}
-        if _TAXONOMY_PATH.exists():
-            with open(_TAXONOMY_PATH) as f:
-                taxonomy = yaml.safe_load(f) or {}
-
-        prompt = _build_interpret_prompt(tweet_text, thread_context, taxonomy)
+        if mode == "rich" and tweet_id:
+            # Enriched mode: gather full DB context
+            from src.api.labeling_context import gather_labeling_context
+            labeling_ctx = gather_labeling_context(tweet_id=tweet_id)
+            tweet_text = tweet_text or labeling_ctx.get("tweet_text") or ""
+            if not tweet_text:
+                raise ValueError("tweet not found in DB")
+            prompt = _build_rich_interpret_prompt(tweet_text, thread_context, labeling_ctx)
+            max_tokens = 1000  # richer output
+        else:
+            # Legacy mode
+            if not tweet_text:
+                raise ValueError("text is required")
+            taxonomy = {}
+            if _TAXONOMY_PATH.exists():
+                with open(_TAXONOMY_PATH) as f:
+                    taxonomy = yaml.safe_load(f) or {}
+            prompt = _build_interpret_prompt(tweet_text, thread_context, taxonomy)
+            max_tokens = 600
 
         response = httpx.post(
             _OPENROUTER_URL,
@@ -686,7 +854,7 @@ def interpret_tweet():
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.2,
-                "max_tokens": 600,
+                "max_tokens": max_tokens,
             },
             timeout=30,
         )
@@ -702,6 +870,9 @@ def interpret_tweet():
                 content = content[4:]
             content = content.strip()
 
+        # Fix +N → N in JSON (common LLM output for bits)
+        import re as _re
+        content = _re.sub(r':\s*\+(\d)', r': \1', content)
         result = json.loads(content)
 
         # Validate distribution
@@ -712,7 +883,31 @@ def interpret_tweet():
             if total > 0:
                 result["distribution"] = {k: round(v / total, 4) for k, v in dist.items()}
 
-        return jsonify({"status": "ok", "model": model, **result})
+        # Store interpretation run for model comparison
+        if tweet_id:
+            try:
+                import hashlib
+                from datetime import datetime, timezone
+                from uuid import uuid4 as _uuid4
+                prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
+                run_now = datetime.now(timezone.utc).isoformat()
+                snapshot_dir = get_snapshot_dir()
+                _db = sqlite3.connect(str(Path(snapshot_dir) / "archive_tweets.db"))
+                _db.execute(
+                    "INSERT OR IGNORE INTO interpretation_prompt (prompt_hash, prompt_text, created_at) VALUES (?, ?, ?)",
+                    (prompt_hash, prompt, run_now),
+                )
+                _db.execute(
+                    "INSERT INTO interpretation_run (id, tweet_id, model_id, prompt_hash, prompt_length, response_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (str(_uuid4()), tweet_id, model, prompt_hash, len(prompt), json.dumps(result), run_now),
+                )
+                _db.commit()
+                _db.close()
+                logger.info("Stored interpretation run for tweet %s model %s", tweet_id, model)
+            except Exception as store_exc:
+                logger.warning("Failed to store interpretation run: %s", store_exc)
+
+        return jsonify({"status": "ok", "model": model, "mode": mode, **result})
 
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
