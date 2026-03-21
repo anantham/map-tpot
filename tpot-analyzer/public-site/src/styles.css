@@ -13,6 +13,10 @@ body {
   padding: 1rem 1rem;
   text-align: center;
 }
+.app.app-wide {
+  max-width: 100%;
+  text-align: left;
+}
 
 /* ── App Header ── */
 

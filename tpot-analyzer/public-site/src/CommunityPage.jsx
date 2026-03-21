@@ -104,48 +104,33 @@ export default function CommunityPage({
   return (
     <div className="community-page">
       <div className="cp-back">
-        <a href="/" onClick={(e) => { e.preventDefault(); onBack() }}>
-          ← Back to Find My Ingroup
-        </a>
+        <a href="/" onClick={(e) => { e.preventDefault(); onBack() }}>←</a>
       </div>
 
       <div className="cp-hero" style={{ borderBottomColor: color }}>
         <div className="cp-hero-dot" style={{ background: color }} />
-        <h1 className="cp-hero-name">{community.name}</h1>
-        <p className="cp-hero-desc">{community.description}</p>
-        <div className="cp-hero-meta">
-          <span>{browseableCount} members</span>
-          <span>·</span>
-          <span>{featured.length} featured</span>
-          <span>·</span>
-          <button className="cp-share-btn" onClick={handleShare} style={{ color }}>
-            🔗 Share this community
-          </button>
+        <div className="cp-hero-content">
+          <h1 className="cp-hero-name">{community.name}</h1>
+          <p className="cp-hero-desc">{community.description}</p>
+          <div className="cp-hero-meta">
+            <span>{browseableCount} members</span>
+            <span>·</span>
+            <span>{featured.length} featured</span>
+            <span>·</span>
+            <button className="cp-share-btn" onClick={handleShare} style={{ color }}>
+              🔗 Share this community
+            </button>
+          </div>
         </div>
       </div>
 
-      {featured.length > 0 && (
-        <div className="cp-spotlights">
-          <div className="cp-section-label">Prototypical Members</div>
-          {featured.map(m => (
-            <SpotlightCard
-              key={m.username}
-              member={m}
-              communityColor={color}
-              onMemberClick={onMemberClick}
-            />
-          ))}
-        </div>
-      )}
-
-      {allMembers.length > 0 && (
-        <div className="cp-all-members">
-          <div className="cp-section-label cp-all-members-label">
-            All Members · {browseableCount}
-          </div>
-          <div className="cp-member-grid">
-            {allMembers.map(m => (
-              <MemberGridItem
+      <div className="cp-body">
+        {/* Left column: spotlights */}
+        {featured.length > 0 && (
+          <div className="cp-spotlights">
+            <div className="cp-section-label">Prototypical Members</div>
+            {featured.map(m => (
+              <SpotlightCard
                 key={m.username}
                 member={m}
                 communityColor={color}
@@ -153,8 +138,27 @@ export default function CommunityPage({
               />
             ))}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Right column: all members sidebar */}
+        {allMembers.length > 0 && (
+          <div className="cp-all-members">
+            <div className="cp-section-label">
+              All Members · {browseableCount}
+            </div>
+            <div className="cp-member-list">
+              {allMembers.map(m => (
+                <MemberGridItem
+                  key={m.username}
+                  member={m}
+                  communityColor={color}
+                  onMemberClick={onMemberClick}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="cp-sibling-nav">
         <div className="cp-sibling-links">
