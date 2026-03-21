@@ -34,8 +34,39 @@ def get_account_id(conn, identifier):
 
 
 def query_account_profile(conn, account_id):
-    """Query 1: Account's current community profile from bits."""
-    rows = conn.execute(
+    """Query 1: Account's current community profile from rollup table or raw bits."""
+    # Try rollup table first (account_community_bits with community_id FK)
+    try:
+        rows = conn.execute(
+            """
+            SELECT c.short_name, acb.total_bits, acb.pct
+            FROM account_community_bits acb
+            JOIN community c ON c.id = acb.community_id
+            WHERE acb.account_id = ?
+            ORDER BY acb.total_bits DESC
+            """,
+            (account_id,),
+        ).fetchall()
+    except Exception:
+        rows = []
+
+    labeled_count = conn.execute(
+        "SELECT COUNT(DISTINCT tweet_id) FROM tweet_label_set WHERE tweet_id IN "
+        "(SELECT tweet_id FROM tweets WHERE account_id = ?)",
+        (account_id,),
+    ).fetchone()[0]
+
+    if rows:
+        total = sum(r[1] for r in rows)
+        print(f"=== ACCOUNT PROFILE ({labeled_count} tweets labeled, {total} total bits) ===\n")
+        for short_name, bits, pct in rows:
+            bar = "█" * int(pct / 2)
+            print(f"  {pct:5.1f}%  {bar}  {short_name} ({bits:+d} bits)")
+        print()
+        return
+
+    # Fallback: compute from raw tweet_tags
+    tag_rows = conn.execute(
         """
         SELECT tt.tag
         FROM tweet_tags tt
@@ -46,18 +77,12 @@ def query_account_profile(conn, account_id):
     ).fetchall()
 
     community_bits = defaultdict(int)
-    for (tag,) in rows:
+    for (tag,) in tag_rows:
         parts = tag.split(":")
         if len(parts) == 3:
             community_bits[parts[1]] += int(parts[2])
 
     total = sum(community_bits.values())
-    labeled_count = conn.execute(
-        "SELECT COUNT(DISTINCT tweet_id) FROM tweet_label_set WHERE tweet_id IN "
-        "(SELECT tweet_id FROM tweets WHERE account_id = ?)",
-        (account_id,),
-    ).fetchone()[0]
-
     print(f"=== ACCOUNT PROFILE ({labeled_count} tweets labeled, {total} total bits) ===\n")
     for comm, bits in sorted(community_bits.items(), key=lambda x: -x[1]):
         pct = bits / total * 100 if total else 0

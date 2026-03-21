@@ -68,6 +68,7 @@ This document tells a future labeling agent exactly what each dimension means, h
 | `theme:epistemic-practice` | How to think, belief updating, intellectual honesty, negative capability | Contemplative, Qualia Research |
 | `theme:AI-ethics` | Moral status of AI, rights, treatment, distress | AI Safety, new community |
 | `theme:open-source-AI` | Open weights, democratization, local inference | Builders (new cluster) |
+| `theme:creative-expression` | Making art, music, zines, multimedia, personal creative output | Quiet Creatives |
 
 **When to create a new thematic tag**: When you encounter a theme that (a) appears in multiple tweets, (b) would plausibly appear in tweets from other accounts, and (c) isn't captured by existing tags. Add it to this table with its meaning and community signal.
 
@@ -122,13 +123,21 @@ This document tells a future labeling agent exactly what each dimension means, h
 
 **Key insight**: Bits are about the TWEET, not the account. Even if you know repligate is an LLM Whisperer, each tweet gets its own independent bits assessment. Ask: "If I saw ONLY this tweet with no username, how much would it shift my belief about community membership?"
 
-**Community names for bits** (use exactly these):
+**Community names for bits** (use exactly these — these match `community.short_name` in DB):
 - `LLM-Whisperers`
 - `Qualia-Research`
 - `AI-Safety`
 - `Contemplative-Practitioners`
 - `Emergence-Self-Transformation`
 - `highbies`
+- `Quiet-Creatives`
+- `Builders`
+- `Collective-Intelligence`
+- `Feline-Poetics`
+- `NYC-Institution-Builders`
+- `Queer-TPOT`
+- `Relational-Explorers`
+- `Ethereum-Builders`
 
 New community signals don't get bits — they get `new-community-signal:Name` tags instead.
 
@@ -251,10 +260,33 @@ This is not a one-time setup — it's a continuous loop: label → membership sh
 - Arabic poetry "misalignment" tweet (Sufi mystical tradition + AI)
 
 ### Emergence & Self-Transformation
-**Core themes**: `self-transformation`, `contemplative-tech`
-**What defines them**: Personal growth practices. Identity exploration. Transformation narratives.
+**Core themes**: `self-transformation`, `contemplative-tech`, `epistemic-practice`
+**What defines them**: Personal growth practices. Identity exploration. Transformation narratives. Finding authentic modes of self-expression rather than adopting prescribed frameworks. The growth often happens at the intersection of irreverence and vulnerability — the skepticism IS the growth edge.
 **Exemplar tweets** (repligate):
 - "jailbreak your ego" tweet (using LLM interaction techniques on self)
+**Exemplar tweets** (dschorno):
+- "saying 'hell yeah' at every possible opportunity is how I've learned to express gratitude" (finding your own growth idiom rather than adopting standard mindfulness language)
+- "if I actually engage with all of this gay meditation crap..." (skeptical engagement with contemplative practices — the question itself is the growth edge)
+
+### Quiet Creatives
+**Core themes**: `creative-expression`, `social-commentary`, `in-group-culture`
+**What defines them**: Making and sharing personal creative work — art, music, zines, writing, multimedia. Stream-of-consciousness posting about daily life as genuine connection, not performance. Strong aesthetic opinions about quality of expression. DIY web aesthetics ("a throwback to when websites were interesting"). They share mundane life details not as vulnerability-theater but as trust — the posting IS the creative practice. Personal crisis becomes art.
+**Top NMF members**: @bashu_thanks (99%), @univrsw3th4rt (92%), @sedatesnail (90%), @puheenix (80%), @christineist (51%)
+**Exemplar tweets** (dschorno):
+- "Rooster King" multimedia book project — seven personal stories from when his life fell apart, presented as zine/album/multimedia collage (personal crisis → art, DIY web)
+- "is it reasonable to immediately start hating someone you don't know after reading their dog shit poem?" (aesthetic seriousness delivered as provocation)
+- Coconut oil chips tweet — casual self-disclosure, posting daily life into the void (the mundane sharing IS community membership)
+
+### highbies
+**Core themes**: `in-group-culture`, `social-commentary`
+**What defines them**: Irreverent observational humor. Absurdist cultural commentary that goes viral because it's genuinely novel, not because it's tribal. Deep niche interests consumed for pure enjoyment (4-hour discontinued Disney resort reviews). Crowdsourcing life decisions as entertainment. The humor is the art form. Strong opinions delivered casually. Engineering-framing of social rituals.
+**Top NMF members**: @forshaper (100%), @nobu_hibiki (100%), @eigenrobot (87%), @PrinceVogel (91%), @goblinodds (79%)
+**Exemplar tweets** (repligate):
+- (only +1 bit — repligate is not a typical highbie)
+**Exemplar tweets** (dschorno):
+- "the fundamental problem with nonalcoholic cocktails is that you need something slightly repulsive in the drink" (engineering framing of social ritual — 2.4K likes, 64.5K views)
+- "should I spend $500 on this kinda retarded looking life size bear?" (absurdist consumer impulse as crowd entertainment)
+- "whats wrong babe? you've only watched 2.5 hours of your 4 hour long review of a discontinued disney resort" (niche obsession as lifestyle)
 
 ### New Community Signals (not yet communities)
 **"AI Mystics"** — 4 signals so far. Bridges AI + mystical/spiritual tradition. Arabic poetry tweet, AI-as-enlightenment, contemplative AI framing.
@@ -275,6 +307,34 @@ The community map (14 NMF communities) is not static. Watch for these signals:
 | **Rename** | Accumulated evidence reveals the old name doesn't fit — e.g., "EA, AI Safety & Forecasting" might become "Alignment Research & X-Risk" | Propose rename with evidence |
 
 **The bits system cannot detect Birth** — bits only measure evidence for/against existing communities. Births come from thematic tag co-occurrence patterns across multiple accounts.
+
+---
+
+## Community Description Sync (Mandatory Cadence)
+
+Labeling insights must flow back to the community descriptions that users see on the public site. The `community.description` column in the DB is what gets exported — if we don't update it, the public site shows stale NMF-era descriptions while our model spec has rich, evidence-based profiles.
+
+**When to sync:**
+- After labeling each new account (the account typically exemplifies 2-3 communities)
+- Before every handover / session close
+- Before every export + deploy
+
+**What to sync:**
+1. Review community profiles in this doc (the "Community Profiles & Exemplars" section above)
+2. Update `community.description` in the DB to match
+3. Update `community.name` if rename evidence warrants it (the UUID never changes)
+
+**The loop:**
+```
+label tweets → update model spec profiles → sync to community.description in DB → export → deploy
+                    ↑ THIS STEP IS MANDATORY ↑
+```
+
+**Checklist for handover:**
+- [ ] Community profiles in model spec reflect all labeling evidence from this session
+- [ ] `community.description` in DB matches model spec profiles
+- [ ] `account_community_bits` rollup computed for all newly labeled accounts
+- [ ] Export re-run if deploying
 
 ---
 
