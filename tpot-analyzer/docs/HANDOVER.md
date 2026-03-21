@@ -40,16 +40,26 @@ User wants breadth over depth. 16 Vancouver-connected accounts all confirmed in 
 
 **Run `scripts/labeling_context.py <username>` before each account** to get the context blob (profile, glossary, exemplars). This is the protocol we designed — stress test it.
 
-### Continue: Card Integration (Layer 3 → Display)
+### Continue: Card Integration (Last Mile)
 
-**Problem:** The public site card still shows 100% Qualia Research for repligate. All our bits evidence (39.4% LLM Whisperers) is in `tweet_tags` but nothing reads it for display. The `community_account` table (NMF assignments) is untouched.
+**Status:** The rollup is BUILT. `account_community_bits` table exists in archive_tweets.db with correct data:
+```sql
+-- repligate's rolled-up profile (already computed and stored):
+SELECT community_name, total_bits, pct FROM account_community_bits
+WHERE account_id = '1359981346119155719' ORDER BY total_bits DESC;
+-- LLM-Whisperers: +84 bits (39.4%), Qualia-Research: +69 (32.4%), etc.
+```
 
-**Options:**
-1. Add API endpoint that computes bits-derived profile on the fly
-2. Write bits-derived profile into `community_account` (overwriting NMF)
-3. New table `account_community_evidence` that sits alongside NMF
+**What's missing:** The card/API still reads from `community_account` (NMF), not `account_community_bits`. The public site export script (`scripts/export_public_site.py`) queries `community_account` at lines 51, 88.
 
-User asked: "if repligate makes the card now will it be accurate?" — answer is NO.
+**What to do:** Modify the export script and/or API to check `account_community_bits` first, fall back to `community_account` if no bits data exists. This is a targeted code change — the data is ready, just needs wiring.
+
+**The pipeline is now:**
+```
+tweet_tags (bits per tweet) → account_community_bits (rollup per account) → [WIRE TO] card/API
+```
+
+User asked: "if repligate makes the card now will it be accurate?" — answer is STILL NO, but the data IS computed and stored. Only the display wiring is missing.
 
 ### Continue: Community Evolution Mechanism
 
@@ -117,9 +127,16 @@ Run this before each labeling session. Output goes into the labeling prompt.
 ### 4-Layer Architecture
 ```
 Layer 1: Tweet Evidence (EXISTS — tweet_tags, tweet_label_set, tweet_label_prob)
-Layer 2: Account-Community Truth (TABLES DON'T EXIST — schema designed but never created)
-Layer 3: Tweet→Account Rollup (NOT BUILT — labeling_context.py does ad-hoc query)
-Layer 4: Community Evolution (PARTIALLY BUILT — branch/snapshot infra exists, no evolution logic)
+  → 683 tags, 51 notes, 204 simulacrum probs for @repligate
+
+Layer 2: Account-Community Truth (TABLES DON'T EXIST — schema in src/data/community_gold/)
+
+Layer 3: Tweet→Account Rollup (NOW EXISTS — account_community_bits table)
+  → Aggregates bits per account per community with percentages
+  → labeling_context.py queries it for pre-labeling context
+  → NOT YET wired to card/API display (still reads NMF community_account)
+
+Layer 4: Community Evolution (PARTIALLY BUILT — branch/snapshot infra, no evolution logic)
 ```
 
 ### Critical Labeling Lessons
