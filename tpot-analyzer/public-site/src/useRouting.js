@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 export default function useRouting(data, accountMap) {
   const [result, setResult] = useState(null)
   const [communityResult, setCommunityResult] = useState(null)
+  const [pathname, setPathname] = useState(window.location.pathname)
 
   const [pendingCommunity] = useState(() => {
     const params = new URLSearchParams(window.location.search)
@@ -42,6 +43,7 @@ export default function useRouting(data, accountMap) {
 
   // Sync state when browser back/forward is pressed
   const syncFromUrl = useCallback(() => {
+    setPathname(window.location.pathname)
     const params = new URLSearchParams(window.location.search)
     const slug = params.get('community')
     const handle = params.get('handle')
@@ -115,6 +117,7 @@ export default function useRouting(data, accountMap) {
   const handleSearchAgain = () => {
     setResult(null)
     setCommunityResult(null)
+    setPathname('/')
     window.history.pushState({}, '', '/')
   }
 
@@ -122,6 +125,7 @@ export default function useRouting(data, accountMap) {
     result, setResult,
     communityResult,
     communitySlugMap,
+    pathname,
     pendingHandle, pendingCommunity,
     showCommunity, showResult, showHome,
     handleCommunityClick, handleBackFromCommunity,
