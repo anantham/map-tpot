@@ -9,17 +9,17 @@
  */
 
 let kv = null;
+let rawRedis = null;
 try {
   const Redis = require("ioredis");
   const redisUrl = process.env.KV_REDIS_URL;
   if (redisUrl) {
-    kv = new Redis(redisUrl, {
+    rawRedis = new Redis(redisUrl, {
       maxRetriesPerRequest: 1,
       connectTimeout: 3000,
       lazyConnect: true,
     });
     // ioredis API adapter — wrap to match our get/set/del/incrbyfloat/expire pattern
-    const rawRedis = kv;
     kv = {
       async get(key) {
         try { await rawRedis.connect(); } catch {}
@@ -47,6 +47,14 @@ try {
       async expire(key, seconds) {
         try { await rawRedis.connect(); } catch {}
         return rawRedis.expire(key, seconds);
+      },
+      async hset(key, field, value) {
+        try { await rawRedis.connect(); } catch {}
+        return rawRedis.hset(key, field, value);
+      },
+      async hgetall(key) {
+        try { await rawRedis.connect(); } catch {}
+        return rawRedis.hgetall(key);
       },
     };
   }
@@ -204,6 +212,14 @@ module.exports = async function handler(req, res) {
       try {
         // Cache image URL for 24h
         await kv.set(cacheKey, imageUrl, { ex: 86400 });
+        // Persist to permanent gallery (no TTL)
+        await kv.hset("gallery", handle.toLowerCase(), JSON.stringify({
+          url: imageUrl,
+          generatedAt: Date.now(),
+          communities: communities.slice(0, 5).map(c => ({
+            name: c.name, color: c.color, weight: c.weight,
+          })),
+        }));
         // Increment daily budget
         await kv.incrbyfloat(budgetKey, costUsd);
         // Ensure budget key expires after 48h (cleanup)
