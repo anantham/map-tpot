@@ -1,167 +1,119 @@
-# Handover: 2026-03-21 (Session 3)
+# Handover: 2026-03-21 (Session 4)
 
 ## Session Summary
 
-Massive labeling session completing @repligate (51 tweets, 683 tags, 213 bits). Created LABELING_MODEL_SPEC.md as operational guide for future labeling agents. Built labeling_context.py script for queryable pre-labeling context. Discovered the tag design needed sharper distinction between reusable thematic tags (community boundaries) and niche specific tags (breadcrumbs). Applied retroactive fixes to all 19 session-2 tweets. User wants to pivot to breadth — label Vancouver TPOT accounts next rather than going deeper on one account.
+Card integration session: wired bits-derived profiles to public site export, labeled @dschorno (10 tweets, first non-AI community signal), built rich AI interpret pipeline with full DB context, added interpretation run storage for model comparison. Major model spec updates: community profiles for Quiet Creatives/highbies, engagement signal protocol, community description sync cadence.
 
 ## Commits This Session
-- `92821f0` feat(labeling): model spec, 13 new tweets tagged, retroactive tag fixes
-- `080f95b` feat(labeling): labeling context script + model spec updates
+- `10d391c` feat(labeling): card integration, rich interpret pipeline, dschorno labels
 
-PUSHED: No — now 47 commits ahead of origin
+PUSHED: No — now 6 commits ahead of origin
 
-## @repligate Final Profile (51 tweets, 213 bits)
+## Key Accomplishments
+
+### 1. Card Integration (Bits → Display)
+- `community.short_name` column added to all 14 communities
+- `account_community_bits` migrated from `community_name` (string) → `community_id` (FK)
+- Export overlay: `extract_classified_accounts()` checks bits (posterior) first, falls back to NMF (prior)
+- Repligate card now shows correct 4-community profile (was 100% Qualia → now 39% LLM-Whisperers, 32% Qualia, 16% AI-Safety, 10% Contemplative)
+- 8 community descriptions updated in DB from labeling evidence
+
+### 2. @dschorno Labeled (10 tweets, 85 tags, 28 bits)
 ```
-  39.4%  LLM-Whisperers (+84 bits)
-  32.4%  Qualia-Research (+69 bits)
-  16.0%  AI-Safety (+34 bits)
-   9.9%  Contemplative-Practitioners (+21 bits)
-   1.9%  Emergence-Self-Transformation (+4 bits)
-   0.5%  highbies (+1 bits)
+  46.4%  highbies (+13 bits)
+  35.7%  Quiet-Creatives (+10 bits)
+  10.7%  Emergence-Self-Transformation (+3 bits)
+   7.1%  Contemplative-Practitioners (+2 bits)
 ```
-vs NMF prior: 100% Qualia Research, 0% everything else.
+vs NMF: 55% Quiet Creatives, 44% highbies (ordering flipped, picked up 2 new communities)
 
-New community signals: 5x "AI Mystics", 1x "AI Theorists/Ontologists", 1x "Alignment via narrative/archetypes"
+### 3. Rich AI Interpret Pipeline
+- `src/api/labeling_context.py` — context gatherer (account profile, engagement, similar labeled tweets, community profiles, thematic glossary)
+- `_build_rich_interpret_prompt()` in golden.py — sends full DB context to LLM
+- `/interpret` endpoint supports `mode: "rich"` with `tweet_id` param
+- `interpretation_run` + `interpretation_prompt` tables store prompt + model_id + response for comparison
+- JSON parser handles `+N` syntax from LLM output
+- Prompt includes tweet timestamp + account bio/display_name
+
+### 4. AI vs Human Comparison (Kimi K2)
+Tested all 10 dschorno tweets. Key findings:
+- **Themes**: Strong agreement on absurdist-humor, self-transformation, creative-expression
+- **Bits inflation**: AI consistently assigns +3 where humans gave +2
+- **Political tweet fail**: AI hallucinates AI themes because it confuses "context" (word) with AI context windows — needs image context
+- **Meditation tweet disagreement**: AI gives Contemplative-Practitioners:-1 (skepticism = against), humans gave +2 (knowing vocabulary = adjacent). **Correct interpretation: sustained engagement even as skeptic = positive bit. One-off dismissal = negative bit.**
 
 ## Pending Threads
 
-### Continue Immediately: Label Vancouver TPOT Accounts
+### Continue Immediately: Label @daniellefong + @SarahAMcManus
+Two more Vancouver accounts for cross-community signal:
+- @daniellefong — Builders 59%, LLM Whisperers 15%, 99K tweets, latest Nov 2024
+- @SarahAMcManus — Contemplative Practitioners 69%, 9K tweets, latest Sep 2024
 
-User wants breadth over depth. 16 Vancouver-connected accounts all confirmed in archive:
+Use the review HTML generator pattern (dschorno_review.html) — pick top engagement tweets, generate full-label review page.
 
-**High priority (diverse communities, good tweet counts):**
-- @SarahAMcManus — 9,289 tweets, 69% Contemplative Practitioners
-- @malcolm_ocean — 44,735 tweets, 33% Contemplative, 30% Builders, 27% highbies
-- @goblinodds — 193,313 tweets, 79% highbies
-- @patcon_ — 9,227 tweets, 86% Collective Intelligence
-- @kaslkaosart — 8,588 tweets, 98% Qualia Research (compare to repligate!)
+### Continue: Enrich AI Pipeline
+Gaps identified but not yet built:
+1. **Images**: No media URLs in tweets table. Need t.co resolution or Chrome screenshot → multimodal model
+2. **Quote tweet context**: Need to resolve quoted tweets and include original text
+3. **Retweet context**: When tweet IS a retweet, fetch the original
+4. **Model comparison leaderboard**: Tables exist (`interpretation_run`), need scoring function (bits direction agreement, theme F1, distribution KL-divergence) + run multiple models
 
-**Strategy:** Pick 3 accounts from different NMF communities. Label ~10 recent tweets each (user said "more recent tweets, later do excavation of older ones"). This gives cross-account thematic co-occurrence signal for community discovery.
+### Continue: Review @dschorno Labels
+User has `dschorno_review.html` open. May give corrections on:
+- Missing themes (user noted jhana should be a theme, absurdist-humor was missing)
+- Negative bits usage (only for nearby communities, not distant ones)
+- Engagement context (check who replied to each tweet)
 
-**Run `scripts/labeling_context.py <username>` before each account** to get the context blob (profile, glossary, exemplars). This is the protocol we designed — stress test it.
+### Deferred: Community Evolution
+Need 3+ labeled accounts before cross-account thematic clustering makes sense. After daniellefong + SarahAMcManus, will have 4 accounts across 8+ communities.
 
-### Continue: Card Integration (Last Mile)
-
-**Status:** The rollup is BUILT. `account_community_bits` table exists in archive_tweets.db with correct data:
-```sql
--- repligate's rolled-up profile (already computed and stored):
-SELECT community_name, total_bits, pct FROM account_community_bits
-WHERE account_id = '1359981346119155719' ORDER BY total_bits DESC;
--- LLM-Whisperers: +84 bits (39.4%), Qualia-Research: +69 (32.4%), etc.
-```
-
-**What's missing:** The card/API still reads from `community_account` (NMF), not `account_community_bits`. The public site export script (`scripts/export_public_site.py`) queries `community_account` at lines 51, 88.
-
-**What to do:** Modify the export script and/or API to check `account_community_bits` first, fall back to `community_account` if no bits data exists. This is a targeted code change — the data is ready, just needs wiring.
-
-**The pipeline is now:**
-```
-tweet_tags (bits per tweet) → account_community_bits (rollup per account) → [WIRE TO] card/API
-```
-
-User asked: "if repligate makes the card now will it be accurate?" — answer is STILL NO, but the data IS computed and stored. Only the display wiring is missing.
-
-### Continue: Community Evolution Mechanism
-
-**User's core question:** "We are not really doing the reverse thing of learning about the map itself — changing the list of communities."
-
-**What's needed:** After labeling N accounts, build account×thematic-tag matrix, cluster it, compare to current 14 communities. The diff = evolution signal (births, splits, merges, deaths).
-
-**Bits can't detect Birth** — only measure evidence for existing communities. Thematic tag co-occurrence across accounts is the mechanism for discovering new communities.
-
-**Community descriptions are living snapshots** — must recalibrate as membership shifts. User explicitly said exemplars and descriptions should update when people move in/out.
-
-### Deferred: External Builder Cluster
-17 accounts (karpathy, Teknium, etc.) — none in archive, shelved. See `docs/LABELING_NEXT_ACCOUNTS.md`.
-
-### Deferred: Remaining Unlabeled Repligate Tweets
-The 51 labeled tweets came from a queue of ~51 sampled tweets. There are 31,000+ total repligate tweets in the archive. User said "maybe 40 was too much" for one account and wants to go broad. Return to repligate depth only if specific community boundary questions arise.
+### Deferred: Deploy
+- Export re-run needed after next labeling round
+- `vercel --prod` from public-site/ to deploy
+- Re-alias to amiingroup.vercel.app
 
 ## Key Context
 
-### LABELING_MODEL_SPEC.md (NEW — Critical Doc)
-`docs/LABELING_MODEL_SPEC.md` — operational guide for labeling. Contains:
-- Tag dimensions: domain, thematic, specific, posture, bits, simulacrum, notes
-- Thematic tag glossary with frequencies and community signals
-- Community profiles with exemplar tweets
-- Community evolution signals (birth/split/merge/death/rename)
-- Scalable labeling context architecture (query patterns)
-- Anti-patterns and workflow
+### New Tables Created This Session
+- `community.short_name` — stable labeling handle per community (e.g., "LLM-Whisperers")
+- `interpretation_run` — stores tweet_id, model_id, prompt_hash, response_json, created_at
+- `interpretation_prompt` — stores prompt_hash → full prompt text (deduplicated)
 
-**Future instances MUST read this doc before labeling.**
+### Model Spec Updates (LABELING_MODEL_SPEC.md)
+- **Community profiles**: Quiet Creatives, highbies (expanded), Emergence (expanded) — with exemplar tweets from dschorno
+- **Thematic tags added**: `theme:absurdist-humor`, `theme:contemplative-practice`, `theme:creative-expression`
+- **All 14 community short_names** listed in bits section
+- **Engagement Signal section**: credibility hierarchy (follow > RT > like > reply), two-way flow, account discovery from reply threads
+- **Negative bits principle**: only for nearby communities ("would this tweet surprise a member?")
+- **Community Description Sync**: mandatory cadence — after each account, before handover, before deploy
 
-### labeling_context.py (NEW — Query Tool)
-`scripts/labeling_context.py <username>` — generates context blob:
-- Account's current community profile (bits aggregation)
-- Thematic tag glossary with frequencies
-- Top tweets per community (exemplars)
+### User Insights (Session 4 Discoveries)
+- NMF = prior, bits = posterior. The card should show posterior when available, fall back to prior.
+- Community names are mutable (short_name is the stable handle, UUID is the FK, display name can evolve)
+- Sustained skeptical engagement = positive community bit (knowing the vocabulary = being adjacent). One-off dismissal = negative bit.
+- Engagement in reply threads is community evidence + account discovery vector
+- "Posting into the void" (chips tweet) is low but nonzero signal — trust in audience IS community membership
+- The AI interpret pipeline should store prompts + model IDs for leaderboard comparison
+- Images/links/quote tweets are critical missing context for AI interpretation
 
-Run this before each labeling session. Output goes into the labeling prompt.
-
-### Tag Design Insight (Session 3 Discovery)
-- **Thematic tags** (category='thematic') = reusable boundary-formers. Same tag should appear on tweets from DIFFERENT accounts. Compound but parseable: `hallucination-ontology`, `model-interiority`.
-- **Specific tags** (category=NULL) = niche breadcrumbs. Unique to tweets. `fanw-json-eval`, `Hofstadter-update`.
-- **Posture** is NOT a theme. `original-insight` is a posture, not `theme:original-insight`.
-- Session 2 conflated these; session 3 fixed retroactively.
-
-### Key Thematic Tags (top frequency for repligate)
-```
-  19x  theme:AI-consciousness
-  14x  theme:model-interiority
-   8x  theme:model-phenomenology
-   8x  theme:simulator-thesis
-   8x  theme:theoretical-frameworks
-   7x  theme:AI-safety
-   6x  theme:model-capabilities
-   5x  theme:AI-art, RLHF-dynamics, contemplative-tech, epistemic-practice
-```
-
-### What's In the DB (archive_tweets.db)
-- `tweet_tags`: 683 tags for repligate (domains, themes, specifics, postures, bits, new-community signals)
-- `tweet_label_set`: 51 notes with reasoning
-- `tweet_label_prob`: 204 simulacrum probabilities (L1-L4)
-- `community_account`: UNCHANGED — still shows NMF assignments (not bits-derived)
-- `account_community_gold_split`: TABLE DOES NOT EXIST (Layer 2 never created)
-- `account_community_gold_label_set`: TABLE DOES NOT EXIST
-
-### 4-Layer Architecture
-```
-Layer 1: Tweet Evidence (EXISTS — tweet_tags, tweet_label_set, tweet_label_prob)
-  → 683 tags, 51 notes, 204 simulacrum probs for @repligate
-
-Layer 2: Account-Community Truth (TABLES DON'T EXIST — schema in src/data/community_gold/)
-
-Layer 3: Tweet→Account Rollup (NOW EXISTS — account_community_bits table)
-  → Aggregates bits per account per community with percentages
-  → labeling_context.py queries it for pre-labeling context
-  → NOT YET wired to card/API display (still reads NMF community_account)
-
-Layer 4: Community Evolution (PARTIALLY BUILT — branch/snapshot infra, no evolution logic)
-```
-
-### Critical Labeling Lessons
-1. ALWAYS navigate to tweet on X — images change everything (Negarestani "hmm", Arabic poetry)
-2. Read replies/thread context — Negarestani breakthrough came from reply thread
-3. Run labeling_context.py BEFORE each batch — practice the scalable protocol
-4. Don't rush batches — depth > speed (user explicitly called out surface-level tagging)
-5. One account ≠ community discovery. Need cross-account signal.
-6. Tweet #32's Bing Sydney speech pattern callback — subtle subtext matters
-
-### User Preferences
-- Prefers breadth over depth now ("maybe 40 was too much for one account")
-- Wants recent tweets first, "excavation" of older tweets later
-- Wants community descriptions to update dynamically as membership shifts
-- Wants labeling context system to be queryable, not dump-everything
-- Wants to see the map itself change, not just account memberships
-- "We steelman janus a bit too hard" — be balanced, don't over-interpret
+### Files Changed
+- `src/communities/store.py` — short_name column, account_community_bits table schema
+- `scripts/migrate_community_short_names.py` — NEW migration script
+- `scripts/export_public_site.py` — bits overlay in extract_classified_accounts
+- `scripts/labeling_context.py` — reads from rollup table
+- `src/api/labeling_context.py` — NEW context gatherer
+- `src/api/routes/golden.py` — rich interpret prompt, run storage
+- `docs/LABELING_MODEL_SPEC.md` — community profiles, engagement signal, sync cadence
+- `tests/test_export_public_site.py` — 3 new bits overlay tests
+- `dschorno_review.html` — review page with full label cards
 
 ## Resume Instructions
 1. Read `docs/LABELING_MODEL_SPEC.md` + this handover
-2. Pick 3 Vancouver TPOT accounts from different communities (suggest: SarahAMcManus/Contemplative, goblinodds/highbies, kaslkaosart/Qualia)
-3. Run `scripts/labeling_context.py <username>` for each
-4. Label ~10 RECENT tweets per account via Chrome
-5. After all 3: compute cross-account thematic co-occurrence — do the tag clusters match NMF communities?
-6. Address card integration: make bits-derived profile visible on public site
+2. Check if user gave corrections on dschorno labels (review dschorno_review.html)
+3. Pick @daniellefong (Builders) — run `scripts/labeling_context.py daniellefong`
+4. Pull top engagement tweets, generate review HTML, label ~10
+5. After labeling: update model spec community profiles, sync to DB descriptions, compute rollup
+6. After 3+ accounts: attempt cross-account thematic clustering
 
 ---
 *Handover by Claude at high context usage, 2026-03-21*
