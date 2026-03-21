@@ -830,6 +830,23 @@ body {
   color: rgba(212, 175, 55, 0.9);
 }
 
+.share-btn-x {
+  background: rgba(29, 155, 240, 0.1);
+  border-color: rgba(29, 155, 240, 0.4);
+  color: rgba(29, 155, 240, 0.9);
+}
+.share-btn-x:hover {
+  background: rgba(29, 155, 240, 0.2);
+  border-color: rgba(29, 155, 240, 0.6);
+  color: #1d9bf0;
+}
+
+.share-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
 /* ── Search Again ── */
 
 .search-again-btn {
