@@ -6,8 +6,53 @@ Massive labeling session. Developed the full data model for tweet-level communit
 
 ## Commits This Session
 - `0d2cf78` feat(labeling): data model v2 for tweet-level community evidence
+- `515ce55` docs: handover — labeling data model v2, community evolution layer next
 
-PUSHED: No — now 38 commits ahead of origin
+PUSHED: No — now 39 commits ahead of origin
+
+## Four-Layer Architecture (Agreed With User)
+
+```
+Layer 1: Tweet Evidence Capture (EXISTS - tweet_tags, tweet_label_set, tweet_label_prob)
+  - Substrate: schema.py, tags.py, golden.py
+  - Conventions on top: bits:Community:+N, new-community-signal:Name (not first-class yet)
+  - 252 tags, 19 notes, 19 simulacrum distributions for @repligate
+
+Layer 2: Account-Community Truth / Evaluation (EXISTS - Codex built this)
+  - ADR 014: deterministic per-account splits (70/15/15 train/dev/test)
+  - account_community_gold_split, account_community_gold_label_set tables
+  - IN/OUT/ABSTAIN judgments, immutable history with supersession
+  - 4 evaluation methods: canonical_map, nmf_seeded, louvain_transfer, train_grf
+  - Evaluator harness: AUC-PR, F1, Brier, ECE per community + macro
+  - Candidate queue: entropy-weighted, disagreement-based active learning
+  - Files: src/data/community_gold/ (9 modules), src/api/routes/community_gold.py
+
+Layer 3: Tweet→Account Rollup / Inference Bridge (NOT BUILT)
+  - Takes Layer 1 evidence (tags, bits per tweet)
+  - Generates: candidate memberships, summaries, hypotheses
+  - Feeds INTO Layer 2 as suggestions (human reviews before it becomes truth)
+  - Should NOT silently become its own ground truth
+
+Layer 4: Evidence-Driven Community Evolution (PARTIALLY BUILT)
+  - EXISTS: branches/snapshots, canonical community editing (branches.py, versioning.py)
+  - NOT BUILT: evidence-driven split/merge/birth from accumulated tags
+  - Updates canonical map ONLY after human review or explicit policy
+```
+
+### Architectural Rules
+1. Layer 3 generates hypotheses → Layer 2 remains human-reviewed truth
+2. Layer 4 updates canonical map only after human review
+3. Tweet evidence never silently becomes ground truth
+4. Fixed deterministic splits (ADR 014) for production leaderboard
+5. K-fold for offline research on tweet-to-account inference — separate metrics artifact
+
+### Codex System Details (Layer 2)
+- **Schema**: `account_community_gold_split` (per-account, SHA256 deterministic), `account_community_gold_label_set` (immutable history, IN/OUT/ABSTAIN + confidence + note + evidence_json)
+- **Scoring methods**: canonical_map (membership weights), nmf_seeded, louvain_transfer (cluster majority voting), train_grf (graph random forest)
+- **Candidate queue**: cold=max(canonical,nmf), warm=0.7×entropy+0.3×disagreement, round-robin across communities
+- **API**: `/api/community-gold/{communities,labels,metrics,candidates,evaluate}`
+- **Frontend**: `communityGoldApi.js`, `goldLabelUtils.js`
+- **Tests**: 3 test files (store, routes, evaluator)
 
 ## Pending Threads
 
