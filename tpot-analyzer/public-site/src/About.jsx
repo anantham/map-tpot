@@ -107,12 +107,54 @@ export default function About({ meta }) {
       <section className="about-section">
         <h2>How We Check Our Work</h2>
         <p>
-          We&rsquo;re building a held-out evaluation system&mdash;a set of accounts with
-          human-verified community labels that were never used during training. The
-          infrastructure is in place and we&rsquo;re actively collecting labels. Once the
-          labeled set is large enough, we&rsquo;ll be able to report precision and recall
-          for each community and track whether pipeline changes improve or degrade accuracy.
-          For now, community placements should be read as strong signals, not verdicts.
+          We took a curator&rsquo;s hand-picked list of 167 accounts that are
+          &ldquo;definitely interesting&rdquo; and checked whether the pipeline finds them.
+          None of these labels were used to build the map &mdash; they&rsquo;re held out
+          purely for validation.
+        </p>
+
+        <div className="about-recall-table">
+          <h3>Pipeline recall on held-out accounts</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Layer</th>
+                <th>Found</th>
+                <th>Recall</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>NMF classified (direct analysis)</td>
+                <td>31 / 167</td>
+                <td>18.6%</td>
+              </tr>
+              <tr>
+                <td>Propagation (follow graph inference)</td>
+                <td>113 / 167</td>
+                <td>67.7%</td>
+              </tr>
+              <tr>
+                <td>Public site (after threshold gates)</td>
+                <td>56 / 167</td>
+                <td>33.5%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>
+          <strong>What this tells us:</strong> The follow graph alone catches two-thirds of
+          known interesting accounts, but a third are completely invisible &mdash; they&rsquo;re
+          not in the archive and don&rsquo;t appear in the shadow follow graph. The threshold
+          gates cut propagated coverage in half (from 68% to 34%), trading recall for
+          confidence. This is why we&rsquo;re building the tweet-level evidence layer &mdash;
+          graph structure alone misses the conversation someone is actually in.
+        </p>
+        <p className="about-caveat">
+          These numbers are a snapshot. As we add more accounts to the archive, fetch more
+          follow data, and lower thresholds where justified, recall will improve. The point
+          isn&rsquo;t perfection &mdash; it&rsquo;s honest measurement so we know what works.
         </p>
       </section>
 
