@@ -15,7 +15,7 @@ import useRouting from './useRouting'
  * so that `useCardGeneration` is called unconditionally (React hook rules).
  */
 function ResultArea({ result, communityMap, links, onCommunityClick }) {
-  const { imageUrl, status, remaining } = useCardGeneration({
+  const { imageUrl, status, remaining, regenerate } = useCardGeneration({
     handle: result.handle,
     bio: result.bio,
     memberships: result.memberships,
@@ -26,17 +26,26 @@ function ResultArea({ result, communityMap, links, onCommunityClick }) {
 
   return (
     <>
-      <CommunityCard
-        handle={result.handle}
-        displayName={result.displayName}
-        bio={result.bio}
-        tier={result.tier}
-        memberships={result.memberships}
-        communityMap={communityMap}
-        aiImageUrl={imageUrl}
-        generationStatus={status}
-        onCommunityClick={onCommunityClick}
-      />
+      <div className="card-wrapper">
+        <CommunityCard
+          handle={result.handle}
+          displayName={result.displayName}
+          bio={result.bio}
+          tier={result.tier}
+          memberships={result.memberships}
+          communityMap={communityMap}
+          aiImageUrl={imageUrl}
+          generationStatus={status}
+          onCommunityClick={onCommunityClick}
+        />
+        {status === 'generated' && (
+          <button
+            className="regenerate-btn"
+            onClick={regenerate}
+            title="Regenerate card"
+          >↻</button>
+        )}
+      </div>
       {status === 'generating' && (
         <div className="generating-banner">
           <span className="generating-typewriter">Crafting your collectible card</span>

@@ -65,6 +65,14 @@ export function getAllCachedCards() {
     .sort((a, b) => b.cachedAt - a.cachedAt);
 }
 
+function clearCachedCard(handle) {
+  try {
+    const cache = getCardCache();
+    delete cache[handle.toLowerCase()];
+    localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(cache));
+  } catch {}
+}
+
 function getGenCount() {
   try { return parseInt(localStorage.getItem(GEN_COUNT_KEY) || '0', 10); } catch { return 0; }
 }
@@ -207,6 +215,7 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
   const [remaining, setRemaining] = useState(() => Math.max(0, MAX_FREE_GENS - getGenCount()));
   const inflightRef = useRef(null); // tracks current in-flight handle
   const abortRef = useRef(null);
+  const skipCacheRef = useRef(false);
 
   const generate = useCallback(async () => {
     // Only generate for accounts with communities
@@ -220,12 +229,15 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
     }
 
     // Check cache first — skip API call if we have a cached card
-    const cached = getCachedCard(handle);
-    if (cached) {
-      setImageUrl(cached.url);
-      setStatus("generated");
-      return;
+    if (!skipCacheRef.current) {
+      const cached = getCachedCard(handle);
+      if (cached) {
+        setImageUrl(cached.url);
+        setStatus("generated");
+        return;
+      }
     }
+    skipCacheRef.current = false; // reset after use
 
     // Check per-user limit (skip for BYOK users)
     let byokKey = null;
@@ -328,5 +340,17 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
     };
   }, [handle]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { imageUrl, status, remaining };
+  const regenerate = useCallback(() => {
+    if (!handle) return;
+    // Clear local cache
+    clearCachedCard(handle);
+    // Clear inflight lock so generate() doesn't skip
+    inflightRef.current = null;
+    // Skip cache on next generate call
+    skipCacheRef.current = true;
+    // Trigger
+    generate();
+  }, [handle, generate]);
+
+  return { imageUrl, status, remaining, regenerate };
 }
