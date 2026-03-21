@@ -63,26 +63,52 @@ function ResultArea({ result, communityMap, links, onCommunityClick }) {
         communityMap={communityMap}
         aiImageUrl={imageUrl}
       />
-      <ShareButton handle={result.handle} />
+      <ShareButton handle={result.handle} memberships={result.memberships} communityMap={communityMap} />
     </>
   )
 }
 
-function ShareButton({ handle }) {
+function ShareButton({ handle, memberships, communityMap }) {
   const [copied, setCopied] = useState(false)
 
+  // Build community breakdown text for the tweet
+  const communityText = (memberships || [])
+    .map(m => {
+      const c = communityMap?.get(m.community_id)
+      return c ? `${Math.round(m.weight * 100)}% ${c.name}` : null
+    })
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(', ')
+
+  const ogUrl = `${window.location.origin}/api/og?handle=${encodeURIComponent(handle)}`
+  const cardUrl = `${window.location.origin}/?handle=${encodeURIComponent(handle)}`
+
+  const tweetText = communityText
+    ? `I'm ${communityText} on TPOT.\n\nFind your ingroup →`
+    : `Find which TPOT communities you belong to →`
+
+  const shareToX = () => {
+    const intentUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(ogUrl)}`
+    window.open(intentUrl, '_blank', 'width=550,height=420')
+  }
+
   const copyLink = () => {
-    const url = `${window.location.origin}?handle=${encodeURIComponent(handle)}`
-    navigator.clipboard.writeText(url).then(() => {
+    navigator.clipboard.writeText(cardUrl).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
   }
 
   return (
-    <button className="share-btn" onClick={copyLink}>
-      {copied ? 'Link copied!' : 'Share this card'}
-    </button>
+    <div className="share-buttons">
+      <button className="share-btn share-btn-x" onClick={shareToX}>
+        Share on X
+      </button>
+      <button className="share-btn" onClick={copyLink}>
+        {copied ? 'Link copied!' : 'Copy link'}
+      </button>
+    </div>
   )
 }
 
