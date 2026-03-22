@@ -330,8 +330,14 @@ def gather_labeling_context(
         ctx["reply_parent"] = get_reply_parent(conn, tweet_id)
 
         # Enrich tweet with media/quote/links via syndication API
-        from src.api.tweet_enrichment import enrich_tweet
+        from src.api.tweet_enrichment import enrich_tweet, get_thread_context, resolve_tweet_links
         ctx["enrichment"] = enrich_tweet(tweet_id, db_path)
+
+        # Thread context (walk reply chain)
+        ctx["thread_chain"] = get_thread_context(tweet_id, db_path)
+
+        # Resolve t.co links (external articles, quote tweets)
+        ctx["resolved_links"] = resolve_tweet_links(tweet_text or "", db_path)
 
     if account_id:
         ctx["account_top_tweets"] = get_account_top_tweets(conn, account_id)

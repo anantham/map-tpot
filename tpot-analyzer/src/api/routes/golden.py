@@ -546,14 +546,37 @@ def _build_rich_interpret_prompt(
             lines.append(f"  {g['count']:>3}x  {g['tag']}")
         lines.append("")
 
-    # --- Thread context ---
-    if thread_context:
+    # --- Thread context (from DB chain or frontend) ---
+    thread_chain = labeling_ctx.get("thread_chain", [])
+    if thread_chain and len(thread_chain) > 1:
+        lines.append("THREAD CONTEXT (full reply chain, root → target):")
+        for t in thread_chain:
+            marker = " ← TARGET" if t.get("is_target") else ""
+            lines.append(f"  @{t['username']} [{t['engagement']} eng]: \"{t['text'][:200]}\"{marker}")
+        lines.append("")
+    elif thread_context:
+        # Fallback to frontend-provided context
         lines.append("THREAD CONTEXT (parent tweets):")
         for t in thread_context:
             author = t.get("author", {}).get("userName", "?")
             text = (t.get("text") or "").strip()[:300]
             lines.append(f'  @{author}: "{text}"')
         lines.append("")
+
+    # --- Resolved external links ---
+    resolved_links = labeling_ctx.get("resolved_links", [])
+    external_links = [l for l in resolved_links if l.get("type") == "external"]
+    if external_links:
+        lines.append("LINKED CONTENT (external articles/pages):")
+        for link in external_links[:3]:
+            if link.get("title"):
+                lines.append(f"  Title: {link['title']}")
+            if link.get("description"):
+                lines.append(f"  Description: {link['description'][:200]}")
+            if link.get("body_excerpt"):
+                lines.append(f"  Excerpt: {link['body_excerpt'][:300]}")
+            lines.append(f"  URL: {link.get('resolved_url', link.get('tco_url', ''))}")
+            lines.append("")
 
     # --- Simulacrum levels ---
     lines.append("""SIMULACRUM LEVELS:
