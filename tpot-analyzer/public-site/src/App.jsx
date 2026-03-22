@@ -298,6 +298,8 @@ export default function App() {
             <a href="/gallery" className="hero-link">Card gallery</a>
             <span className="hero-sep">&middot;</span>
             <a href={data.meta.links.repo} target="_blank" rel="noopener noreferrer" className="hero-link">Open source</a>
+            <span className="hero-sep">&middot;</span>
+            <a href={data.meta.links.curator_site} target="_blank" rel="noopener noreferrer" className="hero-link">Built by @adityaarpitha</a>
           </div>
         </div>
       )}
