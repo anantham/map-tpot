@@ -197,6 +197,52 @@ def get_similar_labeled_tweets(conn: sqlite3.Connection, tweet_id: str, limit: i
     return result
 
 
+def get_account_top_tweets(conn: sqlite3.Connection, account_id: str, limit: int = 10) -> list:
+    """Get top-engagement original tweets from this account for pattern context.
+
+    Helps the model see sustained themes across tweets, not just label one in isolation.
+    """
+    rows = conn.execute("""
+        SELECT tweet_id, full_text, favorite_count + retweet_count as engagement, created_at
+        FROM tweets
+        WHERE account_id = ? AND full_text NOT LIKE '@%'
+        ORDER BY engagement DESC
+        LIMIT ?
+    """, (account_id, limit)).fetchall()
+
+    return [
+        {"tweet_id": r["tweet_id"], "text": (r["full_text"] or "")[:200],
+         "engagement": r["engagement"], "created_at": r["created_at"]}
+        for r in rows
+    ]
+
+
+def get_reply_parent(conn: sqlite3.Connection, tweet_id: str) -> dict | None:
+    """If this tweet is a reply, get the parent tweet text and author."""
+    row = conn.execute("""
+        SELECT t.reply_to_tweet_id FROM tweets t WHERE t.tweet_id = ?
+    """, (tweet_id,)).fetchone()
+
+    if not row or not row["reply_to_tweet_id"]:
+        return None
+
+    parent = conn.execute("""
+        SELECT tweet_id, username, full_text, favorite_count + retweet_count as engagement
+        FROM tweets WHERE tweet_id = ?
+    """, (row["reply_to_tweet_id"],)).fetchone()
+
+    if not parent:
+        return {"parent_tweet_id": row["reply_to_tweet_id"], "text": None,
+                "username": None, "note": "parent tweet not in archive"}
+
+    return {
+        "parent_tweet_id": parent["tweet_id"],
+        "username": parent["username"],
+        "text": (parent["full_text"] or "")[:300],
+        "engagement": parent["engagement"],
+    }
+
+
 def get_community_profiles(conn: sqlite3.Connection) -> list:
     """Get all community names + descriptions."""
     rows = conn.execute("""
@@ -281,6 +327,14 @@ def gather_labeling_context(
     if tweet_id:
         ctx["engagement"] = get_engagement_context(conn, tweet_id)
         ctx["similar_tweets"] = get_similar_labeled_tweets(conn, tweet_id)
+        ctx["reply_parent"] = get_reply_parent(conn, tweet_id)
+
+        # Enrich tweet with media/quote/links via syndication API
+        from src.api.tweet_enrichment import enrich_tweet
+        ctx["enrichment"] = enrich_tweet(tweet_id, db_path)
+
+    if account_id:
+        ctx["account_top_tweets"] = get_account_top_tweets(conn, account_id)
 
     ctx["communities"] = get_community_profiles(conn)
     ctx["thematic_glossary"] = get_thematic_glossary(conn)
