@@ -1,3 +1,70 @@
+# Handover: 2026-03-22 (Session 5)
+
+## Session Summary
+
+Community detail pages + card infrastructure session. Built clickable community pages for Find My Ingroup (prototypical member spotlights with tweets, all-members sidebar, sibling nav, browser back/forward). Added card caching (localStorage + Vercel KV gallery), Share-to-X with OG card previews, card regeneration button, enriched card prompt with community descriptions. Portfolio fixes: hover behavior, Dāna link, Map TPOT URL.
+
+## Commits This Session (TPOT — 15 commits, NOT pushed to origin)
+
+14+ commits ahead of origin/main. Push when ready: `git push`
+
+Key commits:
+- Community detail pages (export enrichment, CommunityPage component, useRouting hook, CSS)
+- Card caching + server gallery (localStorage + Vercel KV + `/api/gallery` endpoints)
+- Share-to-X with OG meta tags (`/api/og`, `/api/card-image`)
+- Card regeneration button (↻)
+- Enriched card prompt (community descriptions, anti-text constraints)
+- Portfolio link in footer
+
+## Pending Threads
+
+### Continue Immediately
+
+1. **Portfolio journey/camera bug** — Camera doesn't follow pill during A→B travel, pill movement is discontinuous. Inspect `CesiumJourneyExperience.tsx` and `CesiumViewerClient.tsx` for data continuity and camera follow logic. Uncommitted changes exist in these files.
+
+2. **Push TPOT commits** — 14+ ahead of origin/main.
+
+3. **Card gallery incognito test** — Server gallery has 2 cards. Never verified server-side fetch works in clean browser.
+
+### Blocked
+
+1. **Card history/carousel** — Needs Vercel Blob for storage (~1MB/card × many). KV free tier too small.
+
+### Deferred
+
+1. **Vancouver TPOT labeling** — 10+ accounts identified, parked for UI work
+2. **Bits-derived profile on cards** — 213 bits for @repligate in DB, not displayed on public site
+3. **15th community "Interesting"** — appeared in export, may need filtering
+
+## Architecture Notes
+
+### Community Pages
+- `export_public_site.py`: slug assignment, featured_members (top 5), all_members, tweet selection with type detection
+- `slug_registry.json`: persists slugs across renames
+- `useRouting.js`: 3-way state (community > handle > homepage), pushState + popstate
+- `CommunityPage.jsx`: two-column (spotlights left, members right), full-width layout
+- `.app-wide` class overrides 640px max-width
+
+### Card Gallery
+- `/api/generate-card.js`: writes to `gallery` KV hash (permanent) + `card:{handle}` (24h TTL)
+- `/api/gallery.js`: GET all cards
+- `/api/gallery-submit.js`: POST for BYOK cards
+- `/api/card-image.js`: decodes base64 → serves PNG (for OG tags)
+- `/api/og.js`: twitter:card meta tags + redirect
+
+### Portfolio
+- Project card hover: 1s delay, 0.9s expand, spring layout (160/28), no reorder
+- Dāna links to innerwilds.blog
+- Map TPOT links to amiingroup.vercel.app
+
+## Resume Instructions
+1. Push TPOT commits
+2. Debug portfolio Cesium camera/pill
+3. Test gallery in incognito
+4. Or: Vancouver accounts labeling
+
+---
+
 # Handover: 2026-03-21 (Session 4)
 
 ## Session Summary
