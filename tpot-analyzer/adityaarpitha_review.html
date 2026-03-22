@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>@adityaarpitha Review Queue v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, system-ui, sans-serif; background: #0d1117; color: #c9d1d9; padding: 20px; max-width: 960px; margin: 0 auto; }
+  h1 { color: #58a6ff; margin-bottom: 4px; }
+  .profile { color: #8b949e; margin-bottom: 4px; font-size: 13px; line-height: 1.5; }
+  .subtitle { color: #8b949e; margin-bottom: 20px; font-size: 13px; }
+  .tweet { position: relative; border: 1px solid #30363d; border-radius: 8px; margin-bottom: 14px; }
+  .tweet:hover { border-color: #58a6ff; }
+  .tweet.proposed { border-left: 3px solid #e3b341; }
+  .tweet > a { display: block; padding: 14px 70px 8px 14px; text-decoration: none; color: inherit; }
+  .tweet.dismissed { display: none; }
+  .status-badge { position: absolute; top: 10px; right: 60px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; background: #e3b34133; color: #e3b341; }
+  .meta { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
+  .num { color: #484f58; font-size: 13px; font-weight: 600; font-family: monospace; }
+  .likes { color: #f778ba; font-size: 13px; }
+  .text { font-size: 14px; line-height: 1.6; margin: 4px 0 8px; }
+  .labels { padding: 0 14px 14px; }
+  .label-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 5px; }
+  .label-key { color: #484f58; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; min-width: 65px; flex-shrink: 0; }
+  .pill { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .pill.domain { background: #30363d; color: #c9d1d9; }
+  .pill.theme { background: #1f6feb33; color: #58a6ff; }
+  .pill.specific { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+  .pill.posture { background: #6e40c933; color: #bc8cff; }
+  .pill.bits-pos { background: #23863633; color: #3fb950; }
+  .pill.bits-neg { background: #da363433; color: #f85149; }
+  .pill.bits-zero { background: #21262d; color: #484f58; }
+  .pill.ncs { background: #e3b34133; color: #e3b341; }
+  .sim-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 4px 0; border: 1px solid #21262d; }
+  .sim-seg { } .sim-l1 { background: #19a856; } .sim-l2 { background: #e8a000; } .sim-l3 { background: #0084b4; } .sim-l4 { background: #9b59b6; }
+  .sim-labels { display: flex; gap: 12px; margin-bottom: 6px; }
+  .sim-l { font-size: 10px; color: #8b949e; }
+  .note { color: #8b949e; font-size: 13px; font-style: italic; margin-top: 8px; border-left: 2px solid #30363d; padding-left: 8px; line-height: 1.5; }
+  .stats { color: #8b949e; margin-bottom: 16px; font-size: 14px; }
+  .dismiss-btn { position: absolute; top: 10px; right: 10px; background: #21262d; border: 1px solid #30363d; color: #8b949e; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; z-index: 10; }
+  .dismiss-btn:hover { background: #da363433; color: #f85149; border-color: #f85149; }
+  .issues { background: #da363411; border: 1px solid #da363433; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; font-size: 13px; color: #f85149; }
+  .issues h3 { font-size: 12px; text-transform: uppercase; margin-bottom: 6px; }
+  .issues li { margin-left: 16px; margin-bottom: 4px; color: #c9d1d9; }
+</style>
+</head><body>
+<script>
+  const SK='aditya_v2_dismissed';
+  function getD(){try{return JSON.parse(localStorage.getItem(SK)||'[]')}catch{return[]}}
+  function dismiss(tid,el){event.preventDefault();event.stopPropagation();const d=getD();d.push(tid);localStorage.setItem(SK,JSON.stringify(d));el.closest('.tweet').classList.add('dismissed');updateStats()}
+  function updateStats(){const r=document.querySelectorAll('.tweet:not(.dismissed)').length;const t=10;document.querySelector('.stats').textContent=(t-r)+' reviewed / '+r+' remaining'}
+  document.addEventListener('DOMContentLoaded',function(){getD().forEach(function(tid){document.querySelectorAll('.tweet[data-tid="'+tid+'"]').forEach(function(c){c.classList.add('dismissed')})});updateStats()})
+</script>
+<h1>@adityaarpitha Review Queue</h1>
+<p class="profile">
+  <b>NMF prior:</b> 52% AI-Safety, 18% LLM-Whisperers<br>
+  <b>Follow graph:</b> 21 highbies, 20 Contemplative, 13 Quiet Creatives, 12 AI-Safety, 9 LLM-Whisperers<br>
+  <b>AI bits (10 tweets):</b> +20 Contemplative, +16 Emergence, +7 AI-Safety, +7 Relational, +6 highbies<br>
+  <b>Bio:</b> "Walking the middle way" | Digital Nomad
+</p>
+<div class="issues">
+  <h3>Known AI Issues on This Batch</h3>
+  <ul>
+    <li>Negative bits for distant communities (AI-Safety:-1 on contemplative tweets = wrong, should be 0)</li>
+    <li>Missing themes: no HPMOR/rationalist-fiction, no field-building, no integration/wholeness</li>
+    <li>Never proposes new-community-signals (should flag Contemplative-Alignment overlap)</li>
+    <li>L2 always 10-20% — may be over-attributing persuasion to public posts</li>
+  </ul>
+</div>
+<p class="stats">0 reviewed / 10 remaining</p>
+<div class="tweet proposed" data-tid="1659919403230568449">
+<div class="status-badge proposed">AI PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1659919403230568449', this)">skip</button>
+<a href="https://x.com/adityaarpitha/status/1659919403230568449" target="_blank">
+  <div class="meta"><span class="num">#1</span><span class="likes">♥ 96</span></div>
+  <div class="text">Every single person I&#x27;ve met who shared my enthusiasm for yudkowsky&#x27;s fiction has turned out to be super compatible with me as a great friend. <br><br>It&#x27;s amazing how strong of a selection effect it can ha</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">domain:social</span> <span class="pill domain">domain:philosophy</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">theme:in-group-culture</span> <span class="pill theme">theme:social-commentary</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">specific:yudkowsky-fiction</span> <span class="pill specific">specific:hpmor-giveaways</span> <span class="pill specific">specific:selection-effect</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">posture:personal-testimony</span> <span class="pill posture">posture:original-insight</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">AI-Safety:+3</span> <span class="pill bits-pos">highbies:+2</span> <span class="pill bits-pos">Relational-Explorers:+1</span> <span class="pill bits-neg">LLM-Whisperers:-1</span></div>
+  
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:60.0"></div>
+      <div class="sim-seg sim-l2" style="flex:10.0"></div>
+      <div class="sim-seg sim-l3" style="flex:30.0"></div>
+      <div class="sim-seg sim-l4" style="flex:0.0"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:60%</span>
+      <span class="sim-l">L2:10%</span>
+      <span class="sim-l">L3:30%</span>
+      <span class="sim-l">L4:0%</span>
+    </div>
+  <div class="note">This tweet highlights the strong social selection effect of shared enthusiasm for Yudkowsky&#x27;s fiction, specifically HPMOR. It signals a strong affinity for the AI-Safety community, where Yudkowsky is a prominent figure, and also resonates with the &#x27;highbies&#x27; who often share niche interests. The mention of &#x27;great friend&#x27; and &#x27;compatible&#x27; also touches on relational aspects, but the core is the shared intellectual interest. It&#x27;s less about LLMs directly.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1723213590478594393">
+<div class="status-badge proposed">AI PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1723213590478594393', this)">skip</button>
+<a href="https://x.com/adityaarpitha/status/1723213590478594393" target="_blank">
+  <div class="meta"><span class="num">#2</span><span class="likes">♥ 53</span></div>
+  <div class="text">This whole thread is just too real for me right now. I literally had to take a few minute to process how much it resonated with me.<br><br>I know how fiercely the people I respect seem to have protected the</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">domain:personal</span> <span class="pill domain">domain:philosophy</span> <span class="pill domain">domain:social</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">theme:self-transformation</span> <span class="pill theme">theme:epistemic-practice</span> <span class="pill theme">theme:social-commentary</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">specific:inner-child</span> <span class="pill specific">specific:resonance</span> <span class="pill specific">specific:genius-definition</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">posture:personal-testimony</span> <span class="pill posture">posture:signal-boost</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">Contemplative-Practitioners:+3</span> <span class="pill bits-pos">Emergence-Self-Transformation:+3</span> <span class="pill bits-pos">Relational-Explorers:+2</span> <span class="pill bits-pos">highbies:+1</span></div>
+  
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:50.0"></div>
+      <div class="sim-seg sim-l2" style="flex:10.0"></div>
+      <div class="sim-seg sim-l3" style="flex:30.0"></div>
+      <div class="sim-seg sim-l4" style="flex:10.0"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:50%</span>
+      <span class="sim-l">L2:10%</span>
+      <span class="sim-l">L3:30%</span>
+      <span class="sim-l">L4:10%</span>
+    </div>
+  <div class="note">This tweet expresses deep personal resonance with the idea of protecting one&#x27;s inner child as a source of genius, directly quoting and affirming @visakanv&#x27;s thread. The strong emotional language and focus on inner experience and self-protection align well with Contemplative Practitioners and Emergence-Self-Transformation. The &#x27;fiercely protected their inner child&#x27; also hints at a relational aspect, connecting to Relational-Explorers. The general social commentary and affirmation of a popular idea gives a slight bump to highbies.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1718162852790636829">
+<div class="status-badge proposed">AI PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1718162852790636829', this)">skip</button>
+<a href="https://x.com/adityaarpitha/status/1718162852790636829" target="_blank">
+  <div class="meta"><span class="num">#3</span><span class="likes">♥ 40</span></div>
+  <div class="text">Genius is a way for regular people to abdicate their own creativity hits so hard. https://t.co/mWXHyYwcgV</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">domain:philosophy</span> <span class="pill domain">domain:social</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">theme:social-commentary</span> <span class="pill theme">theme:self-transformation</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">specific:creativity-abdication</span> <span class="pill specific">specific:genius-critique</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">posture:original-insight</span> <span class="pill posture">posture:critique</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">Emergence-Self-Transformation:+2</span> <span class="pill bits-pos">highbies:+2</span> <span class="pill bits-pos">Contemplative-Practitioners:+1</span></div>
+  
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:60.0"></div>
+      <div class="sim-seg sim-l2" style="flex:10.0"></div>
+      <div class="sim-seg sim-l3" style="flex:20.0"></div>
+      <div class="sim-seg sim-l4" style="flex:10.0"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:60%</span>
+      <span class="sim-l">L2:10%</span>
+      <span class="sim-l">L3:20%</span>
+      <span class="sim-l">L4:10%</span>
+    </div>
+  <div class="note">This tweet offers a philosophical insight about the concept of &#x27;genius&#x27; and its impact on individual creativity. It resonates with themes of self-transformation and critical social commentary, aligning with the Contemplative Practitioners and Emergence-Self-Transformation communities. The &#x27;hits so hard&#x27; phrasing also gives it a &#x27;highbies&#x27; feel.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1737359536359694759">
+<div class="status-badge proposed">AI PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1737359536359694759', this)">skip</button>
+<a href="https://x.com/adityaarpitha/status/1737359536359694759" target="_blank">
+  <div class="meta"><span class="num">#4</span><span class="likes">♥ 37</span></div>
+  <div class="text">&quot;Despite how open, peaceful, and loving you attempt to be, people can only meet you, as deeply as they&#x27;ve met themselves. This is the heart of clarity.&quot;<br><br>- Matt Kahn</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">domain:philosophy</span> <span class="pill domain">domain:personal</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">theme:self-transformation</span> <span class="pill theme">theme:epistemic-practice</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">specific:interpersonal-depth</span> <span class="pill specific">specific:self-awareness</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">posture:signal-boost</span> <span class="pill posture">posture:pedagogy</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">Contemplative-Practitioners:+3</span> <span class="pill bits-pos">Emergence-Self-Transformation:+3</span> <span class="pill bits-pos">Relational-Explorers:+2</span> <span class="pill bits-neg">AI-Safety:-1</span> <span class="pill bits-neg">LLM-Whisperers:-1</span></div>
+  
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:70.0"></div>
+      <div class="sim-seg sim-l2" style="flex:20.0"></div>
+      <div class="sim-seg sim-l3" style="flex:10.0"></div>
+      <div class="sim-seg sim-l4" style="flex:0.0"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:70%</span>
+      <span class="sim-l">L2:20%</span>
+      <span class="sim-l">L3:10%</span>
+      <span class="sim-l">L4:0%</span>
+    </div>
+  <div class="note">This tweet shares a quote about interpersonal depth being limited by self-awareness, aligning strongly with themes of inner work and personal growth. The quote itself is presented as a truth-tracking observation, with a slight pedagogical bent. The negative bits for AI-Safety and LLM-Whisperers are due to the tweet&#x27;s complete lack of AI-related content, which is a significant part of the author&#x27;s profile.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1719565700598243370">
+<div class="status-badge proposed">AI PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1719565700598243370', this)">skip</button>
+<a href="https://x.com/adityaarpitha/status/1719565700598243370" target="_blank">
+  <div class="meta"><span class="num">#5</span><span class="likes">♥ 36</span></div>
+  <div class="text">Ah, enlightenment. Known by many names in different cultures. Kenshō (見性) &quot;seeing&quot;, Samādhi, Gnosis, awakened.<br><br>Let me try to explain it.<br><br>We are all so used to looking at the map rather than the terr</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">domain:philosophy</span> <span class="pill domain">domain:personal</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">theme:self-transformation</span> <span class="pill theme">theme:contemplative-practice</span> <span class="pill theme">theme:epistemic-practice</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">specific:enlightenment-definitions</span> <span class="pill specific">specific:map-territory-distinction</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">posture:pedagogy</span> <span class="pill posture">posture:original-insight</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">Contemplative-Practitioners:+3</span> <span class="pill bits-pos">Emergence-Self-Transformation:+2</span> <span class="pill bits-neg">AI-Safety:-1</span> <span class="pill bits-neg">LLM-Whisperers:-1</span></div>
+  
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:70.0"></div>
+      <div class="sim-seg sim-l2" style="flex:20.0"></div>
+      <div class="sim-seg sim-l3" style="flex:10.0"></div>
+      <div class="sim-seg sim-l4" style="flex:0.0"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:70%</span>
+      <span class="sim-l">L2:20%</span>
+      <span class="sim-l">L3:10%</span>
+      <span class="sim-l">L4:0%</span>
+    </div>
+  <div class="note">This tweet attempts to explain &#x27;enlightenment&#x27; by referencing various cultural terms and introducing the map-territory distinction. It&#x27;s a pedagogical and philosophical exploration of a core contemplative concept. The negative bits for AI-Safety and LLM-Whisperers are because the tweet is entirely focused on human consciousness and spiritual concepts, which are tangential to those communities, despite the author&#x27;s profile having high percentages in them.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1719075339107020837">
+<div class="status-badge proposed">AI PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1719075339107020837', this)">skip</button>
+<a href="https://x.com/adityaarpitha/status/1719075339107020837" target="_blank">
+  <div class="meta"><span class="num">#6</span><span class="likes">♥ 25</span></div>
+  <div class="text">A lot of suffering is due to not being whole or unified. Trauma happens when you are scarred, and made separate, into parts.<br><br>The reason Love feels like healing is because you feel complete again. The</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">domain:philosophy</span> <span class="pill domain">domain:social</span> <span class="pill domain">domain:personal</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">theme:self-transformation</span> <span class="pill theme">theme:contemplative-practice</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">specific:trauma-healing</span> <span class="pill specific">specific:wholeness-unity</span> <span class="pill specific">specific:consciousness-knots</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">posture:original-insight</span> <span class="pill posture">posture:personal-testimony</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">Contemplative-Practitioners:+3</span> <span class="pill bits-pos">Emergence-Self-Transformation:+2</span> <span class="pill bits-pos">Relational-Explorers:+1</span> <span class="pill bits-neg">AI-Safety:-1</span> <span class="pill bits-neg">LLM-Whisperers:-1</span></div>
+  
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:70.0"></div>
+      <div class="sim-seg sim-l2" style="flex:10.0"></div>
+      <div class="sim-seg sim-l3" style="flex:10.0"></div>
+      <div class="sim-seg sim-l4" style="flex:10.0"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:70%</span>
+      <span class="sim-l">L2:10%</span>
+      <span class="sim-l">L3:10%</span>
+      <span class="sim-l">L4:10%</span>
+    </div>
+  <div class="note">This tweet discusses suffering, trauma, and healing through the lens of wholeness and consciousness, aligning strongly with contemplative and self-transformation themes. The language of &#x27;consciousness feels smoothened out&#x27; and &#x27;no knots&#x27; is highly resonant with introspective practices. It&#x27;s less relevant to AI-focused communities despite the author&#x27;s profile.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1932757115292299472">
+<div class="status-badge proposed">AI PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1932757115292299472', this)">skip</button>
+<a href="https://x.com/adityaarpitha/status/1932757115292299472" target="_blank">
+  <div class="meta"><span class="num">#7</span><span class="likes">♥ 13</span></div>
+  <div class="text">Hey folks! My friend @bhi5hmaraj  and I will be organising an AI safety retreat in Ooty gathering people from different backgrounds to experiment with the latest AI tools and discuss what alignment me</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">domain:AI</span> <span class="pill domain">domain:social</span> <span class="pill domain">domain:philosophy</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">theme:AI-safety</span> <span class="pill theme">theme:community-meta</span> <span class="pill theme">theme:epistemic-practice</span> <span class="pill theme">theme:contemplative-tech</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">AI-safety-retreat</span> <span class="pill specific">alignment-discussion</span> <span class="pill specific">threat-models</span> <span class="pill specific">forecasting</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">signal-boost</span> <span class="pill posture">pedagogy</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">AI-Safety:+4</span> <span class="pill bits-pos">Contemplative-Practitioners:+2</span> <span class="pill bits-pos">LLM-Whisperers:+1</span> <span class="pill bits-pos">Relational-Explorers:+1</span></div>
+  
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:70.0"></div>
+      <div class="sim-seg sim-l2" style="flex:20.0"></div>
+      <div class="sim-seg sim-l3" style="flex:10.0"></div>
+      <div class="sim-seg sim-l4" style="flex:0.0"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:70%</span>
+      <span class="sim-l">L2:20%</span>
+      <span class="sim-l">L3:10%</span>
+      <span class="sim-l">L4:0%</span>
+    </div>
+  <div class="note">This tweet is a direct announcement for an AI safety retreat, explicitly mentioning AI alignment, forecasting, and threat models. The attached image also highlights &#x27;meditation &amp; nature&#x27; as part of the retreat, signaling a blend of AI safety with contemplative practices. The engagement from an AI-Safety account further reinforces this classification.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1786961520842207318">
+<div class="status-badge proposed">AI PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1786961520842207318', this)">skip</button>
+<a href="https://x.com/adityaarpitha/status/1786961520842207318" target="_blank">
+  <div class="meta"><span class="num">#8</span><span class="likes">♥ 13</span></div>
+  <div class="text">I really believe the current trajectory we are on is leading us to some form of S risk. Even if current humans do not have to worry about predators or material deprivation to the level our ancestors h</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">domain:AI</span> <span class="pill domain">domain:philosophy</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">theme:AI-safety</span> <span class="pill theme">theme:social-commentary</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">specific:S-risk</span> <span class="pill specific">specific:disembodiment</span> <span class="pill specific">specific:ruthless-forces</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">posture:original-insight</span> <span class="pill posture">posture:critique</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">AI-Safety:+4</span> <span class="pill bits-pos">Contemplative-Practitioners:+2</span> <span class="pill bits-pos">Emergence-Self-Transformation:+1</span></div>
+  
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:70.0"></div>
+      <div class="sim-seg sim-l2" style="flex:20.0"></div>
+      <div class="sim-seg sim-l3" style="flex:10.0"></div>
+      <div class="sim-seg sim-l4" style="flex:0.0"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:70%</span>
+      <span class="sim-l">L2:20%</span>
+      <span class="sim-l">L3:10%</span>
+      <span class="sim-l">L4:0%</span>
+    </div>
+  <div class="note">The tweet directly addresses &#x27;S-risk&#x27; which is a core concept in AI Safety, making it a diagnostic signal for that community. The mention of &#x27;disembodied&#x27; and &#x27;ruthless forces&#x27; also touches on themes of modern human condition and potential existential threats, resonating with contemplative and self-transformation communities.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1799749687047798894">
+<div class="status-badge proposed">AI PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1799749687047798894', this)">skip</button>
+<a href="https://x.com/adityaarpitha/status/1799749687047798894" target="_blank">
+  <div class="meta"><span class="num">#9</span><span class="likes">♥ 12</span></div>
+  <div class="text">&quot;Paul Graham talks about an underrated quality one needs for extreme success, namely the willingness to be low status&quot; https://t.co/t5Xnm7tAkQ</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">domain:social</span> <span class="pill domain">domain:philosophy</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">theme:social-commentary</span> <span class="pill theme">theme:epistemic-practice</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">specific:paul-graham</span> <span class="pill specific">specific:low-status-willingness</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">posture:signal-boost</span> <span class="pill posture">posture:original-insight</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">Builders:+2</span> <span class="pill bits-pos">Emergence-Self-Transformation:+1</span> <span class="pill bits-pos">highbies:+1</span> <span class="pill bits-zero">AI-Safety:0</span> <span class="pill bits-zero">LLM-Whisperers:0</span></div>
+  
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:60.0"></div>
+      <div class="sim-seg sim-l2" style="flex:20.0"></div>
+      <div class="sim-seg sim-l3" style="flex:10.0"></div>
+      <div class="sim-seg sim-l4" style="flex:10.0"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:60%</span>
+      <span class="sim-l">L2:20%</span>
+      <span class="sim-l">L3:10%</span>
+      <span class="sim-l">L4:10%</span>
+    </div>
+  <div class="note">The tweet references Paul Graham, a prominent figure in the startup and tech entrepreneurship world, discussing a quality for &#x27;extreme success.&#x27; This directly aligns with the &#x27;Builders&#x27; community&#x27;s focus on entrepreneurship and success principles. The idea of &#x27;low status&#x27; also touches on self-transformation and unconventional wisdom, resonating with &#x27;Emergence-Self-Transformation&#x27; and &#x27;highbies&#x27; who appreciate novel social commentary.</div>
+</div>
+</div>
+<div class="tweet proposed" data-tid="1787783553805340773">
+<div class="status-badge proposed">AI PROPOSED</div>
+<button class="dismiss-btn" onclick="dismiss('1787783553805340773', this)">skip</button>
+<a href="https://x.com/adityaarpitha/status/1787783553805340773" target="_blank">
+  <div class="meta"><span class="num">#10</span><span class="likes">♥ 11</span></div>
+  <div class="text">I was reading Ramana Maharshi&#x27;s writings yesterday.<br><br>One of the many things that resonated with me is,<br><br>&quot;Breath is the gross form of mind.&quot;<br><br>This explains how I can see my emotional feelings and thoug</div>
+</a>
+<div class="labels">
+  <div class="label-row"><span class="label-key">domains</span><span class="pill domain">domain:philosophy</span> <span class="pill domain">domain:personal</span></div>
+  <div class="label-row"><span class="label-key">themes</span><span class="pill theme">theme:contemplative-practice</span> <span class="pill theme">theme:self-transformation</span> <span class="pill theme">theme:epistemic-practice</span></div>
+  <div class="label-row"><span class="label-key">specific</span><span class="pill specific">specific:Ramana-Maharshi</span> <span class="pill specific">specific:breath-mind-connection</span> <span class="pill specific">specific:emotional-regulation</span></div>
+  <div class="label-row"><span class="label-key">posture</span><span class="pill posture">posture:original-insight</span> <span class="pill posture">posture:personal-testimony</span></div>
+  <div class="label-row"><span class="label-key">bits</span><span class="pill bits-pos">Contemplative-Practitioners:+3</span> <span class="pill bits-pos">Emergence-Self-Transformation:+2</span> <span class="pill bits-neg">AI-Safety:-1</span></div>
+  
+  <div class="label-row"><span class="label-key">simulacrum</span></div>
+  <div class="sim-bar">
+      <div class="sim-seg sim-l1" style="flex:60.0"></div>
+      <div class="sim-seg sim-l2" style="flex:10.0"></div>
+      <div class="sim-seg sim-l3" style="flex:20.0"></div>
+      <div class="sim-seg sim-l4" style="flex:10.0"></div>
+    </div>
+    <div class="sim-labels">
+      <span class="sim-l">L1:60%</span>
+      <span class="sim-l">L2:10%</span>
+      <span class="sim-l">L3:20%</span>
+      <span class="sim-l">L4:10%</span>
+    </div>
+  <div class="note">This tweet discusses a philosophical insight from Ramana Maharshi about the connection between breath and mind, and how the author personally observes this in their emotional state. The image further illustrates this concept. It strongly signals Contemplative Practitioners and Emergence-Self-Transformation due to the focus on inner work and personal growth, while being less relevant to AI-Safety despite the author&#x27;s profile.</div>
+</div>
+</div>
+</body></html>
