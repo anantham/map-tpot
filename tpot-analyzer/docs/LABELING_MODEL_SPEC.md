@@ -418,4 +418,109 @@ At 1 account + 32 tweets, everything fits in context. At 40 accounts + 1000 twee
 
 ---
 
-*Last updated: 2026-03-21, during @repligate labeling session 3*
+## Engagement Propagation Architecture (Design — Not Yet Built)
+
+### Two-Tier Model
+
+Not all accounts have the same data richness. Mixing sparse follow-only data with rich engagement data muddies the signal. Instead, two tiers:
+
+**Tier 1: Follow Graph (everyone)**
+- Source: `account_following` / `account_followers` (392K / 1.6M edges)
+- Method: Existing Laplacian harmonic propagation (`propagate_community_labels.py`)
+- Resolution: Low — coarse community membership for ~72K nodes
+- Available for: ALL accounts in the graph
+
+**Tier 2: Rich Engagement Graph (archive contributors)**
+- Source: `likes` (17.5M), `tweets` replies (4.3M), `retweets` (774K) + tweet-level bits
+- Method: Typed-edge weighted aggregation + incremental updates
+- Resolution: High — nuanced multi-community profile
+- Available for: Accounts that opted in to community archive
+- Value prop: "Share your archive, get better community insight"
+
+### Evidence Levels
+
+Every community membership estimate should carry a confidence level:
+
+| Level | Source | Confidence | Propagation weight |
+|-------|--------|-----------|-------------------|
+| `nmf_only` | NMF matrix factorization | Low | 0.3 |
+| `follow_propagated` | Tier 1 from follow graph | Low-Medium | 0.4 |
+| `bits_partial` | <10 tweet bits, no engagement | Medium | 0.6 |
+| `bits_stable` | 20+ tweet bits, engagement data | High | 0.8 |
+| `human_validated` | Human reviewed and approved | Highest | 1.0 |
+
+When propagating: the source account's evidence level weights how much signal flows through engagement edges. @repligate at `bits_stable` (51 tweets, 213 bits) propagates more confidently than an `nmf_only` account.
+
+### Engagement Edge Weights
+
+| Edge type | Weight | Meaning |
+|-----------|--------|---------|
+| Follow | 1.0 | "I endorse this person's ongoing output" |
+| Retweet | 0.7 | "I want my audience to see this specific thought" |
+| Reply | 0.5 | Social connection (variable — could be agreement or disagreement) |
+| Like | 0.3 | "I approve of this" |
+
+### Signal Flow
+
+```
+Account A (community weights, evidence_level)
+  ├── follows B      → B gets: A.weights × 1.0 × A.evidence_weight
+  ├── retweets B     → B gets: A.weights × 0.7 × A.evidence_weight
+  ├── replies to B   → B gets: A.weights × 0.5 × A.evidence_weight
+  └── likes B's tweet → B gets: A.weights × 0.3 × A.evidence_weight
+
+B's engagement-derived profile = normalize(Σ signals from all engagers)
+B's final profile = combine(bits_profile, engagement_profile, nmf_prior)
+```
+
+### Incremental vs Batch
+
+**Batch**: Re-run full propagation periodically. Simple, but slow.
+
+**Incremental**: When account A gets new bits labels:
+1. Recompute A's community weights
+2. For each account B that A engages with, update B's engagement-derived weights
+3. Propagate one hop (A's direct contacts)
+4. Mark indirect contacts (2+ hops) as "stale" for next batch
+
+### Prior Independence
+
+**Bits are prior-independent** — they measure P(tweet|member) / P(tweet|~member) regardless of prior. With enough bits, the posterior converges regardless of starting prior (NMF, uniform, or anything else).
+
+**Engagement is NOT prior-independent** — it depends on the engager's community weights. If we update A's weights, we need to re-propagate through A's engagement edges. This is the circularity concern.
+
+**Solution**: Keep bits and engagement as separate evidence layers. They combine at the rollup level, not at the tweet-label level. Bits never need re-propagation. Engagement needs re-propagation only when source memberships change significantly.
+
+### Storage Schema (Proposed)
+
+```sql
+-- Per-account membership with evidence tracking
+CREATE TABLE account_community_membership (
+    account_id      TEXT NOT NULL,
+    community_id    TEXT NOT NULL,
+    weight          REAL NOT NULL,
+    evidence_level  TEXT NOT NULL,  -- nmf_only, follow_propagated, bits_partial, bits_stable, human_validated
+    bits_count      INTEGER DEFAULT 0,
+    tweets_labeled  INTEGER DEFAULT 0,
+    engagement_edges INTEGER DEFAULT 0,
+    updated_at      TEXT NOT NULL,
+    PRIMARY KEY (account_id, community_id)
+);
+
+-- Per-account-pair engagement strength (aggregated from raw edges)
+CREATE TABLE account_engagement (
+    source_id       TEXT NOT NULL,
+    target_id       TEXT NOT NULL,
+    follow_weight   REAL DEFAULT 0,
+    like_count      INTEGER DEFAULT 0,
+    reply_count     INTEGER DEFAULT 0,
+    rt_count        INTEGER DEFAULT 0,
+    total_weight    REAL NOT NULL,  -- combined weighted score
+    updated_at      TEXT NOT NULL,
+    PRIMARY KEY (source_id, target_id)
+);
+```
+
+---
+
+*Last updated: 2026-03-22, session 7*
