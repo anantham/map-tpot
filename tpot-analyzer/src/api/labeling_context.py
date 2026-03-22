@@ -280,6 +280,7 @@ def gather_labeling_context(
     # Resolve tweet info if we have tweet_id
     username = None
     created_at = None
+    is_retweet = False
     if tweet_id:
         row = conn.execute(
             "SELECT full_text, account_id, username, created_at FROM tweets WHERE tweet_id = ?",
@@ -290,6 +291,17 @@ def gather_labeling_context(
             account_id = account_id or row["account_id"]
             username = row["username"]
             created_at = row["created_at"]
+        else:
+            # Check if it's a retweet (not in tweets table, but in retweets table)
+            rt_row = conn.execute(
+                "SELECT account_id, username, rt_of_username, created_at FROM retweets WHERE tweet_id = ?",
+                (tweet_id,),
+            ).fetchone()
+            if rt_row:
+                account_id = account_id or rt_row["account_id"]
+                username = rt_row["username"]
+                created_at = rt_row["created_at"]
+                is_retweet = True
 
     # Resolve account_id from tweet if needed
     if tweet_id and not account_id:
@@ -330,7 +342,9 @@ def gather_labeling_context(
         ctx["reply_parent"] = get_reply_parent(conn, tweet_id)
 
         # Enrich tweet with media/quote/links via syndication API
-        from src.api.tweet_enrichment import enrich_tweet, get_thread_context, resolve_tweet_links
+        from src.api.tweet_enrichment import (
+            enrich_tweet, get_thread_context, resolve_tweet_links, get_retweet_source,
+        )
         ctx["enrichment"] = enrich_tweet(tweet_id, db_path)
 
         # Thread context (walk reply chain)
@@ -338,6 +352,14 @@ def gather_labeling_context(
 
         # Resolve t.co links (external articles, quote tweets)
         ctx["resolved_links"] = resolve_tweet_links(tweet_text or "", db_path)
+
+        # Retweet source (if this is a RT, get original text)
+        if account_id:
+            rt_source = get_retweet_source(tweet_id, account_id, db_path)
+            ctx["retweet_source"] = rt_source
+            # If this is a retweet with no text in archive, use syndication text
+            if rt_source and rt_source.get("text") and not ctx.get("tweet_text"):
+                ctx["tweet_text"] = f"RT @{rt_source['username']}: {rt_source['text']}"
 
     if account_id:
         ctx["account_top_tweets"] = get_account_top_tweets(conn, account_id)

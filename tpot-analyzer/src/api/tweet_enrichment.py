@@ -211,6 +211,60 @@ def resolve_tweet_links(tweet_text: str, db_path: Path | None = None) -> list[di
     return results
 
 
+def get_retweet_source(
+    tweet_id: str, account_id: str, db_path: Path | None = None,
+) -> dict | None:
+    """If this tweet_id is a retweet by this account, fetch the original via syndication.
+
+    Returns:
+        {"tweet_id": "...", "username": "...", "text": "...", "media": [...]} or None
+    """
+    conn = sqlite3.connect(str(db_path or DB_PATH))
+    row = conn.execute(
+        "SELECT rt_of_username FROM retweets WHERE tweet_id = ? AND account_id = ?",
+        (tweet_id, account_id),
+    ).fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    rt_of = row[0]
+
+    # Try archive first
+    conn = sqlite3.connect(str(db_path or DB_PATH))
+    archive_row = conn.execute(
+        "SELECT full_text, username FROM tweets WHERE tweet_id = ?", (tweet_id,),
+    ).fetchone()
+    conn.close()
+
+    if archive_row and archive_row[0]:
+        return {
+            "tweet_id": tweet_id,
+            "username": archive_row[1] or rt_of,
+            "text": archive_row[0],
+            "source": "archive",
+        }
+
+    # Fallback to syndication
+    data = fetch_syndication(tweet_id)
+    if not data:
+        return {"tweet_id": tweet_id, "username": rt_of, "text": None, "source": "failed"}
+
+    media = [
+        {"type": m.get("type", "unknown"), "url": m.get("media_url_https", "")}
+        for m in data.get("mediaDetails", [])
+    ]
+
+    return {
+        "tweet_id": tweet_id,
+        "username": data.get("user", {}).get("screen_name", rt_of),
+        "text": data.get("text", ""),
+        "media": media,
+        "source": "syndication",
+    }
+
+
 def enrich_tweet(tweet_id: str, db_path: Path | None = None) -> dict:
     """Enrich a tweet with media URLs, quote tweet text, and resolved links.
 
