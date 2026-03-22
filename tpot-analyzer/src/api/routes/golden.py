@@ -578,6 +578,17 @@ def _build_rich_interpret_prompt(
             lines.append(f"  URL: {link.get('resolved_url', link.get('tco_url', ''))}")
             lines.append("")
 
+    # --- Retweet source ---
+    rt_source = labeling_ctx.get("retweet_source")
+    if rt_source and rt_source.get("text"):
+        lines.append("THIS IS A RETWEET OF:")
+        lines.append(f"  @{rt_source['username']}: \"{rt_source['text'][:300]}\"")
+        if rt_source.get("media"):
+            for m in rt_source["media"][:2]:
+                lines.append(f"  [{m['type']}] {m['url']}")
+        lines.append("  NOTE: Label the ACT OF RETWEETING — what does sharing this say about the account?")
+        lines.append("")
+
     # --- Simulacrum levels ---
     lines.append("""SIMULACRUM LEVELS:
   L1 (Truth-tracking): Genuine belief, observation, factual claim. Would retract if wrong.
