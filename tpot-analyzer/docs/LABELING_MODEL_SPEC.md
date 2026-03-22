@@ -418,109 +418,148 @@ At 1 account + 32 tweets, everything fits in context. At 40 accounts + 1000 twee
 
 ---
 
-## Engagement Propagation Architecture (Design — Not Yet Built)
+## Engagement Propagation Architecture (Revised — Code Review Applied)
+
+### Design Principles
+
+1. **One canonical membership table.** Not three competing truths. Every consumer reads ONE table that carries all evidence sources as separate columns.
+2. **Don't touch Tier 1.** The existing Laplacian harmonic propagation on the follow graph stays as-is. Don't entangle it with rich engagement data.
+3. **Aggregation first, propagation later.** Build the engagement aggregation table now. Only add propagation after 10-20 stable richly-labeled accounts.
+4. **One-hop from stable seeds only.** No multi-hop propagation from low-confidence sources. No propagation from `nmf_only` accounts.
+5. **Safety valves.** Explicit `none` / `unknown` states. Don't force community structure onto thin evidence.
+6. **Bits are prior-independent.** Engagement is NOT. Keep them as separate evidence layers.
 
 ### Two-Tier Model
 
-Not all accounts have the same data richness. Mixing sparse follow-only data with rich engagement data muddies the signal. Instead, two tiers:
-
-**Tier 1: Follow Graph (everyone)**
-- Source: `account_following` / `account_followers` (392K / 1.6M edges)
+**Tier 1: Follow Graph (everyone, ~72K nodes)**
+- Source: `account_following` / `account_followers`
 - Method: Existing Laplacian harmonic propagation (`propagate_community_labels.py`)
-- Resolution: Low — coarse community membership for ~72K nodes
-- Available for: ALL accounts in the graph
+- Resolution: Low-resolution community membership
+- Status: BUILT, working, don't change
 
-**Tier 2: Rich Engagement Graph (archive contributors)**
-- Source: `likes` (17.5M), `tweets` replies (4.3M), `retweets` (774K) + tweet-level bits
-- Method: Typed-edge weighted aggregation + incremental updates
+**Tier 2: Rich Engagement (archive contributors only)**
+- Source: `likes` (17.5M → 24K unique pairs), `tweets` replies (4.3M → 15K pairs), `retweets` (774K)
+- Method: Phase 1 = aggregation only. Phase 2 = one-hop from stable seeds. Phase 3 = convergent iterative (future).
 - Resolution: High — nuanced multi-community profile
-- Available for: Accounts that opted in to community archive
 - Value prop: "Share your archive, get better community insight"
 
-### Evidence Levels
+### Phase 1: Aggregation Only (BUILD NOW)
 
-Every community membership estimate should carry a confidence level:
-
-| Level | Source | Confidence | Propagation weight |
-|-------|--------|-----------|-------------------|
-| `nmf_only` | NMF matrix factorization | Low | 0.3 |
-| `follow_propagated` | Tier 1 from follow graph | Low-Medium | 0.4 |
-| `bits_partial` | <10 tweet bits, no engagement | Medium | 0.6 |
-| `bits_stable` | 20+ tweet bits, engagement data | High | 0.8 |
-| `human_validated` | Human reviewed and approved | Highest | 1.0 |
-
-When propagating: the source account's evidence level weights how much signal flows through engagement edges. @repligate at `bits_stable` (51 tweets, 213 bits) propagates more confidently than an `nmf_only` account.
-
-### Engagement Edge Weights
-
-| Edge type | Weight | Meaning |
-|-----------|--------|---------|
-| Follow | 1.0 | "I endorse this person's ongoing output" |
-| Retweet | 0.7 | "I want my audience to see this specific thought" |
-| Reply | 0.5 | Social connection (variable — could be agreement or disagreement) |
-| Like | 0.3 | "I approve of this" |
-
-### Signal Flow
-
-```
-Account A (community weights, evidence_level)
-  ├── follows B      → B gets: A.weights × 1.0 × A.evidence_weight
-  ├── retweets B     → B gets: A.weights × 0.7 × A.evidence_weight
-  ├── replies to B   → B gets: A.weights × 0.5 × A.evidence_weight
-  └── likes B's tweet → B gets: A.weights × 0.3 × A.evidence_weight
-
-B's engagement-derived profile = normalize(Σ signals from all engagers)
-B's final profile = combine(bits_profile, engagement_profile, nmf_prior)
-```
-
-### Incremental vs Batch
-
-**Batch**: Re-run full propagation periodically. Simple, but slow.
-
-**Incremental**: When account A gets new bits labels:
-1. Recompute A's community weights
-2. For each account B that A engages with, update B's engagement-derived weights
-3. Propagate one hop (A's direct contacts)
-4. Mark indirect contacts (2+ hops) as "stale" for next batch
-
-### Prior Independence
-
-**Bits are prior-independent** — they measure P(tweet|member) / P(tweet|~member) regardless of prior. With enough bits, the posterior converges regardless of starting prior (NMF, uniform, or anything else).
-
-**Engagement is NOT prior-independent** — it depends on the engager's community weights. If we update A's weights, we need to re-propagate through A's engagement edges. This is the circularity concern.
-
-**Solution**: Keep bits and engagement as separate evidence layers. They combine at the rollup level, not at the tweet-label level. Bits never need re-propagation. Engagement needs re-propagation only when source memberships change significantly.
-
-### Storage Schema (Proposed)
+Build `account_engagement_agg` — the raw engagement graph with no propagation:
 
 ```sql
--- Per-account membership with evidence tracking
-CREATE TABLE account_community_membership (
-    account_id      TEXT NOT NULL,
-    community_id    TEXT NOT NULL,
-    weight          REAL NOT NULL,
-    evidence_level  TEXT NOT NULL,  -- nmf_only, follow_propagated, bits_partial, bits_stable, human_validated
-    bits_count      INTEGER DEFAULT 0,
-    tweets_labeled  INTEGER DEFAULT 0,
-    engagement_edges INTEGER DEFAULT 0,
-    updated_at      TEXT NOT NULL,
-    PRIMARY KEY (account_id, community_id)
-);
-
--- Per-account-pair engagement strength (aggregated from raw edges)
-CREATE TABLE account_engagement (
+CREATE TABLE account_engagement_agg (
     source_id       TEXT NOT NULL,
     target_id       TEXT NOT NULL,
-    follow_weight   REAL DEFAULT 0,
+    follow_flag     INTEGER DEFAULT 0,
     like_count      INTEGER DEFAULT 0,
     reply_count     INTEGER DEFAULT 0,
     rt_count        INTEGER DEFAULT 0,
-    total_weight    REAL NOT NULL,  -- combined weighted score
-    updated_at      TEXT NOT NULL,
+    first_seen      TEXT,           -- earliest engagement timestamp
+    last_seen       TEXT,           -- most recent engagement timestamp
+    source_opt_in   INTEGER DEFAULT 0,  -- 1 if source contributed archive
+    target_opt_in   INTEGER DEFAULT 0,  -- 1 if target contributed archive
     PRIMARY KEY (source_id, target_id)
 );
 ```
 
+**Rules:**
+- Exclude self-edges (source_id = target_id)
+- No `total_weight` — don't pre-bake edge weights into the aggregation. Let consumers apply their own weighting.
+- Track `first_seen` / `last_seen` for freshness reasoning
+- Track `opt_in` flags so propagation can distinguish rich-data from sparse-data sources
+
+**Use cases before propagation:**
+- Explanatory evidence in labeling review ("226 likes of @repligate")
+- Engagement context in AI prompt (who engaged, their communities)
+- Discovery of candidate accounts for labeling
+
+### Phase 2: One-Hop Evidence Accumulation (BUILD AFTER 10 STABLE ACCOUNTS)
+
+From stable seeds ONLY (`human_validated` or `bits_stable` with 20+ tweets AND concentrated evidence):
+
+```
+For each stable seed A:
+    For each account B where engagement_agg(A, B) exists:
+        B.engagement_evidence[community] += A.membership[community] × edge_signal(A→B)
+```
+
+**Constraints:**
+- Only propagate FROM accounts with evidence_level ∈ {`human_validated`, `bits_stable`}
+- Do NOT propagate from `nmf_only` or `follow_propagated` accounts
+- One hop only — no transitive chains
+- Must include `none` / `unknown` — if engagement evidence is thin, the account stays `unknown`, not forced into communities
+- Low-evidence suppression: if total engagement_evidence < threshold, don't materialize (equivalent to `abstain` gate in follow propagation)
+
+### Phase 3: Convergent Iterative Propagation (FUTURE — 20+ stable accounts)
+
+When enough stable accounts exist, extend to multi-hop with a proper convergent algorithm (extend the existing harmonic solve to the richer graph). NOT the "one hop + mark stale" heuristic.
+
+Requirements before Phase 3:
+- 20+ accounts at `bits_stable` or higher
+- Calibrated edge weights (not hand-tuned — derived from comparison against labeled accounts)
+- Explicit convergence criterion (not iteration count)
+- Safety valves: `none` class, `abstain` gate, temperature scaling (all from existing follow propagation)
+
+### Canonical Membership Table
+
+**THE SINGLE SOURCE OF TRUTH.** Every consumer reads this table. Replaces the current split across `community_account`, `account_community_bits`, and export overlay.
+
+```sql
+CREATE TABLE account_community_canonical (
+    account_id      TEXT NOT NULL,
+    community_id    TEXT NOT NULL,
+    -- Evidence sources (separate columns, not competing tables)
+    nmf_weight      REAL,           -- from NMF matrix factorization
+    bits_weight     REAL,           -- from tweet-level labeling (posterior)
+    engagement_weight REAL,         -- from engagement propagation (when built)
+    -- Combined
+    final_weight    REAL NOT NULL,  -- the authoritative membership weight
+    -- Metadata
+    evidence_level  TEXT NOT NULL,  -- nmf_only | follow_propagated | bits_partial | bits_stable | human_validated
+    bits_count      INTEGER DEFAULT 0,
+    tweets_labeled  INTEGER DEFAULT 0,
+    snapshot_id     TEXT,            -- which propagation run produced this
+    updated_at      TEXT NOT NULL,
+    PRIMARY KEY (account_id, community_id)
+);
+```
+
+**Combine formula (v1 — simple, upgrade later):**
+```
+If bits_weight exists:  final_weight = bits_weight  (posterior supersedes prior)
+Else if engagement_weight exists: final_weight = engagement_weight
+Else: final_weight = nmf_weight
+```
+
+**Evidence level assignment:**
+- `human_validated`: human explicitly approved the profile
+- `bits_stable`: 20+ tweets labeled, bits concentrated (top community > 25%), change < 5% over last 10 tweets
+- `bits_partial`: <20 tweets, or bits not yet concentrated
+- `follow_propagated`: from Tier 1 harmonic solve
+- `nmf_only`: only NMF evidence available
+
+**Migration path:**
+1. Build `account_community_canonical` populated from existing `community_account` (nmf_weight) + `account_community_bits` (bits_weight)
+2. Update export script to read from canonical table instead of overlay logic
+3. Update `labeling_context.py` to read from canonical table
+4. Deprecate direct reads from `community_account` and `account_community_bits`
+
+### Known Issues to Fix
+
+1. **`get_engagement_context()` collapses to single community** — uses `MAX(weight)` per engager, discarding multi-community signal. Must show full community vector for each engager.
+2. **Replies are unsigned** — a hostile reply carries negative community signal but we'd count it positive. For Phase 1, treat all replies as neutral (engagement exists, direction unknown). For Phase 2+, consider sentiment or whether the reply is a thread continuation vs external.
+3. **Edge weights are hand-tuned** — follow=1.0, RT=0.7, reply=0.5, like=0.3 are reasonable priors but not calibrated. After 10+ labeled accounts, calibrate by comparing engagement-derived profiles against bits-validated profiles.
+4. **Stability criteria** — "20+ tweets = stable" is a count threshold. True stability should consider evidence mass, concentration (entropy), recency, and change rate.
+
+### Prior Independence
+
+**Bits are prior-independent** — they measure P(tweet|member) / P(tweet|~member). With enough bits, the posterior converges regardless of starting prior.
+
+**Engagement is NOT prior-independent** — it depends on the engager's community weights. This is the circularity concern.
+
+**Solution**: Keep bits and engagement as separate evidence columns in the canonical table. Bits never need re-propagation. Engagement needs re-propagation only when source memberships change significantly AND the source is a stable seed.
+
 ---
 
-*Last updated: 2026-03-22, session 7*
+*Last updated: 2026-03-22, session 7 — revised after code review*
