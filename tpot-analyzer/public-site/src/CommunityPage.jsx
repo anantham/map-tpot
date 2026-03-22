@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import './community-page.css'
 
 function TweetCard({ tweet, username, communityColor }) {
@@ -94,9 +95,14 @@ export default function CommunityPage({
   const browseableCount = featured.length + allMembers.length
   const color = community.color
 
+  const [copied, setCopied] = useState(false)
+
   const handleShare = () => {
     const url = `${window.location.origin}/?community=${community.slug}`
-    navigator.clipboard.writeText(url)
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
   }
 
   const siblings = (communities || []).filter(c => c.id !== community.id)
@@ -118,7 +124,7 @@ export default function CommunityPage({
             <span>{featured.length} featured</span>
             <span>·</span>
             <button className="cp-share-btn" onClick={handleShare} style={{ color }}>
-              🔗 Share this community
+              {copied ? '✓ Link copied!' : '🔗 Share this community'}
             </button>
           </div>
         </div>

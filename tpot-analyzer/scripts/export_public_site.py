@@ -50,6 +50,7 @@ def extract_communities(db_path: Path) -> list[dict[str, Any]]:
                 COUNT(ca.account_id) AS member_count
             FROM community c
             LEFT JOIN community_account ca ON ca.community_id = c.id
+            WHERE c.name != 'Interesting'
             GROUP BY c.id
             ORDER BY c.name
         """).fetchall()
