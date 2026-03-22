@@ -511,6 +511,24 @@ def _build_rich_interpret_prompt(
                 lines.append(f"    note: {s['note'][:150]}")
             lines.append("")
 
+    # --- Reply parent (if this is a reply) ---
+    reply_parent = labeling_ctx.get("reply_parent")
+    if reply_parent and reply_parent.get("text"):
+        lines.append("THIS TWEET IS A REPLY TO:")
+        lines.append(f"  @{reply_parent['username']}: \"{reply_parent['text'][:250]}\"")
+        lines.append("")
+    elif reply_parent and not reply_parent.get("text"):
+        lines.append(f"THIS TWEET IS A REPLY (parent tweet {reply_parent['parent_tweet_id']} not in archive)")
+        lines.append("")
+
+    # --- Account's other top tweets (pattern context) ---
+    top_tweets = labeling_ctx.get("account_top_tweets", [])
+    if top_tweets:
+        lines.append("ACCOUNT'S TOP TWEETS (to see sustained patterns, not just this one tweet):")
+        for t in top_tweets[:8]:
+            lines.append(f"  [{t['engagement']:>5} eng] \"{t['text'][:150]}\"")
+        lines.append("")
+
     # --- Community profiles ---
     communities = labeling_ctx.get("communities", [])
     if communities:
@@ -557,8 +575,27 @@ def _build_rich_interpret_prompt(
   Assess the tweet IN ISOLATION — "if I saw only this tweet with no username..."
 """)
 
+    # --- Enrichment (media, quote tweets) ---
+    enrichment = labeling_ctx.get("enrichment", {})
+    media = enrichment.get("media", [])
+    quote = enrichment.get("quote_tweet")
+
+    if media:
+        lines.append("ATTACHED MEDIA:")
+        for m in media:
+            lines.append(f"  [{m['type']}] {m['url']}")
+        lines.append("  NOTE: Image URLs above can be viewed to understand visual context.")
+        lines.append("")
+
+    if quote:
+        lines.append("QUOTE TWEET (this tweet is reacting to):")
+        lines.append(f"  @{quote['username']}: \"{quote['text'][:300]}\"")
+        lines.append("")
+
+    # Use syndication full_text if available (may be longer than archive version)
+    display_text = enrichment.get("full_text") or tweet_text
     # --- The tweet ---
-    lines.append(f'NOW LABEL THIS TWEET:\n"{tweet_text.strip()[:500]}"\n')
+    lines.append(f'NOW LABEL THIS TWEET:\n"{display_text.strip()[:500]}"\n')
 
     # --- Output schema ---
     lines.append("""Return ONLY valid JSON with this structure:
@@ -844,6 +881,24 @@ def interpret_tweet():
             prompt = _build_interpret_prompt(tweet_text, thread_context, taxonomy)
             max_tokens = 600
 
+        # Build message content — multimodal if images available
+        content_parts = [{"type": "text", "text": prompt}]
+        if mode == "rich" and tweet_id:
+            enrichment = labeling_ctx.get("enrichment", {})
+            from src.api.tweet_enrichment import get_image_data_urls
+            image_data_urls = get_image_data_urls(enrichment, max_images=3)
+            for data_url in image_data_urls:
+                content_parts.append({
+                    "type": "image_url",
+                    "image_url": {"url": data_url},
+                })
+
+        # Use multimodal content blocks if images exist, plain text otherwise
+        if len(content_parts) > 1:
+            messages = [{"role": "user", "content": content_parts}]
+        else:
+            messages = [{"role": "user", "content": prompt}]
+
         response = httpx.post(
             _OPENROUTER_URL,
             headers={
@@ -852,11 +907,11 @@ def interpret_tweet():
             },
             json={
                 "model": model,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": messages,
                 "temperature": 0.2,
                 "max_tokens": max_tokens,
             },
-            timeout=30,
+            timeout=45,
         )
         response.raise_for_status()
         raw = response.json()
