@@ -185,7 +185,7 @@ These are not worth messaging for a 2-week Vancouver visit unless the core conta
 |---------|------|--------|---------|-------|
 | @aphercotropist | 2026-03-21 | pending | sent msg 1 | "hey! I saw you run the vancouver tpot office hours — is that still happening?" |
 | @dschorno | 2026-03-21 (6h ago, pre-existing) | pending | Already sent: "hello! I am a big fan of your tweets, I am visiting Vancouver for a few weeks and wanted to know if you had any recommendations for events, trails that I could check out" | Wait for reply before sending more |
-| @daniellefong | | | | |
+| @daniellefong | 2026-03-21 | pending | sent msg 1 | "hey! are you based in vancouver? I'm visiting from india until end of march and trying to find the tpot scene here" |
 | @shaynsali | | | | |
 | @katrinadlc | | | | |
 | @Rhizomia_ | | | | |
