@@ -64,53 +64,66 @@ def get_account_profile(conn: sqlite3.Connection, account_id: str) -> dict:
     }
 
 
+def _get_account_communities(conn: sqlite3.Connection, account_id: str) -> list[dict]:
+    """Get FULL community vector for an account (not just max). Prefers bits over NMF."""
+    # Try bits first (posterior)
+    rows = conn.execute("""
+        SELECT c.short_name, acb.pct / 100.0 as weight
+        FROM account_community_bits acb
+        JOIN community c ON c.id = acb.community_id
+        WHERE acb.account_id = ? AND acb.pct >= 5.0
+        ORDER BY acb.pct DESC
+    """, (account_id,)).fetchall()
+    if rows:
+        return [{"community": r["short_name"], "weight": round(r["weight"], 2)} for r in rows]
+
+    # Fallback to NMF (prior)
+    rows = conn.execute("""
+        SELECT c.short_name, ca.weight
+        FROM community_account ca
+        JOIN community c ON c.id = ca.community_id
+        WHERE ca.account_id = ? AND ca.weight >= 0.05
+        ORDER BY ca.weight DESC
+    """, (account_id,)).fetchall()
+    return [{"community": r["short_name"], "weight": round(r["weight"], 2)} for r in rows]
+
+
 def get_engagement_context(conn: sqlite3.Connection, tweet_id: str) -> dict:
-    """Get TPOT engagement on a tweet — who replied/liked/RT'd and their communities."""
+    """Get TPOT engagement on a tweet — who replied/liked/RT'd and their FULL community vectors."""
     result = {"replies": [], "likes": [], "retweets": []}
 
-    # Replies from classified accounts
+    # Replies
     replies = conn.execute("""
-        SELECT t.username, t.account_id, t.full_text, t.favorite_count,
-               c.short_name, ca.weight
+        SELECT t.username, t.account_id, t.full_text, t.favorite_count
         FROM tweets t
-        LEFT JOIN community_account ca ON ca.account_id = t.account_id
-        LEFT JOIN community c ON c.id = ca.community_id
-            AND ca.weight = (SELECT MAX(ca2.weight) FROM community_account ca2
-                             WHERE ca2.account_id = t.account_id)
         WHERE t.reply_to_tweet_id = ?
         ORDER BY t.favorite_count DESC
         LIMIT 10
     """, (tweet_id,)).fetchall()
 
     for r in replies:
+        communities = _get_account_communities(conn, r["account_id"])
         result["replies"].append({
             "username": r["username"],
             "text": (r["full_text"] or "")[:120],
             "likes": r["favorite_count"] or 0,
-            "community": r["short_name"],
-            "weight": round(r["weight"], 2) if r["weight"] else None,
+            "communities": communities,  # FULL vector, not single max
         })
 
-    # Likes from classified accounts (who liked this tweet)
+    # Likes from classified accounts
     likes = conn.execute("""
-        SELECT l.liker_username, l.liker_account_id,
-               c.short_name, ca.weight
+        SELECT DISTINCT l.liker_username, l.liker_account_id
         FROM likes l
-        LEFT JOIN community_account ca ON ca.account_id = l.liker_account_id
-        LEFT JOIN community c ON c.id = ca.community_id
-            AND ca.weight = (SELECT MAX(ca2.weight) FROM community_account ca2
-                             WHERE ca2.account_id = l.liker_account_id)
         WHERE l.tweet_id = ?
-        ORDER BY ca.weight DESC NULLS LAST
-        LIMIT 15
+        LIMIT 20
     """, (tweet_id,)).fetchall()
 
     for l in likes:
-        if l["short_name"]:  # Only include classified likers
+        communities = _get_account_communities(conn, l["liker_account_id"])
+        if communities:  # Only include classified likers
             result["likes"].append({
                 "username": l["liker_username"],
-                "community": l["short_name"],
-                "weight": round(l["weight"], 2) if l["weight"] else None,
+                "communities": communities,  # FULL vector
             })
 
     return result

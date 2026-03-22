@@ -489,12 +489,18 @@ def _build_rich_interpret_prompt(
         if replies:
             lines.append("  Replies:")
             for r in replies[:8]:
-                comm = f" [{r['community']}({r['weight']:.0%})]" if r.get("community") else " [unclassified]"
-                lines.append(f"    @{r['username']}{comm}: \"{r['text'][:80]}\"")
+                comms = r.get("communities", [])
+                if comms:
+                    comm_str = ", ".join(f"{c['community']}({c['weight']:.0%})" for c in comms[:3])
+                    lines.append(f"    @{r['username']} [{comm_str}]: \"{r['text'][:80]}\"")
+                else:
+                    lines.append(f"    @{r['username']} [unclassified]: \"{r['text'][:80]}\"")
         if likes:
             lines.append(f"  Classified accounts who liked ({len(likes)} total):")
             for l in likes[:8]:
-                lines.append(f"    @{l['username']} [{l['community']}({l['weight']:.0%})]")
+                comms = l.get("communities", [])
+                comm_str = ", ".join(f"{c['community']}({c['weight']:.0%})" for c in comms[:3])
+                lines.append(f"    @{l['username']} [{comm_str}]")
         lines.append("")
 
     # --- Similar labeled tweets ---
