@@ -4,7 +4,8 @@
   "links": {
     "curator_dm": "https://t.me/everythingisrelative",
     "community_archive": "https://github.com/community-archive/community-archive",
-    "repo": "https://github.com/aditya/tpot-analyzer"
+    "repo": "https://github.com/aditya/tpot-analyzer",
+    "curator_site": "https://adityaarpitha.com"
   },
   "export": {
     "min_weight": 0.05,
