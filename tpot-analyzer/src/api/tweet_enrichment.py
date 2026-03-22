@@ -29,6 +29,17 @@ CREATE TABLE IF NOT EXISTS tweet_enrichment_cache (
     media_json  TEXT,
     quote_json  TEXT,
     full_text   TEXT,
+    links_json  TEXT,
+    fetched_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS link_content_cache (
+    url_hash    TEXT PRIMARY KEY,
+    url         TEXT NOT NULL,
+    resolved_url TEXT,
+    title       TEXT,
+    description TEXT,
+    body_text   TEXT,
     fetched_at  TEXT NOT NULL
 );
 """
@@ -49,6 +60,155 @@ def fetch_syndication(tweet_id: str) -> dict | None:
     except Exception as e:
         logger.warning("Syndication fetch failed for %s: %s", tweet_id, e)
         return None
+
+
+def resolve_tco_url(tco_url: str) -> str | None:
+    """Resolve a t.co short URL to its final destination."""
+    try:
+        req = urllib.request.Request(tco_url)
+        req.add_header("User-Agent", "Mozilla/5.0")
+        resp = urllib.request.urlopen(req, timeout=5)
+        return resp.url
+    except Exception as e:
+        logger.debug("Failed to resolve %s: %s", tco_url, e)
+        return None
+
+
+def fetch_link_content(url: str, db_path: Path | None = None) -> dict:
+    """Fetch external link content — title, description, body text. Cached."""
+    import hashlib
+    import re
+
+    url_hash = hashlib.sha256(url.encode()).hexdigest()[:16]
+    conn = sqlite3.connect(str(db_path or DB_PATH))
+    _ensure_cache_table(conn)
+
+    cached = conn.execute(
+        "SELECT title, description, body_text FROM link_content_cache WHERE url_hash = ?",
+        (url_hash,),
+    ).fetchone()
+    if cached:
+        conn.close()
+        return {"title": cached[0], "description": cached[1],
+                "body_text": cached[2], "url": url, "cached": True}
+
+    try:
+        req = urllib.request.Request(url)
+        req.add_header("User-Agent", "Mozilla/5.0")
+        resp = urllib.request.urlopen(req, timeout=10)
+        html = resp.read().decode("utf-8", errors="replace")[:100000]
+
+        # Extract og:title, og:description
+        og_title = re.search(r'<meta\s+(?:property|name)="og:title"\s+content="([^"]*)"', html)
+        og_desc = re.search(r'<meta\s+(?:property|name)="og:description"\s+content="([^"]*)"', html)
+        title_tag = re.search(r"<title>([^<]*)</title>", html)
+
+        title = (og_title.group(1) if og_title else
+                 title_tag.group(1) if title_tag else None)
+        description = og_desc.group(1) if og_desc else None
+
+        # Extract body text (strip scripts/styles/tags)
+        clean = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
+        clean = re.sub(r"<style[^>]*>.*?</style>", "", clean, flags=re.DOTALL)
+        clean = re.sub(r"<[^>]+>", " ", clean)
+        clean = re.sub(r"\s+", " ", clean).strip()
+        # Truncate to ~2000 chars for context
+        body_text = clean[:2000] if clean else None
+
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT OR REPLACE INTO link_content_cache "
+            "(url_hash, url, resolved_url, title, description, body_text, fetched_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (url_hash, url, url, title, description, body_text, now),
+        )
+        conn.commit()
+        conn.close()
+        return {"title": title, "description": description,
+                "body_text": body_text, "url": url, "cached": False}
+    except Exception as e:
+        logger.warning("Failed to fetch link content %s: %s", url, e)
+        conn.close()
+        return {"title": None, "description": None,
+                "body_text": None, "url": url, "cached": False}
+
+
+def get_thread_context(
+    tweet_id: str, db_path: Path | None = None, max_depth: int = 10,
+) -> list[dict]:
+    """Walk the reply chain to get full thread context.
+
+    Returns list of tweets from root → current, oldest first.
+    """
+    conn = sqlite3.connect(str(db_path or DB_PATH))
+    conn.row_factory = sqlite3.Row
+
+    chain = []
+    current = tweet_id
+    depth = 0
+    while current and depth < max_depth:
+        row = conn.execute(
+            "SELECT tweet_id, account_id, username, full_text, reply_to_tweet_id, "
+            "favorite_count, retweet_count FROM tweets WHERE tweet_id = ?",
+            (current,),
+        ).fetchone()
+        if not row:
+            break
+        chain.append({
+            "tweet_id": row["tweet_id"],
+            "username": row["username"],
+            "text": (row["full_text"] or "")[:300],
+            "engagement": (row["favorite_count"] or 0) + (row["retweet_count"] or 0),
+            "is_target": row["tweet_id"] == tweet_id,
+        })
+        current = row["reply_to_tweet_id"]
+        depth += 1
+
+    conn.close()
+    chain.reverse()  # root first
+    return chain
+
+
+def resolve_tweet_links(tweet_text: str, db_path: Path | None = None) -> list[dict]:
+    """Resolve all t.co links in a tweet to their destinations + content.
+
+    Returns list of {tco_url, resolved_url, type, content}.
+    Type is: "media", "quote_tweet", "external"
+    """
+    import re
+
+    tco_urls = re.findall(r"https://t\.co/\S+", tweet_text or "")
+    results = []
+
+    for tco in tco_urls:
+        resolved = resolve_tco_url(tco)
+        if not resolved:
+            results.append({"tco_url": tco, "type": "unresolved"})
+            continue
+
+        if "/photo/" in resolved or "/video/" in resolved:
+            results.append({
+                "tco_url": tco, "resolved_url": resolved, "type": "media",
+            })
+        elif ("x.com" in resolved or "twitter.com" in resolved) and "/status/" in resolved:
+            # Extract tweet ID from URL
+            match = re.search(r"/status/(\d+)", resolved)
+            quote_tid = match.group(1) if match else None
+            results.append({
+                "tco_url": tco, "resolved_url": resolved, "type": "quote_tweet",
+                "quoted_tweet_id": quote_tid,
+            })
+        else:
+            # External link — fetch content
+            content = fetch_link_content(resolved, db_path)
+            results.append({
+                "tco_url": tco, "resolved_url": resolved, "type": "external",
+                "title": content.get("title"),
+                "description": content.get("description"),
+                "body_excerpt": (content.get("body_text") or "")[:500],
+            })
+
+    return results
 
 
 def enrich_tweet(tweet_id: str, db_path: Path | None = None) -> dict:
