@@ -5,6 +5,15 @@ import './card-gallery.css'
 export default function CardGallery({ onMemberClick, onBack }) {
   const [cards, setCards] = useState([])
   const [loading, setLoading] = useState(true)
+  const [fullscreenUrl, setFullscreenUrl] = useState(null)
+
+  // Close fullscreen on ESC
+  useEffect(() => {
+    if (!fullscreenUrl) return
+    const onKey = (e) => { if (e.key === 'Escape') setFullscreenUrl(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreenUrl])
 
   useEffect(() => {
     // Try server gallery first, fall back to localStorage
@@ -44,22 +53,25 @@ export default function CardGallery({ onMemberClick, onBack }) {
 
       <div className="gallery-grid">
         {cards.map(card => (
-          <a
-            key={card.handle}
-            className="gallery-card"
-            href={`/?handle=${card.handle}`}
-            onClick={(e) => {
-              e.preventDefault()
-              onMemberClick(card.handle)
-            }}
-          >
+          <div key={card.handle} className="gallery-card">
             <img
               src={card.url}
               alt={`@${card.handle}`}
               className="gallery-card-img"
               loading="lazy"
+              onClick={() => setFullscreenUrl(card.url)}
+              style={{ cursor: 'zoom-in' }}
             />
-            <div className="gallery-card-handle">@{card.handle}</div>
+            <a
+              className="gallery-card-handle"
+              href={`/?handle=${card.handle}`}
+              onClick={(e) => {
+                e.preventDefault()
+                onMemberClick(card.handle)
+              }}
+            >
+              @{card.handle}
+            </a>
             {card.communities && card.communities.length > 0 && (
               <div className="gallery-card-communities">
                 {card.communities.slice(0, 3).map(c => (
@@ -72,9 +84,26 @@ export default function CardGallery({ onMemberClick, onBack }) {
                 ))}
               </div>
             )}
-          </a>
+          </div>
         ))}
       </div>
+
+      {fullscreenUrl && (
+        <div
+          className="card-fullscreen-overlay"
+          onClick={() => setFullscreenUrl(null)}
+        >
+          <button className="card-fullscreen-close" onClick={() => setFullscreenUrl(null)}>
+            &times;
+          </button>
+          <img
+            className="card-fullscreen-image"
+            src={fullscreenUrl}
+            alt="Card fullscreen view"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }

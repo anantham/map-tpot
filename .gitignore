@@ -79,3 +79,4 @@ tpot-analyzer/data/holdout_clusters.json
 tpot-analyzer/docs/HOLDOUT_VALIDATION_PLAN.md
 tpot-analyzer/scripts/setup_holdout.py
 tpot-analyzer/scripts/run_propagation.py
+.last_export_state.json

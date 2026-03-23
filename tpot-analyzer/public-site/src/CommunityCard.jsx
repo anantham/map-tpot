@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 export default function CommunityCard({
   handle,
@@ -13,6 +13,15 @@ export default function CommunityCard({
   const isClassified = tier === 'classified'
   const cardRef = useRef(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
+  const [fullscreen, setFullscreen] = useState(false)
+
+  // Close fullscreen on ESC
+  useEffect(() => {
+    if (!fullscreen) return
+    const onKey = (e) => { if (e.key === 'Escape') setFullscreen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreen])
 
   // Resolve community names and colors, sort by weight descending
   const bars = (memberships || [])
@@ -46,42 +55,59 @@ export default function CommunityCard({
   // -- AI card view: image background with text overlay --
   if (showAiCard) {
     return (
-      <div
-        ref={cardRef}
-        className={`card-ai-container ${!isClassified ? 'card-ai-grayscale' : ''}`}
-        id="community-card"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        style={{
-          transform: `perspective(800px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-        }}
-      >
-        <img
-          className="card-ai-image"
-          src={aiImageUrl}
-          alt={`AI-generated card for @${handle}`}
-        />
-        <div className="card-ai-overlay" />
-        <div className="card-ai-text">
-          <div className="card-ai-handle">@{handle}</div>
-          {isClassified && displayName && (
-            <div className="card-ai-display-name">{displayName}</div>
-          )}
-          <div className="card-ai-communities">
-            {bars.map((bar, i) => (
-              <div className="card-ai-community-row" key={i}>
-                <span
-                  className="card-ai-community-dot"
-                  style={{ backgroundColor: isClassified ? bar.color : '#555' }}
-                />
-                <span className="card-ai-community-name">{bar.name}</span>
-                <span className="card-ai-community-pct">{bar.pct}%</span>
-              </div>
-            ))}
+      <>
+        <div
+          ref={cardRef}
+          className={`card-ai-container ${!isClassified ? 'card-ai-grayscale' : ''}`}
+          id="community-card"
+          onClick={() => setFullscreen(true)}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          style={{
+            transform: `perspective(800px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+            cursor: 'zoom-in',
+          }}
+        >
+          <img
+            className="card-ai-image"
+            src={aiImageUrl}
+            alt={`AI-generated card for @${handle}`}
+          />
+          <div className="card-ai-overlay" />
+          <div className="card-ai-text">
+            <div className="card-ai-handle">@{handle}</div>
+            {isClassified && displayName && (
+              <div className="card-ai-display-name">{displayName}</div>
+            )}
+            <div className="card-ai-communities">
+              {bars.map((bar, i) => (
+                <div className="card-ai-community-row" key={i}>
+                  <span
+                    className="card-ai-community-dot"
+                    style={{ backgroundColor: isClassified ? bar.color : '#555' }}
+                  />
+                  <span className="card-ai-community-name">{bar.name}</span>
+                  <span className="card-ai-community-pct">{bar.pct}%</span>
+                </div>
+              ))}
+            </div>
+            <div className="card-ai-footer">findmyingroup.com</div>
           </div>
-          <div className="card-ai-footer">findmyingroup.com</div>
         </div>
-      </div>
+        {fullscreen && (
+          <div className="card-fullscreen-overlay" onClick={() => setFullscreen(false)}>
+            <button className="card-fullscreen-close" onClick={() => setFullscreen(false)}>
+              &times;
+            </button>
+            <img
+              className="card-fullscreen-image"
+              src={aiImageUrl}
+              alt={`AI-generated card for @${handle}`}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
+      </>
     )
   }
 
