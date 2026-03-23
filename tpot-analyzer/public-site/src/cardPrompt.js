@@ -22,6 +22,7 @@ export function buildCardRequest({ handle, bio, memberships, sampleTweets, commu
       const community = communityMap.get(m.community_id);
       return {
         name: community?.name || m.community_name || "Unknown",
+        short_name: community?.short_name || "",
         color: community?.color || "#666",
         weight: m.weight,
         description: community?.description || "",
