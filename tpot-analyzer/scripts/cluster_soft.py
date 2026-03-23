@@ -170,7 +170,7 @@ def make_run_id(k, signal, rt_w, like_w, accounts):
       nmf-k{k}-{signal}-{date}-{hash}               (when like_w == 0)
     """
     aid_str = "".join(aid for aid, _ in sorted(accounts))
-    h = hashlib.sha1(f"{k}{signal}{rt_w}{like_w}{aid_str}".encode()).hexdigest()[:6]
+    h = hashlib.sha1(f"{k}{signal}{rt_w:.2f}{like_w:.2f}{aid_str}".encode()).hexdigest()[:6]
     date = datetime.now(timezone.utc).strftime("%Y%m%d")
     if like_w > 0:
         return f"nmf-k{k}-{signal}-lw{like_w}-{date}-{h}"
