@@ -45,6 +45,7 @@ def extract_communities(db_path: Path) -> list[dict[str, Any]]:
             SELECT
                 c.id,
                 c.name,
+                c.short_name,
                 c.color,
                 c.description,
                 COUNT(ca.account_id) AS member_count
@@ -58,6 +59,7 @@ def extract_communities(db_path: Path) -> list[dict[str, Any]]:
             {
                 "id": r["id"],
                 "name": r["name"],
+                "short_name": r["short_name"],
                 "color": r["color"],
                 "description": r["description"],
                 "member_count": r["member_count"],
