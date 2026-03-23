@@ -44,12 +44,12 @@ def get_api_key() -> str:
     raise RuntimeError("No twitterapi.io API key found in environment")
 
 
-def fetch_user_info(api_key: str, user_id: str) -> dict | None:
-    """Fetch user profile by ID to get username."""
+def fetch_user_info(api_key: str, username: str) -> dict | None:
+    """Fetch user profile by username to get bio and other data."""
     try:
         r = httpx.get(
             f"{BASE_URL}/user/info",
-            params={"userId": user_id},
+            params={"userName": username},
             headers={"X-API-Key": api_key},
             timeout=15,
         )
@@ -62,13 +62,13 @@ def fetch_user_info(api_key: str, user_id: str) -> dict | None:
         return None
 
 
-def fetch_following(api_key: str, user_id: str, max_pages: int = 5) -> list[str]:
+def fetch_following(api_key: str, username: str, max_pages: int = 5) -> list[str]:
     """Fetch who this user follows. Returns list of followed account_ids."""
     following_ids = []
     cursor = None
 
     for page in range(max_pages):
-        params = {"userId": user_id, "count": "200"}
+        params = {"userName": username, "count": "200"}
         if cursor:
             params["cursor"] = cursor
 
@@ -138,14 +138,15 @@ def main():
     api_key = get_api_key()
     conn = sqlite3.connect(str(args.db_path))
 
-    # Get ranked frontier accounts (non-holdout)
+    # Get ranked frontier accounts with usernames (non-holdout)
     targets = conn.execute("""
         SELECT fr.account_id, fr.info_value, fr.top_community, fr.degree, fr.in_holdout,
-               COALESCE(ra.username, p.username) as username
+               COALESCE(p.username, ra.username) as username
         FROM frontier_ranking fr
-        LEFT JOIN resolved_accounts ra ON fr.account_id = ra.account_id
         LEFT JOIN profiles p ON fr.account_id = p.account_id
+        LEFT JOIN resolved_accounts ra ON fr.account_id = ra.account_id
         WHERE fr.in_holdout = 0
+        AND COALESCE(p.username, ra.username) IS NOT NULL
         ORDER BY fr.info_value DESC
         LIMIT ?
     """, (args.top,)).fetchall()
@@ -172,26 +173,24 @@ def main():
             fetched += 1
             continue
 
-        # Step 1: resolve username if we don't have it
-        if not username:
-            info = fetch_user_info(api_key, aid)
-            if info:
-                username = info.get("userName")
-                # Save to resolved_accounts
+        # Step 1: fetch bio (enrichment side effect)
+        info = fetch_user_info(api_key, username)
+        if info:
+            bio = info.get("description", "")
+            if bio:
                 conn.execute(
-                    "INSERT OR IGNORE INTO resolved_accounts (account_id, username, status, resolved_at) VALUES (?, ?, 'active', ?)",
-                    (aid, username, datetime.now(timezone.utc).isoformat()),
+                    "UPDATE resolved_accounts SET bio = ? WHERE account_id = ?",
+                    (bio, aid),
                 )
                 conn.commit()
-                print(f"    Resolved: @{username}")
-                total_cost += COST_PER_CALL
-            else:
-                print(f"    Could not resolve user ID {aid}")
-                total_cost += COST_PER_CALL
-                continue
+                print(f"    Bio: {bio[:60]}...")
+            total_cost += COST_PER_CALL
+        else:
+            print(f"    Could not fetch user info for @{username}")
+            total_cost += COST_PER_CALL
 
         # Step 2: fetch following list
-        following_ids = fetch_following(api_key, aid)
+        following_ids = fetch_following(api_key, username)
         total_cost += COST_PER_CALL
 
         if following_ids:
