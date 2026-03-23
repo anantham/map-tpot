@@ -19,9 +19,12 @@ Usage:
 
 import argparse
 import hashlib
+import math
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from collections import defaultdict
+from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import numpy as np
@@ -162,38 +165,101 @@ def build_likes_matrix(con, accounts, min_count=1):
     return csr_matrix(mat), targets
 
 
-def make_run_id(k, signal, rt_w, like_w, accounts):
+def make_run_id(k, signal, rt_w, like_w, accounts, halflife_days=None):
     """Deterministic run_id encoding all run-shaping params.
 
     Format:
       nmf-k{k}-{signal}-lw{like_w}-{date}-{hash}   (when like_w > 0)
       nmf-k{k}-{signal}-{date}-{hash}               (when like_w == 0)
+
+    halflife_days is included in the hash when set, so decay runs get unique IDs.
     """
     aid_str = "".join(aid for aid, _ in sorted(accounts))
-    h = hashlib.sha1(f"{k}{signal}{rt_w:.2f}{like_w:.2f}{aid_str}".encode()).hexdigest()[:6]
+    hl_str = f"hl{halflife_days}" if halflife_days is not None else ""
+    h = hashlib.sha1(f"{k}{signal}{rt_w:.2f}{like_w:.2f}{hl_str}{aid_str}".encode()).hexdigest()[:6]
     date = datetime.now(timezone.utc).strftime("%Y%m%d")
     if like_w > 0:
         return f"nmf-k{k}-{signal}-lw{like_w}-{date}-{h}"
     return f"nmf-k{k}-{signal}-{date}-{h}"
 
 
-def build_retweet_matrix(con, accounts, min_count=2):
+def compute_decay_weight(age_days: float, halflife_days: float) -> float:
+    """Compute exponential decay weight for a given age.
+
+    weight = exp(-lambda * age_days) where lambda = ln(2) / halflife_days.
+    At age_days == halflife_days, weight == 0.5.
+    """
+    lam = math.log(2) / halflife_days
+    return math.exp(-lam * age_days)
+
+
+def _parse_twitter_date(date_str: str):
+    """Parse Twitter's created_at format: 'Tue Nov 25 03:54:12 +0000 2025'.
+
+    Returns None if parsing fails.
+    """
+    try:
+        return parsedate_to_datetime(date_str)
+    except Exception:
+        return None
+
+
+def build_retweet_matrix(con, accounts, min_count=2, halflife_days=None, now=None):
+    """Build sparse retweet matrix, optionally with time-decay weighting.
+
+    When halflife_days is None (default), uses raw counts (original behavior).
+    When set, each RT is weighted by exp(-lambda * age_days) before aggregation.
+    min_count threshold applies to the aggregated (possibly decayed) sum.
+    """
     account_idx = {aid: i for i, (aid, _) in enumerate(accounts)}
-    rows = con.execute("""
-        SELECT account_id, rt_of_username, COUNT(*) as cnt
-        FROM retweets GROUP BY account_id, rt_of_username HAVING cnt >= ?
-    """, (min_count,)).fetchall()
-    targets = sorted({r[1] for r in rows if r[1]})
+
+    if halflife_days is not None:
+        # Fetch individual rows for per-RT decay weighting
+        rows = con.execute(
+            "SELECT account_id, rt_of_username, created_at "
+            "FROM retweets WHERE created_at IS NOT NULL"
+        ).fetchall()
+
+        if now is None:
+            now = datetime.now(timezone.utc)
+
+        # Aggregate with decay weights
+        pair_weights = defaultdict(float)
+        for aid, uname, created_at in rows:
+            if not uname:
+                continue
+            dt = _parse_twitter_date(created_at)
+            if dt is None:
+                continue
+            age_days = max(0, (now - dt).total_seconds() / 86400)
+            weight = compute_decay_weight(age_days, halflife_days)
+            pair_weights[(aid, uname)] += weight
+
+        # Apply min_count to decayed sums
+        filtered = [
+            (aid, uname, w)
+            for (aid, uname), w in pair_weights.items()
+            if w >= min_count
+        ]
+    else:
+        # Original behavior: aggregate with raw counts
+        raw_rows = con.execute("""
+            SELECT account_id, rt_of_username, COUNT(*) as cnt
+            FROM retweets GROUP BY account_id, rt_of_username HAVING cnt >= ?
+        """, (min_count,)).fetchall()
+        filtered = [(r[0], r[1], r[2]) for r in raw_rows]
+
+    targets = sorted({uname for _, uname, _ in filtered if uname})
     target_idx = {t: j for j, t in enumerate(targets)}
     n, m = len(accounts), len(targets)
 
     from scipy.sparse import lil_matrix, csr_matrix
     mat = lil_matrix((n, m), dtype=np.float32)
-    for aid, uname, cnt in rows:
+    for aid, uname, w in filtered:
         i = account_idx.get(aid)
         j = target_idx.get(uname)
         if i is not None and j is not None:
-            mat[i, j] = float(cnt)
+            mat[i, j] = float(w)
     return csr_matrix(mat), targets
 
 
@@ -220,6 +286,7 @@ def main():
     parser.add_argument("--likes",         action="store_true",      help="Include likes signal")
     parser.add_argument("--likes-weight",  type=float, default=0.4,  help="Weight for likes (default 0.4)")
     parser.add_argument("--rt-weight",     type=float, default=0.6,  help="Weight for retweets (default 0.6)")
+    parser.add_argument("--decay-halflife", type=int,  default=None, help="RT decay halflife in days (e.g. 365). Off by default.")
     args = parser.parse_args()
 
     con = sqlite3.connect(str(ARCHIVE_DB))
@@ -232,8 +299,16 @@ def main():
     mat_f_tfidf = tfidf(mat_f)
     print(f"{mat_f.shape[1]:,} targets")
 
-    print("Building retweet matrix...", end=" ", flush=True)
-    mat_r, targets_r = build_retweet_matrix(con, accounts)
+    decay_label = ""
+    if args.decay_halflife:
+        print(f"Building retweet matrix (halflife={args.decay_halflife}d)...", end=" ", flush=True)
+        mat_r, targets_r = build_retweet_matrix(
+            con, accounts, halflife_days=args.decay_halflife,
+        )
+        decay_label = f"_decay{args.decay_halflife}"
+    else:
+        print("Building retweet matrix...", end=" ", flush=True)
+        mat_r, targets_r = build_retweet_matrix(con, accounts)
     mat_r_tfidf = tfidf(mat_r)
     print(f"{mat_r.shape[1]:,} targets")
 
@@ -250,8 +325,9 @@ def main():
             mat_l_tfidf = None
             print("no data (table missing or empty)")
 
-    # Determine signal label
-    signal = "follow+rt+like" if args.likes and targets_l else "follow+rt"
+    # Determine signal label (e.g. "follow+rt_decay365+like")
+    rt_label = f"rt{decay_label}"
+    signal = f"follow+{rt_label}+like" if args.likes and targets_l else f"follow+{rt_label}"
 
     # Combine: following (weight 1.0) + retweet + optional likes
     blocks = [
@@ -400,10 +476,12 @@ def _save_run(con, args, accounts, W_norm, H,
     from communities.store import init_db, save_run, save_memberships, save_definitions
 
     like_w = args.likes_weight if args.likes else 0.0
+    halflife = getattr(args, 'decay_halflife', None)
     run_id = make_run_id(
         k=args.k, signal=signal,
         rt_w=args.rt_weight, like_w=like_w,
         accounts=accounts,
+        halflife_days=halflife,
     )
 
     print(f"\nSaving run {run_id} to DB...", end=" ", flush=True)
