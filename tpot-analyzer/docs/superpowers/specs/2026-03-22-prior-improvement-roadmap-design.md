@@ -54,6 +54,99 @@ Starting prior on weights, not gospel. Tier C work.
 
 ---
 
+## Signal Framework
+
+The roadmap is not a list of data sources to wire up. It's a framework for deciding which signals to trust, how much, for whom, and in what order.
+
+### Signal Taxonomy
+
+Each signal has a **type** (what kind of evidence it provides):
+
+| Type | What it captures | Examples |
+|------|-----------------|----------|
+| **Identity** | Self-described attributes | Bio text, display name, profile links |
+| **Affinity** | Positive engagement with content/people | Likes, bookmarks, follows |
+| **Curation** | Deliberate amplification/organization | Retweets, quote tweets, X Lists |
+| **Discourse** | Conversational relationships | Replies, mentions, thread depth |
+| **Exposure** | Algorithmic/passive consumption | Feed contents, browse behavior |
+| **Topology** | Structural graph properties | Co-followed matrix, triadic closure, betweenness, degree distribution |
+| **Temporal** | Change over time | Follow timestamps, posting cadence, engagement recency |
+
+### Coverage Matrix
+
+Not all signals apply to all accounts:
+
+| Signal | Seeds (~328) | Shadow (~95K) | Privacy | Noise | Roadmap status |
+|--------|:---:|:---:|---------|-------|----------------|
+| **Follows** | Full | Partial (as targets) | Public | Low | LIVE (NMF) |
+| **Retweets** | Full | As RT targets only | Public | Low | LIVE (NMF 0.6x) |
+| **Resolved like-author edges** | ~79% | No | Public | Low | LIVE (NMF 0.4x) |
+| **Liked tweet text** | Full (17.5M) | No | Public | Medium | Tier B: CT1-CT3 |
+| **Reply graph (unsigned)** | Full | Partial | Public | High (valence unknown) | Tier B: R1-R2 (heuristic signing) |
+| **Bookmarks** | Unknown | No | Semi-private | Very low | Not parsed from archive |
+| **Bio text** | Full | ~72K in resolved_accounts? | Public | Low | Tier C: SP4 (needs verification) |
+| **Tweet URL domains** | Full | No | Public | Low | Not on roadmap |
+| **Co-followed matrix** | Computable | Computable | Public | Low | Not on roadmap |
+| **Mention graph** | Extractable | Partial | Public | Medium | Not on roadmap |
+| **Quote graph** | In tweets, not normalized | Partial | Public | Medium | Not on roadmap |
+| **Thread depth** | Extractable | Partial | Public | Low | Not on roadmap |
+| **Mutual follow** | Computable | Partial | Public | Very low | Not on roadmap |
+| **X Lists** | API fetch | API fetch | Public | Medium (noisy curation) | Deferred |
+| **Bluesky follows** | Free API | Free API | Public | Low (identity resolution hard) | Deferred |
+| **Feed contents** | Stream monitor | Stream monitor | **Private** | Low | **Research-only** |
+| **Browse behavior** | Stream monitor | Stream monitor | **Private** | Low | **Research-only** |
+| **Profile location** | ~72K | ~72K | Public | Medium | Descriptive only |
+| **Posting cadence** | All tweets | No | Public | High | Descriptive only |
+| **Display name patterns** | ~72K | ~72K | Public | High | Descriptive only |
+| **Account age** | ~72K | ~72K | Public | Low | Descriptive only |
+
+### Fusion Policy
+
+Signals are not equal. They serve different roles in the pipeline:
+
+| Role | When to use | Examples |
+|------|------------|---------|
+| **Structural prior** | Core input to NMF/propagation. Must be high-coverage, low-noise, interpretable. | Follows, retweets, resolved likes |
+| **Content validation** | Independent check on structural communities. Confirms or challenges ontology. | Liked tweet text (CT1-CT3), tweet URL domains, bio text |
+| **Weak reranker** | Adjusts confidence or breaks ties for borderline accounts. Not strong enough alone. | Mutual follow, posting cadence, profile location, display name |
+| **Human-review signal** | Provides context for manual labeling but never enters automated pipeline. | Feed contents, browse behavior, search queries |
+| **Ablation candidate** | Could become a structural prior after evaluation shows it helps. | Bookmarks, co-followed matrix, mention graph, quote graph |
+
+### Governance
+
+| Tier | Data class | Can enter public pipeline? | Can be exported? |
+|------|-----------|:---:|:---:|
+| **Public** | Follows, RTs, likes, bios, tweets, lists | Yes | Yes |
+| **Semi-private** | Bookmarks, DM-adjacent signals | With consent only | Aggregated only |
+| **Private** | Feed contents, browse behavior, search queries | Research only | Never |
+
+Feed co-occurrence and browse behavior are not the same class of data as follows. They should never enter the public-facing ontology pipeline even if they're available via community-archive-stream.
+
+### Evaluation Plan
+
+No signal enters the structural prior without ablation:
+1. Add signal to dev pipeline
+2. Measure: does holdout recall improve?
+3. Measure: does community coherence (human spot-check) improve?
+4. If yes to both → promote to structural prior
+5. If only one → keep as weak reranker or content validation
+6. If neither → drop
+
+### Signals to Promote (next)
+
+Based on the framework, these signals should move from "not on roadmap" to specific tiers:
+
+| Signal | Recommended role | Recommended tier | Justification |
+|--------|-----------------|-----------------|---------------|
+| **Co-followed matrix** | Ablation candidate → structural prior | Tier B | One matrix multiply. Captures "social consensus about who belongs together." Arguably stronger than direct follows for community detection. |
+| **Tweet URL domains** | Content validation | Tier B | Near-deterministic: lesswrong.com → AI-Safety, QRI → Qualia-Research. Cheap to extract, validates ontology. |
+| **Bookmarks** | Ablation candidate → structural prior | Tier B | Strongest deliberate signal (stronger than likes). Parse from archive JSON, no API cost. Volume unknown until parsed. |
+| **Mention/quote graph normalization** | Ablation candidate | Tier C | Extractable from tweets table. Mentions = active attention. Quotes = critical engagement. Both need normalization before use. |
+| **Mutual follow distinction** | Weak reranker | Tier C | Reciprocal edges are stronger community evidence. Cheap to compute from existing follows. |
+| **Bluesky cross-reference** | Content validation (external) | Tier D | Free API but hard identity resolution. Independent validation of X-derived communities. |
+
+---
+
 ## Priority Tiers
 
 ### Tier A — Do Now (unblocks everything)
@@ -73,11 +166,15 @@ Starting prior on weights, not gospel. Tier C work.
 | O1+O2 | Ontology review with user's domain knowledge | O5 | Human gate |
 | L1-L3,L6 | Only the lifecycle operators actually needed | O1+O2 | Build only what ontology review demands |
 | P6a | Time-weight retweets/replies with exponential decay | O5 | Retweets and replies have real engagement timestamps; follows and likes do NOT (follows have no timestamp; likes use liked-tweet created_at which is a bad proxy for like time). Apply `exp(-lambda * age_days)` during matrix construction for RT/reply signals only. |
-| R1-R2 | Author-liked-reply + mutual-follow valence | Independent | Free positive-reply heuristics, signs the unsigned replies |
+| R1-R2 | Author-liked-reply + mutual-follow valence | Independent | Free positive-reply heuristics, signs the unsigned replies. Role: discourse signal. |
 | P1 | Simulacrum-weighted bits (L3=2x, L1=1.5x, L2=1x, L4=0.5x) | E1 + stable ontology | Makes existing labels work harder once categories are trusted |
-| CT1 | Topic modeling on 17.5M liked tweet texts → 20-30 macro-interest vectors | Independent | The `likes` table has `full_text` for every liked tweet. Run NMF or LDA on this corpus to discover content-derived interest clusters — completely orthogonal to the graph-derived communities. This is NOT adjacency (no author attribution needed); it's a content fingerprint of what each seed account pays attention to. |
-| CT2 | Profile each seed account by their like-topic distribution | CT1 | Each seed gets a distribution over the 20-30 content vectors. E.g., @repligate = 40% LLM-tooling, 25% consciousness, 20% AI-safety, 15% shitposts. |
-| CT3 | Compare content-derived profiles against graph-derived NMF communities | CT2 + O5 | If content clusters agree with graph communities → high confidence in ontology. If they disagree → reveals where categories are wrong or where a community is defined by graph structure but not shared interests (or vice versa). This is the strongest ontology validation available before human review. |
+| CT1 | Topic modeling on 17.5M liked tweet texts → 20-30 macro-interest vectors | Independent | Role: content validation. Orthogonal to graph — content fingerprint of what each seed pays attention to. |
+| CT2 | Profile each seed account by their like-topic distribution | CT1 | Each seed gets a distribution over the 20-30 content vectors. |
+| CT3 | Compare content-derived profiles against graph-derived NMF communities | CT2 + O5 | Strongest ontology validation: graph+content agreement = real community. |
+| CF1 | Co-followed matrix | Independent | Role: ablation candidate → structural prior. One matrix multiply: `F^T @ F` gives accounts-followed-by-same-people similarity. Captures social consensus. |
+| UD1 | Tweet URL domain extraction + community mapping | Independent | Role: content validation. Near-deterministic: lesswrong.com → AI-Safety, QRI → Qualia-Research. Cheap validation signal. |
+| BK1 | Parse bookmarks from archive JSON | Independent | Role: ablation candidate → structural prior. Strongest deliberate signal (saved-for-later > likes). Volume unknown until parsed. |
+| FD1 | Feed co-occurrence matrix from community-archive-stream | Independent | Role: **research-only** (private tier). Algorithmic affinity signal — X already computed community for you. Query Supabase for streamed tweets + originator_id. Build accounts × tweets-seen matrix. Do NOT export to public pipeline. |
 
 **Why content vectors matter:** The graph tells you who listens to whom. The liked-text corpus tells you what they actually care about. These are independent signals. A community that shows up in both graph AND content is real. A community that only shows up in graph (people follow each other but like different things) may be a social cluster, not an intellectual community. A content cluster with no graph community may be an emerging interest that hasn't formed social structure yet.
 
@@ -97,7 +194,9 @@ NMF gives the ontology and soft labels on the seed/core set (~327 accounts). Pro
 | SP1 | Freeze canonical seed memberships after Tier B | Tier B complete | Write to `community_account` with source='human' for curated seeds |
 | SP2 | Re-run `propagate_community_labels.py` with updated ontology | SP1 | Harmonic label propagation on follow graph with updated boundary conditions |
 | SP3 | Calibrate `none` / `abstain` / export thresholds on holdout seeds | SP2 | Current abstain_mask was disabled as "too conservative" (`export_public_site.py:208`). This needs its own calibration step. |
-| SP4 | Bio prior for sparse-but-promising shadow nodes | SP2 | Optional — weak prior from profile bio text for accounts with few graph edges |
+| SP4 | Bio prior for sparse-but-promising shadow nodes | SP2 | Role: weak reranker. Keyword-match bios against community descriptions ("jhanas, vipassana" → Contemplative). No ML needed for first pass. |
+| MQ1 | Normalize mention/quote graph from tweets table | SP1 | Role: ablation candidate. Mentions = active attention, quotes = critical engagement. Extract `A mentioned B` and `A quoted B` edges. |
+| MF1 | Mutual follow distinction | SP1 | Role: weak reranker. Reciprocal follow edges are stronger community evidence than one-way. Cheap to compute. |
 | SP5 | Three-band export | SP3 | Replace current binary (colored/grayscale) with three bands: **exemplar** (curated seeds, high confidence), **confident** (high-confidence propagated shadow accounts), **frontier** (uncertain candidates for human review / labeling queue) |
 
 **Why three bands matter:** The current export compresses propagation output into a binary (classified vs propagated). The propagation model actually produces uncertainty, entropy, and abstain signals. Exposing three bands lets the public site be honest about confidence without requiring thousands more labeled accounts. Community pages can show curated exemplars, projected members, and an uncertain frontier — each with appropriate visual treatment.
