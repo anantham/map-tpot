@@ -1,125 +1,141 @@
-# Handover: 2026-03-22 (Session 7 — Enrichment Pipeline + 3 Accounts Labeled)
+# Handover: 2026-03-22 (Session 7 continued — 20 Accounts Labeled)
 
 ## Session Summary
 
-Massive infrastructure + labeling session. Built the full tweet enrichment pipeline (syndication API for images/quotes/retweets, external link content, thread context). Wired bits-derived profiles to public site export. Labeled 3 accounts (repligate 51, dschorno 10, adityaarpitha 20). Created rich AI interpret endpoint with full DB context + multimodal images. Discovered 17.5M likes + 4.3M replies are NOT being used for community membership — this is the next major priority.
+Labeling marathon: went from 3 accounts to 20 accounts (446 tweets). Built membership confidence index (5-factor CI validated as stability predictor). Integrated twitterapi.io for non-archive accounts ($1.45 of $20 spent). Built engagement aggregation (408K edges). Revised propagation architecture per code review. Created operational runbook. Identified massive untapped data (17.5M likes, 4.3M replies, bookmarks, X lists) and wrote comprehensive roadmap.
 
-## Commits This Session
-- `10d391c` feat(labeling): card integration, rich interpret pipeline, dschorno labels
-- `cd5e7b0` docs(model-spec): sustained engagement = community membership
-- `524d707` feat(enrichment): syndication API for images/quotes, multimodal interpret
-- `6e4e048` feat(enrichment): thread context, external link content, t.co resolution
-- `9641ae2` feat(enrichment): retweet source resolution via syndication
+## Commits This Session (9 ahead of origin — NOT PUSHED)
 - `b02697d` feat(labeling): @adityaarpitha 20 tweets labeled, stabilization check
+- `6945ebb` docs(handover): session 7 — enrichment pipeline
+- `706953c` docs(model-spec): engagement propagation architecture design
+- `c2ab032` refactor(propagation): revise architecture per code review
+- `894ae08` chore: engagement aggregation built (408K edges)
+- `c9f0fc9` docs: twitterapi.io endpoint map
+- `602a433` feat(confidence): membership confidence index
+- `78151e9` feat(labeling): 12 accounts, runbook, CI, engagement graph
+- `81251fc` docs: next priorities roadmap
 
-PUSHED: 1 commit ahead of origin
+PUSHED: NO — `git push` needed
 
-## Labeled Accounts
+## All 20 Labeled Accounts
 
 ```
-Account          Tweets  Bits Profile (posterior)                    NMF (prior)
-@repligate         51   39% LLM-Whisperers, 32% Qualia, 16% Safety  100% Qualia
-@dschorno          10   46% highbies, 36% Quiet-Creatives            55% QC, 44% highbies
-@adityaarpitha     20   23% Safety, 23% Contemplative, 22% Emergence 52% Safety, 18% LLM-Whisp
+Account              CI     Level                Tweets  Bits  Source
+@adityaarpitha      0.745   bits_stable            30    108   archive
+@RomeoStevens76     0.775   bits_stable            20     67   API
+@eshear             0.681   bits_stable            20     59   archive
+@dschorno           0.673   bits_stable            20     28   archive
+@QiaochuYuan        0.664   bits_stable            19     62   archive
+@repligate          0.658   bits_stable            61    213   archive
+@the_wilderless     0.645   bits_stable            20     47   archive
+@imperialauditor    0.596   bits_stable            19     35   archive
+@pee_zombie         0.517   bits_partial           19     81   archive
+@nosilverv          0.496   bits_partial           19     25   archive
+@visakanv           0.477   bits_partial           19     13   archive
+@nickcammarata      0.360   bits_partial           32    148   API
+@bhi5hmaraj         0.337   follow_propagated      21     76   API
+@vyakart            0.302   follow_propagated      20     54   API
+@Plinz              0.296   follow_propagated      16     56   API
+@uh_cess            0.285   follow_propagated      20     36   API
+@manohcore          0.277   follow_propagated      20     30   API
+@metaforicalmuth    0.241   follow_propagated      16     12   API
+@vorathep112        0.224   follow_propagated      16     11   API
+@xuenay             0.223   follow_propagated      19      8   API
 ```
-
-All 3 accounts show significant divergence from NMF priors. The bits system is working — posteriors are richer and more accurate.
 
 ## Pending Threads
 
-### Continue Immediately: Engagement-Based Community Propagation
+### Continue Immediately
 
-**THE BIG NEXT THING.** Raw engagement data exists but is unused:
-- 17.5M likes (who liked whose tweets, with liker identity)
-- 4.3M reply relationships
-- 774K retweets
-- 1.6M follower edges
+1. **Likes into NMF feature matrix** — biggest single improvement
+   - 17.5M likes not used in community detection
+   - ~40 LOC in `scripts/cluster_soft.py`
+   - See `docs/ROADMAP_NEXT.md` Priority 1a
 
-Each engagement carries SPECIFIC community signal. @adityaarpitha liked @repligate 226 times — that's Qualia-Research credibility flowing. @romeostevens76 got 102 likes — Contemplative-Practitioners signal.
+2. **About page rewrite** — 3-path selector designed but not coded
+   - Path A (TPOT-adjacent): discovery/deepening
+   - Path B (outsider): onboarding
+   - Path C (builder): pipeline walkthrough with 6 stages
+   - Full content outline exists in conversation context
+   - Visual prompts ready for AI image generation
 
-**Architecture needed:**
-```
-Account A (community weights) engages with Account B
-  → B gets community-weighted signal from A
-  → Signal = A's community weights × engagement_type_weight
-  → follow=1.0, RT=0.7, reply=0.5, like=0.3
-  → Propagation: PageRank-style iterative until convergence
-```
+3. **Push 9 commits** — `git push origin main`
 
-**Key design decisions:**
-- Bits (content-based) are prior-independent — never need re-propagation
-- Engagement (structural) depends on engager's membership — needs re-propagation when memberships update
-- Keep these separate — combine at rollup level
-- Use existing `propagate_community_labels.py` as template
+### Blocked
 
-**adityaarpitha engagement data (already computed):**
-```
-Top likes: 226x @repligate, 102x @romeostevens76, 54x @algekalipso, 45x @visakanv
-Top reply targets: 17x @repligate, 9x @algekalipso, 8x @Tymtweet
-Top repliers: 6x @hrosspet, 5x @lu_sichu, 4x @repligate
-```
+1. **Phase 2 propagation** — need calibrated edge weights
+   - Have 9 bits_stable accounts (threshold was 10)
+   - Architecture revised per code review — one-hop only, stable seeds only
+   - Blocked on: canonical membership table not yet built
 
-### Continue: Label @daniellefong + @SarahAMcManus
+2. **Community birth (AI Mystics / Contemplative-Alignment)** — 7 signals from 3 accounts
+   - User said: keep vibes-based, don't formalize until more data
+   - Blocked on: user decision on when to trigger
 
-- @daniellefong — Builders 59%, 99K tweets. Top tweets already pulled.
-- @SarahAMcManus — Contemplative 69%. Potential 3rd signal for community birth.
+### Deferred
 
-### Continue: Community Birth Decision
-
-7 new-community signals:
-- 5x "AI Mystics" (repligate)
-- 2x "Contemplative-Alignment" (adityaarpitha)
-- Likely same emerging community. Need 1 more account to trigger birth.
-- User: keep vibes-based for now, formalize after 10+ accounts.
-
-### Continue: Model Comparison
-
-Tables exist (`interpretation_run`, `interpretation_prompt`) but no runs stored through API yet. Need scoring function + multi-model comparison.
-
-### Deferred: Wire Rich Interpret to Labeling UI
-
-"Get AI Reading" button still uses legacy prompt. Needs `mode: "rich"` + frontend changes to display all dimensions.
+1. **Wire rich interpret to Labeling UI** — "Get AI Reading" button still uses legacy prompt
+2. **Model comparison leaderboard** — tables exist, no runs stored through API
+3. **Reply valence at scale** — free heuristics identified (author-liked-reply), LLM batch for rest
 
 ## Key Context
 
-### New Infrastructure (This Session)
+### Infrastructure Built (Persists in DB)
 
-| Component | File | What it does |
-|-----------|------|-------------|
-| Tweet enrichment | `src/api/tweet_enrichment.py` | Syndication API: images, quotes, retweets, link content. All cached. |
-| Labeling context | `src/api/labeling_context.py` | Gathers ALL context: profile, engagement, similar tweets, top tweets, thread, enrichment |
-| Rich interpret | `golden.py:_build_rich_interpret_prompt()` | Multimodal prompt with full DB context |
-| Run storage | `interpretation_run` table | Stores prompt + model + response for comparison |
-| Export overlay | `export_public_site.py` | Bits override NMF for classified accounts |
-| Community short_names | `community.short_name` column | Stable labeling handles (UUID is FK, name is mutable) |
+| Table | Rows | Purpose |
+|-------|------|---------|
+| `account_community_bits` | 20 accounts | Bits-derived community memberships |
+| `account_engagement_agg` | 408K edges | Pairwise engagement (likes, replies, RTs, follows) |
+| `tweet_enrichment_cache` | ~50 tweets | Syndication API results (images, quotes) |
+| `link_content_cache` | ~5 URLs | External link content |
+| `interpretation_run` | 0 | Model comparison (tables exist, no API runs stored) |
+| `api_endpoint_costs` | 10 endpoints | twitterapi.io cost reference |
+| `tweet_tags` | ~2000+ | All labeling tags (domain, thematic, bits, posture, specific) |
+| `tweet_label_set` | ~450 | Simulacrum labels + notes |
+| `tweet_label_prob` | ~1800 | L1-L4 probability distributions |
 
-### Model Spec Updates
+### Key Files Created/Modified
 
-- Sustained engagement = community membership (not just agreement)
-- Negative bits only for nearby communities
-- Engagement Signal protocol (follow > RT > like > reply)
-- Community Description Sync (mandatory cadence)
-- New profiles: Quiet Creatives, highbies, Emergence (with exemplars)
-- New themes: rationalist-fiction, field-building, wholeness-integration, absurdist-humor, contemplative-practice, creative-expression
+| File | What |
+|------|------|
+| `src/communities/confidence.py` | NEW — 5-factor CI (data_richness, labeling_depth, concentration, network_context, source_agreement) |
+| `src/api/tweet_enrichment.py` | NEW — syndication, images, quotes, retweets, links, threads |
+| `src/api/labeling_context.py` | NEW — gathers ALL context for AI labeling |
+| `scripts/build_engagement_graph.py` | NEW — aggregates 408K engagement edges |
+| `scripts/migrate_community_short_names.py` | NEW — community.short_name + bits FK migration |
+| `docs/ACCOUNT_LABELING_RUNBOOK.md` | NEW — operational guide with cost tradeoffs |
+| `docs/TWITTERAPI_ENDPOINTS.md` | NEW — API endpoint map with costs |
+| `docs/ROADMAP_NEXT.md` | NEW — 6 priorities, 20 action items |
+| `docs/LABELING_MODEL_SPEC.md` | MAJOR UPDATE — engagement signal, propagation architecture, community profiles |
+| `scripts/export_public_site.py` | MODIFIED — bits overlay, CI in export |
+| `src/api/routes/golden.py` | MODIFIED — rich interpret prompt, multimodal, run storage |
 
 ### Critical User Insights
 
-1. Engagement data is the biggest untapped signal — must build propagation
-2. Follow graph > tweet content for structural community signal
-3. Community birth is vibes-based until 10+ accounts labeled
-4. Bits are prior-independent — NMF prior gets drowned out with evidence
-5. AI (Kimi/Gemini) systematically: gives wrong negative bits, never proposes births, over-attributes L2
-6. Pick tweets by engagement not recency
-7. Review HTML must show ALL dimensions with no truncation
-8. The circularity concern: engagement propagation needs convergence guarantee (PageRank-style)
+1. **Sustained engagement = community membership** — using insider vocabulary skeptically is positive evidence (dschorno "gay meditation crap" = Contemplative +2)
+2. **Negative bits only for nearby communities** — a contemplative tweet isn't evidence AGAINST AI-Safety
+3. **CI validates as stability predictor** — high CI accounts show 0% movement with 10 more tweets; low CI accounts move 4-6%
+4. **Followings endpoint is expensive but essential** — 1 page misses 94% of classified accounts (bhi5hmaraj)
+5. **Likes are the biggest untapped signal** — 17.5M likes, 24× more than follow graph, no valence problem
+6. **Reply valence solvable cheaply** — author-liked-reply + mutual-follow heuristics before LLM
+7. **NMF diverges significantly from bits** — every labeled account shows different profile, NMF consistently wrong
+8. **twitterapi.io cost model** — followings $0.03/page (expensive), tweets $0.003/page (cheap), standard account ~$0.04-0.08
+9. **The prior/posterior framing** — NMF = prior, bits = posterior, engagement = structural evidence. Keep separate, combine at rollup.
+10. **Community birth approaching** — 7 new-community-signals (5 AI Mystics + 2 Contemplative-Alignment) across 3 accounts
+
+### API Budget
+- twitterapi.io: $1.45 spent of $20 (7.3%), ~370 accounts remaining at standard rate
+- OpenRouter: ~$5 spent on AI labeling (gemini-2.5-flash)
 
 ## Resume Instructions
 
-1. Read `docs/LABELING_MODEL_SPEC.md` + this handover
-2. **Priority 1**: Build engagement-based community propagation (aggregate typed edges → weighted community signal → iterate until convergence)
-3. **Priority 2**: Label @SarahAMcManus — check for Contemplative-Alignment birth
-4. **Priority 3**: Wire rich interpret to Labeling UI
-5. Before closing: sync community descriptions, compute rollups, re-export
+1. Read `docs/ROADMAP_NEXT.md` for prioritized action items
+2. Read `docs/ACCOUNT_LABELING_RUNBOOK.md` for operational procedures
+3. `git push origin main` (9 commits ahead)
+4. **Priority 1**: Add likes to NMF feature matrix (~40 LOC in `cluster_soft.py`)
+5. **Priority 2**: Build About page 3-path selector (content outlined in conversation)
+6. **Priority 3**: Build community lifecycle operators (birth first — 7 signals ready)
+7. Before closing any session: sync community descriptions, check new-community-signals, update ROADMAP
 
 ---
-*Handover by Claude at high context usage, 2026-03-22*
+*Handover by Claude Opus 4.6 at high context usage, 2026-03-22*
