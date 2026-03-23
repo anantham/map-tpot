@@ -1,0 +1,189 @@
+<h2>Community Detail Page — Full Design</h2>
+<p class="subtitle">Section 1: Page structure and data flow</p>
+
+<div class="mockup">
+  <div class="mockup-header">Community Page: LLM Whisperers & ML Tinkerers</div>
+  <div class="mockup-body" style="background: #0f0f1a; padding: 0;">
+
+    <!-- Back nav -->
+    <div style="padding: 12px 20px; border-bottom: 1px solid #222; font-size: 12px;">
+      <span style="color: #888; cursor: pointer;">← Back to Find My Ingroup</span>
+    </div>
+
+    <!-- Hero header -->
+    <div style="text-align: center; padding: 32px 24px 24px; border-bottom: 2px solid #8bc34a;">
+      <div style="width: 48px; height: 48px; border-radius: 50%; background: #8bc34a; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🤖</div>
+      <div style="font-size: 22px; font-weight: bold; color: #fff; font-family: system-ui;">LLM Whisperers & ML Tinkerers</div>
+      <div style="font-size: 14px; color: #aaa; margin-top: 10px; line-height: 1.6; max-width: 560px; margin-left: auto; margin-right: auto;">
+        ML engineers, data scientists, AI practitioners, and LLM developers sharing techniques, debating architectures, and building with language models.
+      </div>
+      <div style="display: flex; gap: 16px; justify-content: center; margin-top: 14px; font-size: 12px; color: #666;">
+        <span>73 members</span>
+        <span>·</span>
+        <span>5 featured</span>
+        <span>·</span>
+        <span style="color: #8bc34a; cursor: pointer;">🔗 Share this community</span>
+      </div>
+    </div>
+
+    <!-- Spotlights section -->
+    <div style="padding: 24px 20px;">
+      <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 16px;">Prototypical Members</div>
+
+      <!-- Spotlight 1 — expanded -->
+      <div style="background: #1a1a2e; border-radius: 10px; padding: 16px; margin-bottom: 12px; border: 1px solid #8bc34a40;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: #333; flex-shrink: 0;"></div>
+          <div style="flex: 1;">
+            <div style="font-size: 14px; color: #8bc34a; font-weight: 600; cursor: pointer; font-family: system-ui;">@ml_researcher</div>
+            <div style="font-size: 11px; color: #999; margin-top: 2px;">Training language models & thinking about alignment. Previously @DeepMind.</div>
+          </div>
+          <div style="font-size: 10px; color: #555; background: #252540; padding: 3px 8px; border-radius: 12px;">weight 0.93</div>
+        </div>
+
+        <!-- Tweet 1 — thread -->
+        <div style="background: #0f0f1a; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid #8bc34a;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 10px; color: #8bc34a;">🧵 thread · Jan 15</span>
+            <span style="font-size: 10px; color: #555; cursor: pointer;">↗ view on X</span>
+          </div>
+          <div style="font-size: 13px; color: #ddd; line-height: 1.5;">
+            Here's what I learned training a 7B parameter model on domain-specific data. The conventional wisdom about learning rates is wrong for this regime...
+          </div>
+          <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: #666;">
+            <span>❤ 342</span>
+            <span>🔁 89</span>
+            <span>💬 47</span>
+          </div>
+        </div>
+
+        <!-- Tweet 2 — reply -->
+        <div style="background: #0f0f1a; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid #555;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 10px; color: #aaa;">↩ reply to @alignment_forum · Feb 3</span>
+            <span style="font-size: 10px; color: #555; cursor: pointer;">↗ view on X</span>
+          </div>
+          <div style="font-size: 13px; color: #ddd; line-height: 1.5;">
+            The key insight about attention heads is that they're not just pattern matching — there's genuine compositional reasoning happening in the middle layers.
+          </div>
+          <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: #666;">
+            <span>❤ 127</span>
+            <span>🔁 31</span>
+          </div>
+        </div>
+
+        <!-- Tweet 3 -->
+        <div style="background: #0f0f1a; border-radius: 6px; padding: 10px 12px; border-left: 3px solid #555;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 10px; color: #aaa;">tweet · Mar 1</span>
+            <span style="font-size: 10px; color: #555; cursor: pointer;">↗ view on X</span>
+          </div>
+          <div style="font-size: 13px; color: #ddd; line-height: 1.5;">
+            Hot take: fine-tuning is overrated. If your prompt engineering is good enough, you're 80% there. The last 20% isn't worth the infra cost for most use cases.
+          </div>
+          <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: #666;">
+            <span>❤ 56</span>
+            <span>🔁 12</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spotlight 2 — same structure, more compact to show pattern -->
+      <div style="background: #1a1a2e; border-radius: 10px; padding: 16px; margin-bottom: 12px; border: 1px solid #252540;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: #333; flex-shrink: 0;"></div>
+          <div style="flex: 1;">
+            <div style="font-size: 14px; color: #8bc34a; font-weight: 600; cursor: pointer; font-family: system-ui;">@data_witch</div>
+            <div style="font-size: 11px; color: #999; margin-top: 2px;">Data scientist. Building tools that think. she/her.</div>
+          </div>
+          <div style="font-size: 10px; color: #555; background: #252540; padding: 3px 8px; border-radius: 12px;">weight 0.87</div>
+        </div>
+        <div style="background: #0f0f1a; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid #8bc34a;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 10px; color: #8bc34a;">🧵 thread · Dec 22</span>
+            <span style="font-size: 10px; color: #555;">↗ view on X</span>
+          </div>
+          <div style="font-size: 13px; color: #ddd; line-height: 1.5;">
+            A thread on why RAG is eating the world and nobody's talking about the retrieval quality problem...
+          </div>
+          <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: #666;">
+            <span>❤ 891</span><span>🔁 203</span><span>💬 112</span>
+          </div>
+        </div>
+        <div style="background: #0f0f1a; border-radius: 6px; padding: 10px 12px; border-left: 3px solid #555;">
+          <div style="font-size: 13px; color: #ddd; line-height: 1.5;">
+            Every time someone says "just use embeddings" I want to scream. Semantic similarity ≠ relevance...
+          </div>
+          <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: #666;">
+            <span>❤ 234</span><span>🔁 67</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Collapsed hint for 3 more spotlights -->
+      <div style="text-align: center; padding: 8px; color: #555; font-size: 12px; font-style: italic;">
+        + 3 more featured members below...
+      </div>
+    </div>
+
+    <!-- All members section -->
+    <div style="padding: 0 20px 24px;">
+      <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; padding-top: 16px; border-top: 1px solid #222;">All Members · 66</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div style="background: #1a1a2e; border-radius: 6px; padding: 10px; cursor: pointer;">
+          <div style="font-size: 12px; color: #8bc34a;">@neural_nomad</div>
+          <div style="font-size: 10px; color: #777; margin-top: 2px;">ML infra eng. Kubernetes but for models.</div>
+        </div>
+        <div style="background: #1a1a2e; border-radius: 6px; padding: 10px; cursor: pointer;">
+          <div style="font-size: 12px; color: #8bc34a;">@prompt_artist</div>
+          <div style="font-size: 10px; color: #777; margin-top: 2px;">Prompt engineering is a real discipline.</div>
+        </div>
+        <div style="background: #1a1a2e; border-radius: 6px; padding: 10px; cursor: pointer;">
+          <div style="font-size: 12px; color: #8bc34a;">@tensor_poet</div>
+          <div style="font-size: 10px; color: #777; margin-top: 2px;">Writing poetry with transformers.</div>
+        </div>
+        <div style="background: #1a1a2e; border-radius: 6px; padding: 10px; cursor: pointer;">
+          <div style="font-size: 12px; color: #8bc34a;">@gradient_guru</div>
+          <div style="font-size: 10px; color: #777; margin-top: 2px;">Optimizing everything, one batch at a time.</div>
+        </div>
+      </div>
+      <div style="text-align: center; padding: 12px; color: #555; font-size: 12px;">
+        + 62 more · each links to their individual card
+      </div>
+    </div>
+
+    <!-- Footer nav -->
+    <div style="padding: 16px 20px; border-top: 1px solid #222; text-align: center;">
+      <div style="font-size: 12px; color: #888;">
+        ← <span style="color: #8bc34a; cursor: pointer;">Builders</span> ·
+        <span style="color: #e74c3c; cursor: pointer;">EA, AI Safety</span> ·
+        <span style="color: #2ecc71; cursor: pointer;">Contemplative</span> ·
+        <span style="color: #666;">... 11 more</span>
+      </div>
+      <div style="font-size: 11px; color: #555; margin-top: 8px;">Find My Ingroup · amiingroup.vercel.app</div>
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top: 24px;">
+  <h3>Design Decisions</h3>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 13px;">
+    <div style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+      <div style="color: #8bc34a; font-weight: 600; margin-bottom: 4px;">Navigation</div>
+      <div style="color: #aaa; line-height: 1.5;">← Back link at top. Community sibling nav at bottom. Member handles link to /?handle=X. Share button copies /?community=slug.</div>
+    </div>
+    <div style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+      <div style="color: #8bc34a; font-weight: 600; margin-bottom: 4px;">Tweet Cards</div>
+      <div style="color: #aaa; line-height: 1.5;">Community-color left border for top tweet per member. Grey for rest. "↗ view on X" links to x.com/user/status/id. Shows type badge (thread/reply/tweet).</div>
+    </div>
+    <div style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+      <div style="color: #8bc34a; font-weight: 600; margin-bottom: 4px;">Data</div>
+      <div style="color: #aaa; line-height: 1.5;">Top 5 members by NMF weight, 3-5 tweets each. Remaining members: handle + bio only. All from enriched data.json export.</div>
+    </div>
+    <div style="background: rgba(255,255,255,0.03); padding: 12px; border-radius: 8px;">
+      <div style="color: #8bc34a; font-weight: 600; margin-bottom: 4px;">URL</div>
+      <div style="color: #aaa; line-height: 1.5;">/?community=llm-whisperers-ml-tinkerers — slug generated from community name at export time. Homepage showcase tags become clickable links.</div>
+    </div>
+  </div>
+</div>
