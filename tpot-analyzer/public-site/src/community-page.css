@@ -80,8 +80,6 @@
 .cp-identity-banner {
   width: 100%;
   display: block;
-  object-fit: cover;
-  max-height: 280px;
 }
 .cp-identity-footer {
   display: flex;
