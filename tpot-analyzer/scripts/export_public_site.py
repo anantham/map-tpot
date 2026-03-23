@@ -109,6 +109,9 @@ def extract_classified_accounts(
 ) -> list[dict[str, Any]]:
     """Extract accounts with community memberships, preferring bits over NMF.
 
+    **Legacy function** — retained for backward compatibility and tests.
+    New code should use extract_band_accounts() instead.
+
     For accounts with human-validated bits data (posterior), uses that.
     For all other accounts, falls back to NMF-derived community_account (prior).
 
@@ -168,6 +171,242 @@ def extract_classified_accounts(
         return result
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# 2b. extract_band_accounts  (four-band system)
+# ---------------------------------------------------------------------------
+
+def _build_username_map(
+    db_path: Path,
+    parquet_path: Path | None = None,
+) -> dict[str, str]:
+    """Build account_id -> username map from all available sources.
+
+    Priority: profiles > resolved_accounts > parquet (first non-empty wins).
+    """
+    username_map: dict[str, str] = {}
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        # 1. profiles (highest quality -- seed accounts)
+        for row in conn.execute(
+            "SELECT account_id, username FROM profiles WHERE username IS NOT NULL"
+        ).fetchall():
+            aid, uname = row[0], row[1]
+            if uname and uname.lower() not in _INVALID_USERNAMES:
+                username_map[aid] = uname
+
+        # 2. resolved_accounts
+        has_table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='resolved_accounts'"
+        ).fetchone()
+        if has_table:
+            for row in conn.execute(
+                "SELECT account_id, username FROM resolved_accounts "
+                "WHERE username IS NOT NULL AND username != ''"
+            ).fetchall():
+                aid, uname = row[0], row[1]
+                if aid not in username_map and uname.lower() not in _INVALID_USERNAMES:
+                    username_map[aid] = uname
+    finally:
+        conn.close()
+
+    # 3. parquet (shadow usernames)
+    if parquet_path is not None and parquet_path.exists():
+        import pandas as pd
+        df = pd.read_parquet(
+            str(parquet_path),
+            columns=["node_id", "username"],
+        )
+        for _, row in df.iterrows():
+            nid = str(row["node_id"])
+            uname = row["username"]
+            if uname is not None and nid not in username_map:
+                uname_str = str(uname)
+                if uname_str.lower() not in _INVALID_USERNAMES:
+                    username_map[nid] = uname_str
+
+    return username_map
+
+
+def _load_npz_memberships(
+    npz_path: Path,
+    min_weight: float = 0.05,
+) -> dict[str, list[dict]]:
+    """Load propagation NPZ and return memberships per node.
+
+    Returns:
+        memberships_by_id: {account_id: [{community_id, weight}]}
+    """
+    data = np.load(str(npz_path), allow_pickle=False)
+    memberships_arr = data["memberships"]      # (N, K+1) -- last col is "none"
+    node_ids = data["node_ids"]                # (N,)
+    community_ids = data["community_ids"]      # (K,)
+
+    n_communities = len(community_ids)
+    result: dict[str, list[dict]] = {}
+
+    for i in range(len(node_ids)):
+        node_id = str(node_ids[i])
+        community_weights = memberships_arr[i, :n_communities]
+
+        entry_memberships = []
+        for j in range(n_communities):
+            w = float(community_weights[j])
+            if w >= min_weight:
+                entry_memberships.append({
+                    "community_id": str(community_ids[j]),
+                    "weight": round(w, 4),
+                })
+
+        if entry_memberships:
+            result[node_id] = sorted(
+                entry_memberships, key=lambda m: m["weight"], reverse=True,
+            )
+
+    return result
+
+
+def extract_band_accounts(
+    db_path: Path,
+    npz_path: Path,
+    parquet_path: Path | None = None,
+    min_weight: float = 0.05,
+) -> list[dict[str, Any]]:
+    """Extract accounts using the four-band classification system.
+
+    Reads account_band table and builds the account list:
+    - exemplar: memberships from community_account (bits > NMF)
+    - specialist/bridge/frontier: memberships from propagation NPZ
+
+    Accounts without a resolvable username are skipped.
+
+    Returns list of dicts: {id, tier, handle, memberships, ...}.
+    Falls back to extract_classified_accounts if account_band table doesn't exist.
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        # Check if account_band table exists
+        has_band = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='account_band'"
+        ).fetchone()
+        if not has_band:
+            logger.warning(
+                "account_band table not found, falling back to classified-only export"
+            )
+            return extract_classified_accounts(db_path, min_weight)
+
+        # Load all band assignments (exclude 'unknown')
+        band_rows = conn.execute(
+            "SELECT account_id, band FROM account_band WHERE band != 'unknown'"
+        ).fetchall()
+        band_map: dict[str, str] = {r["account_id"]: r["band"] for r in band_rows}
+        logger.info(
+            "account_band: %d non-unknown (%s)",
+            len(band_map),
+            ", ".join(
+                f"{b}={sum(1 for v in band_map.values() if v == b)}"
+                for b in ("exemplar", "specialist", "bridge", "frontier")
+            ),
+        )
+    finally:
+        conn.close()
+
+    # Build username resolver
+    username_map = _build_username_map(db_path, parquet_path)
+    logger.info("Username resolver: %d mappings", len(username_map))
+
+    # --- Exemplar accounts: use community_account (bits > NMF) ---
+    exemplar_ids = {aid for aid, band in band_map.items() if band == "exemplar"}
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        has_bits = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='account_community_bits'"
+        ).fetchone()
+        bits_accounts: dict[str, list[dict]] = {}
+        if has_bits:
+            bits_accounts = _extract_bits_accounts(conn, min_weight)
+
+        nmf_accounts: dict[str, list[dict]] = {}
+        rows = conn.execute(
+            "SELECT account_id, community_id, weight FROM community_account "
+            "WHERE weight >= ? ORDER BY account_id, weight DESC",
+            (min_weight,),
+        ).fetchall()
+        for r in rows:
+            aid = r["account_id"]
+            if aid in bits_accounts:
+                continue
+            if aid not in nmf_accounts:
+                nmf_accounts[aid] = []
+            nmf_accounts[aid].append({
+                "community_id": r["community_id"],
+                "weight": round(r["weight"], 4),
+            })
+
+        exemplar_memberships = {**nmf_accounts, **bits_accounts}
+
+        from src.communities.confidence import compute_confidence
+        result: list[dict[str, Any]] = []
+
+        for aid in sorted(exemplar_ids):
+            uname = username_map.get(aid)
+            if not uname:
+                continue
+            memberships = exemplar_memberships.get(aid, [])
+            if not memberships:
+                continue
+            ci = compute_confidence(conn, aid)
+            result.append({
+                "id": aid,
+                "tier": "exemplar",
+                "handle": uname,
+                "memberships": memberships,
+                "confidence": ci["score"],
+                "confidence_level": ci["level"],
+            })
+    finally:
+        conn.close()
+
+    exemplar_count = len(result)
+    logger.info("Exemplar accounts with username: %d", exemplar_count)
+
+    # --- Specialist/bridge/frontier: use NPZ propagation ---
+    npz_memberships: dict[str, list[dict]] = {}
+    if npz_path.exists():
+        npz_memberships = _load_npz_memberships(npz_path, min_weight)
+        logger.info("NPZ memberships loaded: %d nodes", len(npz_memberships))
+    else:
+        logger.warning(
+            "NPZ not found at %s, specialist/bridge/frontier will be empty",
+            npz_path,
+        )
+
+    band_counts: dict[str, int] = {"specialist": 0, "bridge": 0, "frontier": 0}
+    for aid, band in sorted(band_map.items()):
+        if band == "exemplar":
+            continue
+        uname = username_map.get(aid)
+        if not uname:
+            continue
+        memberships = npz_memberships.get(aid, [])
+        if not memberships:
+            continue
+        result.append({
+            "id": aid,
+            "tier": band,
+            "handle": uname,
+            "memberships": memberships,
+        })
+        band_counts[band] += 1
+
+    for band, count in band_counts.items():
+        logger.info("%s accounts with username: %d", band.capitalize(), count)
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -453,6 +692,10 @@ def run_export(
 ) -> None:
     """Main export entrypoint: reads data, assembles JSON, writes files.
 
+    Uses the four-band classification system (exemplar/specialist/bridge/frontier)
+    from the account_band table. Falls back to the legacy classified/propagated
+    system if account_band doesn't exist.
+
     Args:
         data_dir: Directory containing graph_snapshot.nodes.parquet and
                   community_propagation.npz.
@@ -464,7 +707,6 @@ def run_export(
 
     export_cfg = config.get("export", {})
     min_weight = export_cfg.get("min_weight", 0.05)
-    abstain_threshold = export_cfg.get("abstain_threshold", 0.10)
 
     if db_path is None:
         db_path = data_dir / "archive_tweets.db"
@@ -474,14 +716,27 @@ def run_export(
     communities = extract_communities(db_path)
     logger.info("Found %d communities", len(communities))
 
-    # --- Classified accounts ---
-    logger.info("Extracting classified accounts (min_weight=%.3f)", min_weight)
-    classified = extract_classified_accounts(db_path, min_weight=min_weight)
-    classified_ids = {a["id"] for a in classified}
-    logger.info("Found %d classified accounts", len(classified))
+    # --- Band-based accounts ---
+    npz_path = data_dir / "community_propagation.npz"
+    parquet_path = data_dir / "graph_snapshot.nodes.parquet"
+
+    logger.info("Extracting band accounts (min_weight=%.3f)", min_weight)
+    all_accounts = extract_band_accounts(
+        db_path=db_path,
+        npz_path=npz_path,
+        parquet_path=parquet_path,
+        min_weight=min_weight,
+    )
+    logger.info("Found %d accounts with resolved usernames", len(all_accounts))
+
+    # Count by band
+    band_counts: dict[str, int] = {}
+    for acct in all_accounts:
+        tier = acct["tier"]
+        band_counts[tier] = band_counts.get(tier, 0) + 1
 
     # --- Enrich with parquet metadata ---
-    parquet_path = data_dir / "graph_snapshot.nodes.parquet"
+    meta_map: dict[str, Any] = {}
     if parquet_path.exists():
         logger.info("Loading parquet metadata from %s", parquet_path)
         df = pd.read_parquet(
@@ -492,27 +747,17 @@ def run_export(
             row["node_id"]: row
             for _, row in df.iterrows()
         }
-        # Build node_id to username map for propagation
-        node_id_to_username = {
-            row["node_id"]: row["username"]
-            for _, row in df.iterrows()
-            if row["username"] is not None
-        }
-    else:
-        logger.warning("Parquet not found at %s, metadata will be missing", parquet_path)
-        meta_map = {}
-        node_id_to_username = {}
 
-    # Enrich classified accounts
-    for acct in classified:
+    # Enrich accounts with metadata
+    for acct in all_accounts:
         meta = meta_map.get(acct["id"])
         if meta is not None:
-            acct["username"] = meta.get("username")
+            acct["username"] = meta.get("username") or acct.get("handle")
             acct["display_name"] = meta.get("display_name")
             acct["bio"] = meta.get("bio")
             acct["followers"] = _safe_followers(meta.get("num_followers"))
         else:
-            acct["username"] = None
+            acct["username"] = acct.get("handle")
             acct["display_name"] = None
             acct["bio"] = None
             acct["followers"] = None
@@ -525,17 +770,19 @@ def run_export(
     for c in communities:
         c["slug"] = slug_registry[c["id"]]
 
-    # --- Enrich communities with featured members ---
+    # --- Enrich communities with featured members (exemplar only) ---
+    exemplar_accounts = [a for a in all_accounts if a["tier"] == "exemplar"]
     for c in communities:
         cid = c["id"]
         members_with_weight = []
-        for acct in classified:
-            if not acct.get("username"):
+        for acct in exemplar_accounts:
+            uname = acct.get("username") or acct.get("handle")
+            if not uname:
                 continue
             for m in acct["memberships"]:
                 if m["community_id"] == cid:
                     members_with_weight.append({
-                        "username": acct["username"],
+                        "username": uname,
                         "display_name": acct.get("display_name", ""),
                         "bio": acct.get("bio", ""),
                         "weight": m["weight"],
@@ -557,38 +804,17 @@ def run_export(
         c["featured_members"] = featured
         c["all_members"] = all_members_list
 
-    # --- Propagated handles ---
-    npz_path = data_dir / "community_propagation.npz"
-    if npz_path.exists():
-        logger.info("Extracting propagated handles from %s", npz_path)
-        propagated = extract_propagated_handles(
-            npz_path=npz_path,
-            node_id_to_username=node_id_to_username,
-            classified_ids=classified_ids,
-            min_weight=min_weight,
-            abstain_threshold=abstain_threshold,
-        )
-        logger.info("Found %d propagated handles", len(propagated))
-    else:
-        logger.warning(
-            "NPZ not found at %s, exporting classified only", npz_path,
-        )
-        propagated = {}
-
     # --- Build search index ---
     search_index: dict[str, dict[str, Any]] = {}
 
-    # Add classified accounts to search
-    for acct in classified:
-        username = acct.get("username")
-        if username and username.lower() not in _INVALID_USERNAMES:
-            search_index[username.lower()] = {
-                "tier": "classified",
-                "memberships": acct["memberships"],
-            }
-
-    # Add propagated handles (already keyed by lowercase)
-    search_index.update(propagated)
+    for acct in all_accounts:
+        handle = acct.get("handle") or acct.get("username")
+        if not handle or handle.lower() in _INVALID_USERNAMES:
+            continue
+        search_index[handle.lower()] = {
+            "tier": acct["tier"],
+            "memberships": acct["memberships"],
+        }
 
     # --- Assemble output ---
     output_dir = Path(output_dir)
@@ -596,7 +822,7 @@ def run_export(
 
     data_payload = {
         "communities": communities,
-        "accounts": classified,
+        "accounts": all_accounts,
         "meta": {
             "site_name": config.get("site_name", "Find My Ingroup"),
             "curator": config.get("curator"),
@@ -604,8 +830,8 @@ def run_export(
             "exported_at": datetime.now(timezone.utc).isoformat(),
             "counts": {
                 "communities": len(communities),
-                "classified_accounts": len(classified),
-                "propagated_handles": len(propagated),
+                "total_accounts": len(all_accounts),
+                "by_band": band_counts,
                 "total_searchable": len(search_index),
             },
         },
@@ -625,8 +851,11 @@ def run_export(
     print(f"\n{'='*60}")
     print(f"Export complete -> {output_dir}")
     print(f"  Communities:         {len(communities)}")
-    print(f"  Classified accounts: {len(classified)}")
-    print(f"  Propagated handles:  {len(propagated)}")
+    print(f"  Total accounts:      {len(all_accounts)}")
+    for band in ("exemplar", "specialist", "bridge", "frontier"):
+        count = band_counts.get(band, 0)
+        if count > 0:
+            print(f"    {band:>12s}:      {count}")
     print(f"  Total searchable:    {len(search_index)}")
     print(f"  data.json:           {data_path.stat().st_size:,} bytes")
     print(f"  search.json:         {search_path.stat().st_size:,} bytes")

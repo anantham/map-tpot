@@ -3,15 +3,19 @@
 
 Scores accounts by how much we'd learn from enriching them (fetching their
 full profile, tweets, likes). The formula balances model uncertainty,
-graph degree, holdout membership, and "none" weight.
+graph degree, and "none" weight.
 
 Formula:
-    info_value = uncertainty * sqrt(degree) * holdout_bonus * (1 - none_weight)
+    info_value = uncertainty * sqrt(degree) * (1 - none_weight)
 
     - uncertainty:   model is unsure -> learning opportunity
     - sqrt(degree):  enough connections to matter (sqrt dampens hubs)
-    - holdout_bonus: 10x if in tpot_directory_holdout (known TPOT member)
     - (1 - none_weight): high "none" accounts are less interesting
+
+tpot_directory_holdout accounts are EXCLUDED from enrichment entirely.
+They are the validation set; enriching them would contaminate recall metrics.
+Cat 2 holdout accounts (directory-only, not archive) must never be enriched
+before the final recall evaluation.
 
 Usage:
     .venv/bin/python3 -m scripts.rank_frontier --top 100
@@ -35,8 +39,6 @@ logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB_PATH = ROOT / "data" / "archive_tweets.db"
 DEFAULT_NPZ_PATH = ROOT / "data" / "community_propagation.npz"
-
-HOLDOUT_BONUS = 10.0
 
 # ── Schema ───────────────────────────────────────────────────────────────────
 
@@ -137,11 +139,12 @@ def compute_rankings(
 
         degree = bd["degree"] or 0
         in_holdout = nid in holdout_ids
-        holdout_mult = HOLDOUT_BONUS if in_holdout else 1.0
+        if in_holdout:
+            continue  # never enrich holdout accounts — protects recall metric integrity
         none_w = float(none_weight[i])
         unc = float(uncertainty[i])
 
-        info_value = unc * math.sqrt(max(degree, 1)) * holdout_mult * (1.0 - none_w)
+        info_value = unc * math.sqrt(max(degree, 1)) * (1.0 - none_w)
 
         top_idx = int(comm_weights[i].argmax())
         results.append({
@@ -151,7 +154,7 @@ def compute_rankings(
             "top_community": str(community_names[top_idx]),
             "top_weight": float(comm_weights[i, top_idx]),
             "degree": degree,
-            "in_holdout": 1 if in_holdout else 0,
+            "in_holdout": 0,  # always 0 — holdout accounts are excluded above
         })
 
     results.sort(key=lambda r: r["info_value"], reverse=True)
@@ -209,12 +212,11 @@ def print_rankings(rankings: list[dict], username_cache: dict, top_n: int) -> No
         )
 
     # Summary stats
-    n_holdout = sum(1 for r in display if r["in_holdout"])
     bands = {}
     for r in display:
         bands[r["band"]] = bands.get(r["band"], 0) + 1
     print(f"\n  Total ranked: {len(rankings):,}")
-    print(f"  In holdout (top {top_n}): {n_holdout}")
+    print(f"  Note: tpot_directory_holdout accounts excluded (validation integrity)")
     print(f"  Band split (top {top_n}): {bands}")
 
 
