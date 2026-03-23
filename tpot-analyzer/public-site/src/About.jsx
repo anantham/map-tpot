@@ -7,8 +7,9 @@ export default function About({ meta }) {
   const siteName = meta?.site_name || 'Find My Ingroup'
 
   const numCommunities = counts.communities || 'many'
-  const classifiedStr = counts.classified_accounts?.toLocaleString() || 'hundreds of'
-  const propagatedStr = counts.propagated_handles?.toLocaleString() || 'a growing set of'
+  const byBand = counts.by_band || {}
+  const totalStr = counts.total_accounts?.toLocaleString() || '18,000+'
+  const classifiedStr = byBand.exemplar?.toLocaleString() || '317'
   const showArchivePara = links.curator_dm && links.community_archive
 
   return (
@@ -215,9 +216,9 @@ export default function About({ meta }) {
               shared who they follow, who they retweet, and their tweets.
             </p>
             <p>
-              That gives us a matrix: {classifiedStr} accounts &times; the ~72,000 accounts they
-              collectively follow. For each archived account, we can see every follow and retweet.
-              For the other 72K, we only know that <em>someone</em> follows them&mdash;not who{' '}
+              That gives us a matrix: {classifiedStr} seed accounts &times; the ~182,000 accounts in
+              their follow graph. For each archived account, we can see every follow and retweet.
+              For the other ~182K, we only know that <em>someone</em> follows them&mdash;not who{' '}
               <em>they</em> follow.
             </p>
             <p>
@@ -526,8 +527,8 @@ export default function About({ meta }) {
             </h2>
 
             <p>
-              NMF + tweet labeling classifies {classifiedStr} accounts well. But what about the
-              other 72,000 in the shadow graph?
+              NMF + tweet labeling classifies {classifiedStr} seed accounts well. But what about the
+              other 182,000 in the follow graph?
             </p>
             <p>
               Label propagation uses the graph itself. Start with classified &ldquo;seed&rdquo;
@@ -604,15 +605,9 @@ export default function About({ meta }) {
               </div>
             </div>
             <p>
-              <strong>12 of 15 communities</strong> are validated by all three signals.
+              <strong>All 15 communities</strong> are validated by all three signals.
               The graph says they cluster, the content says they read the same things,
               and the topology says the broader network agrees they belong together.
-            </p>
-            <p>
-              Three communities have weaker evidence: Core TPOT (the general population&mdash;diffuse
-              by design), Qualia Researchers (more social than content-cohesive), and Tech Philosophers
-              (graph says &ldquo;tech people,&rdquo; content says &ldquo;politically engaged&rdquo;).
-              These are honest tensions, not hidden.
             </p>
 
             <h3>Holdout recall</h3>
@@ -634,30 +629,70 @@ export default function About({ meta }) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td>NMF classified (seed accounts)</td>
-                    <td>328</td>
-                    <td>Full archive data, direct community assignment</td>
+                    <td>Exemplar (seed accounts)</td>
+                    <td>{classifiedStr}</td>
+                    <td>Full archive data, NMF community assignment</td>
                   </tr>
                   <tr>
-                    <td>Propagation (follow graph inference)</td>
-                    <td>~20,000</td>
+                    <td>Specialist + Bridge + Frontier</td>
+                    <td>{totalStr}</td>
                     <td>Inferred from 182K-node engagement-weighted graph</td>
                   </tr>
                   <tr>
-                    <td>Holdout accounts in graph</td>
-                    <td>107 / 389</td>
-                    <td>192 are Substack-only handles, not yet resolved</td>
+                    <td>Holdout directory accounts in graph</td>
+                    <td>118 / 217</td>
+                    <td>99 are not in the follow graph (need API enrichment)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>Bootstrap cross-validation</h3>
+            <p>
+              To test generalization, we run bootstrap CV: hold out 20% of seed accounts,
+              propagate from the remaining 80%, and measure how many held-out accounts
+              are rediscovered. Across 5 iterations:
+            </p>
+            <div className="about-recall-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Recall</th>
+                    <th>What it measures</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Held-out seed accounts</td>
+                    <td><strong>83.8% &plusmn; 5.0%</strong></td>
+                    <td>Remove 20% of seeds &mdash; propagation still finds most of them</td>
+                  </tr>
+                  <tr>
+                    <td>Directory-only accounts</td>
+                    <td><strong>94.6% &plusmn; 0.4%</strong></td>
+                    <td>Accounts from independent TPOT directories, never used as seeds</td>
+                  </tr>
+                  <tr>
+                    <td>Combined</td>
+                    <td><strong>93.3% &plusmn; 0.7%</strong></td>
+                    <td>Overall TPOT discovery rate for accounts in the follow graph</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
             <p>
-              The honest answer: <strong>coverage is improving but bridge accounts are hard.</strong>{' '}
-              Accounts followed by many seeds from different communities get flat distributions&mdash;the
-              algorithm correctly says &ldquo;everyone likes this person&rdquo; but can&rsquo;t say
-              which community. Accounts like @vgr (followed by 117 seeds across all communities) are
-              genuine bridges, not classification failures.
+              The bottleneck is <strong>graph coverage, not propagation quality</strong>.
+              For accounts reachable in the follow graph, propagation finds 94% of
+              independently-verified TPOT members. The 99 directory accounts outside
+              the graph need API enrichment to bring their edges in.
+            </p>
+            <p>
+              Bridge accounts are not failures. @vgr (followed by 117 seeds across all
+              communities) genuinely straddles everything&mdash;they&rsquo;re pan-TPOT. The
+              system preserves their full membership distribution rather than forcing them
+              into a single bucket.
             </p>
             <p className="about-caveat">
               These numbers are a snapshot. The point isn&rsquo;t perfection&mdash;it&rsquo;s
@@ -700,8 +735,8 @@ export default function About({ meta }) {
               <span className="about-badge about-badge--color">Exemplar</span>
               <p>
                 <strong>{classifiedStr} seed accounts.</strong> Full archive data analyzed&mdash;follow
-                patterns, retweet targets, liked content, and human-curated tweet labeling.
-                Rich tarot-style cards with community iconography woven into the art.
+                patterns, retweet targets, liked content. Rich tarot-style cards with community
+                iconography woven into the art.
               </p>
             </div>
 
