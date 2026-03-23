@@ -57,6 +57,32 @@ def community_db(tmp_path):
             PRIMARY KEY (account_id, community_id),
             FOREIGN KEY (community_id) REFERENCES community(id)
         );
+        CREATE TABLE account_band (
+            account_id TEXT PRIMARY KEY,
+            band TEXT CHECK (band IN ('exemplar', 'specialist', 'bridge', 'frontier', 'unknown')),
+            top_community TEXT,
+            top_weight REAL,
+            entropy REAL,
+            none_weight REAL,
+            degree INTEGER
+        );
+        CREATE TABLE profiles (
+            account_id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            display_name TEXT,
+            bio TEXT,
+            location TEXT,
+            website TEXT,
+            created_at TEXT,
+            fetched_at TEXT
+        );
+        CREATE TABLE resolved_accounts (
+            account_id TEXT PRIMARY KEY,
+            username TEXT,
+            display_name TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            resolved_at TEXT NOT NULL
+        );
         -- Tables needed by compute_confidence (empty is fine for export tests)
         CREATE TABLE IF NOT EXISTS tweets (
             tweet_id TEXT PRIMARY KEY, account_id TEXT, username TEXT,
@@ -100,6 +126,43 @@ def community_db(tmp_path):
             ("comm-b", "acct-4", 0.90),
         ],
     )
+    # Seed band assignments: exemplar accounts match community_account
+    # Propagated nodes get specialist/bridge/frontier bands
+    conn.executemany(
+        "INSERT INTO account_band (account_id, band) VALUES (?, ?)",
+        [
+            ("acct-1", "exemplar"),
+            ("acct-2", "exemplar"),
+            ("acct-3", "exemplar"),  # has low weight, will be filtered
+            ("acct-4", "exemplar"),
+            ("node-0", "specialist"),   # eve — strong comm-a signal
+            ("node-1", "bridge"),       # frank — strong comm-b signal
+            ("node-2", "frontier"),     # ghost — weak signal, below threshold
+            ("node-3", "specialist"),   # harry — good signal
+            ("node-5", "frontier"),     # no username — should be skipped
+        ],
+    )
+    # Seed profiles for username resolution (exemplar accounts)
+    conn.executemany(
+        "INSERT INTO profiles (account_id, username) VALUES (?, ?)",
+        [
+            ("acct-1", "alice"),
+            ("acct-2", "bob"),
+            ("acct-3", "charlie"),
+            ("acct-4", "dave"),
+        ],
+    )
+    # Seed resolved_accounts for propagated nodes
+    conn.executemany(
+        "INSERT INTO resolved_accounts (account_id, username, resolved_at) VALUES (?, ?, '2026-01-01')",
+        [
+            ("node-0", "eve"),
+            ("node-1", "frank"),
+            ("node-2", "ghost"),
+            ("node-3", "harry"),
+            # node-5 has no username — intentionally omitted
+        ],
+    )
     conn.commit()
     conn.close()
     return db_path
@@ -107,27 +170,41 @@ def community_db(tmp_path):
 
 @pytest.fixture
 def npz_file(tmp_path):
-    """Create a test NPZ with known propagation data."""
-    n_nodes = 6
+    """Create a test NPZ with known propagation data.
+
+    Includes exemplar nodes (acct-1..4) and propagated nodes (node-0..5).
+    The propagated nodes exercise specialist/bridge/frontier bands in
+    integration tests that seed account_band.
+    """
+    n_nodes = 10
     n_communities = 2
     # memberships has n_communities + 1 columns (last is "none")
     memberships = np.zeros((n_nodes, n_communities + 1), dtype=np.float32)
 
-    # Node 0: strong community 0 (0.8), not abstained
+    # Node 0: strong community 0 (0.8), not abstained — propagated
     memberships[0] = [0.8, 0.1, 0.1]
-    # Node 1: strong community 1 (0.7), not abstained
+    # Node 1: strong community 1 (0.7), not abstained — propagated
     memberships[1] = [0.15, 0.7, 0.15]
     # Node 2: weak max (0.06), below abstain_threshold — should be skipped
     memberships[2] = [0.06, 0.04, 0.90]
-    # Node 3: good signal, but abstain_mask=True — should be skipped
+    # Node 3: good signal, but abstain_mask=True — should be skipped (legacy)
     memberships[3] = [0.5, 0.3, 0.2]
-    # Node 4: classified account — should be skipped by extract_propagated_handles
+    # Node 4 (acct-1): exemplar — in community_account, also in NPZ
     memberships[4] = [0.9, 0.05, 0.05]
     # Node 5: no username — should be skipped
     memberships[5] = [0.6, 0.3, 0.1]
+    # Exemplar nodes also appear in NPZ (their band memberships come from community_account)
+    memberships[6] = [0.95, 0.0, 0.05]   # acct-1
+    memberships[7] = [0.8, 0.6, 0.0]     # acct-2
+    memberships[8] = [0.03, 0.0, 0.97]   # acct-3 (low weight)
+    memberships[9] = [0.0, 0.9, 0.1]     # acct-4
 
-    abstain_mask = np.array([False, False, False, True, False, False])
-    node_ids = np.array(["node-0", "node-1", "node-2", "node-3", "acct-1", "node-5"])
+    abstain_mask = np.array([False, False, False, True, False, False,
+                             False, False, False, False])
+    node_ids = np.array([
+        "node-0", "node-1", "node-2", "node-3", "acct-1", "node-5",
+        "acct-1", "acct-2", "acct-3", "acct-4",
+    ])
     community_ids = np.array(["comm-a", "comm-b"])
     community_names = np.array(["Builders", "Thinkers"])
     community_colors = np.array(["#9b59b6", "#e67e22"])
@@ -719,7 +796,7 @@ class TestRunExport:
         search = json.loads((output_dir / "search.json").read_text())
         assert isinstance(search, dict)
 
-    def test_search_includes_propagated_handles(
+    def test_search_includes_band_handles(
         self, community_db, npz_file, parquet_file, tmp_path, config,
     ):
         from scripts.export_public_site import run_export
@@ -732,12 +809,12 @@ class TestRunExport:
             db_path=community_db,
         )
         search = json.loads((output_dir / "search.json").read_text())
-        # "eve" is node-0, propagated handle
+        # "eve" is node-0, specialist band
         assert "eve" in search
-        # "alice" is classified (acct-1)
+        # "alice" is exemplar (acct-1)
         assert "alice" in search
 
-    def test_propagated_entry_shape(
+    def test_specialist_entry_shape(
         self, community_db, npz_file, parquet_file, tmp_path, config,
     ):
         from scripts.export_public_site import run_export
@@ -752,11 +829,11 @@ class TestRunExport:
         search = json.loads((output_dir / "search.json").read_text())
         eve = search.get("eve")
         assert eve is not None
-        assert eve["tier"] == "propagated"
+        assert eve["tier"] == "specialist"
         assert "memberships" in eve
         assert len(eve["memberships"]) > 0
 
-    def test_classified_search_entry_shape(
+    def test_exemplar_search_entry_shape(
         self, community_db, npz_file, parquet_file, tmp_path, config,
     ):
         from scripts.export_public_site import run_export
@@ -771,7 +848,7 @@ class TestRunExport:
         search = json.loads((output_dir / "search.json").read_text())
         alice = search.get("alice")
         assert alice is not None
-        assert alice["tier"] == "classified"
+        assert alice["tier"] == "exemplar"
         assert "memberships" in alice
 
 
