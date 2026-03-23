@@ -1,0 +1,224 @@
+<h2>Community Detail Page Layout</h2>
+<p class="subtitle">How should the community page be structured? Click the one that feels right.</p>
+
+<div class="cards">
+  <!-- Option A: Hero + Feed -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #1a1a2e;">
+      <!-- Mini mockup of layout A -->
+      <div style="font-family: system-ui; color: #e0e0e0; font-size: 11px;">
+        <!-- Hero header -->
+        <div style="text-align: center; padding: 20px 12px; border-bottom: 2px solid #9b59b6;">
+          <div style="width: 16px; height: 16px; border-radius: 50%; background: #9b59b6; margin: 0 auto 8px;"></div>
+          <div style="font-size: 14px; font-weight: bold; color: #fff;">LLM Whisperers & ML Tinkerers</div>
+          <div style="font-size: 10px; color: #aaa; margin-top: 6px; line-height: 1.4;">ML engineers, data scientists, AI practitioners building with language models...</div>
+          <div style="font-size: 9px; color: #666; margin-top: 6px;">73 members · classified</div>
+        </div>
+
+        <!-- Prototypical members row -->
+        <div style="padding: 10px 8px; border-bottom: 1px solid #333;">
+          <div style="font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Prototypical Members</div>
+          <div style="display: flex; gap: 8px;">
+            <div style="flex: 1; background: #252540; border-radius: 6px; padding: 6px;">
+              <div style="font-size: 10px; color: #fff;">@member1</div>
+              <div style="font-size: 8px; color: #999;">ML researcher at...</div>
+            </div>
+            <div style="flex: 1; background: #252540; border-radius: 6px; padding: 6px;">
+              <div style="font-size: 10px; color: #fff;">@member2</div>
+              <div style="font-size: 8px; color: #999;">Building AGI...</div>
+            </div>
+            <div style="flex: 1; background: #252540; border-radius: 6px; padding: 6px;">
+              <div style="font-size: 10px; color: #fff;">@member3</div>
+              <div style="font-size: 8px; color: #999;">AI safety...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tweet feed -->
+        <div style="padding: 10px 8px;">
+          <div style="font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Community Voice</div>
+          <div style="background: #252540; border-left: 3px solid #9b59b6; border-radius: 4px; padding: 8px; margin-bottom: 6px;">
+            <div style="font-size: 9px; color: #9b59b6;">@member1 · thread</div>
+            <div style="font-size: 10px; color: #ddd; margin-top: 4px;">Here's what I learned training a 7B model on...</div>
+            <div style="font-size: 8px; color: #666; margin-top: 4px;">❤ 342 · 🔁 89</div>
+          </div>
+          <div style="background: #252540; border-left: 3px solid #9b59b6; border-radius: 4px; padding: 8px; margin-bottom: 6px;">
+            <div style="font-size: 9px; color: #9b59b6;">@member2 · reply</div>
+            <div style="font-size: 10px; color: #ddd; margin-top: 4px;">The key insight about attention heads is...</div>
+            <div style="font-size: 8px; color: #666; margin-top: 4px;">❤ 127 · 🔁 31</div>
+          </div>
+          <div style="background: #252540; border-left: 3px solid #9b59b6; border-radius: 4px; padding: 8px;">
+            <div style="font-size: 9px; color: #9b59b6;">@member3 · tweet</div>
+            <div style="font-size: 10px; color: #ddd; margin-top: 4px;">Hot take: fine-tuning is overrated when you can...</div>
+            <div style="font-size: 8px; color: #666; margin-top: 4px;">❤ 56 · 🔁 12</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Hero + Feed</h3>
+      <p>Big community header → member cards row → scrolling tweet feed. Linear, simple, Twitter-like. Tweets are the star, members are context.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Magazine -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #1a1a2e;">
+      <div style="font-family: system-ui; color: #e0e0e0; font-size: 11px;">
+        <!-- Compact header -->
+        <div style="display: flex; align-items: center; gap: 10px; padding: 10px 8px; border-bottom: 2px solid #e74c3c;">
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #e74c3c; flex-shrink: 0;"></div>
+          <div>
+            <div style="font-size: 13px; font-weight: bold; color: #fff;">Builders</div>
+            <div style="font-size: 9px; color: #aaa;">Tech entrepreneurship, indie hacking, tools for thought</div>
+          </div>
+          <div style="margin-left: auto; font-size: 9px; color: #666;">66 members</div>
+        </div>
+
+        <!-- Two-column layout -->
+        <div style="display: flex; gap: 8px; padding: 10px 8px;">
+          <!-- Left: Members -->
+          <div style="flex: 1;">
+            <div style="font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Core Members</div>
+            <div style="background: #252540; border-radius: 6px; padding: 8px; margin-bottom: 6px;">
+              <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                <div style="width: 20px; height: 20px; border-radius: 50%; background: #444;"></div>
+                <div>
+                  <div style="font-size: 10px; color: #fff;">@builder1</div>
+                  <div style="font-size: 8px; color: #999;">Shipping daily</div>
+                </div>
+              </div>
+              <div style="background: #1a1a2e; border-radius: 4px; padding: 6px; font-size: 9px; color: #ddd;">
+                Just launched my 3rd product this year...
+              </div>
+            </div>
+            <div style="background: #252540; border-radius: 6px; padding: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                <div style="width: 20px; height: 20px; border-radius: 50%; background: #444;"></div>
+                <div>
+                  <div style="font-size: 10px; color: #fff;">@builder2</div>
+                  <div style="font-size: 8px; color: #999;">Tools for thought</div>
+                </div>
+              </div>
+              <div style="background: #1a1a2e; border-radius: 4px; padding: 6px; font-size: 9px; color: #ddd;">
+                The problem with note-taking apps is...
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: More tweets -->
+          <div style="flex: 1;">
+            <div style="font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Conversations</div>
+            <div style="border-left: 2px solid #e74c3c; padding-left: 8px; margin-bottom: 8px;">
+              <div style="font-size: 9px; color: #e74c3c;">@builder1 → @builder3</div>
+              <div style="font-size: 10px; color: #ddd; margin-top: 2px;">Have you tried using...</div>
+              <div style="font-size: 10px; color: #aaa; margin-top: 2px; padding-left: 8px; border-left: 1px solid #555;">Yeah! It changed how I...</div>
+            </div>
+            <div style="border-left: 2px solid #e74c3c; padding-left: 8px; margin-bottom: 8px;">
+              <div style="font-size: 9px; color: #e74c3c;">@builder2 · thread 🧵</div>
+              <div style="font-size: 10px; color: #ddd; margin-top: 2px;">1/ Here's why I quit my job to build...</div>
+              <div style="font-size: 8px; color: #666; margin-top: 4px;">❤ 891 · 🧵 12 tweets</div>
+            </div>
+            <div style="border-left: 2px solid #e74c3c; padding-left: 8px;">
+              <div style="font-size: 9px; color: #e74c3c;">@builder4 · RT @builder1</div>
+              <div style="font-size: 10px; color: #ddd; margin-top: 2px;">This. Shipping > planning.</div>
+              <div style="font-size: 8px; color: #666; margin-top: 4px;">❤ 234 · 🔁 67</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Magazine Layout</h3>
+      <p>Compact header → two columns: members with their signature tweet on left, community conversations (threads, reply chains, RTs) on right. Richer, shows relationships.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Member Spotlight -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 16px; background: #1a1a2e;">
+      <div style="font-family: system-ui; color: #e0e0e0; font-size: 11px;">
+        <!-- Header -->
+        <div style="text-align: center; padding: 12px 8px; border-bottom: 2px solid #2ecc71;">
+          <div style="font-size: 14px; font-weight: bold; color: #fff;">Contemplative Practitioners</div>
+          <div style="font-size: 10px; color: #aaa; margin-top: 4px;">Meditation, embodiment, phenomenology, inner work</div>
+        </div>
+
+        <!-- Scrolling member spotlights -->
+        <div style="padding: 10px 8px;">
+          <!-- Spotlight 1 -->
+          <div style="background: #252540; border-radius: 8px; padding: 10px; margin-bottom: 8px; border: 1px solid #2ecc71;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <div style="width: 28px; height: 28px; border-radius: 50%; background: #444;"></div>
+              <div>
+                <div style="font-size: 11px; color: #fff; font-weight: bold;">@contemplative1</div>
+                <div style="font-size: 8px; color: #2ecc71;">Prototypical member · weight 0.91</div>
+              </div>
+            </div>
+            <div style="font-size: 9px; color: #bbb; margin-bottom: 6px; font-style: italic;">Meditator, somatic educator, exploring consciousness through direct experience</div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="background: #1a1a2e; border-radius: 4px; padding: 6px; font-size: 9px; color: #ddd;">
+                🧵 The thing nobody tells you about 10-day silent retreats is that the real practice starts on day 3 when...
+                <div style="color: #666; margin-top: 2px;">❤ 423</div>
+              </div>
+              <div style="background: #1a1a2e; border-radius: 4px; padding: 6px; font-size: 9px; color: #ddd;">
+                Replying to @philosopher2: This maps perfectly onto Merleau-Ponty's notion of...
+                <div style="color: #666; margin-top: 2px;">❤ 89</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Spotlight 2 -->
+          <div style="background: #252540; border-radius: 8px; padding: 10px; border: 1px solid #333;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <div style="width: 28px; height: 28px; border-radius: 50%; background: #444;"></div>
+              <div>
+                <div style="font-size: 11px; color: #fff; font-weight: bold;">@contemplative2</div>
+                <div style="font-size: 8px; color: #2ecc71;">weight 0.87</div>
+              </div>
+            </div>
+            <div style="font-size: 9px; color: #bbb; margin-bottom: 6px; font-style: italic;">Yoga teacher turned phenomenologist. Body knows things.</div>
+            <div style="background: #1a1a2e; border-radius: 4px; padding: 6px; font-size: 9px; color: #ddd;">
+              The gap between intellectual understanding and embodied knowing is where all the interesting work happens...
+              <div style="color: #666; margin-top: 2px;">❤ 201 · 🔁 45</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Member Spotlights</h3>
+      <p>Each prototypical member gets a "spotlight card" with their bio + 2-3 best tweets inline. Scroll through members like profiles. Members ARE the content — their tweets demonstrate the community.</p>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 24px; padding: 16px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+  <h3 style="margin-top: 0;">Key differences</h3>
+  <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <td style="padding: 8px; color: #888;">Star of the show</td>
+      <td style="padding: 8px;"><strong>A:</strong> Tweets</td>
+      <td style="padding: 8px;"><strong>B:</strong> Relationships</td>
+      <td style="padding: 8px;"><strong>C:</strong> People</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <td style="padding: 8px; color: #888;">Complexity</td>
+      <td style="padding: 8px;">Simple</td>
+      <td style="padding: 8px;">Medium</td>
+      <td style="padding: 8px;">Simple</td>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <td style="padding: 8px; color: #888;">Mobile-friendly</td>
+      <td style="padding: 8px;">✓✓✓</td>
+      <td style="padding: 8px;">✓ (collapses)</td>
+      <td style="padding: 8px;">✓✓✓</td>
+    </tr>
+    <tr>
+      <td style="padding: 8px; color: #888;">Shows community vibe</td>
+      <td style="padding: 8px;">Through content</td>
+      <td style="padding: 8px;">Through interaction</td>
+      <td style="padding: 8px;">Through people</td>
+    </tr>
+  </table>
+</div>

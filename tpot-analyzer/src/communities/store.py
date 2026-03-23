@@ -99,6 +99,15 @@ CREATE TABLE IF NOT EXISTS account_note (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS community_alias (
+    community_id TEXT NOT NULL,
+    alias        TEXT NOT NULL,
+    context      TEXT,
+    created_at   TEXT NOT NULL,
+    PRIMARY KEY (community_id, alias),
+    FOREIGN KEY (community_id) REFERENCES community(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS community_branch (
     id           TEXT PRIMARY KEY,
     name         TEXT NOT NULL UNIQUE,
