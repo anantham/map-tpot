@@ -117,10 +117,10 @@ Signals are not equal. They serve different roles in the pipeline:
 | Tier | Data class | Can enter public pipeline? | Can be exported? |
 |------|-----------|:---:|:---:|
 | **Public** | Follows, RTs, likes, bios, tweets, lists | Yes | Yes |
+| **Opt-in consented** | Feed contents, browse behavior (via community-archive Chrome extension) | Yes — users explicitly install extension to share this data for research | Aggregated signals only (co-feed clustering, community assignment). Don't expose individual feed contents. |
 | **Semi-private** | Bookmarks, DM-adjacent signals | With consent only | Aggregated only |
-| **Private** | Feed contents, browse behavior, search queries | Research only | Never |
 
-Feed co-occurrence and browse behavior are not the same class of data as follows. They should never enter the public-facing ontology pipeline even if they're available via community-archive-stream.
+**Note on feed data:** Users who install the community-archive Chrome extension are explicitly opting in to share their feed/browse data for community research. This is consensual, not scraped. The signal (what X's algorithm shows you) is arguably the richest community signal available — X already computed the affinity graph. The analysis is about the VIEWER's community membership, not the tweet authors'.
 
 ### Evaluation Plan
 
@@ -174,7 +174,7 @@ Based on the framework, these signals should move from "not on roadmap" to speci
 | CF1 | Co-followed matrix | Independent | Role: ablation candidate → structural prior. One matrix multiply: `F^T @ F` gives accounts-followed-by-same-people similarity. Captures social consensus. |
 | UD1 | Tweet URL domain extraction + community mapping | Independent | Role: content validation. Near-deterministic: lesswrong.com → AI-Safety, QRI → Qualia-Research. Cheap validation signal. |
 | BK1 | Parse bookmarks from archive JSON | Independent | Role: ablation candidate → structural prior. Strongest deliberate signal (saved-for-later > likes). Volume unknown until parsed. |
-| FD1 | Feed co-occurrence matrix from community-archive-stream | Independent | Role: **research-only** (private tier). Algorithmic affinity signal — X already computed community for you. Query Supabase for streamed tweets + originator_id. Build accounts × tweets-seen matrix. Do NOT export to public pipeline. |
+| FD1 | Feed co-occurrence matrix from community-archive-stream | Independent | Role: ablation candidate → structural prior (opt-in consented tier). Users explicitly install Chrome extension to share feed data. X's algorithm already computed community affinity — this is the richest signal available. Query Supabase for streamed tweets + originator_id. Build accounts × tweets-seen matrix. Export aggregated community signals only, not individual feed contents. |
 
 **Why content vectors matter:** The graph tells you who listens to whom. The liked-text corpus tells you what they actually care about. These are independent signals. A community that shows up in both graph AND content is real. A community that only shows up in graph (people follow each other but like different things) may be a social cluster, not an intellectual community. A content cluster with no graph community may be an emerging interest that hasn't formed social structure yet.
 
