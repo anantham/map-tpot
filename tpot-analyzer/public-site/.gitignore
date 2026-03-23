@@ -1,3 +1,5 @@
 .vercel
 .env*.local
-public/
+public/data.json
+public/search.json
+!public/images/
