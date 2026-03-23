@@ -273,6 +273,7 @@ def load_community_labels(
     config: PropagationConfig,
     holdout_fraction: float = 0.0,
     holdout_seed: int = 42,
+    seed_eligibility: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, list[str], list[str], list[str], dict | None]:
     """Load community assignments from DB and build boundary condition matrix.
 
@@ -408,6 +409,31 @@ def load_community_labels(
         # For accounts weakly in multiple communities, none captures the residual.
         boundary[i, K] = max(0.0, 1.0 - balanced.sum())
 
+    # Seed eligibility: weight boundary conditions by concentration
+    # Seeds with high entropy (flat across communities) propagate weakly
+    # Seeds with concentrated membership propagate strongly
+    if seed_eligibility:
+        try:
+            conn2 = sqlite3.connect(str(DB_PATH))
+            eligibility = dict(conn2.execute(
+                "SELECT account_id, concentration FROM seed_eligibility"
+            ).fetchall())
+            conn2.close()
+
+            weighted = 0
+            for i, aid in enumerate(labeled_accounts):
+                conc = eligibility.get(aid, 1.0)  # default 1.0 if not in table
+                boundary[i, :K] *= conc
+                # Adjust none column: less concentrated seeds → more "none"
+                boundary[i, K] = max(0.0, 1.0 - boundary[i, :K].sum())
+                if conc < 1.0:
+                    weighted += 1
+
+            if weighted > 0:
+                print(f"Seed eligibility: {weighted} seeds weighted by concentration")
+        except Exception as e:
+            print(f"Seed eligibility table not found, using uniform weighting: {e}")
+
     return boundary, labeled_indices, community_ids, community_names, community_colors, holdout_info
 
 
@@ -434,6 +460,7 @@ def propagate(
     config: PropagationConfig,
     holdout_fraction: float = 0.0,
     holdout_seed: int = 42,
+    seed_eligibility: bool = True,
 ) -> tuple[PropagationResult, dict | None]:
     """Run multi-class harmonic label propagation.
 
@@ -451,7 +478,7 @@ def propagate(
 
     # Load boundary conditions from community database
     boundary, labeled_idx, community_ids, community_names, community_colors, holdout_info = (
-        load_community_labels(node_ids, config, holdout_fraction=holdout_fraction, holdout_seed=holdout_seed)
+        load_community_labels(node_ids, config, holdout_fraction=holdout_fraction, holdout_seed=holdout_seed, seed_eligibility=seed_eligibility)
     )
     K = len(community_ids)
     n_classes = K + 1  # K communities + "none"
@@ -885,6 +912,8 @@ def main():
                         help="Max conjugate gradient iterations per class (default: 2000)")
     parser.add_argument("--no-engagement-weights", action="store_true",
                         help="Disable engagement weighting (use binary follow edges only)")
+    parser.add_argument("--no-seed-eligibility", action="store_true",
+                        help="Disable concentration-based seed weighting")
     args = parser.parse_args()
 
     # --use-spectral-graph overrides --use-archive-graph
@@ -934,6 +963,7 @@ def main():
         adjacency, node_ids, config,
         holdout_fraction=args.holdout_fraction,
         holdout_seed=args.holdout_seed,
+        seed_eligibility=not args.no_seed_eligibility,
     )
 
     # Print diagnostics for human review
