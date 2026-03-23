@@ -125,6 +125,58 @@ def build_following_matrix(con, accounts):
     return csr_matrix(mat), targets
 
 
+def build_likes_matrix(con, accounts, min_count=1):
+    """Build sparse matrix of like-author edges from account_engagement_agg.
+
+    Values are like_count (not binary). Handles missing table gracefully.
+    Returns (CSR matrix, sorted target_list).
+    """
+    account_idx = {aid: i for i, (aid, _) in enumerate(accounts)}
+    n = len(accounts)
+    try:
+        rows = con.execute(
+            "SELECT source_id, target_id, like_count "
+            "FROM account_engagement_agg WHERE like_count >= ?",
+            (min_count,),
+        ).fetchall()
+    except Exception:
+        # Table doesn't exist — return empty matrix
+        from scipy.sparse import csr_matrix
+        return csr_matrix((n, 0), dtype=np.float32), []
+
+    if not rows:
+        from scipy.sparse import csr_matrix
+        return csr_matrix((n, 0), dtype=np.float32), []
+
+    targets = sorted({r[1] for r in rows})
+    target_idx = {t: j for j, t in enumerate(targets)}
+    m = len(targets)
+
+    from scipy.sparse import lil_matrix, csr_matrix
+    mat = lil_matrix((n, m), dtype=np.float32)
+    for src, tgt, cnt in rows:
+        i = account_idx.get(src)
+        j = target_idx.get(tgt)
+        if i is not None and j is not None:
+            mat[i, j] = float(cnt)
+    return csr_matrix(mat), targets
+
+
+def make_run_id(k, signal, rt_w, like_w, accounts):
+    """Deterministic run_id encoding all run-shaping params.
+
+    Format:
+      nmf-k{k}-{signal}-lw{like_w}-{date}-{hash}   (when like_w > 0)
+      nmf-k{k}-{signal}-{date}-{hash}               (when like_w == 0)
+    """
+    aid_str = "".join(aid for aid, _ in sorted(accounts))
+    h = hashlib.sha1(f"{k}{signal}{rt_w}{like_w}{aid_str}".encode()).hexdigest()[:6]
+    date = datetime.now(timezone.utc).strftime("%Y%m%d")
+    if like_w > 0:
+        return f"nmf-k{k}-{signal}-lw{like_w}-{date}-{h}"
+    return f"nmf-k{k}-{signal}-{date}-{h}"
+
+
 def build_retweet_matrix(con, accounts, min_count=2):
     account_idx = {aid: i for i, (aid, _) in enumerate(accounts)}
     rows = con.execute("""
@@ -165,6 +217,9 @@ def main():
     parser.add_argument("--multi-only",    action="store_true",      help="Only show accounts in 2+ communities")
     parser.add_argument("--save",          action="store_true",      help="Persist NMF results to archive_tweets.db")
     parser.add_argument("--notes",         type=str,   default=None, help="Human label for this run (e.g. 'main-v1')")
+    parser.add_argument("--likes",         action="store_true",      help="Include likes signal")
+    parser.add_argument("--likes-weight",  type=float, default=0.4,  help="Weight for likes (default 0.4)")
+    parser.add_argument("--rt-weight",     type=float, default=0.6,  help="Weight for retweets (default 0.6)")
     args = parser.parse_args()
 
     con = sqlite3.connect(str(ARCHIVE_DB))
@@ -182,11 +237,30 @@ def main():
     mat_r_tfidf = tfidf(mat_r)
     print(f"{mat_r.shape[1]:,} targets")
 
-    # Combine: following (weight 1.0) + retweet (weight 0.6)
-    combined = hstack([
+    # Optionally build likes matrix
+    targets_l = []
+    if args.likes:
+        print("Building likes matrix...", end=" ", flush=True)
+        mat_l, targets_l = build_likes_matrix(con, accounts)
+        if mat_l.shape[1] > 0:
+            mat_l_tfidf = tfidf(mat_l)
+            like_coverage = (mat_l.getnnz(axis=1) > 0).sum()
+            print(f"{mat_l.shape[1]:,} targets, {like_coverage}/{len(accounts)} accounts with data")
+        else:
+            mat_l_tfidf = None
+            print("no data (table missing or empty)")
+
+    # Determine signal label
+    signal = "follow+rt+like" if args.likes and targets_l else "follow+rt"
+
+    # Combine: following (weight 1.0) + retweet + optional likes
+    blocks = [
         normalize(mat_f_tfidf),
-        normalize(mat_r_tfidf) * 0.6,
-    ])
+        normalize(mat_r_tfidf) * args.rt_weight,
+    ]
+    if args.likes and mat_l_tfidf is not None:
+        blocks.append(normalize(mat_l_tfidf) * args.likes_weight)
+    combined = hstack(blocks)
 
     print(f"Running NMF (k={args.k})...", end=" ", flush=True)
     nmf = NMF(n_components=args.k, random_state=42, max_iter=500, init="nndsvda")
@@ -197,15 +271,22 @@ def main():
     # Normalise W so each account's weights sum to 1 → interpretable as fractions
     W_norm = W / (W.sum(axis=1, keepdims=True) + 1e-10)
 
-    # Split H back into following vs RT feature spaces
+    # Split H back into following / RT / likes feature spaces
     nf = mat_f_tfidf.shape[1]
+    nr = mat_r_tfidf.shape[1]
     H_follow = H[:, :nf]
-    H_rt     = H[:, nf:]
+    H_rt     = H[:, nf:nf + nr]
+    H_like   = H[:, nf + nr:] if (nf + nr) < H.shape[1] else None
 
     # Pre-resolve target IDs → usernames for following targets
     follow_ids_needed = [targets_f[i] for c in range(args.k)
                          for i in np.argsort(H_follow[c])[::-1][:args.topn]]
-    id_map = resolve_account_ids(list(set(follow_ids_needed)))
+    # Also resolve like target IDs if present
+    like_ids_needed = []
+    if H_like is not None and targets_l:
+        like_ids_needed = [targets_l[i] for c in range(args.k)
+                           for i in np.argsort(H_like[c])[::-1][:args.topn]]
+    id_map = resolve_account_ids(list(set(follow_ids_needed + like_ids_needed)))
 
     aid_to_user = {aid: user for aid, user in accounts}
 
@@ -255,6 +336,22 @@ def main():
             print(f"   Follows: (all top targets suspended{susp_note})")
         if top_rts:
             print(f"   RTs:     {', '.join(top_rts[:6])}")
+
+        # Top like targets for this community
+        if H_like is not None and targets_l:
+            top_l_idx = np.argsort(H_like[c])[::-1][:args.topn * 2]
+            top_likes = []
+            for idx in top_l_idx:
+                if len(top_likes) >= 6:
+                    break
+                raw = targets_l[idx]
+                username = id_map.get(raw, raw)
+                if username is None or (username == raw and username.isdigit()):
+                    continue
+                top_likes.append(f"@{username}")
+            if top_likes:
+                print(f"   Likes:   {', '.join(top_likes)}")
+
         print()
 
         for (aid, user), w in members[:args.show_accounts]:
@@ -291,20 +388,23 @@ def main():
 
     # ── Optional persistence ───────────────────────────────────────────────
     if args.save:
-        _save_run(con, args, accounts, W_norm, H, targets_f, targets_r, nf)
+        _save_run(con, args, accounts, W_norm, H,
+                  targets_f, targets_r, targets_l, nf, nr, signal)
 
     con.close()
 
 
-def _save_run(con, args, accounts, W_norm, H, targets_f, targets_r, nf):
+def _save_run(con, args, accounts, W_norm, H,
+              targets_f, targets_r, targets_l, nf, nr, signal):
     """Persist NMF results to archive_tweets.db (Layer 1)."""
     from communities.store import init_db, save_run, save_memberships, save_definitions
 
-    # Stable run_id: hash of k + account_ids so same inputs → same id
-    aid_str = "".join(aid for aid, _ in sorted(accounts))
-    h = hashlib.sha1(f"{args.k}{aid_str}".encode()).hexdigest()[:6]
-    date = datetime.now(timezone.utc).strftime("%Y%m%d")
-    run_id = f"nmf-k{args.k}-{date}-{h}"
+    like_w = args.likes_weight if args.likes else 0.0
+    run_id = make_run_id(
+        k=args.k, signal=signal,
+        rt_w=args.rt_weight, like_w=like_w,
+        accounts=accounts,
+    )
 
     print(f"\nSaving run {run_id} to DB...", end=" ", flush=True)
 
@@ -315,13 +415,13 @@ def _save_run(con, args, accounts, W_norm, H, targets_f, targets_r, nf):
     save_run(
         arc, run_id,
         k=args.k,
-        signal="follow+rt",
+        signal=signal,
         threshold=args.threshold,
         account_count=len(accounts),
         notes=args.notes,
     )
 
-    # W matrix: store all weights ≥ 0.05 (wider than display threshold)
+    # W matrix: store all weights >= 0.05 (wider than display threshold)
     membership_rows = []
     for i, (aid, _) in enumerate(accounts):
         for c in range(args.k):
@@ -330,9 +430,9 @@ def _save_run(con, args, accounts, W_norm, H, targets_f, targets_r, nf):
                 membership_rows.append((aid, c, w))
     save_memberships(arc, run_id, membership_rows)
 
-    # H matrix: top 20 follow features + top 10 RT features per community
-    H_follow = H[:, :len(targets_f)]
-    H_rt     = H[:, len(targets_f):]
+    # H matrix: top 20 follow + top 10 RT + top 10 like features per community
+    H_follow = H[:, :nf]
+    H_rt     = H[:, nf:nf + nr]
     definition_rows = []
     for c in range(args.k):
         for rank, idx in enumerate(np.argsort(H_follow[c])[::-1][:20]):
@@ -343,6 +443,13 @@ def _save_run(con, args, accounts, W_norm, H, targets_f, targets_r, nf):
             score = float(H_rt[c, idx])
             if score > 0:
                 definition_rows.append((c, "rt", targets_r[idx], score, rank))
+        # Like features (if present)
+        if (nf + nr) < H.shape[1] and targets_l:
+            H_like = H[:, nf + nr:]
+            for rank, idx in enumerate(np.argsort(H_like[c])[::-1][:10]):
+                score = float(H_like[c, idx])
+                if score > 0:
+                    definition_rows.append((c, "like", targets_l[idx], score, rank))
     save_definitions(arc, run_id, definition_rows)
 
     arc.close()
