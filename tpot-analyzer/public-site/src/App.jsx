@@ -135,7 +135,7 @@ export default function App() {
     if (!data) return new Map()
     const m = new Map()
     for (const acct of data.accounts) {
-      m.set(acct.username.toLowerCase(), acct)
+      if (acct.username) m.set(acct.username.toLowerCase(), acct)
     }
     return m
   }, [data])
