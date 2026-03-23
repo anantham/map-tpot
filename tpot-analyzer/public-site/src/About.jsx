@@ -746,13 +746,104 @@ export default function About({ meta }) {
             )}
           </section>
 
+          {/* This Is One Map, Not The Map */}
+          <section className="about-section">
+            <h2>This Is One Map, Not <em>The</em> Map</h2>
+
+            <p>
+              This map starts from <strong>my perspective</strong>&mdash;the ~300 accounts I follow,
+              the communities I recognize, the boundaries I drew. It&rsquo;s not the objective
+              structure of TPOT. It&rsquo;s Aditya&rsquo;s TPOT.
+            </p>
+            <p>
+              Someone following different people would see different communities. A contemplative
+              practitioner would draw the meditation scene at higher resolution&mdash;maybe splitting
+              &ldquo;Jhana Practitioners&rdquo; into jhana technicians, somatic healers, and nondual
+              teachers. A builder would see more granularity in the infrastructure scene. The map
+              reflects the mapper.
+            </p>
+            <p>
+              Not every account that contributed data to the{' '}
+              <a href="https://github.com/community-archive/community-archive" target="_blank" rel="noopener noreferrer">
+                community archive
+              </a>{' '}
+              is TPOT. Uploading your data is a generous act of transparency, not a membership card.
+              Some contributors orbit the scene, some study it from outside, some are in adjacent
+              networks entirely. The pipeline filters for this: accounts whose follow patterns
+              don&rsquo;t concentrate in any community propagate with lower confidence.
+            </p>
+            <p>
+              The honest thing is to say so. This is a map drawn from a particular vantage point,
+              with particular blind spots, validated as well as we can against independent signals.
+              If you see something wrong&mdash;someone in the wrong community, a community that
+              should be split, a whole scene that&rsquo;s missing&mdash;that&rsquo;s signal.
+              The map improves when you tell us.
+            </p>
+          </section>
+
+          {/* The Visual Language */}
+          <section className="about-section">
+            <h2>The Visual Language</h2>
+
+            <p>
+              Each community has a visual identity&mdash;a mascot, a sigil, a color palette,
+              an elemental vibe. These aren&rsquo;t decorative choices. They encode what makes
+              each scene distinctive.
+            </p>
+
+            <div className="about-signal-stack">
+              <div className="about-signal-row">
+                <span className="about-signal-name">Jhana Practitioners</span>
+                <span className="about-signal-desc">Lotus Serpent &middot; deep violet &middot; still water + inner radiance</span>
+              </div>
+              <div className="about-signal-row">
+                <span className="about-signal-name">LLM Whisperers</span>
+                <span className="about-signal-desc">Recursive Wyrm &middot; toxic green &middot; digital fog + recursion</span>
+              </div>
+              <div className="about-signal-row">
+                <span className="about-signal-name">Vibecamp Highbies</span>
+                <span className="about-signal-desc">Laughing Bodhisattva &middot; burning gold &middot; sacred fire + holy chaos</span>
+              </div>
+              <div className="about-signal-row">
+                <span className="about-signal-name">NYC Builders</span>
+                <span className="about-signal-desc">Cornerstone Titan &middot; concrete grey + crimson &middot; architecture + scaffolding</span>
+              </div>
+              <div className="about-signal-row">
+                <span className="about-signal-name">Queer TPOT</span>
+                <span className="about-signal-desc">Kaleidoscopic Chimera &middot; holographic shifting &middot; metamorphosis</span>
+              </div>
+            </div>
+
+            <p>
+              When you see a card with lotus borders and moonlight pools, that&rsquo;s not random&mdash;it
+              means the account&rsquo;s primary community is the contemplative scene. Circuit patterns
+              and glitch effects mean LLM Whisperers. Fractal blooms mean AI Creatives. The card
+              is a portrait of where someone lives in the network, rendered as mythology.
+            </p>
+            <p>
+              Community fractions become <strong>art direction weights</strong>. An account that&rsquo;s
+              45% Jhana + 30% Core TPOT + 15% LLM Whisperers gets a card dominated by moonlight-violet,
+              with star-dust accents and faint circuit traces. You feel it before you decode it.
+            </p>
+            <p>
+              Visit any <a href="/?community=jhana-practitioners" onClick={(e) => e.preventDefault()}>community page</a> to
+              see the full iconography&mdash;mascot, sigil, flag, palette, and how it shapes the cards.
+            </p>
+          </section>
+
           {/* Open Source */}
           <section className="about-section about-cta">
-            <h2>Open Source</h2>
+            <h2>Build Your Own Map</h2>
             <p>
-              The entire pipeline&mdash;graph construction, NMF classification, label propagation,
-              curation tooling, and this site&mdash;is open source. You can clone the repo, feed
-              in your own follow data, and build a community map for any corner of the internet.
+              The entire pipeline&mdash;graph construction, NMF classification, content vectors,
+              label propagation, seed validation, curation tooling, and this site&mdash;is open
+              source. The pipeline is general; the seeds are specific.
+            </p>
+            <p>
+              You can clone the repo, bring your own follow data, choose your own seed accounts,
+              and build a community map from <em>your</em> perspective. Your map would have different
+              communities, different boundaries, different blind spots. That&rsquo;s the point&mdash;the
+              internet has as many maps as it has mappers.
             </p>
             {links.repo ? (
               <a
