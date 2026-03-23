@@ -209,7 +209,7 @@ export default function About({ meta }) {
 
             <p>
               The{' '}
-              <a href="https://github.com/community-archive/community-archive" target="_blank" rel="noopener noreferrer">
+              <a href="https://www.community-archive.org/" target="_blank" rel="noopener noreferrer">
                 Community Archive
               </a>{' '}
               is a project where Twitter users voluntarily share their data. {classifiedStr} people
@@ -799,7 +799,7 @@ export default function About({ meta }) {
             </p>
             <p>
               Not every account that contributed data to the{' '}
-              <a href="https://github.com/community-archive/community-archive" target="_blank" rel="noopener noreferrer">
+              <a href="https://www.community-archive.org/" target="_blank" rel="noopener noreferrer">
                 community archive
               </a>{' '}
               is TPOT. Uploading your data is a generous act of transparency, not a membership card.
