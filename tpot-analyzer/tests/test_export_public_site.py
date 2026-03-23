@@ -57,6 +57,28 @@ def community_db(tmp_path):
             PRIMARY KEY (account_id, community_id),
             FOREIGN KEY (community_id) REFERENCES community(id)
         );
+        -- Tables needed by compute_confidence (empty is fine for export tests)
+        CREATE TABLE IF NOT EXISTS tweets (
+            tweet_id TEXT PRIMARY KEY, account_id TEXT, username TEXT,
+            full_text TEXT, created_at TEXT, reply_to_tweet_id TEXT,
+            reply_to_username TEXT, favorite_count INTEGER DEFAULT 0,
+            retweet_count INTEGER DEFAULT 0, lang TEXT,
+            is_note_tweet INTEGER DEFAULT 0, fetched_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS likes (
+            liker_account_id TEXT, liker_username TEXT, tweet_id TEXT,
+            full_text TEXT, expanded_url TEXT, fetched_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS account_following (
+            account_id TEXT, following_account_id TEXT
+        );
+        CREATE TABLE IF NOT EXISTS tweet_label_set (
+            id INTEGER PRIMARY KEY, tweet_id TEXT, reviewer TEXT,
+            is_active INTEGER DEFAULT 1, created_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS tweet_tags (
+            id INTEGER PRIMARY KEY, tweet_id TEXT, tag TEXT, category TEXT
+        );
     """)
     # Seed 2 communities
     conn.execute(
@@ -751,3 +773,262 @@ class TestRunExport:
         assert alice is not None
         assert alice["tier"] == "classified"
         assert "memberships" in alice
+
+
+# ---------------------------------------------------------------------------
+# Tests: export integration edge cases
+# ---------------------------------------------------------------------------
+
+class TestExportIntegration:
+    """Edge-case integration tests for the export pipeline."""
+
+    def test_classified_takes_precedence_over_propagated(self, tmp_path, config):
+        """If an account appears as both classified (NMF/bits) and propagated,
+        the search index should show tier='classified', not 'propagated'."""
+        from scripts.export_public_site import run_export
+
+        # Build a full DB with all tables needed by compute_confidence
+        db_path = tmp_path / "full.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.executescript("""
+            CREATE TABLE community (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, short_name TEXT,
+                description TEXT, color TEXT, seeded_from_run TEXT,
+                seeded_from_idx INTEGER,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE community_account (
+                community_id TEXT NOT NULL, account_id TEXT NOT NULL,
+                weight REAL NOT NULL, source TEXT NOT NULL, updated_at TEXT NOT NULL,
+                PRIMARY KEY (community_id, account_id)
+            );
+            CREATE TABLE account_community_bits (
+                account_id TEXT NOT NULL, community_id TEXT NOT NULL,
+                total_bits INTEGER NOT NULL DEFAULT 0,
+                tweet_count INTEGER NOT NULL DEFAULT 0,
+                pct REAL NOT NULL DEFAULT 0.0,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (account_id, community_id)
+            );
+            CREATE TABLE tweets (
+                tweet_id TEXT PRIMARY KEY, account_id TEXT, username TEXT,
+                full_text TEXT, favorite_count INTEGER DEFAULT 0,
+                retweet_count INTEGER DEFAULT 0
+            );
+            CREATE TABLE likes (
+                liker_account_id TEXT, tweet_id TEXT
+            );
+            CREATE TABLE account_following (
+                account_id TEXT, following_account_id TEXT
+            );
+            CREATE TABLE tweet_label_set (
+                tweet_id TEXT, label TEXT
+            );
+            CREATE TABLE tweet_tags (
+                tweet_id TEXT, tag TEXT, category TEXT
+            );
+            CREATE TABLE profiles (
+                account_id TEXT PRIMARY KEY, username TEXT
+            );
+        """)
+        conn.execute(
+            "INSERT INTO community VALUES (?, ?, ?, ?, ?, NULL, NULL, '2026-01-01', '2026-01-01')",
+            ("comm-a", "Builders", "Builders", "desc", "#9b59b6"),
+        )
+        conn.execute(
+            "INSERT INTO community VALUES (?, ?, ?, ?, ?, NULL, NULL, '2026-01-01', '2026-01-01')",
+            ("comm-b", "Thinkers", "Thinkers", "desc", "#e67e22"),
+        )
+        conn.execute(
+            "INSERT INTO community_account VALUES (?, ?, ?, 'nmf', '2026-01-01')",
+            ("comm-a", "acct-1", 0.95),
+        )
+        conn.commit()
+        conn.close()
+
+        # Create NPZ where acct-1 also appears as a propagated node
+        n_nodes = 3
+        n_communities = 2
+        memberships = np.zeros((n_nodes, n_communities + 1), dtype=np.float32)
+        memberships[0] = [0.9, 0.05, 0.05]  # acct-1: also in propagation
+        memberships[1] = [0.7, 0.2, 0.1]    # node-x: only propagated
+        memberships[2] = [0.01, 0.01, 0.98]  # node-y: below threshold
+
+        abstain_mask = np.array([False, False, False])
+        node_ids = np.array(["acct-1", "node-x", "node-y"])
+        community_ids = np.array(["comm-a", "comm-b"])
+        community_names = np.array(["Builders", "Thinkers"])
+        community_colors = np.array(["#9b59b6", "#e67e22"])
+
+        npz_path = tmp_path / "community_propagation.npz"
+        np.savez(
+            str(npz_path),
+            memberships=memberships,
+            abstain_mask=abstain_mask,
+            node_ids=node_ids,
+            community_ids=community_ids,
+            community_names=community_names,
+            community_colors=community_colors,
+        )
+
+        # Add parquet with usernames
+        pd = pytest.importorskip("pandas")
+        pq_path = tmp_path / "graph_snapshot.nodes.parquet"
+        df = pd.DataFrame({
+            "node_id": ["acct-1", "node-x", "node-y"],
+            "username": ["alice", "zara", "no_signal"],
+            "display_name": ["Alice", "Zara", "No Signal"],
+            "num_followers": [100.0, 50.0, 10.0],
+            "bio": ["a", "z", "ns"],
+        })
+        df.to_parquet(str(pq_path), index=False)
+
+        output_dir = tmp_path / "output"
+        run_export(
+            data_dir=tmp_path,
+            output_dir=output_dir,
+            config=config,
+            db_path=db_path,
+        )
+
+        search = json.loads((output_dir / "search.json").read_text())
+
+        # alice (acct-1) should be classified, not overwritten by propagated
+        assert "alice" in search
+        assert search["alice"]["tier"] == "classified"
+
+        # zara (node-x) should be propagated
+        assert "zara" in search
+        assert search["zara"]["tier"] == "propagated"
+
+    def test_threshold_gate_filters_low_weight(self, community_db, tmp_path, config):
+        """Accounts whose max community weight is below abstain_threshold (0.10 by
+        default from config) should be excluded from propagated handles."""
+        from scripts.export_public_site import extract_propagated_handles
+
+        # Create NPZ: node-a has max weight 0.07 (below 0.10 threshold)
+        n_nodes = 2
+        n_communities = 2
+        memberships = np.zeros((n_nodes, n_communities + 1), dtype=np.float32)
+        memberships[0] = [0.07, 0.03, 0.90]  # below threshold
+        memberships[1] = [0.50, 0.30, 0.20]  # above threshold
+
+        abstain_mask = np.array([False, False])
+        node_ids = np.array(["node-low", "node-high"])
+        community_ids = np.array(["comm-a", "comm-b"])
+        community_names = np.array(["Builders", "Thinkers"])
+        community_colors = np.array(["#9b59b6", "#e67e22"])
+
+        npz_path = tmp_path / "propagation.npz"
+        np.savez(
+            str(npz_path),
+            memberships=memberships,
+            abstain_mask=abstain_mask,
+            node_ids=node_ids,
+            community_ids=community_ids,
+            community_names=community_names,
+            community_colors=community_colors,
+        )
+
+        username_map = {"node-low": "lowuser", "node-high": "highuser"}
+        result = extract_propagated_handles(
+            npz_path=npz_path,
+            node_id_to_username=username_map,
+            classified_ids=set(),
+            min_weight=0.05,
+            abstain_threshold=0.08,  # node-low max=0.07 < 0.08
+        )
+
+        assert "lowuser" not in result, "Account with max weight below threshold should be excluded"
+        assert "highuser" in result, "Account with max weight above threshold should be included"
+
+    def test_missing_username_dropped(self, community_db, tmp_path, config):
+        """Accounts with no username mapping should be excluded from propagated output."""
+        from scripts.export_public_site import extract_propagated_handles
+
+        n_nodes = 2
+        n_communities = 2
+        memberships = np.zeros((n_nodes, n_communities + 1), dtype=np.float32)
+        memberships[0] = [0.8, 0.1, 0.1]
+        memberships[1] = [0.7, 0.2, 0.1]
+
+        abstain_mask = np.array([False, False])
+        node_ids = np.array(["node-has-name", "node-no-name"])
+        community_ids = np.array(["comm-a", "comm-b"])
+        community_names = np.array(["Builders", "Thinkers"])
+        community_colors = np.array(["#9b59b6", "#e67e22"])
+
+        npz_path = tmp_path / "propagation.npz"
+        np.savez(
+            str(npz_path),
+            memberships=memberships,
+            abstain_mask=abstain_mask,
+            node_ids=node_ids,
+            community_ids=community_ids,
+            community_names=community_names,
+            community_colors=community_colors,
+        )
+
+        # Only node-has-name has a username mapping
+        username_map = {"node-has-name": "validuser"}
+
+        result = extract_propagated_handles(
+            npz_path=npz_path,
+            node_id_to_username=username_map,
+            classified_ids=set(),
+            min_weight=0.05,
+            abstain_threshold=0.10,
+        )
+
+        assert "validuser" in result, "Node with username should be included"
+        assert len(result) == 1, (
+            f"Only the node with a username should appear, got {len(result)} entries"
+        )
+
+    def test_interesting_community_excluded(self, tmp_path):
+        """Community named 'Interesting' should not appear in exported communities."""
+        from scripts.export_public_site import extract_communities
+
+        db_path = tmp_path / "interesting.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.executescript("""
+            CREATE TABLE community (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, short_name TEXT,
+                description TEXT, color TEXT, seeded_from_run TEXT,
+                seeded_from_idx INTEGER,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE community_account (
+                community_id TEXT NOT NULL, account_id TEXT NOT NULL,
+                weight REAL NOT NULL, source TEXT NOT NULL, updated_at TEXT NOT NULL,
+                PRIMARY KEY (community_id, account_id)
+            );
+        """)
+        # Insert a normal community and the "Interesting" community
+        conn.execute(
+            "INSERT INTO community VALUES (?, ?, ?, ?, ?, NULL, NULL, '2026-01-01', '2026-01-01')",
+            ("comm-real", "Real Community", "real", "A real community", "#123456"),
+        )
+        conn.execute(
+            "INSERT INTO community VALUES (?, ?, ?, ?, ?, NULL, NULL, '2026-01-01', '2026-01-01')",
+            ("comm-interesting", "Interesting", "interesting", "Should be excluded", "#999999"),
+        )
+        # Add members to both
+        conn.execute(
+            "INSERT INTO community_account VALUES (?, ?, ?, 'nmf', '2026-01-01')",
+            ("comm-real", "acct-1", 0.9),
+        )
+        conn.execute(
+            "INSERT INTO community_account VALUES (?, ?, ?, 'nmf', '2026-01-01')",
+            ("comm-interesting", "acct-2", 0.8),
+        )
+        conn.commit()
+        conn.close()
+
+        communities = extract_communities(db_path)
+        names = [c["name"] for c in communities]
+
+        assert "Real Community" in names, "Normal community should be included"
+        assert "Interesting" not in names, (
+            "Community named 'Interesting' should be excluded from export"
+        )
