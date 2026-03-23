@@ -270,8 +270,8 @@ if __name__ == "__main__":
         description="Build quote graph from Supabase quote_tweets"
     )
     parser.add_argument(
-        "--limit", type=int, default=100_000,
-        help="Max rows to fetch (default: 100000)",
+        "--limit", type=int, default=2_000_000,
+        help="Max rows to fetch (default: 2000000)",
     )
     parser.add_argument("--dry-run", action="store_true", help="Preview without writing DB")
     parser.add_argument("--db-path", type=Path, default=DB_PATH)
