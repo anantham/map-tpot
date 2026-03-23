@@ -37,10 +37,19 @@ module.exports = async function handler(req, res) {
     const raw = await kv.hgetall("gallery");
     const cards = Object.entries(raw || {}).map(([handle, json]) => {
       try {
-        const entry = JSON.parse(json);
-        return { handle, ...entry };
+        const parsed = JSON.parse(json);
+        // Support both old format (single object) and new format (array)
+        const versions = Array.isArray(parsed) ? parsed : [parsed];
+        const latest = versions[versions.length - 1];
+        return {
+          handle,
+          url: latest.url,
+          generatedAt: latest.generatedAt || 0,
+          communities: latest.communities || [],
+          versions: versions.map(v => ({ url: v.url, generatedAt: v.generatedAt || 0 })),
+        };
       } catch {
-        return { handle, url: json, generatedAt: 0, communities: [] };
+        return { handle, url: json, generatedAt: 0, communities: [], versions: [{ url: json, generatedAt: 0 }] };
       }
     });
 

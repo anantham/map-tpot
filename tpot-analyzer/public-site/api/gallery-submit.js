@@ -24,6 +24,10 @@ try {
         try { await redis.connect(); } catch {}
         return redis.hset(key, field, value);
       },
+      async hget(key, field) {
+        try { await redis.connect(); } catch {}
+        return redis.hget(key, field);
+      },
     };
   }
 } catch {}
@@ -44,13 +48,24 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    await kv.hset("gallery", handle.toLowerCase(), JSON.stringify({
+    const galleryKey = handle.toLowerCase();
+    let versions = [];
+    try {
+      const existing = await kv.hget("gallery", galleryKey);
+      if (existing) {
+        const parsed = JSON.parse(existing);
+        versions = Array.isArray(parsed) ? parsed : [parsed];
+      }
+    } catch {}
+    versions.push({
       url: imageUrl,
       generatedAt: Date.now(),
       communities: (communities || []).slice(0, 5).map(c => ({
         name: c.name, color: c.color, weight: c.weight,
       })),
-    }));
+    });
+    if (versions.length > 10) versions = versions.slice(-10);
+    await kv.hset("gallery", galleryKey, JSON.stringify(versions));
     return res.status(200).json({ ok: true, stored: true });
   } catch (err) {
     console.error("[gallery-submit] KV write failed:", err.message);

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { getCachedVersions } from './GenerateCard'
 
 export default function CommunityCard({
   handle,
@@ -14,14 +15,42 @@ export default function CommunityCard({
   const cardRef = useRef(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
   const [fullscreen, setFullscreen] = useState(false)
+  const [versionIdx, setVersionIdx] = useState(-1) // -1 = current/latest
 
-  // Close fullscreen on ESC
+  // Get all versions for this handle
+  const versions = handle ? getCachedVersions(handle) : []
+  const hasMultipleVersions = versions.length > 1
+  const fsUrl = versionIdx >= 0 && versionIdx < versions.length
+    ? versions[versionIdx].url
+    : aiImageUrl
+
+  const goPrevVersion = useCallback(() => {
+    if (!hasMultipleVersions) return
+    setVersionIdx(i => {
+      const current = i < 0 ? versions.length - 1 : i
+      return current > 0 ? current - 1 : versions.length - 1
+    })
+  }, [hasMultipleVersions, versions.length])
+
+  const goNextVersion = useCallback(() => {
+    if (!hasMultipleVersions) return
+    setVersionIdx(i => {
+      const current = i < 0 ? versions.length - 1 : i
+      return current < versions.length - 1 ? current + 1 : 0
+    })
+  }, [hasMultipleVersions, versions.length])
+
+  // Keyboard: ESC to close, arrows to cycle versions
   useEffect(() => {
     if (!fullscreen) return
-    const onKey = (e) => { if (e.key === 'Escape') setFullscreen(false) }
+    const onKey = (e) => {
+      if (e.key === 'Escape') setFullscreen(false)
+      else if (e.key === 'ArrowLeft') goPrevVersion()
+      else if (e.key === 'ArrowRight') goNextVersion()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [fullscreen])
+  }, [fullscreen, goPrevVersion, goNextVersion])
 
   // Resolve community names and colors, sort by weight descending
   const bars = (memberships || [])
@@ -99,12 +128,40 @@ export default function CommunityCard({
             <button className="card-fullscreen-close" onClick={() => setFullscreen(false)}>
               &times;
             </button>
-            <img
-              className="card-fullscreen-image"
-              src={aiImageUrl}
-              alt={`AI-generated card for @${handle}`}
-              onClick={(e) => e.stopPropagation()}
-            />
+
+            {hasMultipleVersions && (
+              <button
+                className="card-fullscreen-nav card-fullscreen-nav--prev"
+                onClick={(e) => { e.stopPropagation(); goPrevVersion() }}
+              >
+                ‹
+              </button>
+            )}
+
+            <div className="card-fullscreen-center" onClick={(e) => e.stopPropagation()}>
+              <img
+                className="card-fullscreen-image"
+                src={fsUrl}
+                alt={`AI-generated card for @${handle}`}
+              />
+              <div className="card-fullscreen-handle">
+                @{handle}
+                {hasMultipleVersions && (
+                  <span className="card-fullscreen-counter">
+                    {(versionIdx < 0 ? versions.length : versionIdx + 1)} / {versions.length}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {hasMultipleVersions && (
+              <button
+                className="card-fullscreen-nav card-fullscreen-nav--next"
+                onClick={(e) => { e.stopPropagation(); goNextVersion() }}
+              >
+                ›
+              </button>
+            )}
           </div>
         )}
       </>

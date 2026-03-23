@@ -31,26 +31,51 @@ function getCardCache() {
 
 function getCachedCard(handle) {
   const cache = getCardCache();
-  return cache[handle.toLowerCase()] || null;
+  const entry = cache[handle.toLowerCase()];
+  if (!entry) return null;
+  // Migrate old format (single {url, cachedAt}) to versions array
+  if (entry.url && !entry.versions) {
+    return { url: entry.url, cachedAt: entry.cachedAt, versions: [{ url: entry.url, cachedAt: entry.cachedAt }] };
+  }
+  return entry;
+}
+
+/** Get all versions for a handle. */
+export function getCachedVersions(handle) {
+  const cached = getCachedCard(handle);
+  return cached?.versions || [];
 }
 
 function cacheCard(handle, imageUrl) {
   try {
     const cache = getCardCache();
-    cache[handle.toLowerCase()] = {
+    const key = handle.toLowerCase();
+    const existing = cache[key];
+    // Build versions array
+    let versions = [];
+    if (existing) {
+      if (existing.versions) {
+        versions = existing.versions;
+      } else if (existing.url) {
+        versions = [{ url: existing.url, cachedAt: existing.cachedAt }];
+      }
+    }
+    versions.push({ url: imageUrl, cachedAt: Date.now() });
+    // Keep max 10 versions
+    if (versions.length > 10) versions = versions.slice(-10);
+    cache[key] = {
       url: imageUrl,
       cachedAt: Date.now(),
+      versions,
     };
     localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(cache));
   } catch (e) {
-    // localStorage full — evict oldest entries and retry
     if (e.name === 'QuotaExceededError') {
       try {
         const cache = getCardCache();
-        const entries = Object.entries(cache).sort((a, b) => a[1].cachedAt - b[1].cachedAt);
-        // Remove oldest half
+        const entries = Object.entries(cache).sort((a, b) => (a[1].cachedAt || 0) - (b[1].cachedAt || 0));
         const keep = Object.fromEntries(entries.slice(Math.floor(entries.length / 2)));
-        keep[handle.toLowerCase()] = { url: imageUrl, cachedAt: Date.now() };
+        keep[handle.toLowerCase()] = { url: imageUrl, cachedAt: Date.now(), versions: [{ url: imageUrl, cachedAt: Date.now() }] };
         localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(keep));
       } catch { /* give up */ }
     }
