@@ -74,7 +74,7 @@ def fetch_following(api_key: str, username: str, max_pages: int = 5) -> list[str
 
         try:
             r = httpx.get(
-                f"{BASE_URL}/user/following",
+                f"{BASE_URL}/user/followings",
                 params=params,
                 headers={"X-API-Key": api_key},
                 timeout=20,
@@ -87,14 +87,14 @@ def fetch_following(api_key: str, username: str, max_pages: int = 5) -> list[str
             if data.get("status") != "success":
                 break
 
-            users = data.get("data", {}).get("users", [])
+            users = data.get("followings", [])
             for u in users:
                 fid = u.get("id")
                 if fid:
                     following_ids.append(str(fid))
 
             # Check for next page
-            next_cursor = data.get("data", {}).get("next_cursor")
+            next_cursor = data.get("next_cursor")
             if not next_cursor or next_cursor == "0" or not users:
                 break
             cursor = next_cursor
