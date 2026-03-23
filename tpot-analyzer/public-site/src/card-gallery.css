@@ -50,7 +50,6 @@
   overflow: hidden;
   background: #1a1a1a;
   transition: transform 0.15s, box-shadow 0.15s;
-  cursor: pointer;
 }
 .gallery-card:hover {
   transform: translateY(-2px);
@@ -62,13 +61,21 @@
   aspect-ratio: 2 / 3;
   object-fit: cover;
   display: block;
+  cursor: zoom-in;
 }
 
 .gallery-card-handle {
+  display: block;
   padding: 6px 10px 2px;
   font-size: 12px;
   color: rgba(212, 175, 55, 0.85);
   text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+.gallery-card-handle:hover {
+  color: rgba(212, 175, 55, 1);
+  text-decoration: underline;
 }
 
 .gallery-card-communities {
