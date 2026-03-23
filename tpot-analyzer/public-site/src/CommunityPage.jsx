@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import './community-page.css'
+import iconographyData from '../../config/community_iconography.json'
+
+const ICONOGRAPHY = iconographyData.communities
 
 function TweetCard({ tweet, username, communityColor }) {
   const typeLabels = {
@@ -129,6 +132,56 @@ export default function CommunityPage({
           </div>
         </div>
       </div>
+
+      {/* Community Identity — iconography, spirit, card aesthetics */}
+      {(() => {
+        const icon = ICONOGRAPHY[community.short_name]
+        if (!icon) return null
+        return (
+          <div className="cp-identity" style={{ borderColor: color }}>
+            <div className="cp-identity-grid">
+              <div className="cp-identity-section">
+                <div className="cp-identity-label">Mascot</div>
+                <div className="cp-identity-value cp-identity-mascot">{icon.mascot}</div>
+              </div>
+              <div className="cp-identity-section">
+                <div className="cp-identity-label">Sigil</div>
+                <div className="cp-identity-value">{icon.sigil}</div>
+              </div>
+              <div className="cp-identity-section">
+                <div className="cp-identity-label">Elemental Vibe</div>
+                <div className="cp-identity-value">{icon.elemental_vibe}</div>
+              </div>
+              <div className="cp-identity-section">
+                <div className="cp-identity-label">Flag / Motif</div>
+                <div className="cp-identity-value">{icon.flag_motif}</div>
+              </div>
+            </div>
+
+            <div className="cp-identity-palette">
+              <div className="cp-identity-label">Color Palette</div>
+              <div className="cp-identity-colors">
+                {icon.colors.map((c, i) => (
+                  <div key={i} className="cp-identity-swatch" style={{ background: c }} title={c} />
+                ))}
+                <span className="cp-identity-color-names">{icon.color_names}</span>
+              </div>
+            </div>
+
+            <div className="cp-identity-card-note">
+              <div className="cp-identity-label">How This Shapes the Card</div>
+              <p>{icon.card_integration}</p>
+              <p className="cp-identity-tagline">&ldquo;{icon.tagline}&rdquo;</p>
+            </div>
+
+            {icon.memetic_name && (
+              <div className="cp-identity-aka">
+                Also known as: <strong>{icon.memetic_name}</strong>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       <div className="cp-body">
         {/* Left column: spotlights */}
