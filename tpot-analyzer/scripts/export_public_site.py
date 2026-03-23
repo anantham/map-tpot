@@ -151,10 +151,19 @@ def extract_classified_accounts(
         # Merge: bits accounts + NMF accounts
         all_accounts = {**accounts, **bits_accounts}
 
-        return [
-            {"id": aid, "tier": "classified", "memberships": memberships}
-            for aid, memberships in sorted(all_accounts.items())
-        ]
+        # Compute confidence index for each account
+        from src.communities.confidence import compute_confidence
+        result = []
+        for aid, memberships in sorted(all_accounts.items()):
+            ci = compute_confidence(conn, aid)
+            result.append({
+                "id": aid,
+                "tier": "classified",
+                "memberships": memberships,
+                "confidence": ci["score"],
+                "confidence_level": ci["level"],
+            })
+        return result
     finally:
         conn.close()
 
