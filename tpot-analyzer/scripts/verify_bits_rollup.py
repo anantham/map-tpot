@@ -26,7 +26,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from rollup_bits import aggregate_bits, load_bits_tags, load_short_to_id
+from rollup_bits import (
+    SIMULACRUM_WEIGHTS,
+    aggregate_bits,
+    load_bits_tags,
+    load_short_to_id,
+    load_simulacrum_weights,
+)
 
 DEFAULT_DB_PATH = ROOT / "data" / "archive_tweets.db"
 PCT_TOLERANCE = 0.5  # percent
@@ -185,6 +191,71 @@ def main():
     else:
         check("No tweet_count migrations needed", True)
 
+    # ── Simulacrum-weighted comparison (informational) ─────────────────────────
+    print(f"\nSimulacrum-weighted analysis:")
+
+    # Check if simulacrum tables exist
+    tables = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('tweet_label_set','tweet_label_prob')"
+    ).fetchall()
+    has_simulacrum = len(tables) == 2
+
+    if has_simulacrum:
+        tweet_weights = load_simulacrum_weights(conn)
+        bits_tweet_ids = {t[1] for t in tags}
+        covered = bits_tweet_ids & set(tweet_weights.keys())
+        info("Simulacrum coverage",
+             f"{len(covered)}/{len(bits_tweet_ids)} bits-tagged tweets "
+             f"({len(covered)/len(bits_tweet_ids)*100:.1f}%)" if bits_tweet_ids else "0 tweets")
+
+        if covered:
+            weighted = aggregate_bits(tags, short_to_id, tweet_weights=tweet_weights)
+
+            # Show per-account weighted vs unweighted comparison
+            # Group by account
+            acct_data = {}
+            for (acct, comm_id), data in weighted.items():
+                if acct not in acct_data:
+                    acct_data[acct] = []
+                comm_short = next(
+                    (k for k, v in short_to_id.items() if v == comm_id),
+                    comm_id[:8],
+                )
+                acct_data[acct].append((comm_short, data["total_bits"], data["weighted_bits"]))
+
+            # Show accounts where weighting changes the ranking
+            rank_changes = 0
+            for acct, entries in sorted(acct_data.items()):
+                if len(entries) < 2:
+                    continue
+                unweighted_rank = sorted(entries, key=lambda x: -abs(x[1]))
+                weighted_rank = sorted(entries, key=lambda x: -abs(x[2]))
+                if [e[0] for e in unweighted_rank] != [e[0] for e in weighted_rank]:
+                    rank_changes += 1
+                    parts_uw = [f"{sn}={tb:+d}" for sn, tb, _ in unweighted_rank]
+                    parts_w = [f"{sn}={wb:+.1f}" for sn, _, wb in weighted_rank]
+                    print(f"      RANK SHIFT: {acct}")
+                    print(f"        unweighted: {' > '.join(parts_uw)}")
+                    print(f"        weighted:   {' > '.join(parts_w)}")
+
+            if rank_changes == 0:
+                check("No rank changes from weighting", True,
+                      "community order stable across all accounts")
+            else:
+                info(f"Rank changes detected",
+                     f"{rank_changes} accounts have different community ordering")
+
+            # Show weight distribution
+            weight_counts = {}
+            for tid in covered:
+                w = tweet_weights[tid]
+                label = next((k for k, v in SIMULACRUM_WEIGHTS.items() if v == w), f"w={w}")
+                weight_counts[label] = weight_counts.get(label, 0) + 1
+            parts = [f"{k}={v}" for k, v in sorted(weight_counts.items())]
+            info("Weight distribution across bits tweets", ", ".join(parts))
+    else:
+        info("Simulacrum tables not found", "run labeling pipeline first")
+
     # ── Summary ───────────────────────────────────────────────────────────────
     print(f"\n{'='*60}")
     if hard_ok:
@@ -203,7 +274,8 @@ def main():
     if hard_ok:
         print("  1. Run: python scripts/rollup_bits.py --dry-run")
         print("  2. Run: python scripts/rollup_bits.py")
-        print("  3. Verify: python scripts/verify_bits_rollup.py")
+        print("  3. Run: python scripts/rollup_bits.py --simulacrum-weighted --dry-run")
+        print("  4. Verify: python scripts/verify_bits_rollup.py")
     else:
         print("  1. Investigate mismatches listed above")
         print("  2. Check for manual edits to account_community_bits")
