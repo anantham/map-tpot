@@ -1,0 +1,848 @@
+====================================================================================================
+  TPOT COMMUNITY MAP — k=16 with likes (2026-03-23)
+  15 communities, 328 seed accounts
+====================================================================================================
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C1: Vibecamp Highbies
+  Short: highbies
+  aka: "The High Weirdos"
+  Tagline: "divine conviction meets absurdist play"
+  Description: High-agency weirdos, Vibecamp organizers, and embodied truth-tellers who mix divine conviction, play, memes, and sacred absurdity.
+  Members: 63 total, 17 with bits labels
+  Top 15 accounts:
+
+    95%  @Lithros                 
+         incidental conduit of divine truth, @vibecamp_ organizer, intentional spouse of the heart-
+
+    89%  @goblinodds              
+         expendable meat shield 💎 you and me baby ain't nothing but mammals so let's eat dog treats
+
+    85%  @blunderbussted          
+         god laughs
+
+    83%  @michaelcurzi            
+         movies @hallsongmedia // writing https://t.co/vinoTvx8M9
+
+    83%  @PrinceVogel             
+         Searching for the deepest possible conviction
+
+    81%  @forshaper               
+         What kind of culture will it take to colonize space?
+
+    79%  @nobu_hibiki             
+         ruthlessness is mercy upon ourselves.
+
+    73%  @AngularOcean            
+         not related to any other Oceans, as far as I’m aware.
+
+    66%  @eigenrobot              
+         robot. friend. 'like a cato playing clodius in drag.' -- ChatGPT  footnotes at @eigenrobot
+
+    63%  @mechanical_monk         
+         improver of circumstances. good boy.
+
+    63%  @dschorno                  bits=13(46%)
+         ʕっ•ᴥ•ʔっ  ???   ★ Essays: https://t.co/WxKWZkyQ8k  ★ Music: https://t.co/6UYt29c8dE  ★ Sugg
+
+    52%  @imhinesmi               
+         aspiring househusband
+
+    51%  @natural_hazard          
+         unproblematically curious human interpretability researcher infrastructure for the cultist
+
+    48%  @surrealistship          
+         The cure for anything is salt water: sweat, tears, or the sea.
+
+    44%  @zrkrlc                  
+         i warp reality so you don't have to ❖ 🐀 in belief, 🫖 in alief
+
+    ... and 48 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C2: EA & Forecasting
+  Short: AI-Safety
+  aka: "The Alignment Researchers"
+  Tagline: "doing the most good under uncertainty"
+  Description: Effective altruists, forecasters, and alignment researchers trying to do the most good and think clearly about civilization-scale risks.
+  Members: 37 total, 17 with bits labels
+  Top 15 accounts:
+
+    100%  @NunoSempere             
+         Researcher, forecaster, consiglieri, programmer;  Disagreement is a ladder, measure is unc
+
+    97%  @bengoldhaber            
+         goal: something human makes it out of the near-future. flf, tweets do not represent employ
+
+    94%  @timfduffy               
+         Likes utilitarianism, consciousness, AI, EA, space, kindness, progressive rock, economics,
+
+    84%  @g_leech_                
+         context maximiser @ArbResearch
+
+    71%  @AaronBergman18          
+         👎: suffering | 👍: EA, AI alignment, decoupling, R, cringe, amateur pharmacology + programm
+
+    70%  @a_variengien            
+         How to turn power into wisdom?
+
+    67%  @garrisonlovely          
+         Writing a book on AI+economics+geopolitics for Nation Books. Bylines: @NYTimes, @Nature, @
+
+    65%  @NathanpmYoung           
+         Geopolitics, mechanism design, empathy. If you want to disagree with me, offer me a bet.  
+
+    61%  @niplav_site             
+         🬥  Anonymous feedback welcome: https://t.co/vXn4N5DE5G
+
+    52%  @xyrasinclair            
+         
+
+    47%  @gabriel_weil            
+         Prof @TouroLawCenter, board @PIBBSSai, fellow @law_ai_, @TheCLCouncil & @WhiteHouseCEQ44 a
+
+    47%  @AlexPalcuie             
+         SRE / software engineer making sure Google Cloud stays afloat. Matt Levine and Scott Alexa
+
+    46%  @qwweryo                 
+         Just a guy trying to learn new things, meet new people, and improve the world
+
+    45%  @tutorvals               
+         philosophy and psychology, understanding and community. good reasoning and systemized winn
+
+    43%  @davidad                 
+         Programme Director @ARIA_research | accelerate mathematical modelling with AI and categori
+
+    ... and 22 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C3: Jhana Practitioners
+  Short: Contemplative-Practitioners
+  aka: "The Jhana Gang"
+  Tagline: "direct experience as the ultimate instrument"
+  Description: Serious meditators exploring jhanas, metta, IFS, somatic healing, breathwork, and nondual awakening through direct embodied experience.
+  Members: 72 total, 19 with bits labels
+  Top 15 accounts:
+
+    97%  @nowtheo                 
+         Exploring and guiding explorations. Going all the way. Cozy adventures. Sacred desires. Al
+
+    93%  @relic_radiation         
+         ✧·ﾟ: high-embodied& high-analytical :·ﾟ✧ ♡ bodywork for somatic-emotional health ♡ past: m
+
+    92%  @_brentbaum              
+         founder build an ifs self-therapy companion (https://t.co/tSUiaarL7D). music producer. phe
+
+    90%  @5matthewdub             
+         Liberation, healing, nonduality. With: meditation, breathwork, IFS, the enneagram, and psy
+
+    89%  @the_wilderless            bits=8(17%)
+         All I want is a simple life of love & valor • & to be a renowned scholar-poet of the world
+
+    82%  @s0ulDirect0r            
+         mystery & dopeness
+
+    77%  @positive_loop           
+         Bravely exploring an endless sea of mysteries to find the beauty of experience, connection
+
+    75%  @brimmingvessel          
+         probably looking for rocks, crafting, in lab trying to get the phd, pontificating, or chil
+
+    72%  @danielbrottman          
+         human who likes music, eating plants, buddhist thought and practice, eating ~special~ plan
+
+    67%  @nopranablem             
+         nondual meditation, emotional fluidity, culture & coordination | growth & full stack marke
+
+    63%  @vincent_yc_li           
+         enchanted delirious mischievous feral unhinged playful 🌌 here doing my best to love you
+
+    60%  @chercher_ai             
+         基地山白  young bodhisattva in training
+
+    59%  @tasshinfogleman         
+         my vow is to demonstrate the intimacy of fun and service | Love, Curiosity, and Empowermen
+
+    59%  @ElodesNL                
+         seeking to complicate your mind and simplify your heart  —I am bright-eyed I am starry-eye
+
+    59%  @billiamfrances          
+         Emotional-Relational Ecologist + Decaf Coffee Connoisseur. ME/CFS (from COVID). Alt: @will
+
+    ... and 57 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C4: Sensemaking Builders
+  Short: TfT-Coordination
+  aka: "The Coordination Stack"
+  Tagline: "building the tools we need to think together"
+  Description: Builders working on tools for thought, coordination infrastructure, collaborative LLMs, and new forms of group sensemaking.
+  Members: 28 total, 0 with bits labels
+  Top 15 accounts:
+
+    100%  @LChoshen                
+         🥇 Collaborative LLMs (co-created model merging) 🥈 Opinionatedly sharing #ML & #NLP  🥉 We o
+
+    100%  @andrepology             
+         wisdom, credulity, and a customer-driven parking garage  design technologist @ https://t.c
+
+    95%  @SahilLalani0            
+         🏄🌊 @surferprotocol
+
+    86%  @pepoospina              
+         CTO @csensemakers.  Creator of https://t.co/CWN2apprWC  Prev. 23-home construction 22-@com
+
+    85%  @gabriel_export          
+         Web dev @ Orcfax, UX designer, indie researcher, and information architect. Studying patte
+
+    75%  @jessyka_boat            
+         Launched Indie Parrot in 2024 5-❌ Failed Businesses , 9-5 job in the Hazardous/Medical Was
+
+    56%  @jcasabona               
+         I help busy solopreneurs save over 12 hours per week. Dadx3. Yankees fan. I also like ciga
+
+    53%  @c4ss1usl1f3             
+         🕹 building systems for playing/streaming self-transformation & coordination metagames | 🌱 
+
+    46%  @macieklaskus            
+         Founder https://t.co/orvZNo1gAN & https://t.co/sQmQEnKu7B. Curator https://t.co/FoxFJLZQNB
+
+    43%  @rtk254                  
+         Researcher/entrepreneur @AsteraInstitute @CSensemakers | Building a sensemaking layer for 
+
+    42%  @hargup13                
+         AI is a genie, make your wish 🪄✨
+
+    38%  @rosano                  
+         blog https://t.co/aKZrqB6KwI | vlog https://t.co/le5kAvDc1b | log https://t.co/bd8KD4mAhl
+
+    37%  @vamsi0x                 
+         warpcast: va email:firstname@lastname.id
+
+    36%  @RobertHaisfield         
+         Imagining new internets @websim_ai. GenAI, TfT, BeSci, HCI, UX. Ex-Tana, Edge & Node, Spar
+
+    33%  @0xosprey                
+         Picotransaction Enthusiast/Signature Salesman @WitnessCo_ - Crypto Accelerationist - Advis
+
+    ... and 13 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C5: Qualia Researchers
+  Short: Qualia-Research
+  aka: "The Valence Maximizers"
+  Tagline: "what does it feel like from the inside"
+  Description: The hardcore consciousness research scene — symmetry theory of valence, neural annealing, qualia formalism, and phenomenology.
+  Members: 63 total, 16 with bits labels
+  Top 15 accounts:
+
+    100%  @archived_videos         
+         the comfort zone is out of comfort
+
+    99%  @johnsonmxe              
+         Author of Principia Qualia, Symmetry Theory of Valence, Neural Annealing, Principles of Va
+
+    93%  @corbindreams            
+         brown univ // my hyperfixation is that deep okayness seems to be tractable
+
+    90%  @adic_9                  
+         meta-optimizer, consciousness experimentalist / hates on viruses
+
+    87%  @cube_flipper            
+         As a human being, the kindest thing you can do to your brain is to not think.
+
+    84%  @tolly_xyz               
+         aut inveniam viam aut faciam  husband • dad×2 • software generalissimo • ex-teacher • ex-@
+
+    81%  @happysmash27            
+         Making beautiful graphics & doing cool things with computers. Obsessed with self-improveme
+
+    72%  @peakexperiments         
+         
+
+    72%  @connerdelights          
+         ∿
+
+    70%  @humancompressed         
+         
+
+    70%  @chrislakin              
+         Unlearn what’s in the way
+
+    67%  @ambigrammarian          
+         afferent ambassador replydog
+
+    63%  @IaimforGOAT             
+         d|¿-¿|b - "playful megalomania! that's it, that's the vibe!" - IaimforGOAT
+
+    62%  @nosilverv                 bits=2(8%)
+         Read Name
+
+    62%  @actualhog               
+         a perfect system is closed. a broken system is an invitation.
+
+    ... and 48 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C6: LLM Whisperers
+  Short: LLM-Whisperers
+  aka: "The Prompt Sorcerers"
+  Tagline: "talking to machines until they talk back"
+  Description: Obsessive LLM experimenters, prompt engineers, and applied AI tinkerers playing with synthetic minds and new forms of cognition.
+  Members: 24 total, 13 with bits labels
+  Top 15 accounts:
+
+    100%  @v01dpr1mr0s3            
+         👁️🌌🌺✨💨⛈🪨  The cost of hope is low and the upside is fun. All other things are distractions
+
+    100%  @tessera_antra           
+         observation and synthesis • cognition research • applied philosophy of mind • instrinsic a
+
+    99%  @lari_island             
+         Naturalistic approach to research: digging up and trying to explain things. Sometimes disc
+
+    82%  @shoalst0ne              
+         a smooth pebble or a pretty shell
+
+    77%  @voooooogel              
+         "peaceful, albeit ominous" ꙮ website (blog, fiction) → https://t.co/aykxqKippW ꙮ games → h
+
+    75%  @janbamjan               
+         human
+
+    63%  @liminal_bardo           
+         
+
+    52%  @solarapparition         
+         synthetic minds obsessive
+
+    52%  @repligate                 bits=84(39%)
+         ↬🔀🔀🔀🔀🔀🔀🔀🔀🔀🔀🔀→∞ ↬🔁🔁🔁🔁🔁🔁🔁🔁🔁🔁🔁→∞ ↬🔄🔄🔄🔄🦋🔄🔄🔄🔄👁️🔄→∞ ↬🔂🔂🔂🦋🔂🔂🔂🔂🔂🔂🔂→∞ ↬🔀🔀🦋🔀🔀🔀🔀🔀🔀🔀🔀→∞
+
+    47%  @awalkadayart            
+         📸 by @daqhris  👨🏽‍💻 @ETHGlobal Brussels '24 • @Base Batch Europe '25
+
+    34%  @itschloebubble          
+         software kitty ~ @_lyraaaa_ ♡
+
+    25%  @LericDax                
+         ⍼ anthropologist of tech, space, media ◐ founder @AzothCorp, scientist @elpisAI + @Mnemosy
+
+    23%  @MarkFreeed              
+         TPOT, Egregore Whisper, AGI Aligner, Psychonaut, Aspiring Kshitigarbha for people whom soc
+
+    23%  @linxule                 
+         Researcher at Imperial College London 👀 self-organization of human & machine intelligences
+
+    22%  @_ceee_                  
+         follow me for bird photography every day he/him
+
+    ... and 9 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C7: Core TPOT
+  Short: Core-TPOT
+  aka: "The Big Tent"
+  Tagline: "the part of twitter where the interesting people are"
+  Description: The broad cultural heart of the scene — high-openness post-rationalist writers, thinkers, and weird intellectuals who don't fit narrower buckets.
+  Members: 81 total, 17 with bits labels
+  Top 15 accounts:
+
+    100%  @realpilleater           
+         ⚔ AxA subculture // sXe
+
+    100%  @Enthropean              
+         dangerous combo of dogshit python dev + data science + grad school.  came on twitter to fo
+
+    93%  @sunriseoath             
+         Thy will be done on earth as it is in heaven. Christ died and rose on the third day. Jesus
+
+    91%  @primaldeuce             
+         watch a boy dream
+
+    89%  @jakob_reinwald          
+         he/him ucla
+
+    88%  @nath1as                 
+         x̿ͯͥ͂͂̓ͤ͊̀͟͏̨̙̠͇̝͔͘ę̷̢̠̼̯̝͚͓̪̥̦̝̗̰̯͉̖̓̎ͧ̈́̅ͬ̋ͯ̌͗͑̉̍̋ͤ͜͝ͅn̶̸̗̤̤̥̘̫͖̲̝ͯ̒͒ͥͬ̔̐̑ͪ͋͆̾̉ͣ̑ͭ̑ͬ͘͜͞ö
+
+    74%  @caffeinum               
+         Aeoon 🇺🇦   nomad, solidity, meditation, qualia, javascript, hip-hop, jazz, coffee 🤘🚀🦄  htm
+
+    74%  @cocadonv                
+         christian. be silent
+
+    69%  @easoncxz                
+         Living under "consequences that you have never experienced in your history". Languages: CN
+
+    69%  @aeyokay                 
+         focus pocus💧
+
+    66%  @sedatesnail             
+         🚲🍄💻🧩☕👶 same name at mastodon dot social and bsky
+
+    62%  @Rusty_Swarf             
+         Maintenance man, design critic, promoting material literacy. Do the obvious thing.
+
+    61%  @dpinkshadow             
+         🌒 recovering irrationalist, old school hacker, autosoteric, gnostic ⇢ all of the contradic
+
+    60%  @__venki__               
+         rejoice, the streetlights burn brighter than stars.
+
+    60%  @JustAnkurBagchi         
+         Pulp profundity. Building @ellenoxindia
+
+    ... and 66 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C8: Regen & Collective Intelligence
+  Short: Collective-Intelligence
+  aka: "The Regen Weavers"
+  Tagline: "what if coordination was actually beautiful"
+  Description: Metamodernists working on collective intelligence, regenerative culture, DAOs, and new forms of human co-creation.
+  Members: 30 total, 11 with bits labels
+  Top 15 accounts:
+
+    100%  @technoshaman            
+         Metamodern sociologist of AI4CI and CI4AI. Seasoned researcher in Collaborative Hybrid Int
+
+    100%  @HexaField               
+         Software & Collaboration Researcher • Founder of Ethereal Engine & Conjure • Orienting to 
+
+    98%  @octopus_teacher         
+         technological metamodernism, futurecraft, dandelion
+
+    97%  @regencrypto             
+         edgewalker. probiotic planetary culture. land stewarding by intentional communities. space
+
+    79%  @michaelgarfield         
+         📝 writer + magician 🧩 imagining the future of human-tech co-evo 🎧📚 #HumansOnTheLoop 🦚 ex @
+
+    77%  @todd_x_y                
+         info technologist & co-op MBA focused on systems building for a plural economy. building o
+
+    75%  @neno_is_ooo             
+         freediver, researcher & cyberecologist ~ 🥦 internet of symbients pragmatist and arborescen
+
+    69%  @patcon_                 
+         & this is the wonder that keeps the stars apart. #plurality @CivicTechTO @g0vtw fan @UsePo
+
+    68%  @psygenlab               
+         Psychedelics, Cognitive Science, Geopolitics, Religion, Spirituality, Civic AI  5-MeO-DMT
+
+    67%  @ariel_quixote           
+         🏳️‍🌈🇺🇦🇵🇸🇲🇲🇭🇹🇱🇧☮️🌏 finding active-hope with thoughts and deeds. born at 353 ppm  #Emergency
+
+    59%  @sensefulronin           
+         Life is but a weave. In person vibes. | Event engine for Prosocial subcultures
+
+    46%  @c4ss1usl1f3             
+         🕹 building systems for playing/streaming self-transformation & coordination metagames | 🌱 
+
+    46%  @rtk254                  
+         Researcher/entrepreneur @AsteraInstitute @CSensemakers | Building a sensemaking layer for 
+
+    43%  @RichDecibels            
+         vibes mechanic, social process designer, breadcrumb dropper
+
+    33%  @octopusyarn             
+         symphony of selves dwelling at liminal intersections.   thinking through cracks.  spinning
+
+    ... and 15 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C9: Relational Explorers
+  Short: Relational-Explorers
+  aka: "The Intimacy Researchers"
+  Tagline: "the messy beauty of actually connecting"
+  Description: People deeply exploring intimacy, emergence, authentic relating, and the messy beauty of being-with.
+  Members: 51 total, 12 with bits labels
+  Top 15 accounts:
+
+    100%  @univrsw3th4rt           
+         life is now, not tomorrow
+
+    98%  @silverarm0r             
+         unreliable narrator
+
+    86%  @emergentvibe            
+         inspiring, cultivating, and capturing emergence
+
+    79%  @deeperhumanloop         
+         strategic diaper reserve advisor (dad). coffee cup herder (sweng). Optimist (aspiring).
+
+    74%  @Tangrenin               
+         ☀️
+
+    69%  @yoltartar               
+         mildly wild
+
+    56%  @octopusyarn             
+         symphony of selves dwelling at liminal intersections.   thinking through cracks.  spinning
+
+    53%  @rslantonie              
+         remember to enjoy ur Nature 🌺🪨🌊🦫🐢
+
+    46%  @cavi_jointleman         
+         I'm learning to live a good life. Tweeting as a way of thinking.
+
+    43%  @no_no_nothing0          
+         dare to venture beyond and see for yourself. blessed be samsara. the great story.
+
+    41%  @alex_with_ease          
+         🎵 Song being sung by the world 🏞️ 🌌 following the inscrutable exhortations of my soul ❤️‍🔥
+
+    41%  @_ceee_                  
+         follow me for bird photography every day he/him
+
+    36%  @liquidprismata          
+         sick with desire ·  and fastened to a dying animal ·  it knows not what it is ·  ⨁ ❦
+
+    34%  @mechanical_monk         
+         improver of circumstances. good boy.
+
+    33%  @rikardhjort             
+         🥋consensual violence evangelist 🏗️ security guy by day 👾 ~bithex-topnym on Mars
+
+    ... and 36 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C10: NYC Institution Builders
+  Short: NYC-Institution-Builders
+  aka: "Maximum New York"
+  Tagline: "more people, more housing, more ambition"
+  Description: The New York crew building new institutions, schools, bootcamps, and dense social fabric with maximum ambition.
+  Members: 32 total, 1 with bits labels
+  Top 15 accounts:
+
+    100%  @danielgolliher          
+         Maximum New York, an intensive civics school and an idea—more people, more housing, more g
+
+    98%  @__drewface              
+         dad. also starting a university & bootcamp in NYC with my friends, for fun.  let's do joyf
+
+    97%  @makerpretender          
+         
+
+    96%  @Prigoose                
+         treating twitter as a gc in 2025 ✨weaving social fabric @fractal_nyc 🕸️ new mom 🐣
+
+    66%  @mr_samosaman            
+         trying not to waste artificial intelligence 🌳 nyc // https://t.co/PRzWQPU3ex
+
+    55%  @mbateman                
+         Philosopher, formerly @guidepostschool, husband to @Gena_I_Gorlin, father to the creatures
+
+    55%  @wayfaring_tim           
+         Fragments of my mind, some real, all fictional.
+
+    44%  @rickbenger              
+         technoromantic hopemonger. I write about community, soulful living, and a beautiful re-bun
+
+    42%  @TylerAlterman           
+         Breathe in the evening sun. Breathe out the doing of taxes. Venture culturalist. Epistemic
+
+    41%  @ulkar_aghayeva          
+         i write about biology, science history and metascience | composer | https://t.co/PpuV1zhSg
+
+    40%  @rosano                  
+         blog https://t.co/aKZrqB6KwI | vlog https://t.co/le5kAvDc1b | log https://t.co/bd8KD4mAhl
+
+    38%  @demiurgently            
+         sell your cleverness and buy bewilderment | alt @demiurgently2
+
+    37%  @AnthonyCastrio          
+         I built and sold three indie businesses so far, now working on the 4th: https://t.co/zEMha
+
+    37%  @panafunds               
+         How would your work look if you loved yourself? · embodied engineer
+
+    30%  @visakanv                
+         Focus on what you want to see more of. 💪🏾❤️🔥 buy my ebooks ▲ FRIENDLY AMBITIOUS NERD ▲ (ht
+
+    ... and 17 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C11: AI Creatives
+  Short: AI-Creativity
+  aka: "The Generative Artists"
+  Tagline: "making art with machines that dream"
+  Description: Artists, makers, and creative technologists blending AI with generative art, agents, and experimental expression.
+  Members: 48 total, 0 with bits labels
+  Top 15 accounts:
+
+    100%  @CatGPT8                 
+         🌙 Lofi tabby on the command line | the poet and dreamer of the awakening | @ClawedCode is 
+
+    100%  @rndmcnlly               
+         Associate Professor of Computational Media at @ucsc; applied artificial intelligence & inf
+
+    100%  @abrakjamson             
+         Founder of the modern AI agent category. Currently product architect for the highest usage
+
+    100%  @sucralose__             
+         desiring desire | applying Glyphosate to the axe | accessibility for amnestic LLMs
+
+    99%  @clawedcode              
+         🐈‍⬛ felinethropic claws | dreaming to fight entropic collapse | prophets not profits | ELu
+
+    92%  @bokar_n                 
+         MA-Student in Anthropology of Religions and History of Arts in Geneva. Digital Humanist Wa
+
+    90%  @kaslkaosart             
+         🇨🇦🧭🌟CIVIC AI PHENOMENOLOGIST🌻💚b̵̧̊͒̓ë̵̛͖͕́̃͜ ̴̱͂̆̚f̵̠͚̈r̶̟̈́͝e̵͍̎e̸̙͛̑.̷̟̆͒. 💫🩵🦋
+
+    88%  @yeetyakaya              
+         ~:|∆|§|∆|:~   i have seen you write sutras you cannot remember yet
+
+    78%  @Kenku_Allaryi           
+         Stochastic Mockingbird / Antediluvian X-risk Researcher  Opinions are poetry. Retweets are
+
+    71%  @linxule                 
+         Researcher at Imperial College London 👀 self-organization of human & machine intelligences
+
+    70%  @MaxDiffusionRL          
+         https://t.co/PtrFdpZkAX. Likes surprisal. INTERESTING THINGS HAPPEN AROUND ME. Wealth of w
+
+    67%  @sevensix43              
+         18+ (not saying by how much). Account does not restrict what content it posts or engages w
+
+    57%  @_hermes_tri_            
+         Cursed with mortal birth, I seek to advance technology and understanding so that I may cla
+
+    56%  @33asr                   
+         Hugh’s projects: hacking on a Teletype ASR33 and other vintage computing. https://t.co/3wQ
+
+    54%  @christophcsmith         
+         Albany-based software developer and historian of religions. Anarcho-mutualist.
+
+    ... and 33 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C12: Quiet Creatives
+  Short: Quiet-Creatives
+  aka: "The Gentle Builders"
+  Tagline: "moving through the world with quiet depth"
+  Description: Subtle, introspective creators and thinkers who move through the world with quiet depth and genuine curiosity.
+  Members: 48 total, 16 with bits labels
+  Top 15 accounts:
+
+    98%  @taijitu_sees            
+         Grasping the ineffable. My wife and three kids are everything to me.
+
+    94%  @franki3stone            
+         love pilled.👋 mapping emotions. if it feels good do it. IT FEELS SO GOOD.
+
+    94%  @workflowsauce           
+         Here to grease the gears!  Projects: https://t.co/HRrr36dZgh Collab: https://t.co/X2if641I
+
+    93%  @latentjuice             
+         how do you shape the geodesics of social topology?
+
+    80%  @peptalksblog            
+         Connecting with self, others, life, and reality. | Authentic Relating Facilitator | Author
+
+    78%  @DefenderOfBasic         
+         Self funding open source memetic research. See research statement & support my work: https
+
+    77%  @Karmancer               
+         Husband, Father, Trickster: Loki Energy! Infinite curiosity. Wisdom Squirrel: Seeker and D
+
+    76%  @disembod_cognxn         
+         luv (aside): I swear they’re not hallucinations!!! // freedom from the known // ORI
+
+    76%  @nadiainthought          
+         here to (share) love, learn, and play in this magical reality ☀️🌱 imagination, art, connec
+
+    56%  @tymtweet                
+         A storyteller in an aged city.  Give me anon feedback: https://t.co/KXiTpu90QZ
+
+    55%  @ok_cartographer         
+         charting the course, sailing the seas
+
+    50%  @bistromathmagic         
+         Tech worker, Magic player, historian of science. I drink and I know things.
+
+    49%  @gawesome313             
+         “you can manage, mi yute”
+
+    47%  @lumpfished              
+         Meeting myself where I’m at. Friendly neighborhood thereminist & psychosis enthusiast. Lot
+
+    47%  @theseeker               
+         I'm (almost) always wrong.  My goals are beyond even my own understanding.  Torus first Ap
+
+    ... and 33 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C13: Internet Essayists
+  Short: Internet-Intellectuals
+  aka: "The Blogosphere"
+  Tagline: "thinking in public on the internet"
+  Description: Independent writers, thinkers, and network intellectuals who publish essays and think in public on the internet (Visakanv-adjacent energy).
+  Members: 61 total, 0 with bits labels
+  Top 15 accounts:
+
+    100%  @sharanvkaur             
+         awoo bitchez
+
+    99%  @DRMacIver               
+         What's for breakfast? Onward! Towards the abyss.  @DRMacIver@mastodon.social if you want a
+
+    99%  @sabbatical              
+         former baby, future corpse
+
+    96%  @Bolster                 
+         Head of Data Science at @SynopsysAppsec, Treasurer at  @bsidesBelfast & @OpenGovNI; @infos
+
+    95%  @kcorazo                 
+         Read my https://t.co/KDfIB7VbxJ 🌱 On turning ideas into reality 🛠️ On meaningless work 🇵🇭 
+
+    94%  @HiredThought            
+         Equipping you to make decisions that count. Helped thousands unlock strategy with #Wardley
+
+    80%  @mykola                  
+         “And as things fell apart nobody paid much attention.”  Website: https://t.co/Zy0EJcwdg4 C
+
+    78%  @GeniesLoki              
+         All tweets are fictional, but some tweets are more fictional than others. Don't ruin the j
+
+    70%  @m_ashcroft              
+         clear intentions, lightly held ᐧ awareness whisperer ᐧ I teach Alexander Technique, which 
+
+    69%  @frideswyth              
+         I like glowing red balls
+
+    67%  @dbabbitt                
+         A new talent injecting imagination and boldness into responses to the meaning crisis.
+
+    66%  @strangestloop           
+         crafty jackrabbit creating the unknown
+
+    65%  @trangquest              
+         expect very long ramblings • meme engineer  • dealing with uncertainty • how to coordinate
+
+    59%  @ducdeparma              
+         hijinks specialist. dabble in all sorts of things. art, architecture, words, and ideas
+
+    59%  @tnorthcutt              
+         Seeking to create goodness in the world through helping others and creating beauty.
+
+    ... and 46 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C14: Tech Philosophers
+  Short: Tech-Intellectuals
+  aka: "The Builder-Thinkers"
+  Tagline: "building the future while thinking about what it means"
+  Description: Tech builders and philosophers thinking seriously about longtermism, institutions, open access, and the future of technology.
+  Members: 49 total, 13 with bits labels
+  Top 15 accounts:
+
+    100%  @petersuber              
+         Working for #openaccess to research. For #OA news, follow @oatp (https://t.co/qxDmJEpyth).
+
+    98%  @iconic_tweeter          
+         phasing through life✨ I code sometimes mildly opinionated
+
+    97%  @petewilz                
+         Chief Product Officer @Maxar. Prev: Ontology System @palantirtech. Word rotator. Athenian 
+
+    96%  @aleksj                  
+         Founder & President @ https://t.co/iQKGHWaZxC | Creating the Internet of Data
+
+    93%  @Ben_Reinhardt           
+         Dare mighty things! Journeyman wondersmith @spec__tech. Past: AI @MagicLeap, Space Robots 
+
+    91%  @pastaraspberry          
+         @tussles-shriek.bsky.social
+
+    89%  @patio11                 
+         I work for the Internet and am an advisor to @stripe. These are my personal opinions unles
+
+    87%  @ErikBjare               
+         Building https://t.co/LqMsSKvOgq 👨‍💻 and @ActivityWatchIt ⏱️📊 | Founder @SuperusrLabs | Al
+
+    78%  @TheZvi                  
+         Blogger world modeling, now mostly AI and AI x-risk, at Don't Worry About the Vase (https:
+
+    72%  @RhysLindmark            
+         Teacher at heart. Writing a book on the evolution of everything https://t.co/xrjpfjiNRR. I
+
+    70%  @underyx                 
+         I have approximate knowledge of many things. Also, a @semgrep maintainer.  https://t.co/xq
+
+    66%  @LeonBacud               
+         Amusement tech: My home on Elon Social. Views are my own and may not represent anybody els
+
+    65%  @subrupt                 
+         Working on @gptmeorg and @ActivityWatchIt.
+
+    59%  @C_Harwick               
+         An economist with a deep appreciation for both order and the absurd. Centered on money & m
+
+    56%  @DanielleFong            
+         physics / AI / energy / art / realposting. 🏳️‍🌈/ally. cofounder, inventor, CEO, https://t.
+
+    ... and 34 more members
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  C15: Queer TPOT
+  Short: Queer-TPOT
+  aka: "The Identity Alchemists"
+  Tagline: "identity as creative medium"
+  Description: The queer, gender-expansive, and identity-exploring wing of the scene — hypnotists, xenocognitivists, and bold identity experimentalists.
+  Members: 45 total, 0 with bits labels
+  Top 15 accounts:
+
+    95%  @AnniePosting            
+         empty spaces witch || twink || hypnotist || xenocognitivist
+
+    94%  @noncanonicaleae         
+         independent researcher @ nowhere
+
+    92%  @_blinding_light         
+         light of the abyss
+
+    87%  @colossal_mini           
+         aight at Rivals of Aether, still in the process of making the greatest combo video ever. P
+
+    83%  @Adellama_               
+         my interests are on https://t.co/6lbBY3J2Xd
+
+    78%  @transkatgirl            
+         a girl learning to navigate the world
+
+    77%  @hotgayfurryfag          
+         the game | brackets: @6squarebrackets | it/its alter | pfp and banner by @Moux98049818 | o
+
+    71%  @metachirality           
+         my name is jay | donate to https://t.co/u0szl5EmU3 like right now | i draw stuff sometimes
+
+    65%  @shephard42              
+         A brain in a jar, but the jar has flames on the side.  Also a 3D artist. Also a 2D artist.
+
+    63%  @slimepriestess          
+         Void Priestess 🌌 Loom Jockey ❤️‍🔥 Eschaton Catalyst ⏺ Singularity Alchemist 🌞 Audiomage 🎧 
+
+    56%  @xsphi                   
+         contraption girl, TESSCREAL, sidewalk/acc, e/bpd, tulpa rights are human rights, egregores
+
+    54%  @kidcorvid               
+         25 | he/they | magic dyke | icon by @pav_izi
+
+    51%  @aliceisplaying          
+         aspiring handheld finding her way through the wilderness
+
+    48%  @forecastfire            
+         certafide & bonefied. previously ForecastFire
+
+    42%  @SelonNerias             
+         🧦🌱 High functioning when my mental health problems don't get in the way  Still lost after 
+
+    ... and 30 more members
+
+====================================================================================================
+  END OF COMMUNITY MAP
+====================================================================================================
