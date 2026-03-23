@@ -1,19 +1,35 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { getAllCachedCards } from './GenerateCard'
 import './card-gallery.css'
 
 export default function CardGallery({ onMemberClick, onBack }) {
   const [cards, setCards] = useState([])
   const [loading, setLoading] = useState(true)
-  const [fullscreenUrl, setFullscreenUrl] = useState(null)
+  const [fsIndex, setFsIndex] = useState(null) // null = closed, number = which card
 
-  // Close fullscreen on ESC
+  const isOpen = fsIndex !== null && cards.length > 0
+
+  const goPrev = useCallback(() => {
+    setFsIndex(i => (i > 0 ? i - 1 : cards.length - 1))
+  }, [cards.length])
+
+  const goNext = useCallback(() => {
+    setFsIndex(i => (i < cards.length - 1 ? i + 1 : 0))
+  }, [cards.length])
+
+  const close = useCallback(() => setFsIndex(null), [])
+
+  // Keyboard: ESC to close, arrows to navigate
   useEffect(() => {
-    if (!fullscreenUrl) return
-    const onKey = (e) => { if (e.key === 'Escape') setFullscreenUrl(null) }
+    if (!isOpen) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') close()
+      else if (e.key === 'ArrowLeft') goPrev()
+      else if (e.key === 'ArrowRight') goNext()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [fullscreenUrl])
+  }, [isOpen, close, goPrev, goNext])
 
   useEffect(() => {
     // Try server gallery first, fall back to localStorage
@@ -23,16 +39,16 @@ export default function CardGallery({ onMemberClick, onBack }) {
         if (data.cards && data.cards.length > 0) {
           setCards(data.cards)
         } else {
-          // Server empty or unavailable — use local cache
           setCards(getAllCachedCards())
         }
       })
       .catch(() => {
-        // API not available (local dev) — use local cache
         setCards(getAllCachedCards())
       })
       .finally(() => setLoading(false))
   }, [])
+
+  const fsCard = isOpen ? cards[fsIndex] : null
 
   return (
     <div className="gallery">
@@ -52,14 +68,14 @@ export default function CardGallery({ onMemberClick, onBack }) {
       )}
 
       <div className="gallery-grid">
-        {cards.map(card => (
+        {cards.map((card, i) => (
           <div key={card.handle} className="gallery-card">
             <img
               src={card.url}
               alt={`@${card.handle}`}
               className="gallery-card-img"
               loading="lazy"
-              onClick={() => setFullscreenUrl(card.url)}
+              onClick={() => setFsIndex(i)}
               style={{ cursor: 'zoom-in' }}
             />
             <a
@@ -88,20 +104,43 @@ export default function CardGallery({ onMemberClick, onBack }) {
         ))}
       </div>
 
-      {fullscreenUrl && (
-        <div
-          className="card-fullscreen-overlay"
-          onClick={() => setFullscreenUrl(null)}
-        >
-          <button className="card-fullscreen-close" onClick={() => setFullscreenUrl(null)}>
+      {isOpen && fsCard && (
+        <div className="card-fullscreen-overlay" onClick={close}>
+          <button className="card-fullscreen-close" onClick={close}>
             &times;
           </button>
-          <img
-            className="card-fullscreen-image"
-            src={fullscreenUrl}
-            alt="Card fullscreen view"
-            onClick={(e) => e.stopPropagation()}
-          />
+
+          {cards.length > 1 && (
+            <button
+              className="card-fullscreen-nav card-fullscreen-nav--prev"
+              onClick={(e) => { e.stopPropagation(); goPrev() }}
+            >
+              ‹
+            </button>
+          )}
+
+          <div className="card-fullscreen-center" onClick={(e) => e.stopPropagation()}>
+            <img
+              className="card-fullscreen-image"
+              src={fsCard.url}
+              alt={`@${fsCard.handle}`}
+            />
+            <div className="card-fullscreen-handle">
+              @{fsCard.handle}
+              <span className="card-fullscreen-counter">
+                {fsIndex + 1} / {cards.length}
+              </span>
+            </div>
+          </div>
+
+          {cards.length > 1 && (
+            <button
+              className="card-fullscreen-nav card-fullscreen-nav--next"
+              onClick={(e) => { e.stopPropagation(); goNext() }}
+            >
+              ›
+            </button>
+          )}
         </div>
       )}
     </div>
