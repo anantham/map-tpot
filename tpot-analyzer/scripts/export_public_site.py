@@ -298,17 +298,22 @@ def extract_band_accounts(
             )
             return extract_classified_accounts(db_path, min_weight)
 
-        # Load all band assignments (exclude 'unknown')
+        # Load all band assignments (including 'unknown' as 'faint')
         band_rows = conn.execute(
-            "SELECT account_id, band FROM account_band WHERE band != 'unknown'"
+            "SELECT account_id, band FROM account_band"
         ).fetchall()
-        band_map: dict[str, str] = {r["account_id"]: r["band"] for r in band_rows}
+        band_map: dict[str, str] = {}
+        for r in band_rows:
+            band = r["band"]
+            if band == "unknown":
+                band = "faint"
+            band_map[r["account_id"]] = band
         logger.info(
-            "account_band: %d non-unknown (%s)",
+            "account_band: %d total (%s)",
             len(band_map),
             ", ".join(
                 f"{b}={sum(1 for v in band_map.values() if v == b)}"
-                for b in ("exemplar", "specialist", "bridge", "frontier")
+                for b in ("exemplar", "specialist", "bridge", "frontier", "faint")
             ),
         )
     finally:
@@ -385,7 +390,7 @@ def extract_band_accounts(
             npz_path,
         )
 
-    band_counts: dict[str, int] = {"specialist": 0, "bridge": 0, "frontier": 0}
+    band_counts: dict[str, int] = {"specialist": 0, "bridge": 0, "frontier": 0, "faint": 0}
     for aid, band in sorted(band_map.items()):
         if band == "exemplar":
             continue
@@ -852,7 +857,7 @@ def run_export(
     print(f"Export complete -> {output_dir}")
     print(f"  Communities:         {len(communities)}")
     print(f"  Total accounts:      {len(all_accounts)}")
-    for band in ("exemplar", "specialist", "bridge", "frontier"):
+    for band in ("exemplar", "specialist", "bridge", "frontier", "faint"):
         count = band_counts.get(band, 0)
         if count > 0:
             print(f"    {band:>12s}:      {count}")
