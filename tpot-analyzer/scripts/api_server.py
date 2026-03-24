@@ -144,4 +144,4 @@ if __name__ == '__main__':
     LOGGER.info(f"API Endpoint: http://localhost:{PORT}/api/graph-data")
     LOGGER.info("CORS enabled for all origins")
     LOGGER.info("=" * 60)
-    app.run(debug=True, port=PORT, host='0.0.0.0')
+    app.run(debug=os.environ.get('FLASK_DEBUG', '0') == '1', port=PORT, host='127.0.0.1')
