@@ -336,6 +336,8 @@ ANTI_PATTERNS (avoid)
 6. Silent Failure — not failing loudly with clarity, letting it rot
     
 7. Scope Creeper — expanding beyond approved boundaries
+
+8. Schema Guesser — assuming API response field names without checking. ALWAYS examine the actual response body (print keys, print a sample) before writing parsing code. Example: twitterapi.io `user/followings` returns `{"followings": [...]}` not `{"data": [...]}`. Reading `resp.json().get('data', [])` silently returns empty while the real data sits in `followings`. This cost ~180K API credits and an entire session of "the API doesn't work" debugging. The fix took 1 character. Examine actual responses. Read API docs. Don't assume field names from other endpoints.
     
 
 ---
