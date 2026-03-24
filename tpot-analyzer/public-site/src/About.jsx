@@ -205,7 +205,7 @@ export default function About({ meta, onNavigate }) {
               shared who they follow, who they retweet, and their tweets. That&rsquo;s the seed.
             </p>
             <p>
-              From those {classifiedStr} accounts, we can trace outward to ~190,000 accounts in
+              From those {classifiedStr} accounts, we can trace outward to ~200,000 accounts in
               their follow graph. For each archived account, we see everything&mdash;every follow,
               every retweet. For the other 190K, we only know that <em>someone</em> follows
               them&mdash;not who <em>they</em> follow. It&rsquo;s like knowing which lectures
@@ -419,8 +419,9 @@ export default function About({ meta, onNavigate }) {
             <p>
               The correction didn&rsquo;t throw out the graph&mdash;it refined it. @repligate
               genuinely orbits Qualia Research (their follows prove it), but their active
-              intellectual work lives in LLM Whisperers. Tweet labeling is currently
-              experimental&mdash;applied to a handful of accounts so far.
+              intellectual work lives in LLM Whisperers. Tweet labeling now covers
+              32 accounts (502 tweets) using a 3-model LLM ensemble with human
+              Chrome verification of images, threads, and quoted tweets.
             </p>
           </section>
 
@@ -433,7 +434,7 @@ export default function About({ meta, onNavigate }) {
 
             <p>
               NMF and tweet labeling classify {classifiedStr} seed accounts well. But what about
-              the other 190,000 in the follow graph?
+              the other ~200,000 in the follow graph?
             </p>
             <p>
               Label propagation uses the graph itself. Start with classified seeds. Their
@@ -442,11 +443,20 @@ export default function About({ meta, onNavigate }) {
               The intuition is simple: you are the company you keep.
             </p>
             <p>
-              Technically, this is a harmonic function on the graph Laplacian. Seeds are
-              reweighted by inverse square root of class size so that small communities
-              don&rsquo;t get drowned out by large ones. The system solves iteratively and
-              measures uncertainty via entropy&mdash;high entropy means the graph can&rsquo;t
-              decide where you belong.
+              Crucially, each community propagates independently. Your score in Qualia Research
+              has nothing to do with your score in LLM Whisperers&mdash;they don&rsquo;t sum
+              to 1. This means bridge accounts emerge naturally: someone followed by 12 Qualia
+              seeds and 8 LLM Whisperer seeds scores high in both. The old zero-sum approach
+              forced every account into a single community. Independent propagation holds space
+              for soft, multi-community membership.
+            </p>
+            <p>
+              To separate real signal from noise, we count seed neighbors&mdash;how many
+              classified accounts directly follow you, per community. An account with 18 seed
+              neighbors across two communities is a genuine bridge. An account with 1 neighbor
+              in a sparse graph corner is noise, no matter what propagation says.
+              That&rsquo;s why mainstream accounts like @googlecalendar don&rsquo;t appear
+              in the map even though they&rsquo;re technically reachable.
             </p>
             <p>
               Not everyone gets a confident placement. Accounts close to many seeds in the
@@ -454,12 +464,6 @@ export default function About({ meta, onNavigate }) {
               from any seed stay gray&mdash;we&rsquo;d rather say &ldquo;we&rsquo;re not
               sure&rdquo; than guess wrong. <strong>That restraint is why grayscale cards
               exist.</strong>
-            </p>
-            <p>
-              @repligate, as a seed account, propagates outward. Accounts that follow
-              them and other LLM Whisperers pick up that signal. An account three hops
-              away from any seed gets a faint, uncertain placement&mdash;if it gets
-              one at all.
             </p>
           </section>
 
@@ -490,9 +494,10 @@ export default function About({ meta, onNavigate }) {
 
             <h3>Holdout recall</h3>
             <p>
-              We collected 389 accounts from two independent TPOT directories&mdash;the
-              Strangest Loop directory and the Orange TPOT Substack directory&mdash;none
-              of which were used to build the map. Then we ask: does the pipeline find them?
+              We collected 1,794 accounts from four independent ground truth
+              sources&mdash;the Strangest Loop directory, the Orange TPOT Substack directory,
+              a curated X list, and ego follow data&mdash;none of which were used to build
+              the map. Then we ask: does the pipeline find them?
             </p>
 
             <div className="about-recall-table">
@@ -521,9 +526,9 @@ export default function About({ meta, onNavigate }) {
                     <td>In the graph but below confidence threshold</td>
                   </tr>
                   <tr>
-                    <td>Holdout directory accounts</td>
-                    <td>118 / 217</td>
-                    <td>99 are outside the follow graph entirely</td>
+                    <td>Holdout ground truth (4 sources)</td>
+                    <td>152 / 1,794</td>
+                    <td>8.5% recall across Orange, Strangest Loop, curated list, ego follows</td>
                   </tr>
                 </tbody>
               </table>
@@ -656,8 +661,9 @@ export default function About({ meta, onNavigate }) {
             <h2>This Is One Map, Not <em>The</em> Map</h2>
 
             <p>
-              This map starts from <strong>my perspective</strong>&mdash;the ~300 accounts I follow,
-              the communities I recognize, the boundaries I drew. It&rsquo;s Aditya&rsquo;s TPOT.
+              This map starts from <strong>my perspective</strong>&mdash;the ~1,400 accounts I follow,
+              the {classifiedStr} seeds I&rsquo;ve helped classify, the boundaries I drew. It&rsquo;s
+              Aditya&rsquo;s TPOT.
             </p>
             <p>
               Someone following different people would see different communities. A contemplative
