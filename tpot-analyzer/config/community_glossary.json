@@ -23,15 +23,34 @@
   },
 
   "emerging_clusters": {
-    "_note": "These are real scenes observed in labeling but not yet DB communities. Use new-community-signal:Name for these ONLY.",
-    "AI-Mystics": "Bridges AI + mystical/spiritual tradition. Arabic poetry meets alignment, meditation-as-computation, Sufi + ML. 5 signals across manual labeling.",
-    "d/acc-Builders": "Defensive acceleration (Vitalik's framework). Network states, Zuzalu ecosystem, zugrama.org. Build things that must exist. Proof of personhood, decentralized identity.",
+    "_note": "These are real scenes observed in labeling but not yet DB communities. Use new-community-signal:Name for these ONLY. Updated 2026-03-24 after auditing all 26 labeled accounts.",
+    "AI-Mystics": "Bridges AI + mystical/spiritual tradition. Arabic poetry meets alignment, meditation-as-computation, Sufi + ML. 5 signals across manual labeling. Strongest emerging cluster.",
+    "Contemplative-Alignment": "Bridge between alignment thinking + contemplative practice. Not just EA people who meditate — people who think meditation-style awareness IS alignment methodology. 2 signals.",
+    "d/acc-Builders": "Defensive acceleration (Vitalik's framework). Network states, Zuzalu ecosystem, zugrama.org. Build things that must exist. Proof of personhood, decentralized identity. Exemplar: @YeshodharaB.",
     "DeSci": "Decentralized science. Open-source crowdsourcing AI swarms, science/acc, breaking existing research paradigms. Adjacent to d/acc but focused on scientific discovery.",
-    "Somatic-Coaching": "Distinct from Contemplative-Practitioners. Body-oriented coaching, trauma-informed facilitation, nervous system regulation as professional practice (not personal exploration).",
+    "Somatic-Coaching": "Distinct from Contemplative-Practitioners. Body-oriented coaching, trauma-informed facilitation, grief/mortality work, nervous system regulation as professional practice (not personal exploration). Includes death-positive and trauma-informed TPOT. Exemplar: @stephsoussloff.",
+    "Open-Source-AI": "Open-weight model builders, fine-tuners, democratizers. Distinct from LLM-Whisperers (who probe model psychology) — these people TRAIN the models. HuggingFace ecosystem, Nous Research, local inference. Exemplar: @Teknium.",
     "Metamodern-Integral": "Hanzi Freinacht, metamodernism, integral theory, developmental psychology applied to culture. Overlaps with Collective-Intelligence but more philosophical.",
     "Egregore-Trackers": "People who track and name memetic entities, cultural forces, and emergent group minds. Simulacra theory, hyperstition, cultural virus dynamics.",
-    "Network-State": "Balaji-adjacent. Startup societies, popup cities, charter cities. Overlaps with d/acc but more political/sovereign focus.",
-    "Post-Rationalist": "Beyond LessWrong rationalism. Integrating embodiment, aesthetics, and spiritual practice with analytical rigor. The 'what rationalism becomes after you meditate' crowd."
+    "Network-State": "Balaji-adjacent. Startup societies, popup cities, charter cities, parallel societies. Overlaps with d/acc but more political/sovereign focus.",
+    "Post-Rationalist": "Beyond LessWrong rationalism. Integrating embodiment, aesthetics, and spiritual practice with analytical rigor. The 'what rationalism becomes after you meditate' crowd.",
+    "Field-Builders": "People building institutions, orgs, and movements — but NOT NYC-specific. AGI governance institutions, meaning-aligned organizations, coordination infrastructure companies. Exemplar: @edelwax."
+  },
+
+  "tag_deduplication": {
+    "_note": "The LLM often creates duplicate thematic tags. These are equivalent — use ONLY the canonical (first) form.",
+    "theme:AI-safety": ["theme:AI alignment", "theme:AI-alignment", "theme:alignment", "theme:ai-alignment", "theme:ai-safety", "theme:existential-risk", "theme:AI-risk"],
+    "theme:contemplative-practice": ["theme:contemplative-tech", "theme:intentional-living"],
+    "theme:social-commentary": ["theme:personal-reflection"]
+  },
+
+  "undersampled_communities": {
+    "_note": "These communities have very little labeling evidence. Priority for next labeling rounds.",
+    "Queer-TPOT": "1 account, 1 bit — need to label accounts like @transkatgirl, @alicetiara, etc.",
+    "TfT-Coordination": "1 account, 1 bit — need to label @RhysLindmark, @MichaelGarfield type accounts.",
+    "AI-Creativity": "2 accounts, 11 bits — need to label generative artists, @RiversHaveWings type accounts.",
+    "NYC-Institution-Builders": "3 accounts, 13 bits — need to label @Malcolm_Ocean, @devonzuegel type accounts.",
+    "Internet-Intellectuals": "4 accounts, 26 bits — need to label @visakanv (already in DB but thin), @DanielleFong type accounts."
   },
 
   "adjacent_ecosystems": {
