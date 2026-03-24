@@ -60,15 +60,23 @@ These items were built but not tracked in the original Phase 4-8 roadmap below. 
 - [x] Holdout recall verification script: `scripts/verify_holdout_recall.py`
 
 ### What's Next
-- [ ] Full active learning Round 1 (50 accounts, $2.50)
+- [ ] Full active learning Round 1 (50 accounts, `--ego adityaarpitha`, $2.50)
 - [ ] Round 2: deepen ambiguous accounts via advanced_search
 - [ ] Label @mykola from archive (109K tweets, NMF says Essayists but graph says Quiet Creatives + Jhana)
-- [ ] Label @earthlypath, @YeshodharaB via API fetch
+- [x] Label @earthlypath, @YeshodharaB via API fetch (in progress session 9)
 - [ ] Investigate Regen absorption (68x ratio — bridge into non-TPOT metacrisis ecosystem)
 - [ ] Re-export + deploy updated public site
 - [ ] TF-IDF precompute for similar archive tweet context in labeling
-- [ ] Roadmap restructure (Phases 4-8 below are partially stale)
 - [ ] Send CA team message (bookmarks, lists, feed JSONL)
+
+### Chrome/Playwright Enrichment (future — higher quality, slower)
+- [ ] **Playwright-based tweet investigation**: for each enriched account, visit top tweets in browser, screenshot images, read thread context, capture replies + quote tweets. Produces richer labeling context than API text alone.
+- [ ] **MCP Chrome labeling**: Claude orchestrates Chrome to visit tweets, sees images directly, describes visual content in labeling notes. Semi-automated, highest quality.
+- [ ] **Following list + Chrome combo**: API fetch following list ($0.05 for ~500 edges) + Chrome for tweet investigation (free). Best signal-per-dollar: graph edges via API, content via browser.
+- [ ] Integrate with existing `src/shadow/selenium_worker.py` and `src/archive/thread_fetcher.py` patterns.
+
+### Historical Phases (partially superseded)
+*Phases 4-8 below were planned in February 2026. The actual implementation diverged significantly — sessions 7-9 built propagation, bands, public site, and active learning directly. See "What's Shipped" above for current state.*
 
 ---
 

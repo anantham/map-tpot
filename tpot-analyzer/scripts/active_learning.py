@@ -446,7 +446,22 @@ def run_round_1(
             parsed = [parse_tweet(t, username) for t in raw_tweets]
             inserted = store_tweets(conn, parsed, fetch_source="last_tweets")
 
-            # 5. Log API call
+            # 5. Store bio from API response (if not already in DB)
+            if author_info:
+                api_bio = author_info.get("description", "")
+                if api_bio:
+                    # Update resolved_accounts with bio from API
+                    conn.execute(
+                        "INSERT OR IGNORE INTO resolved_accounts (account_id, username, bio) VALUES (?, ?, ?)",
+                        (account_id, username, api_bio),
+                    )
+                    conn.execute(
+                        "UPDATE resolved_accounts SET bio = ? WHERE account_id = ? AND (bio IS NULL OR bio = '')",
+                        (api_bio, account_id),
+                    )
+                    conn.commit()
+
+            # 6. Log API call
             log_api_call(
                 conn,
                 account_id=account_id,
@@ -461,7 +476,7 @@ def run_round_1(
                 len(parsed), username, inserted, acct["info_value"],
             )
 
-            # 6. Label each tweet
+            # 7. Label each tweet
             account_ctx = assemble_account_context(
                 conn,
                 account_id=account_id,
@@ -469,7 +484,13 @@ def run_round_1(
                 bio=_resolve_bio(conn, account_id),
             )
 
-            for tweet in parsed:
+            # Filter: skip retweets (they tell us about the retweeted account, not this one)
+            originals = [t for t in parsed if not t.get("text", "").startswith("RT @")]
+            skipped_rts = len(parsed) - len(originals)
+            if skipped_rts:
+                logger.info("  Skipped %d retweets, labeling %d originals", skipped_rts, len(originals))
+
+            for tweet in originals:
                 try:
                     per_model = _label_single_tweet(
                         conn, openrouter_key, tweet, account_ctx

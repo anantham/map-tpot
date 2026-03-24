@@ -322,6 +322,24 @@ RULES:
   - Bits are per-TWEET evidence, independent of any prior community assignment.
   - Engagement context (likes, replies) is independent evidence — use it.
   - Return ONLY a JSON object, no commentary.
+  - If the tweet is a RETWEET (starts with "RT @"), assign bits with REDUCED confidence
+    (-1 from what you'd normally give). Retweets signal interest, not identity.
+
+COMMUNITY ANTI-EXAMPLES (avoid these common misassignments):
+  - Core-TPOT is for absurdist humor, shitposting, personal essays, divine absurdity.
+    Do NOT assign Core-TPOT just because someone is "on TPOT Twitter." Require the STYLE.
+  - NYC-Institution-Builders is about LITERAL NYC housing, schools, families, daily rituals.
+    Do NOT assign it for abstract "institutional design" or governance discussions.
+  - Collective-Intelligence is about DAOs, regeneration, mycelial coordination tools.
+    Do NOT assign it just because someone uses the phrase "collective intelligence."
+  - Qualia-Research is about consciousness geometry, phenomenology, qualia formalism.
+    Do NOT assign it for any use of "mind" or "brain" — only for consciousness research.
+
+NEW-COMMUNITY SIGNALS:
+  - Do NOT create new-community-signal for things that match existing communities.
+  - "Alignment-Researchers", "EA-Forecasting", "Alignment-Engineers" → these are just AI-Safety.
+  - "Sensemaking-Builders" → this is TfT-Coordination.
+  - Only create new-community-signal for genuinely novel clusters not covered by the 15 above.
 
 OUTPUT FORMAT (JSON):
 {{
