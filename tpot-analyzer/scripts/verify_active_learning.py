@@ -42,6 +42,8 @@ def main():
 
     # 2. Enriched tweets count
     print("\n--- Enrichment ---")
+    et_count = 0
+    et_accounts = 0
     if "enriched_tweets" in tables:
         et_count = conn.execute("SELECT COUNT(*) FROM enriched_tweets").fetchone()[0]
         et_accounts = conn.execute("SELECT COUNT(DISTINCT account_id) FROM enriched_tweets").fetchone()[0]
