@@ -193,7 +193,7 @@ Examples:
     # Query account directly from DB
     with engine.begin() as conn:
         result = conn.execute(
-            text(f"SELECT username, followers_count, following_count, fetched_at FROM shadow_account WHERE account_id = '{account_id}'")
+            text("SELECT username, followers_count, following_count, fetched_at FROM shadow_account WHERE account_id = :aid").bindparams(aid=account_id)
         ).fetchone()
 
     if result:
@@ -227,7 +227,7 @@ Examples:
     # Count outbound (following)
     with engine.begin() as conn:
         result = conn.execute(
-            text(f"SELECT COUNT(*) as c FROM shadow_edge WHERE source_id = '{account_id}' AND direction = 'outbound'")
+            text("SELECT COUNT(*) as c FROM shadow_edge WHERE source_id = :aid AND direction = 'outbound'").bindparams(aid=account_id)
         ).fetchone()
         outbound_count = result[0] if result else 0
     logger.info(f"  - Outbound edges (following): {outbound_count}")
@@ -235,13 +235,13 @@ Examples:
     # Sample outbound edges with metadata
     if outbound_count > 0:
         with engine.begin() as conn:
-            sample_out = conn.execute(text(f"""
+            sample_out = conn.execute(text("""
                 SELECT target_id, json_extract(metadata, '$.seed_username') as seed,
                        json_extract(metadata, '$.list_type') as list
                 FROM shadow_edge
-                WHERE source_id = '{account_id}' AND direction = 'outbound'
+                WHERE source_id = :aid AND direction = 'outbound'
                 LIMIT 3
-            """)).fetchall()
+            """).bindparams(aid=account_id)).fetchall()
         logger.info(f"  - Sample outbound edges:")
         for row in sample_out:
             logger.info(f"    → {row[0]} (from @{row[1]}'s {row[2]} list)")
@@ -249,7 +249,7 @@ Examples:
     # Count inbound (followers)
     with engine.begin() as conn:
         result = conn.execute(
-            text(f"SELECT COUNT(*) as c FROM shadow_edge WHERE target_id = '{account_id}' AND direction = 'inbound'")
+            text("SELECT COUNT(*) as c FROM shadow_edge WHERE target_id = :aid AND direction = 'inbound'").bindparams(aid=account_id)
         ).fetchone()
         inbound_count = result[0] if result else 0
     logger.info(f"  - Inbound edges (followers): {inbound_count}")
@@ -257,13 +257,13 @@ Examples:
     # Sample inbound edges with metadata
     if inbound_count > 0:
         with engine.begin() as conn:
-            sample_in = conn.execute(text(f"""
+            sample_in = conn.execute(text("""
                 SELECT source_id, json_extract(metadata, '$.seed_username') as seed,
                        json_extract(metadata, '$.list_type') as list
                 FROM shadow_edge
-                WHERE target_id = '{account_id}' AND direction = 'inbound'
+                WHERE target_id = :aid AND direction = 'inbound'
                 LIMIT 3
-            """)).fetchall()
+            """).bindparams(aid=account_id)).fetchall()
         logger.info(f"  - Sample inbound edges:")
         for row in sample_in:
             logger.info(f"    ← {row[0]} (from @{row[1]}'s {row[2]} list)")
@@ -383,12 +383,12 @@ Examples:
             logger.info("DB READ: Final edge counts")
             with engine.begin() as conn:
                 result_out = conn.execute(
-                    text(f"SELECT COUNT(*) as c FROM shadow_edge WHERE source_id = '{account_id}' AND direction = 'outbound'")
+                    text("SELECT COUNT(*) as c FROM shadow_edge WHERE source_id = :aid AND direction = 'outbound'").bindparams(aid=account_id)
                 ).fetchone()
                 final_out = result_out[0] if result_out else 0
 
                 result_in = conn.execute(
-                    text(f"SELECT COUNT(*) as c FROM shadow_edge WHERE target_id = '{account_id}' AND direction = 'inbound'")
+                    text("SELECT COUNT(*) as c FROM shadow_edge WHERE target_id = :aid AND direction = 'inbound'").bindparams(aid=account_id)
                 ).fetchone()
                 final_in = result_in[0] if result_in else 0
 
@@ -399,11 +399,11 @@ Examples:
             logger.info("DB READ: Final profile data")
             with engine.begin() as conn:
                 profile_data = conn.execute(
-                    text(f"""
+                    text("""
                         SELECT display_name, bio, location, website, profile_image_url, followers_count, following_count
                         FROM shadow_account
-                        WHERE account_id = '{account_id}'
-                    """)
+                        WHERE account_id = :aid
+                    """).bindparams(aid=account_id)
                 ).fetchone()
 
             if profile_data:
@@ -426,15 +426,15 @@ Examples:
                 # Sample new accounts
                 with engine.begin() as conn:
                     new_accounts = conn.execute(
-                        text(f"""
+                        text("""
                             SELECT s.username, s.display_name, s.bio
                             FROM shadow_edge e
                             JOIN shadow_account s ON e.target_id = s.account_id
-                            WHERE e.source_id = '{account_id}'
+                            WHERE e.source_id = :aid
                             AND e.direction = 'outbound'
                             ORDER BY e.fetched_at DESC
                             LIMIT 5
-                        """)
+                        """).bindparams(aid=account_id)
                     ).fetchall()
 
                 if new_accounts:
