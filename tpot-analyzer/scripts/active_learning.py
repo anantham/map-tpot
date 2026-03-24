@@ -53,7 +53,6 @@ from scripts.rollup_bits import (
     load_short_to_id,
     aggregate_bits,
     scoped_delete_bits,
-    write_rollup,
     compute_discount,
 )
 from scripts.insert_seeds import insert_llm_seeds
@@ -771,8 +770,23 @@ def run_measure(conn: sqlite3.Connection) -> dict:
         data["weighted_bits"] = data["weighted_bits"] * discount
 
     # Scoped delete + insert (don't wipe existing rollup for archive accounts)
+    # NOTE: Do NOT call write_rollup here — it does a global DELETE that wipes
+    # all accounts, not just the ones being measured. Use scoped_delete + manual insert.
     scoped_delete_bits(conn, new_account_ids)
-    rollup_rows = write_rollup(conn, rollup)
+    now_str = __import__('datetime').datetime.now(
+        __import__('datetime').timezone.utc
+    ).isoformat()
+    rollup_rows = 0
+    for (account_id, community_id), data in sorted(rollup.items()):
+        conn.execute(
+            """INSERT OR REPLACE INTO account_community_bits
+               (account_id, community_id, total_bits, tweet_count, pct, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (account_id, community_id, data["total_bits"],
+             data["tweet_count"], data["pct"], now_str),
+        )
+        rollup_rows += 1
+    conn.commit()
 
     # 3. Insert as seeds
     seeds_inserted = insert_llm_seeds(conn, new_account_ids)
