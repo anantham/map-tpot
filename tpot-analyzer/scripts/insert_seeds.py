@@ -27,10 +27,20 @@ def insert_llm_seeds(conn: sqlite3.Connection, account_ids: list[str]) -> int:
     Uses absolute bits for weight: weight = min(1.0, abs(bits) / BITS_REFERENCE).
     Blocks accounts where None bits dominate (not TPOT — adjacent ecosystem).
 
+    Resolves short_name community IDs to UUIDs before inserting, since
+    account_community_bits stores short_names but community_account needs UUIDs.
+
     Returns count of community_account rows inserted.
     """
     now = datetime.now(timezone.utc).isoformat()
     inserted = 0
+
+    # Build short_name → UUID lookup (account_community_bits uses short_names,
+    # but community_account needs UUIDs to match NMF seeds)
+    short_to_uuid = {}
+    for row in conn.execute("SELECT id, short_name FROM community WHERE short_name IS NOT NULL").fetchall():
+        short_to_uuid[row[1]] = row[0]
+        short_to_uuid[row[0]] = row[0]  # also map UUID → UUID for safety
 
     for account_id in account_ids:
         # Check if already an NMF seed
@@ -52,13 +62,10 @@ def insert_llm_seeds(conn: sqlite3.Connection, account_ids: list[str]) -> int:
 
         # --- None community gate (#5) ---
         # Check if this account is dominated by None bits (not TPOT)
-        none_community_id = conn.execute(
-            "SELECT id FROM community WHERE short_name = 'None'"
-        ).fetchone()
         none_bits = 0
         real_bits_rows = []
         for community_id, total_bits, pct in all_bits_rows:
-            if none_community_id and str(community_id) == str(none_community_id[0]):
+            if community_id == 'None' or community_id == short_to_uuid.get('None'):
                 none_bits = abs(total_bits)
             else:
                 real_bits_rows.append((community_id, total_bits, pct))
@@ -85,13 +92,18 @@ def insert_llm_seeds(conn: sqlite3.Connection, account_ids: list[str]) -> int:
 
         # --- Absolute-bits weight (#4) ---
         # Weight per community based on absolute evidence, NOT percentage
+        # Resolve short_name → UUID for community_account compatibility
         for community_id, total_bits, _pct in seed_rows:
+            resolved_cid = short_to_uuid.get(community_id, community_id)
+            if resolved_cid == community_id and not community_id.count('-') >= 4:
+                # Unresolved short_name with no UUID match — skip
+                continue
             weight = min(1.0, abs(total_bits) / BITS_REFERENCE)
             conn.execute(
                 "INSERT OR REPLACE INTO community_account "
                 "(community_id, account_id, weight, source, updated_at) "
                 "VALUES (?, ?, ?, 'llm_ensemble', ?)",
-                (community_id, account_id, round(weight, 4), now),
+                (resolved_cid, account_id, round(weight, 4), now),
             )
             inserted += 1
 
