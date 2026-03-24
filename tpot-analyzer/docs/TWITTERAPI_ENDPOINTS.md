@@ -130,3 +130,12 @@ Then:
 
 The biggest gap for non-archive accounts: **likes given** (who they like).
 This is the strongest engagement signal and is only available from the archive.
+
+## Known Issues (2026-03-24)
+
+### `user/followings` silent rate limit
+After ~120 calls in a session, the endpoint returns HTTP 200 with `{"data": []}` instead of a 429 error. The `user/followers` endpoint continues working normally. This appears to be a daily quota — reset time unknown.
+
+**Workaround:** Use Chrome scraping (`x.com/{handle}/following` + auto-scroll + extract handles) for followings. Chrome scraping gets ~25-40 handles per account (limited by X's scroll rendering).
+
+**Impact:** Batch 1 fetched 22,338 edges before the limit hit. All subsequent followings calls returned 0.

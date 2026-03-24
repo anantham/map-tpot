@@ -67,7 +67,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import pickle  # NOTE: only used to load our own cached adjacency matrix, not untrusted data
 import sqlite3
 import time
 from dataclasses import dataclass
@@ -78,11 +77,13 @@ import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.linalg import cg
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = PROJECT_ROOT / "data"
-DB_PATH = DATA_DIR / "archive_tweets.db"
+from src.config import PROJECT_ROOT, DEFAULT_DATA_DIR, DEFAULT_ARCHIVE_DB, DEFAULT_ADJACENCY_CACHE
+from src.data.adjacency import load_adjacency_cache
+
+DATA_DIR = DEFAULT_DATA_DIR
+DB_PATH = DEFAULT_ARCHIVE_DB
 SPECTRAL_PATH = DATA_DIR / "graph_snapshot.spectral.npz"
-ADJACENCY_PATH = DATA_DIR / "adjacency_matrix_cache.pkl"
+ADJACENCY_PATH = DEFAULT_ADJACENCY_CACHE
 
 
 @dataclass
@@ -151,16 +152,8 @@ class PropagationResult:
 
 
 def load_adjacency() -> sp.csr_matrix:
-    """Load the cached adjacency matrix (built by cluster_routes.py on startup).
-
-    This pickle file contains our own precomputed sparse matrix — it's generated
-    from parquet data we control, not from external/untrusted sources.
-    """
-    with open(ADJACENCY_PATH, "rb") as f:  # noqa: S301 — our own cached data, not untrusted
-        cached = pickle.load(f)  # noqa: S301
-    if isinstance(cached, dict) and "adjacency" in cached:
-        return cached["adjacency"].tocsr()
-    return cached.tocsr()
+    """Load the cached adjacency matrix. Delegates to src.data.adjacency."""
+    return load_adjacency_cache(ADJACENCY_PATH)
 
 
 def build_adjacency_from_archive(
@@ -592,11 +585,13 @@ def propagate(
         # For each unlabeled node, count labeled neighbors in each community
         seed_neighbor_counts = np.zeros((n_nodes, K), dtype=np.int32)
         for li in labeled_idx:
-            # Get this seed's community assignments (which communities have weight > 0.1)
+            li_boundary_idx = np.where(labeled_idx == li)[0][0]
+            # Count this seed as a neighbor for any community where it has non-zero weight.
+            # Use a very low threshold (> 0) rather than 0.1, because class balancing and
+            # concentration weighting can reduce seed weights well below 0.1.
+            neighbors = sym[li].nonzero()[1]
             for c in range(K):
-                if boundary[np.where(labeled_idx == li)[0][0], c] > 0.1:
-                    # Find all neighbors of this seed in the symmetric adjacency
-                    neighbors = sym[li].nonzero()[1]
+                if boundary[li_boundary_idx, c] > 0:
                     seed_neighbor_counts[neighbors, c] += 1
 
         print(f"  Seed-neighbor counts computed for {len(labeled_idx)} seeds")
