@@ -494,85 +494,105 @@ export default function About({ meta, onNavigate }) {
 
             <h3>Holdout recall</h3>
             <p>
-              We collected 1,794 accounts from four independent ground truth
-              sources&mdash;the Strangest Loop directory, the Orange TPOT Substack directory,
-              a curated X list, and ego follow data&mdash;none of which were used to build
-              the map. Then we ask: does the pipeline find them?
+              We test against 1,822 accounts from four independent ground truth
+              sources&mdash;none used to build the map. The honest question is: of accounts
+              that ARE TPOT and ARE reachable in our graph, how many do we find?
             </p>
 
             <div className="about-recall-table">
               <table>
                 <thead>
                   <tr>
-                    <th>Layer</th>
-                    <th>Accounts</th>
-                    <th>Notes</th>
+                    <th>Source</th>
+                    <th>In-graph recall</th>
+                    <th>Total recall</th>
+                    <th>Not reachable</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Multi-source (3+ sources agree)</td>
+                    <td><strong>65%</strong></td>
+                    <td>65%</td>
+                    <td>0%</td>
+                  </tr>
+                  <tr>
+                    <td>Strangest Loop directory</td>
+                    <td><strong>64%</strong></td>
+                    <td>52%</td>
+                    <td>19%</td>
+                  </tr>
+                  <tr>
+                    <td>Orange TPOT directory</td>
+                    <td><strong>54%</strong></td>
+                    <td>33%</td>
+                    <td>39%</td>
+                  </tr>
+                  <tr>
+                    <td>Multi-source (2+ sources)</td>
+                    <td><strong>43%</strong></td>
+                    <td>42%</td>
+                    <td>1%</td>
+                  </tr>
+                  <tr>
+                    <td>Curated X list (219 accounts)</td>
+                    <td>31%</td>
+                    <td>30%</td>
+                    <td>4%</td>
+                  </tr>
+                  <tr>
+                    <td>Ego follows (~1,400 accounts)</td>
+                    <td>30%</td>
+                    <td>30%</td>
+                    <td>0%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p>
+              Ego follows have low recall because most are mainstream accounts that
+              aren&rsquo;t TPOT&mdash;the denominator is inflated. The more curated
+              the source, the higher the recall. Accounts confirmed by 3+ independent
+              sources are found 65% of the time.
+            </p>
+            <p>
+              Two bottlenecks limit recall: <strong>graph coverage</strong> (39% of Orange
+              directory accounts aren&rsquo;t reachable&mdash;we don&rsquo;t have their
+              follow data yet) and <strong>seed density</strong> ({classifiedStr} seeds in
+              a 200K-node graph means each seed covers ~600 nodes). Each round of active
+              learning adds more seeds and pushes recall up.
+            </p>
+
+            <div className="about-recall-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Current state</th>
+                    <th>Count</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td>Exemplar (seed accounts)</td>
                     <td>{classifiedStr}</td>
-                    <td>Full archive data, NMF community assignment</td>
                   </tr>
                   <tr>
                     <td>Specialist + Bridge + Frontier</td>
                     <td>{((byBand.specialist || 0) + (byBand.bridge || 0) + (byBand.frontier || 0)).toLocaleString()}</td>
-                    <td>Inferred from 190K-node engagement-weighted graph</td>
                   </tr>
                   <tr>
                     <td>Faint (low confidence)</td>
                     <td>{(byBand.faint || 0).toLocaleString()}</td>
-                    <td>In the graph but below confidence threshold</td>
                   </tr>
                   <tr>
-                    <td>Holdout ground truth (4 sources)</td>
-                    <td>152 / 1,794</td>
-                    <td>8.5% recall across Orange, Strangest Loop, curated list, ego follows</td>
+                    <td>Total searchable</td>
+                    <td>{totalStr}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            <p>
-              To test generalization, we hold out 20% of seed accounts, propagate from
-              the remaining 80%, and measure how many held-out accounts are rediscovered:
-            </p>
-            <div className="about-recall-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Metric</th>
-                    <th>Recall</th>
-                    <th>What it measures</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Held-out seeds</td>
-                    <td><strong>83.8% &plusmn; 5.0%</strong></td>
-                    <td>Remove 20% of seeds&mdash;propagation still finds most</td>
-                  </tr>
-                  <tr>
-                    <td>Directory-only accounts</td>
-                    <td><strong>94.6% &plusmn; 0.4%</strong></td>
-                    <td>Independent TPOT directories, never used as seeds</td>
-                  </tr>
-                  <tr>
-                    <td>Combined</td>
-                    <td><strong>93.3% &plusmn; 0.7%</strong></td>
-                    <td>Overall discovery rate for accounts in the graph</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <p>
-              The bottleneck is <strong>graph coverage, not propagation quality</strong>.
-              For accounts reachable in the follow graph, propagation finds 94% of
-              independently-verified TPOT members. The 99 directory accounts outside
-              the graph need API enrichment to bring their edges in.
-            </p>
             <p>
               These numbers are a snapshot. The point isn&rsquo;t perfection&mdash;it&rsquo;s
               honest measurement so we know what works and what doesn&rsquo;t.
