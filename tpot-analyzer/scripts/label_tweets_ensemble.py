@@ -23,6 +23,7 @@ import re
 import sqlite3
 import statistics
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 import httpx
@@ -281,6 +282,26 @@ def build_consensus(label_dicts: list[dict]) -> dict:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def _load_glossary() -> dict | None:
+    """Load community glossary from config file if available."""
+    glossary_path = Path(__file__).resolve().parents[1] / "config" / "community_glossary.json"
+    if glossary_path.exists():
+        import json as _json
+        with open(glossary_path) as f:
+            return _json.load(f)
+    return None
+
+
+_GLOSSARY_CACHE: dict | None = None
+
+
+def _get_glossary() -> dict | None:
+    global _GLOSSARY_CACHE
+    if _GLOSSARY_CACHE is None:
+        _GLOSSARY_CACHE = _load_glossary()
+    return _GLOSSARY_CACHE
+
+
 def build_prompt(
     username: str,
     bio: str,
@@ -295,20 +316,80 @@ def build_prompt(
 ) -> str:
     """Build the combined system+user prompt for a single tweet labeling call.
 
-    Returns a single string combining system instructions and the user payload.
+    If config/community_glossary.json exists, uses its rich descriptions,
+    emerging clusters, themes, anti-patterns, and account calibrations.
+    Falls back to basic community descriptions if glossary not available.
     """
-    # Build community reference block
-    community_block_lines = []
-    for name in community_short_names:
-        desc = community_descriptions.get(name, "(no description)")
-        community_block_lines.append(f"  - {name}: {desc}")
-    community_block = "\n".join(community_block_lines)
+    glossary = _get_glossary()
+
+    if glossary and "communities" in glossary:
+        # Rich prompt from glossary
+        community_block_lines = []
+        for name in community_short_names:
+            g = glossary["communities"].get(name, {})
+            if isinstance(g, dict):
+                look_for = g.get("look_for", community_descriptions.get(name, ""))
+                not_this = g.get("not_this", "")
+                line = f"  - {name}: {look_for}"
+                if not_this:
+                    line += f"\n    NOT: {not_this}"
+                community_block_lines.append(line)
+            else:
+                community_block_lines.append(f"  - {name}: {community_descriptions.get(name, g)}")
+        community_block = "\n".join(community_block_lines)
+
+        # Emerging clusters
+        emerging = glossary.get("emerging_clusters", {})
+        emerging_lines = []
+        for name, desc in emerging.items():
+            if name.startswith("_"):
+                continue
+            emerging_lines.append(f"  - {name}: {desc[:120]}")
+        emerging_block = "\n".join(emerging_lines)
+
+        # Canonical themes
+        themes_data = glossary.get("themes", {})
+        established_themes = themes_data.get("established", [])
+        new_themes = themes_data.get("new_from_audit", [])
+        theme_list = ", ".join(established_themes[:15] + new_themes[:10])
+
+        # Anti-patterns
+        anti = glossary.get("anti_patterns", {})
+        anti_lines = []
+        for name, desc in anti.items():
+            if name.startswith("_"):
+                continue
+            anti_lines.append(f"  - {desc}")
+        anti_block = "\n".join(anti_lines)
+
+        # Dedup rules
+        dedup = themes_data.get("do_not_duplicate", {})
+        dedup_lines = []
+        for canonical, dupes in dedup.items():
+            if canonical.startswith("_"):
+                continue
+            dedup_lines.append(f"  - {canonical} (NOT: {', '.join(dupes[:3])}...)")
+        dedup_block = "\n".join(dedup_lines)
+
+    else:
+        # Fallback: basic descriptions
+        community_block_lines = []
+        for name in community_short_names:
+            desc = community_descriptions.get(name, "(no description)")
+            community_block_lines.append(f"  - {name}: {desc}")
+        community_block = "\n".join(community_block_lines)
+        emerging_block = ""
+        theme_list = ""
+        anti_block = ""
+        dedup_block = ""
 
     system_prompt = f"""\
 You are a community-evidence tagger for the TPOT (This Part Of Twitter) ecosystem.
 
-COMMUNITIES:
+COMMUNITIES (use these short_names for bits:ShortName:+N tags):
 {community_block}
+
+{"EMERGING CLUSTERS (use new-community-signal:Name for these ONLY):" + chr(10) + emerging_block if emerging_block else ""}
 
 BITS SCALE (per-tweet, prior-independent):
   +1 = weak signal (could be coincidence)
@@ -316,6 +397,10 @@ BITS SCALE (per-tweet, prior-independent):
   +3 = strong signal (core topic/style)
   +4 = diagnostic (almost uniquely identifies this community)
   Negative values indicate counter-evidence (-1 to -4, same scale inverted).
+
+{"CANONICAL THEMES (prefer these over inventing new ones):" + chr(10) + "  " + theme_list if theme_list else ""}
+
+{"TAG DEDUPLICATION (use ONLY the canonical form):" + chr(10) + dedup_block if dedup_block else ""}
 
 RULES:
   - EVERY non-noise tweet MUST have at least 2 bits assignments.
@@ -325,21 +410,11 @@ RULES:
   - If the tweet is a RETWEET (starts with "RT @"), assign bits with REDUCED confidence
     (-1 from what you'd normally give). Retweets signal interest, not identity.
 
-COMMUNITY ANTI-EXAMPLES (avoid these common misassignments):
-  - Core-TPOT is for absurdist humor, shitposting, personal essays, divine absurdity.
-    Do NOT assign Core-TPOT just because someone is "on TPOT Twitter." Require the STYLE.
-  - NYC-Institution-Builders is about LITERAL NYC housing, schools, families, daily rituals.
-    Do NOT assign it for abstract "institutional design" or governance discussions.
-  - Collective-Intelligence is about DAOs, regeneration, mycelial coordination tools.
-    Do NOT assign it just because someone uses the phrase "collective intelligence."
-  - Qualia-Research is about consciousness geometry, phenomenology, qualia formalism.
-    Do NOT assign it for any use of "mind" or "brain" — only for consciousness research.
+{"AVOID THESE MISTAKES:" + chr(10) + anti_block if anti_block else ""}
 
 NEW-COMMUNITY SIGNALS:
   - Do NOT create new-community-signal for things that match existing communities.
-  - "Alignment-Researchers", "EA-Forecasting", "Alignment-Engineers" → these are just AI-Safety.
-  - "Sensemaking-Builders" → this is TfT-Coordination.
-  - Only create new-community-signal for genuinely novel clusters not covered by the 15 above.
+  - Only use names from the EMERGING CLUSTERS list above, or genuinely novel clusters.
 
 OUTPUT FORMAT (JSON):
 {{
