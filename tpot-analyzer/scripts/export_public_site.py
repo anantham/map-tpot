@@ -832,13 +832,18 @@ def run_export(
             acct["followers"] = None
         acct["sample_tweets"] = get_sample_tweets(db_path, acct["id"])
 
-    # --- Celebrity/noise filter using true concentration ---
+    # --- Confidence adjustment using true concentration ---
     # true_concentration = max_seed_neighbors / total_followers
-    # Accounts with huge follower counts but tiny concentration are
-    # celebrities followed by TPOT, not TPOT members. Demote to "adjacent".
+    # Accounts with huge audiences have inflated graph signal — many seed
+    # neighbors simply because TPOT people follow famous accounts.
+    # Scale CI by concentration to reflect how TPOT-specific the signal is.
+    # This doesn't change bands or exclude anyone — it lets the confidence
+    # speak honestly. A 237M-follower account with 30 seed neighbors has
+    # real but extremely dilute signal. Their card will be dim, which is true.
+    #
     # Data: user_profile_cache from batch API fetch (scripts/fetch_user_profiles.py)
-    CELEBRITY_FOLLOWER_FLOOR = 100_000
-    CELEBRITY_CONCENTRATION_CEILING = 0.0005
+    CONCENTRATION_REFERENCE = 0.005  # typical TPOT account concentration
+    FOLLOWER_FLOOR_FOR_SCALING = 10_000  # only scale accounts with 10K+ followers
 
     conn_filt = sqlite3.connect(str(db_path))
     profile_followers: dict[str, int] = {}
@@ -860,40 +865,40 @@ def run_export(
             for i in range(len(_nids)):
                 npz_snc[str(_nids[i])] = int(_snc[i].max())
 
-    demoted = 0
+    ci_adjusted = 0
     for acct in all_accounts:
         if acct["tier"] == "exemplar":
-            continue
+            continue  # human-labeled accounts keep their CI
 
         aid = acct["id"]
         followers = profile_followers.get(aid) or acct.get("followers") or 0
+        # Enrich follower count from profile cache
         if profile_followers.get(aid) and (not acct.get("followers") or acct["followers"] == 0):
             acct["followers"] = profile_followers[aid]
 
-        if followers < CELEBRITY_FOLLOWER_FLOOR:
-            continue
+        if followers < FOLLOWER_FLOOR_FOR_SCALING:
+            continue  # small accounts don't need scaling
 
         max_snc = npz_snc.get(aid, 0)
         if max_snc == 0:
             continue
 
         true_conc = max_snc / followers
-        if true_conc < CELEBRITY_CONCENTRATION_CEILING:
-            acct["tier"] = "adjacent"
-            demoted += 1
+        # Scale factor: how TPOT-specific is their audience?
+        # concentration_ratio = true_conc / reference
+        # Capped at 1.0 (accounts more concentrated than reference keep full CI)
+        scale = min(1.0, true_conc / CONCENTRATION_REFERENCE)
+        old_ci = acct.get("confidence", 0)
+        acct["confidence"] = round(old_ci * scale, 4)
+        if scale < 0.99:
+            ci_adjusted += 1
 
-    if demoted > 0:
+    if ci_adjusted > 0:
         logger.info(
-            "Celebrity filter: demoted %d accounts to 'adjacent' "
-            "(followers >= %d, concentration < %.4f)",
-            demoted, CELEBRITY_FOLLOWER_FLOOR, CELEBRITY_CONCENTRATION_CEILING,
+            "Concentration CI scaling: adjusted %d accounts "
+            "(followers >= %d, reference concentration %.4f)",
+            ci_adjusted, FOLLOWER_FLOOR_FOR_SCALING, CONCENTRATION_REFERENCE,
         )
-
-    # Recount bands after celebrity filter
-    band_counts = {}
-    for acct in all_accounts:
-        tier = acct["tier"]
-        band_counts[tier] = band_counts.get(tier, 0) + 1
 
     # --- Slug assignment ---
     slug_registry_path = Path(output_dir) / "slug_registry.json"
@@ -984,7 +989,7 @@ def run_export(
     print(f"Export complete -> {output_dir}")
     print(f"  Communities:         {len(communities)}")
     print(f"  Total accounts:      {len(all_accounts)}")
-    for band in ("exemplar", "specialist", "bridge", "frontier", "faint", "adjacent"):
+    for band in ("exemplar", "specialist", "bridge", "frontier", "faint"):
         count = band_counts.get(band, 0)
         if count > 0:
             print(f"    {band:>12s}:      {count}")
