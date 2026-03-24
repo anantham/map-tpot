@@ -6,17 +6,7 @@
   padding: 0 32px;
 }
 
-.gallery-back {
-  padding: 12px 0;
-}
-.gallery-back a {
-  color: #666;
-  text-decoration: none;
-  font-size: 18px;
-}
-.gallery-back a:hover {
-  color: #e0e0e0;
-}
+/* Back button styled by shared rule in styles.css */
 
 .gallery-title {
   font-size: 24px;

@@ -7,18 +7,7 @@
   box-sizing: border-box;
 }
 
-/* Back — small arrow top-left */
-.cp-back {
-  padding: 12px 0;
-}
-.cp-back a {
-  color: #666;
-  text-decoration: none;
-  font-size: 18px;
-}
-.cp-back a:hover {
-  color: #e0e0e0;
-}
+/* Back button styled by shared .cp-back a rule in styles.css */
 
 /* Hero — left-aligned, bigger */
 .cp-hero {
