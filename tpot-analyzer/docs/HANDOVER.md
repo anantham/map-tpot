@@ -1,52 +1,79 @@
-# Handover: 2026-03-24 (Session 9 — Active Learning Pipeline End-to-End)
+# Handover: 2026-03-24 (Session 10 — Chrome Audit + Edge Enrichment + Data Quality)
 
 ## Session Summary
-Built complete active learning pipeline (8 files, 85+ tests), labeled 29 accounts total (20 manual + 9 API), Chrome-audited 6 accounts finding 5 failure modes, created comprehensive community glossary from Grok TPOT-native feedback, rewrote LLM prompt with 13 few-shot examples + accumulating prior, added principled seed concentration, extracted rich tweet context from existing API data, fetched 21K+ outbound edges. Round 1 (50 accounts) was started with old prompt and killed — 2 of 50 accounts saved. All code committed and pushed.
+Chrome-audited 28/29 labeled accounts (57 tweets verified, 27 corrections, 33 corrected / 23 correct / 1 flagged). Fixed 854 NULL usernames in resolved_accounts. Created None community in DB. Fetched 22,338 new outbound edges for 23 high-CI backbone accounts (batch 1). Chrome-scraped following lists for 4 accounts where API returned empty. Built quality_candidates table (256 accounts). Fetched 184 members from Aditya's curated X list. Created HOLDOUT_SOURCES.md documenting 4 ground truth sources. Another agent shipped 5 systemic pipeline fixes (consensus, normalization, None gate, URL enrichment, keyword guardrail). Round 1 active learning still running (13/50 accounts).
 
 ## Resume Instructions
-1. **Re-run Round 1 with NEW prompt**: `.venv/bin/python3 -m scripts.active_learning --round 1 --top 50 --ego adityaarpitha --budget 2.50` — now uses glossary, few-shots, context extraction, accumulating prior
-2. **Chrome-audit blind accounts** — visit each account's tweets in Chrome, compare LLM bits vs actual content, store corrected observations to resolved_accounts.bio and tweet_label_set.note
-3. **Run measure**: `.venv/bin/python3 -m scripts.active_learning --measure`
-4. **Re-propagate**: `.venv/bin/python3 -m scripts.propagate_community_labels --use-archive-graph --save`
-5. **Check recall**: `.venv/bin/python3 -m scripts.verify_holdout_recall`
-6. **Fetch following lists for Round 1's new accounts** (same pattern as today's 21K edge fetch)
-7. **Label @So8res**: `--accounts So8res`
-8. **Re-export + deploy**
+1. **Check if Round 1 finished**: `tail -20 /private/tmp/claude-501/-Users-aditya-Documents-Ongoing-Local-Project-2---Map-TPOT/37432efe-8d6b-4059-818a-5189dc84739f/tasks/bo3egihz0.output`
+2. **If Round 1 done**: Run `--measure` (now safe — uses scoped delete, not global wipe)
+3. **Re-propagate**: `.venv/bin/python3 -m scripts.propagate_community_labels --use-archive-graph --save`
+4. **Check recall**: `.venv/bin/python3 -m scripts.verify_holdout_recall` (baseline: 8.5%)
+5. **Label 7 high-confidence misses**: `--accounts gptbrooke,embryosophy,touchmoonflower,sonikudzu,soundrotator,Duderichy,RosieCampbell`
+6. **Label user's 37 manual picks**: accounts stored in shadow_list_member (list_id='1788441465326064008', source='manual_add')
+7. **Retry edge fetch for 18 failed accounts**: @robinhanson, @vgr, @deepfates, @paulg, @patrickc, @ilyasut, etc. — API returned 0, may work later or need Chrome scrape
+8. **Re-export + deploy** public site
 
 ## Key Context for Next Instance
 
-### The Pipeline
-```
-scripts/active_learning.py --round 1 --top 50 --ego adityaarpitha --budget 2.50
-```
-Three selection modes: `--ego` (proximity boost from follow graph), `--accounts handle1,handle2` (direct), default (info_value ranking).
-
-### Critical Design Decisions
-- **Regen/metacrisis IS TPOT** — Game B, metamodern, polycrisis all tracked. NOT adjacent.
-- **Principled concentration** — `sqrt(total_bits/50) × (1 - normalized_entropy)`. Weak evidence propagates weakly.
-- **Context extraction is FREE** — twitterapi.io already returns quoted_tweet, media URLs, expanded links. Just parse them.
-- **Chrome verification is mandatory** — automated pipeline gets ~70% right. Chrome investigation catches keyword false matches, missing bio context, invisible images.
-- **Accumulating prior** — each tweet sees the running bits profile and focuses on surprising evidence.
-
-### Known Failures to Watch
-1. Keyword → community false matches ("Claude Code" → LLM-Whisperers, "institutions" → NYC)
-2. Core-TPOT over-assignment as default bucket
-3. Retweet content attributed to retweeter
-4. Bio invisible for accounts not in profiles table
-
 ### DB State
-- 29 labeled accounts, 21K+ new outbound edges
-- Total graph: ~441K edges
-- $0.95 of $5.00 Twitter API budget spent
-- config/community_glossary.json: 15 communities + 13 emerging + 46 themes + 13 few-shots
+- 32 labeled accounts in account_community_bits (29 original + 3 from Round 1)
+- 463,692 edges in account_following (was 441K, added 22K+ this session)
+- 57 tweets in chrome_audit_log (10% coverage)
+- 256 quality_candidates (accounts with high TPOT-following concentration, need labeling)
+- 219 members in Aditya's curated X list (shadow_list_member, list_id='1788441465326064008')
+- None community created: id=b878d56e-ba99-467c-9288-dbe6f77eb3b4, short_name='None'
 
-### Accounts to Label Next
-- @So8res (id=245375936) — user requested
-- @mykola — 109K archive tweets, in holdout (match_type='seed')
-- Remaining 48 from Round 1 (were killed, need re-run with new prompt)
+### 5 Systemic Fixes (shipped by another agent, commit adb7e06)
+1. `_enrich_low_text_tweet()` — fetches article title/description for URL-only tweets
+2. AI-tool guardrail — "Claude Code" ≠ LLM-Whisperers, few-shot added
+3. 1/3 consensus preserved at +1 (was: discarded). 3 emerging clusters promoted
+4. Absolute-bits weight: `min(1.0, abs(bits)/30)` replaces `pct/100`
+5. bits:None for adjacent ecosystems, None-dominated accounts blocked from seeding
+
+### Critical Bug Fixed (commit bb46345)
+`active_learning.py --measure` called `write_rollup()` which does GLOBAL DELETE on account_community_bits. Fixed to use scoped_delete + manual INSERT. All 29 accounts' data was rebuilt from intact tweet_tags.
+
+### API Notes
+- twitterapi.io `user/followings` endpoint fails for many accounts (returns empty)
+- Cost is credit-based: ~3000 credits per followings page, 479K credits remaining
+- Chrome scraping works as fallback (auto-scroll + extract handles, gets ~30-40 per account)
+- LLM labeling via OpenRouter is $0 (free tier: Grok-4.1-fast + DeepSeek-v3.2 + Gemini-3.1-flash-lite)
+
+### Chrome Audit Findings (stored in chrome_audit_findings table)
+1. Account-prior bias on URL/image-only tweets
+2. Keyword false matches ("Claude Code" → LLM-Whisperers)
+3. RT bit dropout (consensus too conservative for RTs)
+4. Normalization bias (pct overweights concentrated weak evidence)
+5. None community needed for mainstream accounts
+
+### Holdout Recall Sources (see docs/HOLDOUT_SOURCES.md)
+| Source | Count | Current Recall |
+|--------|-------|---------------|
+| Orange directory | 209 | 20% |
+| Strangest Loop | 99 | 44% |
+| Aditya's curated list | 219 | ~11% |
+| Ego follows | 1,457 | 8% |
+| **Combined** | **1,794** | **8.5%** |
+
+### Accounts with 0 Outbound Edges (API failed, Chrome-scraped partial)
+- @NeelNanda5: 29 edges (Chrome)
+- @So8res: 18 edges (Chrome)
+- @jgreenhall: 40 edges (Chrome)
+- @kathryndevaney: 41 edges (Chrome)
+- These are partial — Chrome only renders ~30-40 per scroll
+
+### 18 Accounts Where API Edge Fetch Failed Completely
+@gptbrooke, @robinhanson, @deepfates, @vgr, @liminal_warmth, @nearcyan, @MasterTimBlais, @tracewoodgrains, @robbensinger, @JakeOrthwein, @paulg, @patrickc, @WilliamAEden, @lisatomic5, @ilyasut, @prerat, @diviacaroline, @meekaale
+
+### Running Processes
+- **Round 1 active learning**: task bo3egihz0 — 13/50 accounts processed
+  - Check: `tail -20 /private/tmp/claude-501/-Users-aditya-Documents-Ongoing-Local-Project-2---Map-TPOT/37432efe-8d6b-4059-818a-5189dc84739f/tasks/bo3egihz0.output`
 
 ### Memory Files
-- `memory/project_session9_handover.md` — detailed session state
-- `config/community_glossary.json` — labeling guide (load into prompts)
-- `docs/superpowers/specs/2026-03-23-active-learning-loop-design.md` — spec
-- `docs/superpowers/plans/2026-03-23-active-learning-loop.md` — plan
+- `memory/feedback_tpot_scope.md` — TPOT scope is broad (metacrisis/metamodern IS TPOT)
+- `memory/feedback_chrome_verification.md` — Chrome verification is mandatory
+- `docs/HOLDOUT_SOURCES.md` — 4 ground truth sources documented
+- `config/community_glossary.json` — labeling guide with None + 3 promoted emerging clusters
+
+---
+*Handover by Claude at ~90% context*
