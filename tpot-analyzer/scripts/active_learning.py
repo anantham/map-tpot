@@ -68,18 +68,63 @@ DEFAULT_DB_PATH = ROOT / "data" / "archive_tweets.db"
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def _load_ego_hops(conn: sqlite3.Connection, ego_account_id: str) -> tuple[set, set]:
+    """Load hop-1 and hop-2 account sets from ego's follow graph.
+
+    Returns (hop1_ids, hop2_ids) where:
+      hop1 = accounts ego follows directly
+      hop2 = accounts ego's follows follow (excluding hop1)
+    """
+    hop1 = set(
+        r[0] for r in conn.execute(
+            "SELECT following_account_id FROM account_following WHERE account_id = ?",
+            (ego_account_id,),
+        ).fetchall()
+    )
+    if not hop1:
+        return hop1, set()
+
+    # Hop 2: friends-of-friends, batched to avoid huge IN clause
+    hop2 = set()
+    hop1_list = list(hop1)
+    batch_size = 500
+    for i in range(0, len(hop1_list), batch_size):
+        batch = hop1_list[i:i + batch_size]
+        placeholders = ",".join("?" for _ in batch)
+        rows = conn.execute(
+            f"SELECT DISTINCT following_account_id FROM account_following WHERE account_id IN ({placeholders})",
+            batch,
+        ).fetchall()
+        hop2.update(r[0] for r in rows)
+    hop2 -= hop1  # don't double-count hop1
+    hop2.discard(ego_account_id)  # don't include self
+
+    return hop1, hop2
+
+
 def select_accounts(
-    conn: sqlite3.Connection, top_n: int, round_num: int
+    conn: sqlite3.Connection,
+    top_n: int,
+    round_num: int,
+    ego_account_id: str | None = None,
 ) -> list[dict]:
     """Select top accounts from frontier_ranking for enrichment.
 
     Excludes:
       - holdout accounts (in_holdout=1 OR in tpot_directory_holdout)
-      - already enriched (>=20 tweets in enriched_tweets)
+      - already enriched (any tweets in enriched_tweets)
       - accounts with no resolvable username (profiles OR resolved_accounts)
 
-    Returns list of dicts sorted by info_value DESC.
+    If ego_account_id is provided, boosts accounts by proximity:
+      - Hop 1 (ego follows them): 3x boost
+      - Hop 2 (ego's follows follow them): 1.5x boost
+      - Hop 3+: no boost
+
+    Returns list of dicts sorted by priority DESC.
     """
+    # Load more candidates than needed so proximity boost can re-rank
+    fetch_limit = top_n * 5 if ego_account_id else top_n
+
     sql = """
         SELECT fr.account_id, fr.info_value, fr.top_community,
                COALESCE(p.username, ra.username) as username
@@ -98,8 +143,9 @@ def select_accounts(
         ORDER BY fr.info_value DESC
         LIMIT ?
     """
-    rows = conn.execute(sql, (top_n,)).fetchall()
-    return [
+    rows = conn.execute(sql, (fetch_limit,)).fetchall()
+
+    accounts = [
         {
             "account_id": row[0],
             "info_value": row[1],
@@ -108,6 +154,98 @@ def select_accounts(
         }
         for row in rows
     ]
+
+    # Apply ego proximity boost
+    if ego_account_id and accounts:
+        hop1, hop2 = _load_ego_hops(conn, ego_account_id)
+        for acct in accounts:
+            aid = acct["account_id"]
+            if aid in hop1:
+                acct["proximity"] = "hop1"
+                acct["priority"] = acct["info_value"] * 3.0
+            elif aid in hop2:
+                acct["proximity"] = "hop2"
+                acct["priority"] = acct["info_value"] * 1.5
+            else:
+                acct["proximity"] = "hop3+"
+                acct["priority"] = acct["info_value"]
+        accounts.sort(key=lambda a: a["priority"], reverse=True)
+        logger.info(
+            "Ego boost applied: %d hop1, %d hop2, %d hop3+",
+            sum(1 for a in accounts if a["proximity"] == "hop1"),
+            sum(1 for a in accounts if a["proximity"] == "hop2"),
+            sum(1 for a in accounts if a["proximity"] == "hop3+"),
+        )
+    else:
+        for acct in accounts:
+            acct["proximity"] = "n/a"
+            acct["priority"] = acct["info_value"]
+
+    return accounts[:top_n]
+
+
+def select_accounts_by_handle(
+    conn: sqlite3.Connection, handles: list[str]
+) -> list[dict]:
+    """Select specific accounts by handle, bypassing frontier_ranking.
+
+    Resolves handles to account_ids via profiles/resolved_accounts.
+    Skips holdout accounts and already-enriched accounts.
+    Does NOT require accounts to be in frontier_ranking.
+    """
+    holdout_ids = set(
+        r[0] for r in conn.execute(
+            "SELECT account_id FROM tpot_directory_holdout WHERE account_id IS NOT NULL"
+        ).fetchall()
+    )
+    enriched_ids = set(
+        r[0] for r in conn.execute(
+            "SELECT DISTINCT account_id FROM enriched_tweets"
+        ).fetchall()
+    )
+
+    accounts = []
+    for handle in handles:
+        # Resolve handle → account_id
+        row = conn.execute(
+            "SELECT account_id, username FROM profiles WHERE LOWER(username) = LOWER(?)",
+            (handle,),
+        ).fetchone()
+        if not row:
+            row = conn.execute(
+                "SELECT account_id, username FROM resolved_accounts WHERE LOWER(username) = LOWER(?)",
+                (handle,),
+            ).fetchone()
+        if not row:
+            logger.warning("Could not resolve handle: @%s — skipping", handle)
+            continue
+
+        aid, username = row[0], row[1]
+
+        if aid in holdout_ids:
+            logger.warning("@%s is a holdout account — skipping", handle)
+            continue
+
+        if aid in enriched_ids:
+            logger.warning("@%s already enriched — skipping", handle)
+            continue
+
+        # Get info_value if available (might not be in frontier_ranking)
+        iv_row = conn.execute(
+            "SELECT info_value, top_community FROM frontier_ranking WHERE account_id = ?",
+            (aid,),
+        ).fetchone()
+
+        accounts.append({
+            "account_id": aid,
+            "info_value": iv_row[0] if iv_row else 0.0,
+            "top_community": iv_row[1] if iv_row else "unknown",
+            "username": username,
+            "proximity": "manual",
+            "priority": 999.0,  # manual picks always highest priority
+        })
+
+    return accounts
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -528,6 +666,19 @@ def main():
         "--db-path", type=Path, default=DEFAULT_DB_PATH,
         help="Path to archive_tweets.db",
     )
+    parser.add_argument(
+        "--accounts", type=str, default=None,
+        help="Comma-separated handles to label (bypasses frontier_ranking)",
+    )
+    parser.add_argument(
+        "--accounts-file", type=Path, default=None,
+        help="File with one handle per line (bypasses frontier_ranking)",
+    )
+    parser.add_argument(
+        "--ego", type=str, default=None,
+        help="Ego username for proximity boosting (e.g., adityaarpitha). "
+             "Accounts closer to ego in follow graph get prioritized.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -556,12 +707,43 @@ def main():
     # Round execution
     round_num = args.round
 
-    # Select accounts
-    accounts = select_accounts(conn, top_n=args.top, round_num=round_num)
-    logger.info(
-        "Selected %d accounts for round %d (top_n=%d)",
-        len(accounts), round_num, args.top,
-    )
+    # Select accounts — three modes: --accounts, --accounts-file, or frontier_ranking
+    if args.accounts:
+        handles = [h.strip().lstrip("@") for h in args.accounts.split(",") if h.strip()]
+        accounts = select_accounts_by_handle(conn, handles)
+        logger.info("Selected %d accounts by handle", len(accounts))
+    elif args.accounts_file:
+        if not args.accounts_file.exists():
+            logger.error("Accounts file not found: %s", args.accounts_file)
+            conn.close()
+            sys.exit(1)
+        handles = [
+            line.strip().lstrip("@")
+            for line in args.accounts_file.read_text().splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+        accounts = select_accounts_by_handle(conn, handles)
+        logger.info("Selected %d accounts from file %s", len(accounts), args.accounts_file)
+    else:
+        # Resolve ego account_id if provided
+        ego_id = None
+        if args.ego:
+            ego_row = conn.execute(
+                "SELECT account_id FROM profiles WHERE LOWER(username) = LOWER(?)",
+                (args.ego.lstrip("@"),),
+            ).fetchone()
+            if ego_row:
+                ego_id = ego_row[0]
+                logger.info("Ego: @%s (id=%s)", args.ego, ego_id)
+            else:
+                logger.warning("Ego @%s not found in profiles — using pure info_value", args.ego)
+
+        accounts = select_accounts(conn, top_n=args.top, round_num=round_num, ego_account_id=ego_id)
+        logger.info(
+            "Selected %d accounts for round %d (top_n=%d%s)",
+            len(accounts), round_num, args.top,
+            f", ego=@{args.ego}" if ego_id else "",
+        )
 
     if not accounts:
         logger.info("No accounts to process — all already enriched or excluded")
@@ -571,9 +753,12 @@ def main():
     if args.dry_run:
         print(f"\n[DRY RUN] Would process {len(accounts)} accounts:")
         for acct in accounts:
+            prox = acct.get("proximity", "n/a")
+            priority = acct.get("priority", acct["info_value"])
             print(
                 f"  @{acct['username']} (id={acct['account_id']}, "
                 f"info_value={acct['info_value']:.4f}, "
+                f"priority={priority:.4f}, proximity={prox}, "
                 f"top_community={acct['top_community']})"
             )
         conn.close()
