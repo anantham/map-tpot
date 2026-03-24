@@ -1,4 +1,4 @@
-"""Tests for scripts.propagate_community_labels — community label propagation.
+"""Tests for src.propagation — community label propagation.
 
 Tests cover:
 - TestPropagation: integration tests with a toy graph (8 nodes, 3 communities)
@@ -12,13 +12,11 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from unittest.mock import patch
-
 import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from scripts.propagate_community_labels import (
+from src.propagation import (
     PropagationConfig,
     PropagationResult,
     multiclass_entropy,
@@ -158,13 +156,9 @@ def _run_propagation(
             class_balance=True,
         )
 
-    with patch(
-        "scripts.propagate_community_labels.DB_PATH",
-        db_path,
-    ):
-        from scripts.propagate_community_labels import propagate
+    from src.propagation import propagate
 
-        result, _ = propagate(adj, node_ids, config)
+    result, _ = propagate(adj, node_ids, config, db_path=db_path)
     return result
 
 

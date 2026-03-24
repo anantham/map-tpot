@@ -551,7 +551,7 @@ class TestPipelineEndToEnd:
         node_ids = np.array(all_ids)
 
         # Import propagation machinery
-        from scripts.propagate_community_labels import PropagationConfig, propagate
+        from src.propagation import PropagationConfig, propagate
 
         config = PropagationConfig(
             temperature=2.0,
@@ -563,8 +563,7 @@ class TestPipelineEndToEnd:
         )
 
         # Mock DB_PATH so load_community_labels reads from our fixture DB
-        with patch("scripts.propagate_community_labels.DB_PATH", pipeline_db):
-            result, _ = propagate(adj, node_ids, config)
+        result, _ = propagate(adj, node_ids, config, db_path=pipeline_db)
 
         # Verify basic structure
         assert result.memberships.shape == (n, 4)  # 3 communities + 1 "none"
@@ -589,7 +588,7 @@ class TestPipelineEndToEnd:
         )
 
         # Save result for test_06
-        from scripts.propagate_community_labels import save_results
+        from src.propagation.io import save_results
         save_results(result, output_dir)
         npz_path = output_dir / "community_propagation.npz"
         assert npz_path.exists(), "Propagation NPZ should be saved"
