@@ -10,8 +10,11 @@ export default function CommunityCard({
   communityMap,
   aiImageUrl,
   generationStatus,
+  confidence = 0,
 }) {
   const isClassified = tier === 'classified'
+  // CI drives bar opacity: 0.3 (floor) to 1.0 (full confidence)
+  const ciOpacity = Math.max(0.3, Math.min(1, isClassified ? 1 : 0.3 + confidence * 1.4))
   const cardRef = useRef(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
   const [fullscreen, setFullscreen] = useState(false)
@@ -169,10 +172,12 @@ export default function CommunityCard({
   }
 
   // -- Fallback: bar-chart card (with optional shimmer during generation) --
+  const ciPct = Math.round(confidence * 100)
   return (
     <div
       className={`community-card ${isClassified ? 'card-classified' : 'card-propagated'} ${isGenerating ? 'generating' : ''}`}
       id="community-card"
+      style={{ opacity: ciOpacity }}
     >
       {isGenerating && <div className="card-shimmer" />}
 
@@ -180,6 +185,11 @@ export default function CommunityCard({
         <span className="card-handle">@{handle}</span>
         {isClassified && displayName && (
           <span className="card-display-name">{displayName}</span>
+        )}
+        {confidence > 0 && (
+          <span className="card-ci" title="Confidence index — how certain we are about these communities">
+            {ciPct}% confidence
+          </span>
         )}
       </div>
 
@@ -197,6 +207,7 @@ export default function CommunityCard({
                 style={{
                   width: `${bar.pct}%`,
                   backgroundColor: isClassified ? bar.color : '#555',
+                  opacity: ciOpacity,
                 }}
               />
             </div>

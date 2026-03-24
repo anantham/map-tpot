@@ -390,6 +390,20 @@ def extract_band_accounts(
             npz_path,
         )
 
+    # Load band metadata for CI computation
+    conn2 = sqlite3.connect(str(db_path))
+    conn2.row_factory = sqlite3.Row
+    band_meta = {}
+    for r in conn2.execute(
+        "SELECT account_id, top_weight, entropy, none_weight FROM account_band"
+    ).fetchall():
+        band_meta[r["account_id"]] = {
+            "top_weight": r["top_weight"] or 0,
+            "entropy": r["entropy"] or 0,
+            "none_weight": r["none_weight"] or 0,
+        }
+    conn2.close()
+
     band_counts: dict[str, int] = {"specialist": 0, "bridge": 0, "frontier": 0, "faint": 0}
     for aid, band in sorted(band_map.items()):
         if band == "exemplar":
@@ -400,11 +414,18 @@ def extract_band_accounts(
         memberships = npz_memberships.get(aid, [])
         if not memberships:
             continue
+        # Compute CI from propagation signals
+        meta = band_meta.get(aid, {})
+        tw = meta.get("top_weight", 0)
+        ent = meta.get("entropy", 0)
+        nw = meta.get("none_weight", 0)
+        ci = round(tw * (1 - nw) * (1 - ent), 3)
         result.append({
             "id": aid,
             "tier": band,
             "handle": uname,
             "memberships": memberships,
+            "confidence": ci,
         })
         band_counts[band] += 1
 

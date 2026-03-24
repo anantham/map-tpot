@@ -37,6 +37,7 @@ function ResultArea({ result, communityMap, links, onCommunityClick }) {
           aiImageUrl={imageUrl}
           generationStatus={status}
           onCommunityClick={onCommunityClick}
+          confidence={result.confidence || 0}
         />
         {status === 'generated' && (
           <button
@@ -186,17 +187,15 @@ export default function App() {
     window.history.replaceState({}, '', `/?handle=${searchResult.handle}`)
     const tier = searchResult.tier
 
-    // Map new band tiers to display tiers
-    // exemplar = full color card (like old 'classified')
-    // specialist/bridge/frontier = grayscale card (like old 'propagated')
-    // faint = very faint grayscale card
-    // not_found = contribute prompt
+    // All known tiers get a card — CI drives the visual treatment
+    const isKnown = tier && tier !== 'not_found'
     const isClassified = tier === 'classified' || tier === 'exemplar'
-    const isPropagated = tier === 'propagated' || tier === 'specialist' || tier === 'bridge' || tier === 'frontier' || tier === 'faint'
 
-    if (isClassified || isPropagated) {
+    if (isKnown) {
       const account = accountMap.get(searchResult.handle)
+      // Use CI for display: classified = always color, others = CI drives opacity
       const displayTier = isClassified ? 'classified' : 'propagated'
+      const confidence = account?.confidence ?? searchResult.confidence ?? 0
       if (account) {
         setResult({
           handle: account.username,
@@ -205,6 +204,7 @@ export default function App() {
           bio: account.bio,
           memberships: account.memberships,
           sampleTweets: account.sample_tweets || [],
+          confidence,
         })
       } else {
         setResult({
@@ -214,6 +214,7 @@ export default function App() {
           bio: null,
           memberships: searchResult.memberships || [],
           sampleTweets: [],
+          confidence,
         })
       }
     } else {
