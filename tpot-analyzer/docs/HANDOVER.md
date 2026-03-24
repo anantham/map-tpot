@@ -1,88 +1,89 @@
-# Handover: 2026-03-23 (Session 8b — Public Site Polish, Tests, Data Enrichment)
+# Handover: 2026-03-23 (Session 8b final — UX Polish, CI, Faint Tier, 23K Accounts)
 
 ## Session Summary
 
-Massive public site + data enrichment session. Redesigned About page (3-path selector),
-wrote 106 new tests, built auto-export pipeline, added fullscreen card gallery with
-version history, generated Gemini Pro community banner images for all 15 communities,
-wrote Grok-powered community descriptions, migrated community colors to iconography
-palette, resolved 25K+ usernames, added "faint" tier to export (8K → 23K accounts),
-and deployed everything.
+Massive session: redesigned About page (3-path selector), wrote 106 tests, built
+auto-export pipeline, fullscreen card gallery with version history, Gemini Pro community
+banners (15), Grok-written descriptions (15), migrated community colors to iconography,
+resolved 25K+ usernames (18K free + 7.7K API), added faint tier (8K→23K searchable),
+CI-driven card opacity, fixed tier mapping bug, standardized back button, deployed ~15 times.
 
-## Commits This Session (key ones)
+## Commits This Session (selected)
 
-- `d4bbb39` feat(public-site): fullscreen card lightbox + auto-export pipeline
-- `57acba9` feat(cards): version history — cycle through generated versions
-- `880554f` fix(public-site): guard against null username in accountMap
-- `c394fa1` feat(gallery): fullscreen carousel with arrow navigation
-- `0a30935` feat(communities): rich Grok-written descriptions + iconography colors
-- `1ed61d6` feat(communities): Gemini Pro banner images replace text identity grid
-- `9b990da` fix: community archive link → community-archive.org, uncrop banners
-- `79ddcdd` feat(gallery): lazy loading with skeleton shimmer + per-image fade-in
-- `c005391` feat(enrichment): batch resolve follow IDs to usernames via twitterapi.io
-- `ace1ce8` feat(export): add faint tier — unknown-band accounts now searchable
-- `6483e25` chore: package-lock update + minor fetch_tweets fix
+- `d4bbb39` feat: fullscreen lightbox + auto-export pipeline
+- `57acba9` feat: card version history (KV array, carousel)
+- `0a30935` feat: Grok descriptions + iconography colors
+- `1ed61d6` feat: Gemini Pro community banner images
+- `c005391` feat: batch resolve follow IDs to usernames
+- `ace1ce8` feat: faint tier — unknown-band accounts searchable
+- `c9f6f33` fix: support new band tiers in search (THE BIG BUG)
+- `6e427f8` feat: CI score as number + opacity
+- `7d064c7` feat: CI-aware messaging (identified/detected/glimpsed)
+- `99f9165` fix: regenerate button busts server cache
+- `dae16ba` fix: back button + gallery merges local cards
+- `e8a8ccf` fix: fullscreen persists grayscale/opacity
+- `1ee1cbe` fix: fixed back button — top-left every page
 
-Tests: 106 new across 5 test files (rollup, NMF likes, propagation, export, e2e)
-
-PUSHED: Yes, all to origin/main
+PUSHED: Yes, all to origin/main. Site deployed at amiingroup.vercel.app.
 
 ## Pending Threads
 
-### Continue Immediately
+### Continue Immediately (Next Session Priority)
 
-1. **About page images** — 4 images proposed (hero, Path A, Path B, Path C propagation)
-   - Prompts drafted in conversation, use Gemini Pro 21:9
-   - Same pipeline as community banners
+1. **Gallery toggle: all-cards vs per-account carousel**
+   - User wants: click card in gallery → go to `/?handle=X` fullscreen (shareable URL)
+   - Toggle button: "all cards" mode (current cross-card carousel) vs "individual" mode (per-account versions)
+   - In individual mode, clicking any card navigates to that handle's page
+   - Files: `CardGallery.jsx`, `useRouting.js`, `CommunityCard.jsx`
 
-2. **Signed reply count fix** — About.jsx claims 438K, DB has 17,362
-   - Check which is correct, update About.jsx
+2. **Browser back button doesn't work**
+   - Site uses pushState but doesn't handle popstate consistently
+   - User expects browser back to work like any normal site
+   - Files: `useRouting.js` — needs popstate listener
 
-3. **Vercel deploy standardization** — Currently using CLI prebuilt + alias
-   - Data.json (19MB) not in git, must use CLI deploy
-   - Command: `cd public-site && npx vercel build --prod && npx vercel deploy --prebuilt --prod --yes && npx vercel alias <url> amiingroup.vercel.app`
+3. **About page images** — 4 prompts drafted, not generated yet
+   - Hero, Path A (illegibility), Path B (portal), Path C (propagation)
+   - Use Gemini Pro 21:9, same pipeline as community banners
+
+4. **438K signed reply count** — About.jsx claims 438K, DB has 17,362
+   - Need to verify and fix
 
 ### Blocked
 
-1. **Git-connected Vercel deploys** — data.json/search.json gitignored (28MB)
-   - Decision needed: commit them or keep CLI deploy
-
-2. **Remaining 163K unresolved follows** — Only labeled accounts done
-   - Would cost ~$250 for all, or resolve on-demand
+1. **Git-connected Vercel deploys** — data.json (19MB) gitignored
+   - Currently using: `vercel build --prod && vercel deploy --prebuilt --prod && vercel alias`
+   - Root directory on Vercel dashboard must stay EMPTY for CLI deploys
 
 ### Deferred
 
-1. **Community lifecycle operators** — Schema designed, not built
-2. **Canonical membership table** — Architectural refactor
-3. **Active learning loop** — Plan + partial implementation by another agent
-4. **personalization.js** — Twitter's interest model, untapped
-5. **Community Archive Stream integration** — originator_id tracking
+1. Community lifecycle operators (birth/merge/split)
+2. Canonical membership table
+3. Active learning loop (plan written, partial implementation)
+4. personalization.js parsing
+5. Remaining 163K unresolved follows ($250 to resolve all)
 
 ## Key Context
 
-- **Site**: amiingroup.vercel.app — 23,578 searchable accounts (was 8,467)
-- **Vercel project**: renamed to `find-my-ingroup`, root directory is EMPTY (for CLI deploys)
-- **twitterapi.io**: Key works, needs `User-Agent` header. 1.3M credits remaining.
-- **Community colors**: DB uses iconography palette now (15 distinct colors)
-- **Community descriptions**: 15 Grok-written descriptions in DB + `config/community_descriptions.json`
+- **Deploy flow**: `cd public-site && npx vercel build --prod && npx vercel deploy --prebuilt --prod --yes && npx vercel alias <url> amiingroup.vercel.app`
+- **Vercel project**: `find-my-ingroup`, root directory EMPTY on dashboard
+- **THE BIG BUG**: Export uses tiers exemplar/specialist/bridge/frontier/faint, but App.jsx only recognized classified/propagated → everything showed "not found". Fixed in `c9f6f33`.
+- **CI formula**: `top_weight × (1 - none_weight) × (1 - entropy)` — computed in export for all 23K accounts
+- **CI → display**: opacity 0.3–1.0, messaging: ≥15% "Identified", 5-15% "Detected", <5% "Glimpsed"
+- **Regenerate (↻)**: now sends `force: true` to server, busting Redis 24h cache
+- **Gallery merge**: local cards + server cards, local wins (prevents new cards disappearing)
+- **Back button**: position fixed, top 12px left 12px, z-100, backdrop blur, 44px min target
 - **Community banners**: 15 Gemini Pro images in `public-site/public/images/communities/`
-- **Card versions**: KV stores array per handle (max 10). Gallery has carousel.
-- **Faint tier**: `unknown` band → `faint` in export. 15,111 accounts.
-- **25,755 usernames resolved**: 18,030 free (resolved_accounts) + 7,725 API
-- **Tests**: 106 new, all passing. P1 fixes applied (_save_run calls real code).
-- **auto_export.py**: threshold check → rollup → export → commit → push → card pre-gen
-
-## Running Processes
-
-None.
+- **Flash drafts**: preserved in `flash-drafts/` subfolder (not committed)
+- **twitterapi.io**: needs User-Agent header, 1.3M credits remaining, key works
+- **23,578 accounts**: 317 exemplar + 4,850 specialist + 2,113 bridge + 1,187 frontier + 15,111 faint
 
 ## Resume Instructions
 
 1. Read `docs/SESSION8_IDEAS_INVENTORY.md` for full roadmap
-2. Fix 438K signed reply count in About.jsx
-3. Generate 4 About page images with Gemini Pro
-4. If continuing pipeline: wire seed eligibility into propagation (#35)
-5. If enriching: resolve more usernames for non-labeled accounts
+2. **First**: Build gallery toggle (all-cards vs per-account)
+3. **Second**: Fix browser back button (popstate in useRouting.js)
+4. **Third**: Generate About page images
+5. Deploy: `cd public-site && npx vercel build --prod && npx vercel deploy --prebuilt --prod --yes && npx vercel alias <url> amiingroup.vercel.app`
 
 ---
-*Handover by Claude Opus 4.6 at high context usage, 2026-03-23*
+*Handover by Claude Opus 4.6 at very high context usage, 2026-03-23*
