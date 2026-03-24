@@ -37,6 +37,7 @@ from scripts.assemble_context import (
     assemble_account_context,
     assemble_tweet_context,
 )
+from src.archive.thread_fetcher import get_thread_context, format_thread_for_prompt
 from scripts.label_tweets_ensemble import (
     MODELS,
     build_consensus,
@@ -434,6 +435,17 @@ def _label_single_tweet(
                 tweet_text += "\n" + "\n".join(context_items)
         except (ValueError, TypeError):
             pass
+
+    # Enrich reply tweets with thread context (parent tweets)
+    if tweet.get("is_reply") and tweet.get("tweet_id"):
+        try:
+            from src.config import DEFAULT_ARCHIVE_DB
+            thread = get_thread_context(tweet["tweet_id"], DEFAULT_ARCHIVE_DB)
+            if thread and len(thread) > 1:
+                thread_text = format_thread_for_prompt(thread, tweet["tweet_id"])
+                tweet_text = f"[Thread context]\n{thread_text}\n[End thread]"
+        except Exception as e:
+            logger.debug("Thread fetch failed for %s: %s", tweet["tweet_id"], e)
 
     # Enrich low-text tweets by fetching linked content (#1: bias leak fix)
     tweet_text = _enrich_low_text_tweet(tweet_text, context_json)
