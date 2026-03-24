@@ -832,6 +832,69 @@ def run_export(
             acct["followers"] = None
         acct["sample_tweets"] = get_sample_tweets(db_path, acct["id"])
 
+    # --- Celebrity/noise filter using true concentration ---
+    # true_concentration = max_seed_neighbors / total_followers
+    # Accounts with huge follower counts but tiny concentration are
+    # celebrities followed by TPOT, not TPOT members. Demote to "adjacent".
+    # Data: user_profile_cache from batch API fetch (scripts/fetch_user_profiles.py)
+    CELEBRITY_FOLLOWER_FLOOR = 100_000
+    CELEBRITY_CONCENTRATION_CEILING = 0.0005
+
+    conn_filt = sqlite3.connect(str(db_path))
+    profile_followers: dict[str, int] = {}
+    try:
+        for aid, foll in conn_filt.execute(
+            "SELECT account_id, followers FROM user_profile_cache WHERE followers > 0"
+        ).fetchall():
+            profile_followers[aid] = foll
+    except sqlite3.OperationalError:
+        pass
+    conn_filt.close()
+
+    npz_snc: dict[str, int] = {}
+    if npz_path.exists():
+        _npz_data = np.load(str(npz_path), allow_pickle=False)
+        if "seed_neighbor_counts" in _npz_data:
+            _snc = _npz_data["seed_neighbor_counts"]
+            _nids = _npz_data["node_ids"]
+            for i in range(len(_nids)):
+                npz_snc[str(_nids[i])] = int(_snc[i].max())
+
+    demoted = 0
+    for acct in all_accounts:
+        if acct["tier"] == "exemplar":
+            continue
+
+        aid = acct["id"]
+        followers = profile_followers.get(aid) or acct.get("followers") or 0
+        if profile_followers.get(aid) and (not acct.get("followers") or acct["followers"] == 0):
+            acct["followers"] = profile_followers[aid]
+
+        if followers < CELEBRITY_FOLLOWER_FLOOR:
+            continue
+
+        max_snc = npz_snc.get(aid, 0)
+        if max_snc == 0:
+            continue
+
+        true_conc = max_snc / followers
+        if true_conc < CELEBRITY_CONCENTRATION_CEILING:
+            acct["tier"] = "adjacent"
+            demoted += 1
+
+    if demoted > 0:
+        logger.info(
+            "Celebrity filter: demoted %d accounts to 'adjacent' "
+            "(followers >= %d, concentration < %.4f)",
+            demoted, CELEBRITY_FOLLOWER_FLOOR, CELEBRITY_CONCENTRATION_CEILING,
+        )
+
+    # Recount bands after celebrity filter
+    band_counts = {}
+    for acct in all_accounts:
+        tier = acct["tier"]
+        band_counts[tier] = band_counts.get(tier, 0) + 1
+
     # --- Slug assignment ---
     slug_registry_path = Path(output_dir) / "slug_registry.json"
     slug_registry = load_slug_registry(slug_registry_path)
@@ -921,7 +984,7 @@ def run_export(
     print(f"Export complete -> {output_dir}")
     print(f"  Communities:         {len(communities)}")
     print(f"  Total accounts:      {len(all_accounts)}")
-    for band in ("exemplar", "specialist", "bridge", "frontier", "faint"):
+    for band in ("exemplar", "specialist", "bridge", "frontier", "faint", "adjacent"):
         count = band_counts.get(band, 0)
         if count > 0:
             print(f"    {band:>12s}:      {count}")
