@@ -27,6 +27,7 @@ from scripts.fetch_tweets_for_account import (
     BudgetExhaustedError,
     assert_not_holdout,
     check_budget,
+    fetch_advanced_search,
     fetch_last_tweets,
     log_api_call,
     parse_tweet,
@@ -439,12 +440,32 @@ def run_round_1(
             # 2. Holdout guard
             assert_not_holdout(conn, account_id)
 
-            # 3. Fetch tweets
+            # 3. Fetch tweets — two calls for diverse sampling
+            # Call 1: recent tweets (current state)
             raw_tweets, author_info = fetch_last_tweets(twitter_key, username)
-
-            # 4. Parse + store
             parsed = [parse_tweet(t, username) for t in raw_tweets]
             inserted = store_tweets(conn, parsed, fetch_source="last_tweets")
+
+            # Call 2: most-liked tweets (best/most representative content)
+            check_budget(conn, limit=budget, raise_on_exceed=True)
+            top_query = f"from:{username}"
+            raw_top = fetch_advanced_search(twitter_key, top_query)
+            parsed_top = [parse_tweet(t, username) for t in raw_top]
+            inserted_top = store_tweets(conn, parsed_top, fetch_source="advanced_search", fetch_query=top_query)
+            log_api_call(
+                conn, account_id=account_id, username=username,
+                round_num=1, action="advanced_search",
+                tweets_fetched=len(parsed_top), query=top_query,
+            )
+
+            # Merge: label all unique tweets (dedup by tweet_id)
+            seen_ids = set()
+            all_parsed = []
+            for t in parsed + parsed_top:
+                if t["tweet_id"] not in seen_ids:
+                    all_parsed.append(t)
+                    seen_ids.add(t["tweet_id"])
+            parsed = all_parsed
 
             # 5. Store bio from API response (if not already in DB)
             if author_info:
@@ -484,13 +505,12 @@ def run_round_1(
                 bio=_resolve_bio(conn, account_id),
             )
 
-            # Filter: skip retweets (they tell us about the retweeted account, not this one)
-            originals = [t for t in parsed if not t.get("text", "").startswith("RT @")]
-            skipped_rts = len(parsed) - len(originals)
-            if skipped_rts:
-                logger.info("  Skipped %d retweets, labeling %d originals", skipped_rts, len(originals))
+            # Tag retweets — still label them but with context that it's an RT
+            n_rts = sum(1 for t in parsed if t.get("text", "").startswith("RT @"))
+            if n_rts:
+                logger.info("  %d/%d tweets are retweets (labeled with RT context)", n_rts, len(parsed))
 
-            for tweet in originals:
+            for tweet in parsed:
                 try:
                     per_model = _label_single_tweet(
                         conn, openrouter_key, tweet, account_ctx
