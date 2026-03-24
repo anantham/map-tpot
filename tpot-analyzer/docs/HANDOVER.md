@@ -1,88 +1,67 @@
-# Handover: 2026-03-24 (Session 10 — UX, Tests, Pipeline Fixes, Independent Propagation, Tech Debt)
+# Handover: 2026-03-24 (Session 10c — Edge Enrichment + Independent Propagation + Deploy)
 
 ## Session Summary
+Massive edge enrichment session: +123K edges (441K → 564K, +28%). Found and fixed critical API bug (`followings` key, not `data`). Built resumable edge fetcher with cursor persistence. Deployed independent propagation mode to production (13,360 accounts, 1,362 bridges). Chrome-audited 28 accounts. Fixed export UUID bug. Updated About page (dejargoned, linked sources, honest recall). Tech debt scan completed (14 items).
 
-Massive session across 5 domains: (1) Public site UX — SPA routing, gallery toggle, browser back button fix. (2) Testing — 138 new frontend tests from zero + 8 independent mode propagation tests. (3) About page — corrected 6 factual errors, full essay rewrite applying Peterson's writing guide (-173 lines), updated recall tables with real holdout data. (4) Pipeline — 5 Chrome audit fixes (URL enrichment, keyword guardrail, softened consensus, absolute-bits weights, None community), @So8res labeled (68 AI-Safety bits), rollup global DELETE bug fixed, UUID/short_name seed insertion bug fixed. (5) Architecture — discovered independent mode propagation was already implemented but unused, ran it (41K active accounts, 6K bridges vs 0 in classic mode), analyzed export pipeline adaptation needs, ran bootstrap CV, full tech debt scan (14 action items), fixed 2 security issues.
-
-## Commits This Session (selected)
-
-- `8cadd73` feat(ux): SPA routing + gallery toggle + browser back button
-- `cabeaea` test(public-site): add Vitest infrastructure + 67 tests
-- `8f0b828` test(public-site): add 63 more tests — App tier mapping, SearchBar, CardGallery
-- `a59d405` fix(about): correct 6 inaccurate claims on About page
-- `63e828f` refactor(about): rewrite Path C from spec-doc to essay voice
-- `0471dff` refactor(about): tighten Paths A & B — sentence-level editing
-- `f54d9db` refactor(about): tighten shared sections
-- `adb7e06` fix(pipeline): 5 Chrome audit fixes — enrichment, consensus, weights, None
-- `bb46345` fix(rollup): prevent global DELETE in active_learning --measure
-- `f804467` fix(seeds): resolve short_name to UUID before inserting into community_account
-- `4fa8734` feat(propagation): add --mode independent for multi-label support
-- `da9d569` docs: tech debt surface scan across 5 dimensions
-- `ee1bb4a` fix(security): SQL injection + debug mode on 0.0.0.0
-- `27b0d1a` test(propagation): add 8 tests for independent mode
-
-PUSHED: Yes, all to origin/main. Site deployed at amiingroup.vercel.app.
-
-## Pending Threads
-
-### Continue Immediately
-
-1. **Round 1 active learning — still running**
-   - PID 68730, started ~1:08 AM
-   - 9 accounts triaged so far: @kathryndevaney, @NeelNanda5, @karan4d, @river_kenna, @ThatsMauvelous, @petrichor_lull, @jkcarlsmith, @DougTataryn, @wendell_britt
-   - Budget: $2.50 Twitter API. LLM calls free (OpenRouter free tier)
-   - Check: `tail -20 /private/tmp/claude-501/-Users-aditya-Documents-Ongoing-Local-Project-2---Map-TPOT/37432efe-8d6b-4059-818a-5189dc84739f/tasks/bo3egihz0.output`
-   - On complete: run rollup + insert_seeds + re-propagate + re-export + deploy
-
-2. **Adapt export pipeline for independent mode**
-   - Analysis complete. 4 problems:
-     - `_load_npz_memberships` min_weight=0.05 filters out raw scores (needs ~0.005)
-     - CI formula `tw*(1-nw)*(1-ent)` uses zero-sum assumptions
-     - Band assignment thresholds calibrated for classic mode only
-     - `seed_neighbor_counts` not saved in NPZ
-   - Files: `scripts/export_public_site.py:233-269`, `scripts/export_public_site.py:419-422`
-
-3. **Re-propagate with independent mode for production**
-   - Currently deployed with classic mode
-   - Independent mode tested: 41K active (vs 10K classic), 6K bridges detected
-   - Need: export pipeline adaptation first (#2 above)
-
-### Blocked
-
-1. **Bootstrap CV contradicted About page** — 0% held-out seed recall vs claimed 83.8%. User updated About page with honest numbers. Need to investigate methodology.
-
-### Deferred
-
-1. **Tech debt** — see `docs/TECH_DEBT_SCAN_2026-03-24.md` (14 items)
-2. **About page images** — 4 Gemini Pro visuals
-3. **Fetch outbound edges** for 4 labeled accounts ($0.60)
-4. **Label 7 high-confidence misses** from holdout sources
-5. **Propagation metrics table** — track CI histogram per run
+## Resume Instructions
+1. **Check Round 1**: `sqlite3 data/archive_tweets.db "SELECT COUNT(DISTINCT account_id) FROM enrichment_log WHERE round = 1"` (was 23/50)
+2. **If Round 1 done**: run `--measure`, re-propagate (independent mode), re-export, deploy
+3. **Fix seed-neighbor counting**: use `community_account` weights instead of processed boundary (threshold > 0.1 → > 0 is a hack, need proper fix using raw weights)
+4. **Continue Tier 2 edge fetch**: `scripts/fetch_edges_resumable.py --continue-incomplete --max-pages 15`
+5. **Label 6 accounts**: `--accounts AaronBergman18,ilex_ulmus,eenthymeme,dissproportion,bayeslord,AlexKrusz`
+6. **About page voice rewrite**: Path C needs Scott Alexander style, not technical changelog. See `memory/feedback_about_page_voice.md`
 
 ## Key Context
 
-- **Independent mode propagation**: Fully implemented at `propagate_community_labels.py:579-617`. `--mode independent` flag. Produces non-zero-sum scores + seed_neighbor_counts. Export pipeline does NOT yet support it.
-- **5-factor confidence**: `src/communities/confidence.py` — used for exemplars only. Inline `tw*(1-nw)*(1-ent)` used for everyone else. Dual-CI is tech debt.
-- **Community ID formats**: UUIDs in `community_account`, short_names in `account_community_bits`. `insert_seeds.py` bridges them with `short_to_uuid` lookup.
-- **write_rollup global DELETE**: FIXED — `active_learning.py --measure` now uses scoped delete.
-- **Holdout sources**: 4 sources in `docs/HOLDOUT_SOURCES.md` — Orange (283), Strangest Loop (106), curated list (219), ego follows (1,457). Total 1,794.
-- **Deploy**: `cd public-site && npx vite build && npx vercel build --prod && npx vercel deploy --prebuilt --prod --yes && npx vercel alias <url> amiingroup.vercel.app`
-- **23,655 accounts** live. 32 labeled with bits. Round 1 adding more.
-- **User updated About page independently** — changed ~190K to ~200K, added independent propagation description, rewrote recall table with real holdout data, updated "One Map" section.
+### API Bug (CRITICAL for future work)
+twitterapi.io `user/followings` returns `{"followings": [...]}` NOT `{"data": [...]}`. Our ad-hoc scripts read `data` and got empty arrays. `fetch_following_for_frontier.py` was already correct. `fetch_edges_resumable.py` is correct. Schema Guesser anti-pattern added to CLAUDE.md.
 
-## Running Processes
+### Graph State
+- **564,293 edges** (was 441K at session start)
+- **6,865 source accounts** with outbound edges
+- `edge_fetch_state` table tracks cursor per account for resume
+- `tier2_fetch_queue.txt`: 1,711 prioritized accounts to fetch
+- 5 truly private accounts (Chrome can't see either): @tracewoodgrains, @lioninawhat
+- API credits ran out once (402), recharged within minutes
 
-- **Round 1** — PID 68730 — `--round 1 --top 50 --ego adityaarpitha --budget 2.50`
-  - On complete: rollup + seeds + propagate + export + deploy
+### Independent Propagation (deployed)
+- `--mode independent`: each community propagated separately, scores don't sum to 1
+- 13,360 accounts exported (t=0.02, seed_neighbors >= 1)
+- 1,362 bridges detected (was 0 in classic mode)
+- Seed-neighbor counting has a bug: threshold `> 0.1` on processed boundary filters out all seeds after class balancing. Needs fix: use `community_account.weight` directly.
+- NPZ saves `seed_neighbor_counts` + `mode` for downstream use
 
-## Resume Instructions
+### Export Pipeline
+- `_extract_bits_accounts` now resolves short_name → UUID (was showing "Unknown")
+- CI formula adapts: independent mode uses `weight × neighbor_factor`
+- `min_weight=0.02` in `config/public_site.json`
+- 338 exemplars (317 NMF + 21 LLM)
 
-1. Check if Round 1 finished: `ps aux | grep active_learning | grep -v grep`
-2. If finished: rollup + insert seeds for new accounts, re-propagate, re-export, deploy
-3. Read `docs/TECH_DEBT_SCAN_2026-03-24.md` for debt inventory
-4. **Priority decision**: Adapt export for independent mode OR label more accounts
-5. If adapting export: `_load_npz_memberships` threshold + band recalibration
-6. If labeling: `--accounts gptbrooke,embryosophy,touchmoonflower,sonikudzu,soundrotator,Duderichy,RosieCampbell`
+### Recall (honest numbers on About page)
+| Source | In-graph | Total |
+|--------|----------|-------|
+| Multi-source (3+) | 65% | 65% |
+| Strangest Loop | 64% | 52% |
+| Orange TPOT | 54% | 33% |
+| Ego follows | 30% | 30% |
+
+### DB Tables Created This Session
+- `chrome_audit_log`: 57 tweet-level audit records
+- `chrome_audit_findings`: 5 systemic findings
+- `quality_candidates`: 256 accounts ranked by TPOT-following concentration
+- `edge_fetch_state`: cursor persistence for resumable edge fetching
+- `None` community row in `community` table
+
+### Running Processes
+- **Round 1 active learning**: check `SELECT COUNT(DISTINCT account_id) FROM enrichment_log WHERE round = 1`
+- **Tier 2 edge fetch**: may still be running, check `edge_fetch_state` for progress
+
+### Files Created/Modified
+- `scripts/fetch_edges_resumable.py` — NEW: resumable edge fetcher
+- `docs/HOLDOUT_SOURCES.md` — NEW: 4 ground truth sources documented
+- `docs/PROPAGATION_ANALYSIS.md` — NEW: independent mode analysis
+- `docs/TECH_DEBT_SCAN_2026-03-24.md` — NEW: 14 tech debt items
+- `docs/superpowers/specs/2026-03-24-independent-community-propagation-design.md` — NEW
 
 ---
-*Handover by Claude Opus 4.6 at ~65% context, 2026-03-24*
+*Handover by Claude Opus 4.6 at ~75% context*
