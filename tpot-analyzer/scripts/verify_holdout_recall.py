@@ -32,7 +32,7 @@ def main():
 
     data = np.load(str(NPZ_PATH), allow_pickle=True)
     memberships = data["memberships"]  # (n_nodes, K+1)
-    account_ids = data["account_ids"] if "account_ids" in data else None
+    account_ids = data["node_ids"] if "node_ids" in data else (data["account_ids"] if "account_ids" in data else None)
     abstain_mask = data["abstain_mask"] if "abstain_mask" in data else None
     uncertainty = data["uncertainty"] if "uncertainty" in data else None
 

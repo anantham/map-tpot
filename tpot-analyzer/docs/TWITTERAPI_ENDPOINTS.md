@@ -25,15 +25,26 @@ Syndication API (free, no auth) should be preferred for single-tweet data.
 | `user/mentions` | GET | userName | Tweets mentioning user | 1 | Empty for small accounts |
 | `tweet/advanced_search` | GET | query, queryType | Tweets matching query | 1 | queryType: "Latest" or "Top" |
 
-### Not Working / Untested
+### Available (from official docs, 2026-03-23)
+
+| Endpoint | Method | Params | Returns | Notes |
+|----------|--------|--------|---------|-------|
+| `user/tweet_timeline` | GET | userId, includeReplies, includeParentTweet, cursor | Tweets in profile order, 20/page | Use userId (not userName); same content as last_tweets but by ID |
+| `tweet/quotes` | GET | tweetId, sinceTime, untilTime, includeReplies, cursor | Quote tweets, 20/page | URL is `/tweet/quotes` (not `/tweet/quotations`) |
+| `tweet/thread_context` | GET | tweetId, cursor | Full thread: ancestors + descendants | Input any tweet in thread, get full context |
+| `tweet/retweeters` | GET | tweetId, cursor | Users who retweeted, ~100/page | Order by retweet time desc |
+| `user/search` | GET | query | Users matching keyword | |
+| `user/verified_followers` | GET | userId, cursor | Blue-verified followers | |
+| `user/profile_about` | GET | userName | Extended profile info | |
+| `tweet/replies_v2` | GET | tweetId, cursor | Replies (v2 format) | |
+| List endpoints | GET | various | List timeline, followers, members | `/list/tweet_timeline`, `/list/followers`, `/list/members` |
+| Community endpoints | GET | various | Community info, members, tweets | `/community/info`, `/community/members`, `/community/tweets` |
+
+### Not Working
 
 | Endpoint | Status | Notes |
 |----------|--------|-------|
 | `tweet/multi` (batch by IDs) | 404 | May need different param format |
-| `tweet/quotations` | 404 | May need different URL |
-| `user/verified_followers` | Untested | |
-| `user/profile_about` | Untested | |
-| `tweet/replies_v2` | Untested | |
 
 ## Response Structures
 
