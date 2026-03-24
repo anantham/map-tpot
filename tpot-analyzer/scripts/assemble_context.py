@@ -134,6 +134,47 @@ def get_following_overlap(conn: sqlite3.Connection, account_id: str) -> str:
     return f"Follows {total} classified accounts: {', '.join(community_parts)}"
 
 
+def get_content_profile(conn: sqlite3.Connection, account_id: str, top_n: int = 5) -> str:
+    """
+    Load TF-IDF content profile for this account from account_content_profile.
+
+    Returns a human-readable summary of the account's top liked-content topics,
+    or empty string if no content profile exists.
+
+    Example output:
+        "Content interests (from liked tweets): rationalism/EA (23%), consciousness/qualia (18%), AI/ML tools (12%)"
+    """
+    try:
+        rows = conn.execute(
+            """SELECT acp.topic_idx, acp.weight, ct.top_words
+               FROM account_content_profile acp
+               JOIN content_topic ct ON ct.topic_idx = acp.topic_idx
+               WHERE acp.account_id = ?
+               ORDER BY acp.weight DESC
+               LIMIT ?""",
+            (account_id, top_n),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return ""  # Tables don't exist yet
+    if not rows:
+        return ""
+
+    # Filter to topics with meaningful weight (>3%)
+    significant = [(idx, weight, words) for idx, weight, words in rows if weight > 0.03]
+    if not significant:
+        return ""
+
+    # Build readable summary: use first 3-4 top_words as topic label
+    parts = []
+    for _, weight, top_words in significant:
+        # top_words is comma-separated; take first 3 as a readable label
+        word_list = [w.strip() for w in top_words.split(",")][:3]
+        label = "/".join(word_list)
+        parts.append(f"{label} ({weight:.0%})")
+
+    return "Content interests (from liked tweets): " + ", ".join(parts)
+
+
 def assemble_account_context(
     conn: sqlite3.Connection,
     account_id: str,
@@ -146,14 +187,16 @@ def assemble_account_context(
     Combines:
       - graph_signal: inbound seed follows grouped by community
       - following_overlap: outbound follows toward classified accounts
+      - content_profile: TF-IDF topic weights from liked tweets
       - community_descriptions: name→description mapping
       - community_short_names: list of community short names
 
     Returns a dict with keys: account_id, username, bio, graph_signal,
-    following_overlap, community_descriptions, community_short_names.
+    following_overlap, content_profile, community_descriptions, community_short_names.
     """
     graph_signal = get_graph_signal(conn, account_id)
     following_overlap = get_following_overlap(conn, account_id)
+    content_profile = get_content_profile(conn, account_id)
     community_descriptions, community_short_names = get_community_descriptions(conn)
 
     return {
@@ -162,6 +205,7 @@ def assemble_account_context(
         "bio": bio,
         "graph_signal": graph_signal,
         "following_overlap": following_overlap,
+        "content_profile": content_profile,
         "community_descriptions": community_descriptions,
         "community_short_names": community_short_names,
     }

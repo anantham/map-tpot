@@ -457,6 +457,7 @@ def _label_single_tweet(
         engagement_context=tweet_ctx["engagement_context"],
         community_descriptions=account_ctx["community_descriptions"],
         community_short_names=account_ctx["community_short_names"],
+        content_profile=account_ctx.get("content_profile", ""),
     )
 
     # Split prompt into system + user at the --- delimiter

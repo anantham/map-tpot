@@ -325,6 +325,7 @@ def build_prompt(
     engagement_context: str,
     community_descriptions: dict[str, str],
     community_short_names: list[str],
+    content_profile: str = "",
 ) -> str:
     """Build the combined system+user prompt for a single tweet labeling call.
 
@@ -512,6 +513,7 @@ FIELD DEFINITIONS:
     user_prompt = f"""\
 Account: @{username} | Bio: {bio[:100]}
 Graph: {graph_signal[:150]}
+{content_profile if content_profile else ""}
 {"Current prior: " + other_tweets if other_tweets else ""}
 
 TWEET TO TAG:{rt_flag}
