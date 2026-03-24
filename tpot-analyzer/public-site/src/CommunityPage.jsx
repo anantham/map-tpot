@@ -46,11 +46,9 @@ function SpotlightCard({ member, communityColor, onMemberClick }) {
           <a
             className="cp-spotlight-handle"
             style={{ color: communityColor }}
-            href={`/?handle=${member.username}`}
-            onClick={(e) => {
-              e.preventDefault()
-              onMemberClick(member.username)
-            }}
+            href={`https://x.com/${member.username}`}
+            target="_blank"
+            rel="noopener noreferrer"
           >
             @{member.username}
           </a>
@@ -74,11 +72,9 @@ function MemberGridItem({ member, communityColor, onMemberClick }) {
   return (
     <a
       className="cp-member-item"
-      href={`/?handle=${member.username}`}
-      onClick={(e) => {
-        e.preventDefault()
-        onMemberClick(member.username)
-      }}
+      href={`https://x.com/${member.username}`}
+      target="_blank"
+      rel="noopener noreferrer"
     >
       <div className="cp-member-handle" style={{ color: communityColor }}>@{member.username}</div>
       <div className="cp-member-bio">{member.bio}</div>
