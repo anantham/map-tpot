@@ -141,14 +141,55 @@ def fetch_advanced_search(api_key: str, query: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def parse_tweet(raw_tweet: dict, username: str) -> dict:
-    """Convert a raw API response tweet dict into an enriched_tweets row dict."""
+    """Convert a raw API response tweet dict into an enriched_tweets row dict.
+
+    Extracts rich context (quoted tweets, media, URLs) into context_json
+    so the LLM labeling prompt can see what images/links/quotes contain.
+    """
     entities = raw_tweet.get("entities", {}) or {}
     user_mentions = entities.get("user_mentions", []) or []
     urls = entities.get("urls", []) or []
+    ext_media = raw_tweet.get("extendedEntities", {}) or {}
+    media_items = ext_media.get("media", []) or []
 
     mentions_json = json.dumps(
         [m.get("screen_name", "") for m in user_mentions]
     )
+
+    # Build rich context that the LLM will see
+    context_parts = []
+
+    # Quoted tweet
+    qt = raw_tweet.get("quoted_tweet")
+    if qt and isinstance(qt, dict):
+        qt_author = qt.get("author", {}).get("userName", "?")
+        qt_text = qt.get("text", "")
+        if qt_text:
+            context_parts.append(f"[Quotes @{qt_author}: \"{qt_text[:200]}\"]")
+
+    # Media (images/video)
+    for m in media_items:
+        mtype = m.get("type", "photo")
+        murl = m.get("media_url_https", "")
+        if mtype == "photo" and murl:
+            context_parts.append(f"[Image: {murl}]")
+        elif mtype == "video":
+            context_parts.append("[Video attached]")
+        elif mtype == "animated_gif":
+            context_parts.append("[GIF attached]")
+
+    # Expanded URLs (link previews)
+    for u in urls:
+        expanded = u.get("expanded_url", "")
+        display = u.get("display_url", "")
+        if expanded and not expanded.startswith("https://twitter.com/") and not expanded.startswith("https://x.com/"):
+            context_parts.append(f"[Link: {display or expanded[:60]}]")
+
+    # Reply context
+    if raw_tweet.get("isReply") and raw_tweet.get("inReplyToUsername"):
+        context_parts.append(f"[Replying to @{raw_tweet['inReplyToUsername']}]")
+
+    context_json = json.dumps(context_parts) if context_parts else "[]"
 
     return {
         "tweet_id": str(raw_tweet["id"]),
@@ -163,8 +204,9 @@ def parse_tweet(raw_tweet: dict, username: str) -> dict:
         "lang": raw_tweet.get("lang", ""),
         "is_reply": 1 if raw_tweet.get("isReply", False) else 0,
         "in_reply_to_user": raw_tweet.get("inReplyToUsername"),
-        "has_media": 1 if urls else 0,
+        "has_media": 1 if (media_items or urls) else 0,
         "mentions_json": mentions_json,
+        "context_json": context_json,
     }
 
 
