@@ -1,67 +1,72 @@
-# Handover: 2026-03-24 (Session 10c — Edge Enrichment + Independent Propagation + Deploy)
+# Handover: 2026-03-24 (Session 10 Final — Edge Enrichment + Independent Propagation + NMF v2 + Deploy)
 
 ## Session Summary
-Massive edge enrichment session: +123K edges (441K → 564K, +28%). Found and fixed critical API bug (`followings` key, not `data`). Built resumable edge fetcher with cursor persistence. Deployed independent propagation mode to production (13,360 accounts, 1,362 bridges). Chrome-audited 28 accounts. Fixed export UUID bug. Updated About page (dejargoned, linked sources, honest recall). Tech debt scan completed (14 items).
+Massive session across 10a/10b/10c: graph grew 85% (441K → 815K edges, 297K nodes). Found and fixed critical API bug (`followings` key). Built resumable edge fetcher. Shifted propagation from zero-sum to independent mode (17,634 searchable accounts, 1,974 bridges). Chrome-audited 28 accounts (57 tweets). NMF v2 validated ontology (11/16 strong match). Round 1 active learning: 26/50 accounts, $2.55. About page dejargoned + honest recall. Tech debt scan (14 items).
 
 ## Resume Instructions
-1. **Check Round 1**: `sqlite3 data/archive_tweets.db "SELECT COUNT(DISTINCT account_id) FROM enrichment_log WHERE round = 1"` (was 23/50)
-2. **If Round 1 done**: run `--measure`, re-propagate (independent mode), re-export, deploy
-3. **Fix seed-neighbor counting**: use `community_account` weights instead of processed boundary (threshold > 0.1 → > 0 is a hack, need proper fix using raw weights)
-4. **Continue Tier 2 edge fetch**: `scripts/fetch_edges_resumable.py --continue-incomplete --max-pages 15`
+1. **Seed-neighbor fix**: ~~DONE~~ (session 11) — uses raw `community_account.weight` instead of class-balanced boundary
+2. **Re-propagate + re-export + deploy**: now that seed-neighbor fix is in, re-run propagation and export
+3. **About page voice rewrite**: Path C needs Scott Alexander style. See `memory/feedback_about_page_voice.md`
+4. **Round 1 remaining 24 accounts**: `--round 1 --top 24 --budget 2.50`
 5. **Label 6 accounts**: `--accounts AaronBergman18,ilex_ulmus,eenthymeme,dissproportion,bayeslord,AlexKrusz`
-6. **About page voice rewrite**: Path C needs Scott Alexander style, not technical changelog. See `memory/feedback_about_page_voice.md`
+6. **Continue Tier 2 edge fetch**: `scripts/fetch_edges_resumable.py --continue-incomplete --max-pages 15`
+7. **NMF v2 promotion decision**: needs formal factor alignment score, then human review of 3 shifted communities
 
 ## Key Context
 
 ### API Bug (CRITICAL for future work)
-twitterapi.io `user/followings` returns `{"followings": [...]}` NOT `{"data": [...]}`. Our ad-hoc scripts read `data` and got empty arrays. `fetch_following_for_frontier.py` was already correct. `fetch_edges_resumable.py` is correct. Schema Guesser anti-pattern added to CLAUDE.md.
+twitterapi.io `user/followings` returns `{"followings": [...]}` NOT `{"data": [...]}`. Schema Guesser anti-pattern added to CLAUDE.md.
 
-### Graph State
-- **564,293 edges** (was 441K at session start)
-- **6,865 source accounts** with outbound edges
+### Graph State (final)
+- **815,363 edges** (was 441K at session start, +85%)
+- **297,402 nodes** (was 201K, +47%)
+- **352 seeds** (338 NMF + 14 Round 1)
 - `edge_fetch_state` table tracks cursor per account for resume
-- `tier2_fetch_queue.txt`: 1,711 prioritized accounts to fetch
-- 5 truly private accounts (Chrome can't see either): @tracewoodgrains, @lioninawhat
-- API credits ran out once (402), recharged within minutes
+- 5 protected accounts: @tracewoodgrains, @lioninawhat, @teleosistem, @grantadever, @HamishDoodles
+- 3 deleted/renamed: @sashachapin, @chairsign, @prerationalist
 
 ### Independent Propagation (deployed)
 - `--mode independent`: each community propagated separately, scores don't sum to 1
-- 13,360 accounts exported (t=0.02, seed_neighbors >= 1)
-- 1,362 bridges detected (was 0 in classic mode)
-- Seed-neighbor counting has a bug: threshold `> 0.1` on processed boundary filters out all seeds after class balancing. Needs fix: use `community_account.weight` directly.
+- 17,634 accounts exported (t=0.02, seed_neighbors >= 1)
+- 1,974 bridges detected (was 0 in classic mode)
+- Seed-neighbor counting fix: now uses raw `community_account.weight` directly (not class-balanced boundary)
 - NPZ saves `seed_neighbor_counts` + `mode` for downstream use
 
-### Export Pipeline
-- `_extract_bits_accounts` now resolves short_name → UUID (was showing "Unknown")
-- CI formula adapts: independent mode uses `weight × neighbor_factor`
-- `min_weight=0.02` in `config/public_site.json`
-- 338 exemplars (317 NMF + 21 LLM)
+### NMF v2 Validation
+- Re-ran NMF (k=16, with likes) on 800K-edge graph
+- 11/16 communities strongly match v1, 3 partial (Core TPOT narrowed, Sensemaking split, Essayists merged)
+- Saved as branch `nmf-k16-follow+rt+like-lw0.4-20260324-6f6f95` — NOT promoted to primary yet
+- See `docs/NMF_V2_VALIDATION.md`
 
-### Recall (honest numbers on About page)
-| Source | In-graph | Total |
-|--------|----------|-------|
-| Multi-source (3+) | 65% | 65% |
-| Strangest Loop | 64% | 52% |
-| Orange TPOT | 54% | 33% |
-| Ego follows | 30% | 30% |
+### Export Pipeline
+- `_extract_bits_accounts` resolves short_name → UUID
+- CI formula: independent mode uses `weight × neighbor_factor`
+- `min_weight=0.02` in `config/public_site.json`
+- 338 exemplars, 4,831 specialists, 1,974 bridges, 1,097 frontier
+
+### Key Numbers
+| Metric | Session start | Session end |
+|--------|-------------|-------------|
+| Graph edges | 441,226 | 815,363 |
+| Graph nodes | 201,723 | 297,402 |
+| Searchable accounts | 13,360 | 17,634 |
+| Bridges | 1,362 | 1,974 |
+| Seeds | 338 | 352 |
 
 ### DB Tables Created This Session
 - `chrome_audit_log`: 57 tweet-level audit records
 - `chrome_audit_findings`: 5 systemic findings
 - `quality_candidates`: 256 accounts ranked by TPOT-following concentration
 - `edge_fetch_state`: cursor persistence for resumable edge fetching
+- `protected_accounts`: 5 protected + 3 deleted/renamed
 - `None` community row in `community` table
 
-### Running Processes
-- **Round 1 active learning**: check `SELECT COUNT(DISTINCT account_id) FROM enrichment_log WHERE round = 1`
-- **Tier 2 edge fetch**: may still be running, check `edge_fetch_state` for progress
-
-### Files Created/Modified
-- `scripts/fetch_edges_resumable.py` — NEW: resumable edge fetcher
-- `docs/HOLDOUT_SOURCES.md` — NEW: 4 ground truth sources documented
-- `docs/PROPAGATION_ANALYSIS.md` — NEW: independent mode analysis
-- `docs/TECH_DEBT_SCAN_2026-03-24.md` — NEW: 14 tech debt items
-- `docs/superpowers/specs/2026-03-24-independent-community-propagation-design.md` — NEW
+### Documentation Created
+- `docs/SESSION10_IDEAS_INVENTORY.md` — 45 shipped, 6 designed, 4 blocked, 9 deferred
+- `docs/HOLDOUT_SOURCES.md` — 4 ground truth sources
+- `docs/PROPAGATION_ANALYSIS.md` — independent mode analysis
+- `docs/NMF_V2_VALIDATION.md` — v2 factor alignment
+- `docs/TECH_DEBT_SCAN_2026-03-24.md` — 14 tech debt items
 
 ---
-*Handover by Claude Opus 4.6 at ~75% context*
+*Handover updated by Claude Opus 4.6 (session 11)*
