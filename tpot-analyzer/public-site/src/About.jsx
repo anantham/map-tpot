@@ -273,7 +273,7 @@ export default function About({ meta, onNavigate }) {
               </div>
               <div className="about-signal-row">
                 <span className="about-signal-name">Signed replies</span>
-                <span className="about-signal-desc">438K positive replies identified (author-liked + mutual-follow heuristics)</span>
+                <span className="about-signal-desc">17K signed reply pairs (author-liked + mutual-follow heuristics)</span>
                 <span className="about-badge-status about-badge-status--live">LIVE</span>
               </div>
               <div className="about-signal-row">
@@ -331,8 +331,8 @@ export default function About({ meta, onNavigate }) {
                   graph. But it still covers ~79% of seed accounts and meaningfully shifted community boundaries.
                 </p>
                 <p>
-                  Also live: time-decay on retweets (recent RTs weighted more than old ones), 438K signed
-                  positive replies (author-liked-reply + mutual-follow heuristics), and engagement-weighted
+                  Also live: time-decay on retweets (recent RTs weighted more than old ones), 17K signed
+                  reply pairs (author-liked-reply + mutual-follow heuristics), and engagement-weighted
                   propagation edges.
                 </p>
               </div>
@@ -605,9 +605,11 @@ export default function About({ meta, onNavigate }) {
               </div>
             </div>
             <p>
-              <strong>All 15 communities</strong> are validated by all three signals.
+              <strong>12 of 15 communities</strong> are validated by all three signals.
               The graph says they cluster, the content says they read the same things,
               and the topology says the broader network agrees they belong together.
+              The remaining 3 are validated by 2 of 3 signals&mdash;real communities, but
+              with weaker independent confirmation.
             </p>
 
             <h3>Holdout recall</h3>
@@ -635,8 +637,13 @@ export default function About({ meta, onNavigate }) {
                   </tr>
                   <tr>
                     <td>Specialist + Bridge + Frontier</td>
-                    <td>{totalStr}</td>
-                    <td>Inferred from 182K-node engagement-weighted graph</td>
+                    <td>{((byBand.specialist || 0) + (byBand.bridge || 0) + (byBand.frontier || 0)).toLocaleString()}</td>
+                    <td>Inferred from 190K-node engagement-weighted graph</td>
+                  </tr>
+                  <tr>
+                    <td>Faint (low confidence)</td>
+                    <td>{(byBand.faint || 0).toLocaleString()}</td>
+                    <td>In the graph but below confidence threshold — searchable, grayscale</td>
                   </tr>
                   <tr>
                     <td>Holdout directory accounts in graph</td>
@@ -861,7 +868,7 @@ export default function About({ meta, onNavigate }) {
               with star-dust accents and faint circuit traces. You feel it before you decode it.
             </p>
             <p>
-              Visit any <a href="/?community=jhana-practitioners" onClick={(e) => e.preventDefault()}>community page</a> to
+              Visit any <a href="/?community=jhana-practitioners">community page</a> to
               see the full iconography&mdash;mascot, sigil, flag, palette, and how it shapes the cards.
             </p>
           </section>
@@ -895,7 +902,7 @@ export default function About({ meta, onNavigate }) {
           </section>
 
           <div className="about-footer">
-            <a href="/" className="about-back">
+            <a href="/" className="about-back" onClick={(e) => { e.preventDefault(); onNavigate ? onNavigate('/') : window.history.back() }}>
               &larr; Back to {siteName}
             </a>
           </div>
