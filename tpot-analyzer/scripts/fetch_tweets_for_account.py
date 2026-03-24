@@ -101,8 +101,14 @@ def fetch_last_tweets(api_key: str, username: str) -> tuple[list[dict], dict | N
         return [], None
 
     data = r.json()
-    tweets = data.get("tweets", [])
-    # Author info may be on the first tweet or at top level
+    # API nests tweets under data.data.tweets or data.tweets depending on endpoint
+    inner = data.get("data", {})
+    if isinstance(inner, dict):
+        tweets = inner.get("tweets", [])
+    else:
+        tweets = data.get("tweets", [])
+
+    # Author info from first tweet
     author = None
     if tweets:
         author = tweets[0].get("author")
