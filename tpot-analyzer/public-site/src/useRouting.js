@@ -9,6 +9,7 @@ export default function useRouting(data, accountMap) {
   const [result, setResult] = useState(null)
   const [communityResult, setCommunityResult] = useState(null)
   const [pathname, setPathname] = useState(window.location.pathname)
+  const [galleryMode, setGalleryMode] = useState('all') // 'all' | 'individual'
 
   const [pendingCommunity] = useState(() => {
     const params = new URLSearchParams(window.location.search)
@@ -43,7 +44,16 @@ export default function useRouting(data, accountMap) {
 
   // Sync state when browser back/forward is pressed
   const syncFromUrl = useCallback(() => {
-    setPathname(window.location.pathname)
+    const path = window.location.pathname
+    setPathname(path)
+
+    // If we're on /about or /gallery, clear result/community state
+    if (path === '/about' || path === '/gallery') {
+      setCommunityResult(null)
+      setResult(null)
+      return
+    }
+
     const params = new URLSearchParams(window.location.search)
     const slug = params.get('community')
     const handle = params.get('handle')
@@ -85,6 +95,7 @@ export default function useRouting(data, accountMap) {
   // Navigation: use pushState (creates history entry) for forward nav
   const handleCommunityClick = (slug) => {
     window.history.pushState({}, '', `/?community=${slug}`)
+    setPathname('/')
     const community = communitySlugMap.get(slug)
     setCommunityResult(community || { notFound: true, slug })
     setResult(null)
@@ -98,6 +109,7 @@ export default function useRouting(data, accountMap) {
 
   const handleMemberClick = (username) => {
     window.history.pushState({}, '', `/?handle=${username}`)
+    setPathname('/')
     setCommunityResult(null)
     const account = accountMap.get(username.toLowerCase())
     if (account) {
@@ -121,6 +133,15 @@ export default function useRouting(data, accountMap) {
     window.history.pushState({}, '', '/')
   }
 
+  // SPA navigation for /about, /gallery, and any internal path
+  const navigateTo = (path) => {
+    window.history.pushState({}, '', path)
+    setPathname(path)
+    setCommunityResult(null)
+    setResult(null)
+    window.scrollTo(0, 0)
+  }
+
   return {
     result, setResult,
     communityResult,
@@ -130,5 +151,7 @@ export default function useRouting(data, accountMap) {
     showCommunity, showResult, showHome,
     handleCommunityClick, handleBackFromCommunity,
     handleMemberClick, handleSearchAgain,
+    navigateTo,
+    galleryMode, setGalleryMode,
   }
 }

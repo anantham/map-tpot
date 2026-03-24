@@ -17,7 +17,32 @@
 .gallery-subtitle {
   font-size: 13px;
   color: #888;
-  margin: 0 0 24px;
+  margin: 0 0 12px;
+}
+
+.gallery-mode-toggle {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+.gallery-mode-btn {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #888;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.gallery-mode-btn:hover {
+  border-color: #555;
+  color: #ccc;
+}
+.gallery-mode-btn--active {
+  background: rgba(147, 51, 234, 0.15);
+  border-color: rgba(147, 51, 234, 0.5);
+  color: #e0e0e0;
 }
 
 .gallery-empty {

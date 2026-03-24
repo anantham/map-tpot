@@ -20,10 +20,12 @@ function GalleryCardImage({ src, alt, onClick }) {
   )
 }
 
-export default function CardGallery({ onMemberClick, onBack }) {
+export default function CardGallery({ onMemberClick, onBack, galleryMode = 'all', onModeChange }) {
   const [cards, setCards] = useState([])
   const [loading, setLoading] = useState(true)
   const [fsIndex, setFsIndex] = useState(null)
+
+  const mode = galleryMode // 'all' = cross-card carousel, 'individual' = click → handle page
 
   const isOpen = fsIndex !== null && cards.length > 0
 
@@ -77,6 +79,16 @@ export default function CardGallery({ onMemberClick, onBack }) {
       .finally(() => setLoading(false))
   }, [])
 
+  const handleCardClick = (card, index) => {
+    if (mode === 'individual') {
+      // Navigate to the handle's page (shareable URL with version history)
+      onMemberClick(card.handle)
+    } else {
+      // Open fullscreen cross-card carousel
+      setFsIndex(index)
+    }
+  }
+
   const fsCard = isOpen ? cards[fsIndex] : null
 
   return (
@@ -89,6 +101,24 @@ export default function CardGallery({ onMemberClick, onBack }) {
       <p className="gallery-subtitle">
         {loading ? 'Loading...' : `${cards.length} card${cards.length !== 1 ? 's' : ''} generated`}
       </p>
+
+      {/* Mode toggle */}
+      {cards.length > 0 && (
+        <div className="gallery-mode-toggle">
+          <button
+            className={`gallery-mode-btn ${mode === 'all' ? 'gallery-mode-btn--active' : ''}`}
+            onClick={() => onModeChange?.('all')}
+          >
+            Browse all
+          </button>
+          <button
+            className={`gallery-mode-btn ${mode === 'individual' ? 'gallery-mode-btn--active' : ''}`}
+            onClick={() => onModeChange?.('individual')}
+          >
+            View by account
+          </button>
+        </div>
+      )}
 
       {!loading && cards.length === 0 && (
         <p className="gallery-empty">
@@ -114,7 +144,7 @@ export default function CardGallery({ onMemberClick, onBack }) {
             <GalleryCardImage
               src={card.url}
               alt={`@${card.handle}`}
-              onClick={() => setFsIndex(i)}
+              onClick={() => handleCardClick(card, i)}
             />
             <a
               className="gallery-card-handle"
@@ -164,7 +194,13 @@ export default function CardGallery({ onMemberClick, onBack }) {
               alt={`@${fsCard.handle}`}
             />
             <div className="card-fullscreen-handle">
-              @{fsCard.handle}
+              <a
+                href={`/?handle=${fsCard.handle}`}
+                onClick={(e) => { e.preventDefault(); close(); onMemberClick(fsCard.handle) }}
+                style={{ color: 'inherit', textDecoration: 'none' }}
+              >
+                @{fsCard.handle}
+              </a>
               <span className="card-fullscreen-counter">
                 {fsIndex + 1} / {cards.length}
               </span>
