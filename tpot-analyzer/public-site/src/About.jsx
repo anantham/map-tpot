@@ -588,55 +588,61 @@ export default function About({ meta, onNavigate }) {
             <h2>What Your Card Means</h2>
 
             <p>
-              Your card encodes your community membership through its visual aesthetic&mdash;not
-              through labels or bar charts. Each community has a signature mascot, color palette,
-              and elemental vibe. Your primary community dominates the lighting and composition.
-              Secondary communities appear as subtle accents. The result is a card you can{' '}
-              <em>feel</em> without decoding.
+              Your card doesn&rsquo;t label your communities&mdash;it embodies them. Each
+              community has a signature mascot, palette, and elemental vibe. Your primary
+              community dominates the composition. Secondary communities appear as accents.
+              The result is a card you can <em>feel</em> without decoding.
             </p>
 
             <div className="about-tier">
               <span className="about-badge about-badge--color">Exemplar</span>
               <p>
-                <strong>{classifiedStr} seed accounts.</strong> Full archive data analyzed&mdash;follow
-                patterns, retweet targets, liked content. Rich tarot-style cards with community
-                iconography woven into the art.
+                <strong>{classifiedStr} seed accounts.</strong> Full archive data&mdash;follows,
+                retweets, liked content. Rich tarot-style cards with community iconography
+                woven into the art.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--color">Specialist</span>
               <p>
-                Clearly belongs to one community. Propagation from the follow graph gives a
-                confident placement (&gt;30% in one community). Colorful card, strong visual identity.
+                Clearly belongs to one community. Confident graph placement. Colorful card,
+                strong visual identity.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--bridge">Bridge</span>
               <p>
-                Genuinely straddles 2&ndash;3 communities. These accounts are valuable&mdash;they
-                connect subcommunities. Their cards blend multiple community aesthetics. Being a
-                bridge is not a classification failure; it&rsquo;s a social reality.
+                Straddles 2&ndash;3 communities. These accounts connect subcommunities&mdash;their
+                cards blend multiple aesthetics. Being a bridge is not a classification failure.
+                It&rsquo;s a social reality.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--gray">Frontier</span>
               <p>
-                Uncertain placement&mdash;either too far from seeds, or followed by seeds from
-                many communities. Grayscale card. These are candidates for exploration: follow
-                a few frontier accounts and see if they resonate.
+                Uncertain placement&mdash;too far from seeds, or pulled by many communities
+                at once. Grayscale card. Candidates for exploration.
+              </p>
+            </div>
+
+            <div className="about-tier">
+              <span className="about-badge about-badge--gray">Faint</span>
+              <p>
+                Barely visible in the network. Present in the graph but below the confidence
+                threshold. Searchable, but the card is dim&mdash;a whisper, not a statement.
               </p>
             </div>
 
             {showArchivePara && (
               <p>
-                Want a richer card? Contribute your data via the{' '}
+                Want a richer card?{' '}
                 <a href={links.community_archive} target="_blank" rel="noopener noreferrer">
-                  community archive
+                  Contribute to the archive
                 </a>
-                , or{' '}
+                {' '}or{' '}
                 <a href={links.curator_dm} target="_blank" rel="noopener noreferrer">
                   DM the curator
                 </a>
@@ -651,29 +657,25 @@ export default function About({ meta, onNavigate }) {
 
             <p>
               This map starts from <strong>my perspective</strong>&mdash;the ~300 accounts I follow,
-              the communities I recognize, the boundaries I drew. It&rsquo;s not the objective
-              structure of TPOT. It&rsquo;s Aditya&rsquo;s TPOT.
+              the communities I recognize, the boundaries I drew. It&rsquo;s Aditya&rsquo;s TPOT.
             </p>
             <p>
               Someone following different people would see different communities. A contemplative
-              practitioner would draw the meditation scene at higher resolution&mdash;maybe splitting
+              practitioner would draw the meditation scene at higher resolution&mdash;splitting
               &ldquo;Jhana Practitioners&rdquo; into jhana technicians, somatic healers, and nondual
               teachers. A builder would see more granularity in the infrastructure scene. The map
               reflects the mapper.
             </p>
             <p>
-              Not every account that contributed data to the{' '}
+              Not every account in the{' '}
               <a href="https://www.community-archive.org/" target="_blank" rel="noopener noreferrer">
                 community archive
               </a>{' '}
               is TPOT. Uploading your data is a generous act of transparency, not a membership card.
-              Some contributors orbit the scene, some study it from outside, some are in adjacent
-              networks entirely. The pipeline filters for this: accounts whose follow patterns
-              don&rsquo;t concentrate in any community propagate with lower confidence.
+              The pipeline filters for this: accounts whose follow patterns don&rsquo;t concentrate
+              in any community propagate with lower confidence.
             </p>
             <p>
-              The honest thing is to say so. This is a map drawn from a particular vantage point,
-              with particular blind spots, validated as well as we can against independent signals.
               If you see something wrong&mdash;someone in the wrong community, a community that
               should be split, a whole scene that&rsquo;s missing&mdash;that&rsquo;s signal.
               The map improves when you tell us.
@@ -685,48 +687,27 @@ export default function About({ meta, onNavigate }) {
             <h2>The Visual Language</h2>
 
             <p>
-              Each community has a visual identity&mdash;a mascot, a sigil, a color palette,
-              an elemental vibe. These aren&rsquo;t decorative choices. They encode what makes
-              each scene distinctive.
-            </p>
-
-            <div className="about-signal-stack">
-              <div className="about-signal-row">
-                <span className="about-signal-name">Jhana Practitioners</span>
-                <span className="about-signal-desc">Lotus Serpent &middot; deep violet &middot; still water + inner radiance</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">LLM Whisperers</span>
-                <span className="about-signal-desc">Recursive Wyrm &middot; toxic green &middot; digital fog + recursion</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Vibecamp Highbies</span>
-                <span className="about-signal-desc">Laughing Bodhisattva &middot; burning gold &middot; sacred fire + holy chaos</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">NYC Builders</span>
-                <span className="about-signal-desc">Cornerstone Titan &middot; concrete grey + crimson &middot; architecture + scaffolding</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Queer TPOT</span>
-                <span className="about-signal-desc">Kaleidoscopic Chimera &middot; holographic shifting &middot; metamorphosis</span>
-              </div>
-            </div>
-
-            <p>
-              When you see a card with lotus borders and moonlight pools, that&rsquo;s not random&mdash;it
-              means the account&rsquo;s primary community is the contemplative scene. Circuit patterns
-              and glitch effects mean LLM Whisperers. Fractal blooms mean AI Creatives. The card
-              is a portrait of where someone lives in the network, rendered as mythology.
+              Each community has a visual identity&mdash;not as decoration, but as encoding.
+              Jhana Practitioners get lotus serpents and deep violet, still water and inner
+              radiance. LLM Whisperers get recursive wyrms in toxic green, digital fog and
+              glitch. Vibecamp Highbies get laughing bodhisattvas in burning gold. NYC Builders
+              get concrete and crimson. Queer TPOT gets a kaleidoscopic chimera, holographic
+              and shifting.
             </p>
             <p>
-              Community fractions become <strong>art direction weights</strong>. An account that&rsquo;s
-              45% Jhana + 30% Core TPOT + 15% LLM Whisperers gets a card dominated by moonlight-violet,
-              with star-dust accents and faint circuit traces. You feel it before you decode it.
+              When you see lotus borders and moonlight pools on a card, that&rsquo;s not
+              random&mdash;it means the contemplative scene. Circuit patterns mean LLM Whisperers.
+              Fractal blooms mean AI Creatives. The card is a portrait of where someone lives
+              in the network, rendered as mythology.
+            </p>
+            <p>
+              An account that&rsquo;s 45% Jhana, 30% Core TPOT, 15% LLM Whisperers gets a
+              card dominated by moonlight-violet, with star-dust accents and faint circuit
+              traces. You feel it before you decode it.
             </p>
             <p>
               Visit any <a href="/?community=jhana-practitioners">community page</a> to
-              see the full iconography&mdash;mascot, sigil, flag, palette, and how it shapes the cards.
+              see the full iconography.
             </p>
           </section>
 
@@ -734,15 +715,14 @@ export default function About({ meta, onNavigate }) {
           <section className="about-section about-cta">
             <h2>Build Your Own Map</h2>
             <p>
-              The entire pipeline&mdash;graph construction, NMF classification, content vectors,
-              label propagation, seed validation, curation tooling, and this site&mdash;is open
-              source. The pipeline is general; the seeds are specific.
+              The entire pipeline is open source&mdash;from graph construction to this site.
+              The pipeline is general. The seeds are specific.
             </p>
             <p>
-              You can clone the repo, bring your own follow data, choose your own seed accounts,
-              and build a community map from <em>your</em> perspective. Your map would have different
-              communities, different boundaries, different blind spots. That&rsquo;s the point&mdash;the
-              internet has as many maps as it has mappers.
+              Clone the repo, bring your own follow data, choose your own seeds, and build
+              a community map from <em>your</em> perspective. Different seeds, different
+              communities, different blind spots. The internet has as many maps as it has
+              mappers.
             </p>
             {links.repo ? (
               <a
