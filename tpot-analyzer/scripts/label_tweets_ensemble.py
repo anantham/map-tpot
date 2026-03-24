@@ -423,31 +423,40 @@ CRITICAL RULES:
 FEW-SHOT EXAMPLES:
 
 Tweet: "haha, it's like there's a little person in there!"
-{{"bits": ["bits:LLM-Whisperers:+3"], "themes": ["theme:model-interiority"], "signal_strength": "high", "note": "Anthropomorphizing AI — seeing agency/personhood in model output. Core LLM Whisperer move.", "new_community_signals": []}}
+{{"bits": ["bits:LLM-Whisperers:+3"], "domains": ["domain:AI"], "themes": ["theme:model-interiority"], "postures": ["posture:playful-exploration"], "simulacrum": {{"l1": 0.2, "l2": 0.1, "l3": 0.4, "l4": 0.3}}, "signal_strength": "high", "note": "Anthropomorphizing AI — seeing agency in model output. Core LLM Whisperer move.", "new_community_signals": []}}
 
 Tweet: "the fundamental problem with nonalcoholic cocktails is that you need something slightly repulsive in the drink to sip slowly. thats why i started putting creatine in mine"
-{{"bits": ["bits:highbies:+3", "bits:Core-TPOT:+1"], "themes": ["theme:absurdist-humor"], "signal_strength": "high", "note": "Viral observational humor with unexpected biohacking twist. Peak highbie energy.", "new_community_signals": []}}
+{{"bits": ["bits:highbies:+3", "bits:Core-TPOT:+1"], "domains": ["domain:social"], "themes": ["theme:absurdist-humor"], "postures": ["posture:original-insight", "posture:playful-exploration"], "simulacrum": {{"l1": 0.35, "l2": 0.05, "l3": 0.4, "l4": 0.2}}, "signal_strength": "high", "note": "Viral observational humor with biohacking twist. Peak highbie.", "new_community_signals": []}}
 
 Tweet: "RT @NousResearch: Did you feel that vibe shift anon? Open Source is in the air."
-{{"bits": ["bits:LLM-Whisperers:+1"], "themes": [], "signal_strength": "low", "note": "Pure retweet of org account. Signals interest in open-source AI but tells us little about retweeter's identity.", "new_community_signals": []}}
+{{"bits": ["bits:LLM-Whisperers:+1"], "domains": ["domain:AI"], "themes": [], "postures": ["posture:signal-boost"], "simulacrum": {{"l1": 0.1, "l2": 0.3, "l3": 0.5, "l4": 0.1}}, "signal_strength": "low", "note": "Pure RT of org. Signals interest only.", "new_community_signals": []}}
 
 Tweet: "Mad respect for Hofstadter for: updating instead of rationalizing, not shrinking from implications, being honest about uncertainty"
-{{"bits": ["bits:AI-Safety:+3", "bits:Core-TPOT:+1"], "themes": ["theme:epistemic-practice"], "signal_strength": "high", "note": "Praising intellectual honesty on AI risk. Strong alignment ecosystem signal.", "new_community_signals": []}}
+{{"bits": ["bits:AI-Safety:+3", "bits:Core-TPOT:+1"], "domains": ["domain:AI", "domain:philosophy"], "themes": ["theme:epistemic-practice"], "postures": ["posture:original-insight"], "simulacrum": {{"l1": 0.7, "l2": 0.1, "l3": 0.15, "l4": 0.05}}, "signal_strength": "high", "note": "Praising intellectual honesty on AI risk.", "new_community_signals": []}}
 
 Tweet: "As a woman raised by codependents/narcissists I am a well trained approval seeker. Like a blank canvas available to be painted upon..."
-{{"bits": ["bits:Relational-Explorers:+3", "bits:Contemplative-Practitioners:+2"], "themes": ["theme:self-transformation"], "signal_strength": "high", "note": "Deep relational self-examination, codependency as sacred research. Somatic awareness.", "new_community_signals": []}}
+{{"bits": ["bits:Relational-Explorers:+3", "bits:Contemplative-Practitioners:+2"], "domains": ["domain:personal", "domain:social"], "themes": ["theme:self-transformation", "theme:embodiment"], "postures": ["posture:personal-testimony"], "simulacrum": {{"l1": 0.6, "l2": 0.1, "l3": 0.25, "l4": 0.05}}, "signal_strength": "high", "note": "Codependency as sacred research. Somatic awareness.", "new_community_signals": []}}
 
 Tweet: "NeuralKey: Proof of Personhood using Brainwaves. In my talk @zuitzerland, I explored this possibility."
-{{"bits": ["bits:Tech-Intellectuals:+2"], "themes": ["theme:d/acc", "theme:proof-of-personhood"], "signal_strength": "medium", "note": "d/acc builder shipping decentralized identity infra.", "new_community_signals": ["new-community-signal:d/acc-Builders"]}}
+{{"bits": ["bits:Tech-Intellectuals:+2"], "domains": ["domain:technical"], "themes": ["theme:d/acc", "theme:proof-of-personhood"], "postures": ["posture:original-insight"], "simulacrum": {{"l1": 0.5, "l2": 0.3, "l3": 0.15, "l4": 0.05}}, "signal_strength": "medium", "note": "d/acc builder shipping decentralized identity.", "new_community_signals": ["new-community-signal:d/acc-Builders"]}}
 
 OUTPUT (JSON only, no commentary):
 {{
   "bits": ["bits:ShortName:+N", ...],
-  "themes": ["theme:descriptor", ...],
+  "domains": ["domain:X", ...],
+  "themes": ["theme:specific-descriptor", ...],
+  "postures": ["posture:X", ...],
+  "simulacrum": {{"l1": float, "l2": float, "l3": float, "l4": float}},
   "signal_strength": "high|medium|low",
   "note": "1-sentence interpretation of THIS tweet",
   "new_community_signals": []
 }}
+
+FIELD DEFINITIONS:
+  domains: broad buckets (AI, philosophy, social, technical, politics, personal, art, science)
+  themes: specific reusable tags that form community boundaries (theme:model-interiority, theme:absurdist-humor, theme:d/acc). Create new themes when you see recurring patterns.
+  postures: HOW the account engages (original-insight, signal-boost, playful-exploration, provocation, pedagogy, critique, personal-testimony)
+  simulacrum: L1=truth-seeking, L2=social positioning, L3=aesthetic/narrative/vibe, L4=meta/ironic/memetic. Must sum to ~1.0. Important for tracking how ideas propagate through communities.
 """
 
     # User prompt — present account context lightly so it doesn't dominate
