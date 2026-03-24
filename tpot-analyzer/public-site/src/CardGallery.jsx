@@ -2,10 +2,28 @@ import { useState, useEffect, useCallback } from 'react'
 import { getAllCachedCards } from './GenerateCard'
 import './card-gallery.css'
 
+function GalleryCardImage({ src, alt, onClick }) {
+  const [loaded, setLoaded] = useState(false)
+  return (
+    <div className="gallery-card-img-wrapper">
+      {!loaded && <div className="gallery-card-skeleton" />}
+      <img
+        src={src}
+        alt={alt}
+        className={`gallery-card-img ${loaded ? 'gallery-card-img--loaded' : 'gallery-card-img--loading'}`}
+        loading="lazy"
+        onLoad={() => setLoaded(true)}
+        onClick={onClick}
+        style={{ cursor: 'zoom-in' }}
+      />
+    </div>
+  )
+}
+
 export default function CardGallery({ onMemberClick, onBack }) {
   const [cards, setCards] = useState([])
   const [loading, setLoading] = useState(true)
-  const [fsIndex, setFsIndex] = useState(null) // null = closed, number = which card
+  const [fsIndex, setFsIndex] = useState(null)
 
   const isOpen = fsIndex !== null && cards.length > 0
 
@@ -19,7 +37,6 @@ export default function CardGallery({ onMemberClick, onBack }) {
 
   const close = useCallback(() => setFsIndex(null), [])
 
-  // Keyboard: ESC to close, arrows to navigate
   useEffect(() => {
     if (!isOpen) return
     const onKey = (e) => {
@@ -32,19 +49,22 @@ export default function CardGallery({ onMemberClick, onBack }) {
   }, [isOpen, close, goPrev, goNext])
 
   useEffect(() => {
-    // Try server gallery first, fall back to localStorage
+    // Show local cache immediately while server loads
+    const local = getAllCachedCards()
+    if (local.length > 0) {
+      setCards(local)
+      setLoading(false)
+    }
+
+    // Then fetch server gallery (may have more cards)
     fetch('/api/gallery')
       .then(r => r.json())
       .then(data => {
         if (data.cards && data.cards.length > 0) {
           setCards(data.cards)
-        } else {
-          setCards(getAllCachedCards())
         }
       })
-      .catch(() => {
-        setCards(getAllCachedCards())
-      })
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
@@ -67,16 +87,25 @@ export default function CardGallery({ onMemberClick, onBack }) {
         </p>
       )}
 
+      {/* Skeleton placeholders while loading */}
+      {loading && cards.length === 0 && (
+        <div className="gallery-grid">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="gallery-card">
+              <div className="gallery-card-skeleton" />
+              <div className="gallery-card-handle-skeleton" />
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="gallery-grid">
         {cards.map((card, i) => (
           <div key={card.handle} className="gallery-card">
-            <img
+            <GalleryCardImage
               src={card.url}
               alt={`@${card.handle}`}
-              className="gallery-card-img"
-              loading="lazy"
               onClick={() => setFsIndex(i)}
-              style={{ cursor: 'zoom-in' }}
             />
             <a
               className="gallery-card-handle"
