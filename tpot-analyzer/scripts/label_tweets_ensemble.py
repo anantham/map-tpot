@@ -383,70 +383,86 @@ def build_prompt(
         anti_block = ""
         dedup_block = ""
 
-    system_prompt = f"""\
-You are a community-evidence tagger for the TPOT (This Part Of Twitter) ecosystem.
+    # Select top 6 emerging clusters (not all 13)
+    top_emerging = []
+    if glossary:
+        emerging = glossary.get("emerging_clusters", {})
+        # Prioritize the strongest signals
+        priority = ["AI-Mystics", "Open-Source-AI", "d/acc-Builders", "Psychonauts", "Somatic-Coaching", "Post-Rationalist", "Girardian-Memetics"]
+        for name in priority:
+            if name in emerging:
+                top_emerging.append(f"  - {name}: {emerging[name][:100]}")
+        emerging_block = "\n".join(top_emerging[:6])
+    else:
+        emerging_block = ""
 
-COMMUNITIES (use these short_names for bits:ShortName:+N tags):
+    # Detect if this tweet is a retweet
+    is_rt = tweet_text.strip().startswith("RT @")
+
+    system_prompt = f"""\
+You are a precise community-evidence tagger for TPOT (This Part Of Twitter).
+Tag THIS SPECIFIC TWEET only. Ignore what you know about the account — read the tweet text.
+
+COMMUNITIES:
 {community_block}
 
-{"EMERGING CLUSTERS (use new-community-signal:Name for these ONLY):" + chr(10) + emerging_block if emerging_block else ""}
+BITS: +1=weak, +2=moderate, +3=strong, +4=diagnostic (nearly uniquely identifies community).
+  Assign 0-4 bits tags per tweet. Simple/ambiguous tweets may get 0-1. Do NOT force bits.
+  +4 should be rare — tweets incomprehensible outside that specific community.
 
-BITS SCALE (per-tweet, prior-independent):
-  +1 = weak signal (could be coincidence)
-  +2 = moderate signal (intentional alignment)
-  +3 = strong signal (core topic/style)
-  +4 = diagnostic (almost uniquely identifies this community)
-  Negative values indicate counter-evidence (-1 to -4, same scale inverted).
+{"EMERGING (use new-community-signal:Name, only if clearly novel):" + chr(10) + emerging_block if emerging_block else ""}
 
-{"CANONICAL THEMES (prefer these over inventing new ones):" + chr(10) + "  " + theme_list if theme_list else ""}
+CRITICAL RULES:
+  - Tag THIS TWEET, not the account. Ignore bio/graph when assigning bits.
+  - Pure retweets ("RT @someone: ...") get AT MOST one weak bit (+1) for interest. Do not tag the original author's community as the retweeter's identity.
+  - Core-TPOT requires the STYLE (absurdist humor, personal essay, divine absurdity). Smart tweets ≠ Core-TPOT.
+  - "institutions" ≠ NYC-Institution-Builders (that's literal NYC housing/schools).
+  - "collective intelligence" as phrase ≠ Collective-Intelligence (that's DAOs/regen).
+  - "mind"/"brain" ≠ Qualia-Research (that's consciousness geometry/valence formalism).
 
-{"TAG DEDUPLICATION (use ONLY the canonical form):" + chr(10) + dedup_block if dedup_block else ""}
+FEW-SHOT EXAMPLES:
 
-RULES:
-  - EVERY non-noise tweet MUST have at least 2 bits assignments.
-  - Bits are per-TWEET evidence, independent of any prior community assignment.
-  - Engagement context (likes, replies) is independent evidence — use it.
-  - Return ONLY a JSON object, no commentary.
-  - If the tweet is a RETWEET (starts with "RT @"), assign bits with REDUCED confidence
-    (-1 from what you'd normally give). Retweets signal interest, not identity.
+Tweet: "haha, it's like there's a little person in there!"
+{{"bits": ["bits:LLM-Whisperers:+3"], "themes": ["theme:model-interiority"], "signal_strength": "high", "note": "Anthropomorphizing AI — seeing agency/personhood in model output. Core LLM Whisperer move.", "new_community_signals": []}}
 
-{"AVOID THESE MISTAKES:" + chr(10) + anti_block if anti_block else ""}
+Tweet: "the fundamental problem with nonalcoholic cocktails is that you need something slightly repulsive in the drink to sip slowly. thats why i started putting creatine in mine"
+{{"bits": ["bits:highbies:+3", "bits:Core-TPOT:+1"], "themes": ["theme:absurdist-humor"], "signal_strength": "high", "note": "Viral observational humor with unexpected biohacking twist. Peak highbie energy.", "new_community_signals": []}}
 
-NEW-COMMUNITY SIGNALS:
-  - Do NOT create new-community-signal for things that match existing communities.
-  - Only use names from the EMERGING CLUSTERS list above, or genuinely novel clusters.
+Tweet: "RT @NousResearch: Did you feel that vibe shift anon? Open Source is in the air."
+{{"bits": ["bits:LLM-Whisperers:+1"], "themes": [], "signal_strength": "low", "note": "Pure retweet of org account. Signals interest in open-source AI but tells us little about retweeter's identity.", "new_community_signals": []}}
 
-OUTPUT FORMAT (JSON):
+Tweet: "Mad respect for Hofstadter for: updating instead of rationalizing, not shrinking from implications, being honest about uncertainty"
+{{"bits": ["bits:AI-Safety:+3", "bits:Core-TPOT:+1"], "themes": ["theme:epistemic-practice"], "signal_strength": "high", "note": "Praising intellectual honesty on AI risk. Strong alignment ecosystem signal.", "new_community_signals": []}}
+
+Tweet: "As a woman raised by codependents/narcissists I am a well trained approval seeker. Like a blank canvas available to be painted upon..."
+{{"bits": ["bits:Relational-Explorers:+3", "bits:Contemplative-Practitioners:+2"], "themes": ["theme:self-transformation"], "signal_strength": "high", "note": "Deep relational self-examination, codependency as sacred research. Somatic awareness.", "new_community_signals": []}}
+
+Tweet: "NeuralKey: Proof of Personhood using Brainwaves. In my talk @zuitzerland, I explored this possibility."
+{{"bits": ["bits:Tech-Intellectuals:+2"], "themes": ["theme:d/acc", "theme:proof-of-personhood"], "signal_strength": "medium", "note": "d/acc builder shipping decentralized identity infra.", "new_community_signals": ["new-community-signal:d/acc-Builders"]}}
+
+OUTPUT (JSON only, no commentary):
 {{
-  "bits": ["bits:CommunityName:+N", ...],
+  "bits": ["bits:ShortName:+N", ...],
   "themes": ["theme:descriptor", ...],
-  "domains": ["domain:descriptor", ...],
-  "postures": ["posture:descriptor", ...],
-  "simulacrum": {{"l1": float, "l2": float, "l3": float, "l4": float}},
-  "note": "brief interpretive note",
   "signal_strength": "high|medium|low",
-  "new_community_signals": ["new-community-signal:Name", ...]
+  "note": "1-sentence interpretation of THIS tweet",
+  "new_community_signals": []
 }}
-
-Simulacrum levels must sum to ~1.0:
-  l1 = propositional truth-seeking
-  l2 = social positioning / group signaling
-  l3 = aesthetic / narrative / vibe
-  l4 = pure memetic / absurdist
 """
 
-    user_prompt = f"""\
-ACCOUNT: @{username}
-BIO: {bio}
-GRAPH SIGNAL: {graph_signal}
-OTHER TWEETS: {other_tweets}
+    # User prompt — present account context lightly so it doesn't dominate
+    rt_flag = "\n⚠️ THIS IS A RETWEET — at most one weak bit for interest." if is_rt else ""
 
-TWEET TEXT:
+    user_prompt = f"""\
+Context (for disambiguation only, do NOT let this override tweet-level evidence):
+  Account: @{username} | Bio: {bio[:100]}
+  Followed by: {graph_signal[:150]}
+
+TWEET TO TAG:{rt_flag}
 {tweet_text}
 
-ENGAGEMENT: {engagement}
-MENTIONS: {mentions}
-ENGAGEMENT CONTEXT: {engagement_context}
+Engagement: {engagement}
+{f"Engagement context: {engagement_context}" if engagement_context and engagement_context != "No engagement data from classified accounts." else ""}
 """
 
     return system_prompt + "\n---\n\n" + user_prompt
