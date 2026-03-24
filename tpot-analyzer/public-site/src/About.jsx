@@ -204,7 +204,6 @@ export default function About({ meta, onNavigate }) {
             <h2>
               <span className="about-stage-num">1</span>
               What We Can See
-              <span className="about-badge-status about-badge-status--live">LIVE</span>
             </h2>
 
             <p>
@@ -213,26 +212,22 @@ export default function About({ meta, onNavigate }) {
                 Community Archive
               </a>{' '}
               is a project where Twitter users voluntarily share their data. {classifiedStr} people
-              shared who they follow, who they retweet, and their tweets.
+              shared who they follow, who they retweet, and their tweets. That&rsquo;s the seed.
             </p>
             <p>
-              That gives us a matrix: {classifiedStr} seed accounts &times; the ~182,000 accounts in
-              their follow graph. For each archived account, we can see every follow and retweet.
-              For the other ~182K, we only know that <em>someone</em> follows them&mdash;not who{' '}
-              <em>they</em> follow.
+              From those {classifiedStr} accounts, we can trace outward to ~190,000 accounts in
+              their follow graph. For each archived account, we see everything&mdash;every follow,
+              every retweet. For the other 190K, we only know that <em>someone</em> follows
+              them&mdash;not who <em>they</em> follow. It&rsquo;s like knowing which lectures
+              a student attends, but not what the professors do on weekends.
             </p>
             <p>
-              The result is a giant spreadsheet that&rsquo;s almost entirely empty&mdash;about 0.3%
-              of cells are filled. That sparsity is the raw material.
+              Take @repligate. They&rsquo;re one of the {classifiedStr} who shared data. We can
+              see all ~1,200 accounts they follow and all their retweets. But for those 1,200
+              accounts, we only know @repligate follows them. The result is a giant matrix
+              that&rsquo;s almost entirely empty&mdash;about 0.3% of cells are filled. That
+              sparsity is the raw material.
             </p>
-            <div className="about-running-example">
-              <div className="about-running-example-label">Running example: @repligate</div>
-              <p>
-                @repligate is one of the {classifiedStr} who shared data. We can see all ~1,200
-                accounts they follow and all their retweets. But for those 1,200 accounts, we only
-                know @repligate follows them&mdash;not who <em>they</em> follow.
-              </p>
-            </div>
           </section>
 
           {/* Stage 2: What Signals We Use */}
@@ -242,60 +237,39 @@ export default function About({ meta, onNavigate }) {
               What Signals We Use
             </h2>
             <p>
-              We don&rsquo;t use a single signal. The pipeline layers multiple evidence types,
-              each with different strengths:
+              Who you follow is the strongest signal. It&rsquo;s deliberate, stable, and reveals
+              what you chose to listen to. But it&rsquo;s not the only one.
             </p>
-            <div className="about-signal-stack">
-              <div className="about-signal-row">
-                <span className="about-signal-name">Follow targets</span>
-                <span className="about-signal-desc">Who you chose to listen to (deliberate, stable)</span>
-                <span className="about-badge-status about-badge-status--live">LIVE</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Retweet targets</span>
-                <span className="about-signal-desc">What you amplify (weighted 0.6&times;, with optional time-decay)</span>
-                <span className="about-badge-status about-badge-status--live">LIVE</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Resolved like-author edges</span>
-                <span className="about-signal-desc">~24K author-attributed likes (weighted 0.4&times;, positive valence)</span>
-                <span className="about-badge-status about-badge-status--live">LIVE</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Content vectors</span>
-                <span className="about-signal-desc">25 macro-interest topics from 17.5M liked tweet texts (orthogonal to graph)</span>
-                <span className="about-badge-status about-badge-status--live">LIVE</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Co-followed topology</span>
-                <span className="about-signal-desc">Accounts followed by the same people cluster together (Jaccard similarity)</span>
-                <span className="about-badge-status about-badge-status--live">LIVE</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Signed replies</span>
-                <span className="about-signal-desc">17K signed reply pairs (author-liked + mutual-follow heuristics)</span>
-                <span className="about-badge-status about-badge-status--live">LIVE</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Tweet labeling (bits)</span>
-                <span className="about-signal-desc">Human-tagged tweets weighted by simulacrum level (L3 in-group = 2&times;)</span>
-                <span className="about-badge-status about-badge-status--experimental">EXPERIMENTAL</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Engagement-weighted graph</span>
-                <span className="about-signal-desc">Follow + RT + like + reply weights on propagation edges</span>
-                <span className="about-badge-status about-badge-status--live">LIVE</span>
-              </div>
-            </div>
-            <div className="about-running-example">
-              <div className="about-running-example-label">Running example: @repligate</div>
-              <p>
-                Follow targets say &ldquo;Qualia Research&rdquo;&mdash;they follow QRI researchers,
-                consciousness Twitter. But their tweet content says &ldquo;LLM Whisperers&rdquo;&mdash;they
-                write about AI agents and prompt engineering. The follow signal and the tweet signal
-                disagree. That&rsquo;s why we need both.
-              </p>
-            </div>
+            <p>
+              What you retweet shows what you amplify. What you like shows what catches your eye.
+              Who replies to your posts&mdash;and whether you liked their reply&mdash;hints at who
+              you&rsquo;re actually in conversation with. Each signal has a different shape. Follows
+              are architectural. Retweets are behavioral. Likes are reflexive. Replies are relational.
+            </p>
+            <p>
+              Then there are signals that don&rsquo;t come from individual actions at all. If 200
+              people all follow both you and the same niche consciousness researcher, that&rsquo;s
+              not coincidence&mdash;that&rsquo;s topology. We compute these co-followed patterns
+              across the whole network. Separately, we run topic models over 17.5 million liked
+              tweets to ask: <em>what does this person read about?</em> That gives us 25
+              macro-interest dimensions&mdash;an entirely different lens from the social graph.
+            </p>
+            <p>
+              Here&rsquo;s why layering matters. @repligate&rsquo;s follow targets say
+              &ldquo;Qualia Research&rdquo;&mdash;they follow QRI researchers, consciousness
+              Twitter. But their liked content says &ldquo;LLM Whisperers&rdquo;&mdash;AI agents,
+              prompt engineering, recursive self-improvement. The follow signal and the content
+              signal disagree. That disagreement is the most informative thing in the data. It
+              means @repligate orbits one community but intellectually lives in another. You need
+              both signals to see that.
+            </p>
+            <p>
+              In total we use eight signal types: follow targets, retweet targets, resolved
+              like-author edges (~24K pairs), content vectors (25 topics), co-followed topology,
+              17K signed reply pairs, human tweet labeling, and engagement-weighted propagation.
+              Most run across all accounts. Tweet labeling is experimental&mdash;applied to a
+              handful so far.
+            </p>
           </section>
 
           {/* Stage 3: How The First Map Is Made */}
@@ -303,128 +277,87 @@ export default function About({ meta, onNavigate }) {
             <h2>
               <span className="about-stage-num">3</span>
               How the First Map Is Made
-              <span className="about-badge-status about-badge-status--live">LIVE</span>
             </h2>
 
+            <p>
+              Before writing any code, four questions need answers. What counts as evidence? How
+              do we define a community? How confident should we be in the initial picture? And
+              what do we do with accounts that fit nowhere?
+            </p>
 
-            <h3>Four decisions before any code</h3>
+            <h3>What counts as evidence</h3>
+            <p>
+              Not all actions carry the same weight. Following a niche consciousness researcher
+              separates communities. Following @elonmusk doesn&rsquo;t. We weight signals by how
+              distinctive they are&mdash;a technique called TF-IDF&mdash;so that rare, specific
+              follows dominate the picture. Follows are primary. Retweets count at 0.6&times;.
+              Resolved like-author edges (where we can identify whose tweet was liked) count
+              at 0.4&times;.
+            </p>
+            <p>
+              Of 17.5M raw likes in the archive, only ~24K can be attributed to an author. That&rsquo;s
+              a partial signal, but it covers ~79% of seed accounts and meaningfully shifted
+              community boundaries when we added it.
+            </p>
 
-            <details className="about-disclosure">
-              <summary>1. How to represent the data</summary>
-              <div className="about-disclosure-body">
-                <p>
-                  What counts as evidence that two accounts are in the same community? A follow is
-                  deliberate&mdash;you chose to listen. A retweet is behavioral&mdash;you chose to
-                  amplify. A like is cheap positive signal. A reply is unsigned&mdash;arguing looks
-                  the same as agreeing.
-                </p>
-                <p>
-                  We chose: <strong>follows + retweets + resolved like-author edges, separately
-                  TF-IDF weighted</strong> (retweets at 0.6&times;, likes at 0.4&times;). TF-IDF means
-                  distinctive follows matter more&mdash;following a niche consciousness researcher separates
-                  communities, following @elonmusk doesn&rsquo;t.
-                </p>
-                <p>
-                  The &ldquo;resolved likes&rdquo; caveat: of 17.5M raw likes in the archive, only ~24K
-                  can be attributed to an author (the liked tweet&rsquo;s author must also be in the archive).
-                  That&rsquo;s a partial structural signal over archive-visible targets, not the full liked-author
-                  graph. But it still covers ~79% of seed accounts and meaningfully shifted community boundaries.
-                </p>
-                <p>
-                  Also live: time-decay on retweets (recent RTs weighted more than old ones), 17K signed
-                  reply pairs (author-liked-reply + mutual-follow heuristics), and engagement-weighted
-                  propagation edges.
-                </p>
-              </div>
-            </details>
+            <h3>What is a community membership?</h3>
+            <p>
+              The central question. Is each account in exactly one community? A weighted mixture
+              that sums to 1? Or independent memberships&mdash;you can be 80% Builders AND
+              60% Contemplative?
+            </p>
+            <p>
+              We chose NMF (Non-negative Matrix Factorization)&mdash;independent, non-negative,
+              parts-based. It decomposes the giant matrix into two smaller ones:
+            </p>
+            <p className="about-formula">
+              <em>A</em> &asymp; <em>W</em> &middot; <em>H</em>
+            </p>
+            <p>
+              <em>W</em> gives each account&rsquo;s community weights. <em>H</em> shows what
+              defines each community&mdash;which follow targets, which retweet targets. That
+              second matrix is what makes human curation possible: you can look at a cluster
+              and see <em>why</em> it exists.
+            </p>
 
-            <details className="about-disclosure">
-              <summary>2. How to discover communities</summary>
-              <div className="about-disclosure-body">
-                <p>
-                  The deeper question: <strong>what is a community membership?</strong> Is each
-                  account in exactly one community (hard clustering)? A weighted mixture that sums
-                  to 1 (LDA)? Or independent memberships&mdash;you can be 80% Builders AND 60%
-                  Contemplative?
-                </p>
-                <p>
-                  We chose <strong>NMF (Non-negative Matrix Factorization)</strong>&mdash;independent,
-                  non-negative, parts-based. The matrix <em>A</em> decomposes as:
-                </p>
-                <p className="about-formula">
-                  <em>A</em> &asymp; <em>W</em> &middot; <em>H</em>
-                </p>
-                <p>
-                  <em>W</em> ({classifiedStr} &times; {numCommunities}) gives each account&rsquo;s
-                  community weights. <em>H</em> ({numCommunities} &times; 72K) shows what defines each
-                  community&mdash;which follow targets, which retweet targets. That second matrix is
-                  what makes human curation possible: you can see <em>why</em> a cluster exists.
-                </p>
-              </div>
-            </details>
+            <h3>How strong is the initial picture?</h3>
+            <p>
+              NMF gives you factors, not beliefs. The question is: how much evidence should
+              it take to override the initial picture? A skeptical prior (worth 2 virtual
+              tweets) gets corrected quickly. A strong prior (worth 20) resists correction.
+              Full archive accounts get a confident prior. Accounts we only see through the
+              shadow graph get a weaker one.
+            </p>
 
-            <details className="about-disclosure">
-              <summary>3. How to turn discovery into a prior</summary>
-              <div className="about-disclosure-body">
-                <p>
-                  NMF gives you factors. That&rsquo;s not the same as beliefs. The prior could be
-                  uniform (no opinion), population base rate (bigger communities get higher prior),
-                  NMF-derived (let the math decide), or manually seeded by a curator.
-                </p>
-                <p>
-                  We use the <strong>NMF-derived prior</strong>, but how strong it is matters as
-                  much as where it comes from. How many labeled tweets should it take to override
-                  &ldquo;100% Qualia Research&rdquo;? A skeptical prior (worth 2 virtual tweets) gets
-                  corrected quickly. A strong prior (worth 20) resists correction.
-                </p>
-                <p>
-                  The prior should also depend on data richness: full archive accounts get a confident
-                  prior, shadow-graph accounts get a weaker one, accounts not in the graph at all
-                  should start as <code>unknown</code>.
-                </p>
-              </div>
-            </details>
-
-            <details className="about-disclosure">
-              <summary>4. What about accounts that fit nowhere?</summary>
-              <div className="about-disclosure-body">
-                <p>
-                  Some accounts are bridges between communities. Some are outliers. Some are evidence
-                  the ontology is incomplete.
-                </p>
-                <p>
-                  The propagation output includes a <code>none</code> class and an entropy-based
-                  uncertainty score. Accounts with high <code>none</code> weight or high entropy
-                  are classified as &ldquo;frontier&rdquo;&mdash;we&rsquo;d rather say &ldquo;we
-                  don&rsquo;t know&rdquo; than guess wrong.
-                </p>
-                <p>
-                  Bridge accounts are not failures. @vgr (followed by 117 seeds from all 15
-                  communities) genuinely straddles everything&mdash;they&rsquo;re pan-TPOT. The
-                  system preserves their full membership distribution rather than forcing them
-                  into a single bucket.
-                </p>
-              </div>
-            </details>
+            <h3>What about accounts that fit nowhere?</h3>
+            <p>
+              Some accounts are bridges between communities. Some are outliers. Some are
+              evidence the ontology is incomplete. The system includes a &ldquo;none&rdquo;
+              class and an entropy-based uncertainty score. Accounts with high uncertainty
+              are classified as &ldquo;frontier&rdquo;&mdash;we&rsquo;d rather say &ldquo;we
+              don&rsquo;t know&rdquo; than guess wrong.
+            </p>
+            <p>
+              Bridge accounts are not failures. @vgr is followed by 117 seeds across all{' '}
+              {numCommunities} communities. They genuinely straddle everything&mdash;they&rsquo;re
+              pan-TPOT. The system preserves that full distribution rather than forcing them
+              into a single bucket.
+            </p>
 
             <h3>Then: human naming</h3>
             <p>
               The {numCommunities} factors that come out of NMF are anonymous&mdash;&ldquo;Factor
               7&rdquo; means nothing. A curator reviews the top accounts and top follow targets in
               each factor and names them: &ldquo;these people all follow the same meditation teachers
-              and consciousness researchers &rarr; Contemplative Practitioners.&rdquo;
+              and consciousness researchers&rdquo; becomes Contemplative Practitioners.
             </p>
-
-            <div className="about-running-example">
-              <div className="about-running-example-label">Running example: @repligate</div>
-              <p>
-                NMF result (with likes): <strong>52% LLM Whisperers, 16% AI Creatives, 15% Queer TPOT.</strong>{' '}
-                The old follow-only NMF said 100% Qualia Research. Adding likes + retweets shifted them
-                dramatically&mdash;their like patterns reveal the LLM tinkering identity that follows alone
-                couldn&rsquo;t see. This is the graph prior. It&rsquo;s closer to the truth now, but tweet
-                labeling refines it further.
-              </p>
-            </div>
+            <p>
+              For @repligate, the NMF result with likes is: <strong>52% LLM Whisperers, 16% AI
+              Creatives, 15% Queer TPOT.</strong> The old follow-only NMF said 100% Qualia Research.
+              Adding likes and retweets shifted them dramatically&mdash;their like patterns reveal
+              the LLM tinkering identity that follows alone couldn&rsquo;t see. This is the graph
+              prior. It&rsquo;s closer to the truth now, but tweet labeling refines it further.
+            </p>
           </section>
 
           {/* Stage 4: How The First Map Gets Corrected */}
@@ -436,86 +369,69 @@ export default function About({ meta, onNavigate }) {
             </h2>
 
             <p>
-              The follow graph tells you who someone chose to listen to. It doesn&rsquo;t tell you what
-              they actually think, write, or care about.
+              The follow graph tells you who someone listens to. It doesn&rsquo;t tell you what
+              they actually think, write, or care about. That gap is where tweet labeling comes in.
             </p>
             <p>
-              This is where tweet labeling comes in. A human reads tweets and tags each one: what domain
-              is this about? What community would recognize this as theirs? Each tag becomes a
-              &ldquo;bit&rdquo; of evidence&mdash;a log-likelihood ratio measuring how much that tweet
-              shifts the account toward or away from a community. Bits are additive: one tweet about
-              meditation shifts you slightly toward Contemplative; fifty tweets shift you strongly.
+              A human reads tweets and tags each one: what domain is this about? What community
+              would recognize this as theirs? Each tag becomes a &ldquo;bit&rdquo; of
+              evidence&mdash;a log-likelihood ratio that shifts the account toward or away from
+              a community. One tweet about meditation nudges you toward Contemplative. Fifty
+              tweets push you there firmly. Bits are additive and reversible.
             </p>
-
-            <h3>Not all tweets carry equal weight</h3>
             <p>
-              Each labeled tweet gets a simulacrum level (L1&ndash;L4) that affects how much community
-              signal it carries:
+              Not all tweets carry equal weight. A sincere statement of belief (&ldquo;I think
+              consciousness is fundamental&rdquo;) reveals intellectual commitments. A strategic
+              argument (&ldquo;here&rsquo;s why you should care&rdquo;) reveals what someone
+              promotes. But the strongest community signal comes from performative
+              tweets&mdash;in-group memes, shared references, the specific jokes only your
+              people would get. These L3 tweets count double, because they&rsquo;re the purest
+              expression of belonging. Vibes-only shitposts signal that someone speaks the
+              language, but not which community they&rsquo;re in.
             </p>
-            <div className="about-signal-stack">
-              <div className="about-signal-row">
-                <span className="about-signal-name">L1 &mdash; sincere</span>
-                <span className="about-signal-desc">&ldquo;I believe X about consciousness&rdquo; &mdash; reveals intellectual commitments</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">L2 &mdash; strategic</span>
-                <span className="about-signal-desc">&ldquo;Here&rsquo;s why you should care about X&rdquo; &mdash; reveals what they promote</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">L3 &mdash; performative</span>
-                <span className="about-signal-desc">In-group signaling, memes, shared references &mdash; <em>the</em> community marker</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">L4 &mdash; vibes</span>
-                <span className="about-signal-desc">Shitposts, post-ironic &mdash; signals &ldquo;speaks the language&rdquo; but not which community</span>
-              </div>
-            </div>
-
-            <div className="about-running-example">
-              <div className="about-running-example-label">Running example: @repligate</div>
-              <p>
-                After labeling 51 tweets (683 tags, 213 bits across 6 communities):
-              </p>
-              <div className="about-before-after">
-                <div className="about-before-after-col">
-                  <div className="about-before-after-label">Graph prior (NMF with likes)</div>
-                  <div className="about-bar-chart">
-                    <div className="about-bar" style={{ width: '100%', background: '#39FF14' }}>
-                      <span>LLM Whisperers 52%</span>
-                    </div>
-                    <div className="about-bar" style={{ width: '31%', background: '#FF00FF' }}>
-                      <span>AI Creatives 16%</span>
-                    </div>
-                    <div className="about-bar" style={{ width: '29%', background: '#FF69B4' }}>
-                      <span>Queer TPOT 15%</span>
-                    </div>
+            <p>
+              After labeling 51 of @repligate&rsquo;s tweets (683 tags, 213 bits across 6
+              communities), the picture shifts:
+            </p>
+            <div className="about-before-after">
+              <div className="about-before-after-col">
+                <div className="about-before-after-label">Graph prior (NMF with likes)</div>
+                <div className="about-bar-chart">
+                  <div className="about-bar" style={{ width: '100%', background: '#39FF14' }}>
+                    <span>LLM Whisperers 52%</span>
                   </div>
-                </div>
-                <div className="about-before-after-col">
-                  <div className="about-before-after-label">After tweet labeling (bits)</div>
-                  <div className="about-bar-chart">
-                    <div className="about-bar" style={{ width: '78.8%', background: '#39FF14' }}>
-                      <span>LLM Whisperers 39%</span>
-                    </div>
-                    <div className="about-bar" style={{ width: '64.8%', background: '#9b59b6' }}>
-                      <span>Qualia Research 32%</span>
-                    </div>
-                    <div className="about-bar" style={{ width: '32%', background: '#e74c3c' }}>
-                      <span>AI Safety 16%</span>
-                    </div>
-                    <div className="about-bar" style={{ width: '19.8%', background: '#2ecc71' }}>
-                      <span>Contemplative 10%</span>
-                    </div>
+                  <div className="about-bar" style={{ width: '31%', background: '#FF00FF' }}>
+                    <span>AI Creatives 16%</span>
+                  </div>
+                  <div className="about-bar" style={{ width: '29%', background: '#FF69B4' }}>
+                    <span>Queer TPOT 15%</span>
                   </div>
                 </div>
               </div>
-              <p className="about-caveat">
-                The correction didn&rsquo;t throw out the graph&mdash;it refined it. They genuinely
-                orbit Qualia Research (their follows prove it), but their active intellectual work lives
-                in LLM Whisperers. Tweet labeling is currently experimental&mdash;applied to a
-                handful of accounts.
-              </p>
+              <div className="about-before-after-col">
+                <div className="about-before-after-label">After tweet labeling (bits)</div>
+                <div className="about-bar-chart">
+                  <div className="about-bar" style={{ width: '78.8%', background: '#39FF14' }}>
+                    <span>LLM Whisperers 39%</span>
+                  </div>
+                  <div className="about-bar" style={{ width: '64.8%', background: '#9b59b6' }}>
+                    <span>Qualia Research 32%</span>
+                  </div>
+                  <div className="about-bar" style={{ width: '32%', background: '#e74c3c' }}>
+                    <span>AI Safety 16%</span>
+                  </div>
+                  <div className="about-bar" style={{ width: '19.8%', background: '#2ecc71' }}>
+                    <span>Contemplative 10%</span>
+                  </div>
+                </div>
+              </div>
             </div>
+            <p>
+              The correction didn&rsquo;t throw out the graph&mdash;it refined it. @repligate
+              genuinely orbits Qualia Research (their follows prove it), but their active
+              intellectual work lives in LLM Whisperers. Tweet labeling is currently
+              experimental&mdash;applied to a handful of accounts so far.
+            </p>
           </section>
 
           {/* Stage 5: How Confidence Spreads */}
@@ -523,104 +439,73 @@ export default function About({ meta, onNavigate }) {
             <h2>
               <span className="about-stage-num">5</span>
               How Confidence Spreads
-              <span className="about-badge-status about-badge-status--live">LIVE</span>
             </h2>
 
             <p>
-              NMF + tweet labeling classifies {classifiedStr} seed accounts well. But what about the
-              other 182,000 in the follow graph?
+              NMF and tweet labeling classify {classifiedStr} seed accounts well. But what about
+              the other 190,000 in the follow graph?
             </p>
             <p>
-              Label propagation uses the graph itself. Start with classified &ldquo;seed&rdquo;
-              accounts. Their community labels spread outward through follow edges&mdash;if you
-              follow 10 people and 8 of them are Builders, you&rsquo;re probably Builder-adjacent.
-              The math is a harmonic function on the graph Laplacian, but the intuition is simple:
-              you are the company you keep.
+              Label propagation uses the graph itself. Start with classified seeds. Their
+              community labels spread outward through follow edges&mdash;if you follow 10
+              people and 8 of them are Builders, you&rsquo;re probably Builder-adjacent.
+              The intuition is simple: you are the company you keep.
             </p>
             <p>
-              Not everyone gets a confident placement. Accounts close to many seeds in the same
-              community get strong colors. Accounts at community boundaries or far from any seed
-              stay gray&mdash;we&rsquo;d rather say &ldquo;we&rsquo;re not sure&rdquo; than
-              guess wrong. <strong>That restraint is why grayscale cards exist.</strong>
+              Technically, this is a harmonic function on the graph Laplacian. Seeds are
+              reweighted by inverse square root of class size so that small communities
+              don&rsquo;t get drowned out by large ones. The system solves iteratively and
+              measures uncertainty via entropy&mdash;high entropy means the graph can&rsquo;t
+              decide where you belong.
             </p>
-
-            <details className="about-disclosure">
-              <summary>The math: harmonic label propagation</summary>
-              <div className="about-disclosure-body">
-                <p>
-                  Partition nodes into labeled (<em>L</em>) and unlabeled (<em>U</em>) sets.
-                  The harmonic solution:
-                </p>
-                <p className="about-formula">
-                  <em>f</em><sub>U</sub> = &minus;<em>L</em><sub>UU</sub><sup>&minus;1</sup>
-                  &middot; <em>L</em><sub>UL</sub> &middot; <em>f</em><sub>L</sub>
-                </p>
-                <p>
-                  To prevent large communities from overwhelming small ones, seeds are reweighted
-                  by inverse square root of class size (1/&radic;<em>n</em><sub>c</sub>). Solved
-                  iteratively via conjugate gradient. Entropy <em>H</em> = &minus;&Sigma;<em>p</em><sub>c</sub>
-                  &middot;log(<em>p</em><sub>c</sub>) measures placement uncertainty.
-                </p>
-              </div>
-            </details>
-
-            <div className="about-running-example">
-              <div className="about-running-example-label">Running example: @repligate</div>
-              <p>
-                As a seed account, their labels propagate outward. Accounts that follow them and other
-                LLM Whisperers pick up that signal. An account 3 hops away from any seed gets a
-                faint, uncertain placement&mdash;if it gets one at all.
-              </p>
-            </div>
+            <p>
+              Not everyone gets a confident placement. Accounts close to many seeds in the
+              same community get strong colors. Accounts at community boundaries or far
+              from any seed stay gray&mdash;we&rsquo;d rather say &ldquo;we&rsquo;re not
+              sure&rdquo; than guess wrong. <strong>That restraint is why grayscale cards
+              exist.</strong>
+            </p>
+            <p>
+              @repligate, as a seed account, propagates outward. Accounts that follow
+              them and other LLM Whisperers pick up that signal. An account three hops
+              away from any seed gets a faint, uncertain placement&mdash;if it gets
+              one at all.
+            </p>
           </section>
 
-          {/* Stage 6: How We Validate — Three Independent Signals */}
+          {/* Stage 6: How We Validate */}
           <section className="about-section">
             <h2>
               <span className="about-stage-num">6</span>
               How We Validate
-              <span className="about-badge-status about-badge-status--live">LIVE</span>
             </h2>
             <p>
               A community that only shows up in one signal could be an artifact. A community
-              confirmed by <strong>three independent methods</strong> is real.
+              confirmed by three independent methods is real.
             </p>
-
-            <h3>Three-signal convergence</h3>
             <p>
-              We validate each community against three orthogonal signals:
-            </p>
-            <div className="about-signal-stack">
-              <div className="about-signal-row">
-                <span className="about-signal-name">Graph structure (NMF)</span>
-                <span className="about-signal-desc">Who follows whom &mdash; social structure</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Content vectors (CT1)</span>
-                <span className="about-signal-desc">What people like reading &mdash; 25 topics from 17.5M liked tweets</span>
-              </div>
-              <div className="about-signal-row">
-                <span className="about-signal-name">Co-followed topology (CF1)</span>
-                <span className="about-signal-desc">Who is followed by the same people &mdash; social consensus</span>
-              </div>
-            </div>
-            <p>
-              <strong>12 of 15 communities</strong> are validated by all three signals.
-              The graph says they cluster, the content says they read the same things,
-              and the topology says the broader network agrees they belong together.
-              The remaining 3 are validated by 2 of 3 signals&mdash;real communities, but
+              We check each community against three orthogonal signals: graph structure
+              (who follows whom), content vectors (what people like reading&mdash;25 topics
+              from 17.5M liked tweets), and co-followed topology (who is followed by the
+              same people). <strong>12 of 15 communities</strong> are validated by all
+              three. The remaining 3 are confirmed by 2 of 3&mdash;real communities, but
               with weaker independent confirmation.
+            </p>
+            <p>
+              @repligate illustrates what convergence looks like. Their content profile
+              (32% LLM-tinkering, 15% philosophy, 15% highbies social) aligns with their
+              graph community (52% LLM Whisperers). When graph and content agree,
+              confidence is high.
             </p>
 
             <h3>Holdout recall</h3>
             <p>
-              We collected 389 accounts from two independent TPOT directories (the Strangest Loop
-              directory and the Orange TPOT Substack directory)&mdash;none were used to build the
-              map. Then we check: does the pipeline find them?
+              We collected 389 accounts from two independent TPOT directories&mdash;the
+              Strangest Loop directory and the Orange TPOT Substack directory&mdash;none
+              of which were used to build the map. Then we ask: does the pipeline find them?
             </p>
 
             <div className="about-recall-table">
-              <h3>Pipeline reach</h3>
               <table>
                 <thead>
                   <tr>
@@ -643,22 +528,20 @@ export default function About({ meta, onNavigate }) {
                   <tr>
                     <td>Faint (low confidence)</td>
                     <td>{(byBand.faint || 0).toLocaleString()}</td>
-                    <td>In the graph but below confidence threshold — searchable, grayscale</td>
+                    <td>In the graph but below confidence threshold</td>
                   </tr>
                   <tr>
-                    <td>Holdout directory accounts in graph</td>
+                    <td>Holdout directory accounts</td>
                     <td>118 / 217</td>
-                    <td>99 are not in the follow graph (need API enrichment)</td>
+                    <td>99 are outside the follow graph entirely</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            <h3>Bootstrap cross-validation</h3>
             <p>
-              To test generalization, we run bootstrap CV: hold out 20% of seed accounts,
-              propagate from the remaining 80%, and measure how many held-out accounts
-              are rediscovered. Across 5 iterations:
+              To test generalization, we hold out 20% of seed accounts, propagate from
+              the remaining 80%, and measure how many held-out accounts are rediscovered:
             </p>
             <div className="about-recall-table">
               <table>
@@ -671,19 +554,19 @@ export default function About({ meta, onNavigate }) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Held-out seed accounts</td>
+                    <td>Held-out seeds</td>
                     <td><strong>83.8% &plusmn; 5.0%</strong></td>
-                    <td>Remove 20% of seeds &mdash; propagation still finds most of them</td>
+                    <td>Remove 20% of seeds&mdash;propagation still finds most</td>
                   </tr>
                   <tr>
                     <td>Directory-only accounts</td>
                     <td><strong>94.6% &plusmn; 0.4%</strong></td>
-                    <td>Accounts from independent TPOT directories, never used as seeds</td>
+                    <td>Independent TPOT directories, never used as seeds</td>
                   </tr>
                   <tr>
                     <td>Combined</td>
                     <td><strong>93.3% &plusmn; 0.7%</strong></td>
-                    <td>Overall TPOT discovery rate for accounts in the follow graph</td>
+                    <td>Overall discovery rate for accounts in the graph</td>
                   </tr>
                 </tbody>
               </table>
@@ -696,25 +579,9 @@ export default function About({ meta, onNavigate }) {
               the graph need API enrichment to bring their edges in.
             </p>
             <p>
-              Bridge accounts are not failures. @vgr (followed by 117 seeds across all
-              communities) genuinely straddles everything&mdash;they&rsquo;re pan-TPOT. The
-              system preserves their full membership distribution rather than forcing them
-              into a single bucket.
-            </p>
-            <p className="about-caveat">
               These numbers are a snapshot. The point isn&rsquo;t perfection&mdash;it&rsquo;s
               honest measurement so we know what works and what doesn&rsquo;t.
             </p>
-
-            <div className="about-running-example">
-              <div className="about-running-example-label">Running example: @repligate</div>
-              <p>
-                They&rsquo;re found at every stage&mdash;they&rsquo;re one of the {classifiedStr}.
-                Their content profile (32% LLM-tinkering, 15% philosophy, 15% highbies social) aligns
-                with their graph community (52% LLM Whisperers). When graph and content agree,
-                confidence is high.
-              </p>
-            </div>
           </section>
         </>
       )}
