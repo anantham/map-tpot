@@ -147,6 +147,7 @@ class PropagationResult:
     cg_iterations: list[int]          # per-class CG iteration count
     config: PropagationConfig
     solve_time_seconds: float
+    seed_neighbor_counts: np.ndarray | None = None  # (n_nodes, K) int — only in independent mode
 
 
 def load_adjacency() -> sp.csr_matrix:
@@ -577,44 +578,60 @@ def propagate(
     memberships = np.clip(memberships, 0.0, None)
 
     if config.mode == "independent":
-        # ═══ INDEPENDENT MODE ═══
-        # Each community column is normalized independently to [0, 1].
-        # Scores do NOT sum to 1 — an account can be 0.7 Qualia AND 0.6 Contemplative.
-        # This enables bridge detection: accounts with 2-3 high scores.
-        print("  Post-processing: independent mode (per-column normalization)")
+        # ═══ INDEPENDENT MODE (Approach C + E) ═══
+        # Keep RAW propagation scores — no per-column normalization.
+        # Raw scores are naturally calibrated: more seed neighbors = higher score.
+        # This prevents noise inflation where @googlecalendar gets 0.50/0.50.
+        #
+        # Combine with seed-neighbor counting: for each account, count how many
+        # classified neighbors it has per community. This is the interpretable
+        # evidence layer — "followed by 12 Qualia seeds and 8 LLM-Whisperer seeds."
+        print("  Post-processing: independent mode (raw scores + seed-neighbor counts)")
 
-        for c in range(n_classes):
-            col = memberships[unlabeled_idx, c]
-            col_max = col.max()
-            if col_max > 0:
-                # Scale unlabeled scores to [0, 1] relative to max propagation for this community
-                memberships[unlabeled_idx, c] = col / col_max
+        # Compute seed-neighbor counts per community
+        # For each unlabeled node, count labeled neighbors in each community
+        seed_neighbor_counts = np.zeros((n_nodes, K), dtype=np.int32)
+        for li in labeled_idx:
+            # Get this seed's community assignments (which communities have weight > 0.1)
+            for c in range(K):
+                if boundary[np.where(labeled_idx == li)[0][0], c] > 0.1:
+                    # Find all neighbors of this seed in the symmetric adjacency
+                    neighbors = sym[li].nonzero()[1]
+                    seed_neighbor_counts[neighbors, c] += 1
+
+        print(f"  Seed-neighbor counts computed for {len(labeled_idx)} seeds")
 
         # Restore labeled nodes exactly
         memberships[labeled_idx] = boundary
 
-        # Low-degree override: set all community scores to 0 (not "none" — just no signal)
+        # Low-degree override: set all community scores to 0
         memberships[low_degree_unlabeled, :] = 0.0
+        seed_neighbor_counts[low_degree_unlabeled, :] = 0
 
-        # Uncertainty for independent mode: based on degree only (entropy is meaningless
-        # when scores don't sum to 1 — high entropy could mean "bridge" not "uncertain")
+        # Uncertainty: degree-based (same as before)
         degree_uncertainty = 1.0 / np.sqrt(degrees + 1.0)
         degree_uncertainty /= degree_uncertainty.max()
         uncertainty = degree_uncertainty
         uncertainty = np.clip(uncertainty, 0.0, 1.0)
         uncertainty[labeled_idx] = 0.0
 
-        # Entropy: still compute for diagnostics, but it doesn't drive abstain
-        entropy = multiclass_entropy(memberships / (memberships.sum(axis=1, keepdims=True) + 1e-10))
+        # Entropy of raw scores (for diagnostics)
+        raw_row_sums = memberships.sum(axis=1, keepdims=True)
+        raw_row_sums = np.where(raw_row_sums > 0, raw_row_sums, 1.0)
+        entropy = multiclass_entropy(memberships / raw_row_sums)
 
-        # Abstain gate for independent mode: abstain if ALL community scores < threshold
-        # (not just max — bridges with several medium scores should NOT abstain)
-        max_community_score = memberships[:, :K].max(axis=1)
-        sum_community_score = memberships[:, :K].sum(axis=1)
+        # Abstain gate: require BOTH raw score above threshold AND at least
+        # 1 seed neighbor in some community. @googlecalendar has 0 seed neighbors.
+        max_raw_score = memberships[:, :K].max(axis=1)
+        max_seed_neighbors = seed_neighbor_counts.max(axis=1)
         abstain_mask = (
-            (max_community_score < config.abstain_max_threshold)
-            | (sum_community_score < config.abstain_max_threshold * 2)
+            (max_raw_score < 1e-6)  # no propagation signal at all
+            | (max_seed_neighbors < 1)  # no classified neighbors
         ) & ~labeled_mask
+
+        # Store seed_neighbor_counts in result for downstream use
+        # (stash in memberships as extra columns would break shape — store separately)
+        # We'll attach it to the result object below
 
     else:
         # ═══ CLASSIC MODE ═══
@@ -674,6 +691,7 @@ def propagate(
         cg_iterations=iterations_list,
         config=config,
         solve_time_seconds=t_solve,
+        seed_neighbor_counts=seed_neighbor_counts if config.mode == "independent" else None,
     )
     return result, holdout_info
 
