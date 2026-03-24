@@ -1,64 +1,175 @@
 {
-  "_description": "Extended vocabulary for LLM labeling prompts. Includes the 15 DB communities plus adjacent/emerging clusters that help the LLM place accounts more precisely.",
-  "_usage": "Loaded by label_tweets_ensemble.py build_prompt(). Gives the LLM a richer map of the TPOT space so new-community-signals are precise rather than noisy renames of existing communities.",
-  "_updated": "2026-03-24",
+  "_description": "Practical labeling guide for LLM ensemble. Helps assign bits, themes, and tags quickly and accurately. Updated 2026-03-24 with Grok TPOT-native feedback + Chrome audit of 26 accounts.",
+  "_usage": "Loaded by label_tweets_ensemble.py. The LLM sees this to understand the TPOT space and avoid common misassignments.",
 
-  "established_communities": {
-    "_note": "These 15 are in the DB. Use their short_names for bits tags.",
-    "LLM-Whisperers": "Obsessive LLM experimenters, prompt sorcerers, shamanic AI relationships. Treat models as cognitive entities.",
-    "Qualia-Research": "Consciousness geometry, qualia formalism, phenomenological self-experimentation. NOT general uses of 'mind' or 'brain'.",
-    "AI-Safety": "EA, forecasters, alignment researchers. Includes policy, governance, x-risk, institutional critique. Also covers 'alignment research' — do NOT create separate signal for that.",
-    "Contemplative-Practitioners": "Serious meditators, jhanas, IFS, somatic healing, breathwork, nondual awakening. Grounded in direct experience.",
-    "highbies": "High-agency weirdos, absurdist viral humor, niche obsessions, crowdsourcing life decisions. The humor IS the art form.",
-    "Core-TPOT": "The big tent: absurdist humor + personal essays + shitposting + divine absurdity. Requires the STYLE, not just proximity to TPOT. If the tweet could be from any smart person on Twitter, it's NOT Core-TPOT.",
-    "AI-Creativity": "AI as creative partner, generative art, synthetic personas, surreal digital rituals, agent-based performance art.",
-    "Quiet-Creatives": "Solitary writers, gentle pattern-noticers, reflective coding, personal creative output as daily practice. Stream-of-consciousness posting about daily life as genuine connection.",
-    "Collective-Intelligence": "DAO builders, regeneration, mycelial coordination, open-source ecologies. NOT the phrase 'collective intelligence' used casually.",
-    "NYC-Institution-Builders": "LITERAL NYC housing, schools, families, daily rituals. City of Yes housing reform, friend-cluster engineering. NOT abstract 'institutional design' or governance.",
-    "Queer-TPOT": "Queer technologists, identity as mutable media, xenocognitive identity shifts with frontier tech.",
-    "Relational-Explorers": "Human connection as sacred research. Dissecting gaps between what people say and mean. Codependency work, attachment theory, IFS applied to relationships.",
-    "TfT-Coordination": "Sensemaking tools, collective intelligence infrastructure, zero-friction shipping. HCI + DeSci + coordination stacks.",
-    "Tech-Intellectuals": "Bridge raw technical execution + deep systemic reflection. Ship infrastructure while diagnosing civilizational stagnation.",
-    "Internet-Intellectuals": "Thread essayists, cultural criticism, sharp synthesis, public intellectualism. Long-form Twitter threads as primary medium."
+  "communities": {
+    "_note": "15 DB communities. Use short_names for bits:ShortName:+N tags. Descriptions include WHAT TO LOOK FOR and WHAT NOT TO CONFUSE IT WITH.",
+
+    "LLM-Whisperers": {
+      "look_for": "Probing model psychology, coaxing emergent behaviors, recursive prompting, treating AI as cognitive entity. Prompt sorcery, jailbreaking as epistemics, model consciousness speculation.",
+      "not_this": "Training/fine-tuning models (that's Open-Source-AI emerging cluster). Using AI as a tool without psychological curiosity. Corporate AI product talk.",
+      "exemplars": "@repligate, @janus_ai"
+    },
+    "Qualia-Research": {
+      "look_for": "Consciousness geometry, valence formalism, phenomenological self-experimentation, 'what it feels like from the inside.' QRI-adjacent, symmetry theories of valence.",
+      "not_this": "General use of 'mind' or 'brain.' Neuroscience without phenomenology. Meditation practice (that's Contemplative).",
+      "exemplars": "@QRI_research, @pee_zombie (self-labeled 'qualia haver')"
+    },
+    "AI-Safety": {
+      "look_for": "Alignment research, forecasting, x-risk, EA, cause prioritization, AI governance, institutional critique. Quantitative rigor, calibration, Brier scores. Post-EA drift counts.",
+      "not_this": "Using AI safely (product safety). Climate/biosecurity without AI angle. Pure philosophy without quantitative bent.",
+      "includes": "Technical alignment researchers AND forecasting/impacts people (Katja Grace style) — do NOT split these, same social graph.",
+      "exemplars": "@KatjaGrace, @eigenrobot (edge case — also highbies), @bhi5hmaraj"
+    },
+    "Contemplative-Practitioners": {
+      "look_for": "Jhana practice, IFS, somatic healing, breathwork, nondual awakening, meditation as first-person science. Direct experience over belief. Nervous system regulation.",
+      "not_this": "Talking ABOUT meditation without practice. Wellness influencer content. Using meditation vocabulary metaphorically.",
+      "boundary": "Distinct from Qualia-Research (which maps consciousness formally) and Somatic-Coaching (which is professional facilitation, not personal practice).",
+      "exemplars": "@nickcammarata, @RomeoStevens76, @QiaochuYuan (multi-community)"
+    },
+    "highbies": {
+      "look_for": "Absurdist observational humor that goes viral. Niche obsessions consumed for pure enjoyment. Crowdsourcing life decisions. Engineering framing of social rituals. High-agency weirdness.",
+      "not_this": "Generic funny tweets. Political humor. Meme accounts without intellectual depth.",
+      "exemplars": "@eigenrobot, @goblinodds, @dschorno, @forshaper"
+    },
+    "Core-TPOT": {
+      "look_for": "The STYLE matters: profound ideas crashing into absurd humor, personal essays mixing with divine absurdity, arguing/memeing/flirting at 3am. If the tweet could be from any smart person on generic Twitter, it's NOT Core-TPOT.",
+      "not_this": "Default bucket for 'this person is on TPOT.' Require the distinctive posting style. Pure AI discourse. Pure rationalism.",
+      "usage_note": "Only assign Core-TPOT:+2 or higher when the tweet exhibits the TPOT posting style — not just TPOT adjacency. Use sparingly.",
+      "exemplars": "@deepfates (vibe curator), @metaforicalmuth, @uh_cess"
+    },
+    "AI-Creativity": {
+      "look_for": "AI as creative partner, generative art, synthetic personas, surreal digital rituals. Code as brushstrokes, entropy as beauty. Agent-based performance art.",
+      "not_this": "Using DALL-E to make a picture. AI productivity tools. Open-source model training.",
+      "undersampled": true,
+      "exemplars": "Need more labeled accounts — @RiversHaveWings type"
+    },
+    "Quiet-Creatives": {
+      "look_for": "Personal creative output as daily practice. Stream-of-consciousness posting about daily life as genuine connection. Paper-and-flame energy. Reflective coding stories. Personal crisis becomes art.",
+      "not_this": "Loud confessional writing (that might be Relational-Explorers). Professional writers/journalists. Any smart person who writes well.",
+      "exemplars": "@the_wilderless, @visakanv (also Internet-Intellectuals), @manohcore"
+    },
+    "Collective-Intelligence": {
+      "look_for": "DAO alchemy, regenerative coordination, mycelial network design. Open-source ecologies, Game B infrastructure. Metacrisis/polycrisis engagement. Neo-Buddhist coordination. ALL the chronically online intellectual ecosystem counts — metamodern, integral, regenerative, Game B are PART of extended TPOT.",
+      "not_this": "The PHRASE 'collective intelligence' used casually. Corporate coordination/collaboration tools.",
+      "note": "This community has high absorption because it bridges into a large ecosystem. That absorption is REAL SIGNAL — these adjacent communities ARE part of the map. Do not be overly conservative.",
+      "exemplars": "@RhysLindmark, @daniel_gortz, @IntegralTerry"
+    },
+    "NYC-Institution-Builders": {
+      "look_for": "LITERAL NYC — housing reform, friend-cluster engineering, raising kids in the city, spaced repetition on toddlers, Uniqlo uniform advice. Building at every scale: cities, schools, families, daily rituals.",
+      "not_this": "Abstract 'institutional design' or governance. AGI-ready institutions. 'Building institutions' in the metaphorical sense. Anything not specifically NYC.",
+      "exemplars": "Need more labeled accounts"
+    },
+    "Queer-TPOT": {
+      "look_for": "Queer identity + tech + high-openness weird intellectualism. Gender as mutable medium, xenocognitive identity shifts, prismatic self-creation.",
+      "note": "Cross-cutting identity — may be better as a tag than a community. Accounts here often also belong to other communities. Undersampled (1 account, 1 bit).",
+      "undersampled": true
+    },
+    "Relational-Explorers": {
+      "look_for": "Human connection as sacred research. Dissecting the gap between what people say and mean. Attachment theory, codependency analysis, requesting forensic feedback from everyone who's ever liked them.",
+      "not_this": "Somatic coaching (professional facilitation). Relationship advice columns. Therapy-speak without the weird/sacred dimension.",
+      "exemplars": "@QiaochuYuan (multi), @stephsoussloff (edge — more Somatic-Coaching)"
+    },
+    "TfT-Coordination": {
+      "look_for": "Sensemaking tools, Tools for Thought, personal data exporters, auto-tweeting AIs shipped in minutes. HCI + coordination stacks. Zero-friction builder energy.",
+      "not_this": "Using tools. Reviewing apps. Generic productivity.",
+      "undersampled": true
+    },
+    "Tech-Intellectuals": {
+      "look_for": "Bridge raw technical execution + deep systemic reflection. Ship real infrastructure while diagnosing civilizational stagnation. Logging wasted peer-review hours, Pournelle's Iron Law, supply chain analysis.",
+      "not_this": "Generic tech commentary. Product reviews. Startup culture without the philosophical depth. Default bucket for 'smart tech person.'",
+      "exemplars": "@eshear, @YeshodharaB (edge — more d/acc)"
+    },
+    "Internet-Intellectuals": {
+      "look_for": "Thread essayists, cultural criticism, sharp synthesis. Treating the internet as living laboratory and primary publishing platform. Visakanv-adjacent energy.",
+      "not_this": "Journalists. Academic writers who happen to tweet. Substack writers without the Twitter-native dimension.",
+      "exemplars": "@mykola, @vgr (Venkatesh Rao), @visakanv"
+    }
   },
 
   "emerging_clusters": {
-    "_note": "These are real scenes observed in labeling but not yet DB communities. Use new-community-signal:Name for these ONLY. Updated 2026-03-24 after auditing all 26 labeled accounts.",
-    "AI-Mystics": "Bridges AI + mystical/spiritual tradition. Arabic poetry meets alignment, meditation-as-computation, Sufi + ML. 5 signals across manual labeling. Strongest emerging cluster.",
-    "Contemplative-Alignment": "Bridge between alignment thinking + contemplative practice. Not just EA people who meditate — people who think meditation-style awareness IS alignment methodology. 2 signals.",
-    "d/acc-Builders": "Defensive acceleration (Vitalik's framework). Network states, Zuzalu ecosystem, zugrama.org. Build things that must exist. Proof of personhood, decentralized identity. Exemplar: @YeshodharaB.",
-    "DeSci": "Decentralized science. Open-source crowdsourcing AI swarms, science/acc, breaking existing research paradigms. Adjacent to d/acc but focused on scientific discovery.",
-    "Somatic-Coaching": "Distinct from Contemplative-Practitioners. Body-oriented coaching, trauma-informed facilitation, grief/mortality work, nervous system regulation as professional practice (not personal exploration). Includes death-positive and trauma-informed TPOT. Exemplar: @stephsoussloff.",
-    "Open-Source-AI": "Open-weight model builders, fine-tuners, democratizers. Distinct from LLM-Whisperers (who probe model psychology) — these people TRAIN the models. HuggingFace ecosystem, Nous Research, local inference. Exemplar: @Teknium.",
-    "Metamodern-Integral": "Hanzi Freinacht, metamodernism, integral theory, developmental psychology applied to culture. Overlaps with Collective-Intelligence but more philosophical.",
-    "Egregore-Trackers": "People who track and name memetic entities, cultural forces, and emergent group minds. Simulacra theory, hyperstition, cultural virus dynamics.",
-    "Network-State": "Balaji-adjacent. Startup societies, popup cities, charter cities, parallel societies. Overlaps with d/acc but more political/sovereign focus.",
-    "Post-Rationalist": "Beyond LessWrong rationalism. Integrating embodiment, aesthetics, and spiritual practice with analytical rigor. The 'what rationalism becomes after you meditate' crowd.",
-    "Field-Builders": "People building institutions, orgs, and movements — but NOT NYC-specific. AGI governance institutions, meaning-aligned organizations, coordination infrastructure companies. Exemplar: @edelwax."
+    "_note": "Real scenes not yet DB communities. Use new-community-signal:Name ONLY. Minimum viable community: consistent signal across 4-6 accounts with >20% bits concentration.",
+
+    "AI-Mystics": "AI + mystical/spiritual tradition. Meditation-as-computation, Arabic poetry meets alignment, Sufi + ML. 5 signals on 1 account — needs cross-account validation before promotion.",
+    "Contemplative-Alignment": "Awareness-as-alignment-methodology. Not EA people who meditate — people who think contemplative practice IS the alignment work. 2 signals.",
+    "d/acc-Builders": "Defensive acceleration. Network states, Zuzalu, zugrama.org, proof of personhood. Build things that must exist. Exemplar: @YeshodharaB.",
+    "DeSci": "Decentralized science. Science/acc, open-source AI swarms for discovery, breaking research paradigms.",
+    "Somatic-Coaching": "Professional body-oriented facilitation. Trauma-informed, death-positive, nervous system regulation as practice. Distinct from Contemplative (personal) and Relational (research). Exemplar: @stephsoussloff.",
+    "Open-Source-AI": "Model trainers/fine-tuners/democratizers. Build and ship open-weight models. Distinct from LLM-Whisperers (who probe psychology). HuggingFace, Nous Research ecosystem. Exemplar: @Teknium.",
+    "Psychonauts": "Psychedelics as epistemic tools and phenomenological laboratories. 5-MeO, ketamine, psilocybin for consciousness cartography, not recreation. Integration protocols, trip reports as data. Machine elves meet shoggoths.",
+    "Active-Inference": "Free Energy Principle, Joscha Bach orbit. Computational phenomenology distinct from Qualia (less valence-focused) and LLM-Whisperers (less about current models, more about generative agents).",
+    "Girardian-Memetics": "Expanded from Egregore-Trackers. Girard, Baudrillard, Land, hyperstition, mimetic theory, cultural virus dynamics. Tracking AND creating memetic entities. @visakanv adjacent.",
+    "Metamodern-Integral": "Hanzi Freinacht, integral theory, developmental psychology. Overlaps Collective-Intelligence but more philosophical. Game B adjacent.",
+    "Network-State": "Balaji-adjacent. Startup societies, popup cities, parallel societies. Overlaps d/acc but more political/sovereign.",
+    "Post-Rationalist": "What rationalism becomes after embodiment + meditation + aesthetics. Beyond LessWrong sequences. Integrating felt sense with analytical rigor.",
+    "Field-Builders": "Non-NYC institution builders. AGI governance orgs, meaning-aligned companies, coordination infra. Exemplar: @edelwax."
   },
 
-  "tag_deduplication": {
-    "_note": "The LLM often creates duplicate thematic tags. These are equivalent — use ONLY the canonical (first) form.",
-    "theme:AI-safety": ["theme:AI alignment", "theme:AI-alignment", "theme:alignment", "theme:ai-alignment", "theme:ai-safety", "theme:existential-risk", "theme:AI-risk"],
-    "theme:contemplative-practice": ["theme:contemplative-tech", "theme:intentional-living"],
-    "theme:social-commentary": ["theme:personal-reflection"]
+  "themes": {
+    "_note": "Canonical thematic tags. Use theme:X format. The LLM should prefer these over inventing new ones.",
+    "established": [
+      "theme:AI-consciousness", "theme:model-interiority", "theme:model-capabilities",
+      "theme:model-phenomenology", "theme:simulator-thesis", "theme:RLHF-dynamics",
+      "theme:AI-safety", "theme:AI-art", "theme:AI-creativity", "theme:AI-ethics",
+      "theme:contemplative-tech", "theme:contemplative-practice", "theme:self-transformation",
+      "theme:epistemic-practice", "theme:social-commentary", "theme:in-group-culture",
+      "theme:forecasting", "theme:community-meta", "theme:pedagogy", "theme:evals",
+      "theme:creative-expression", "theme:absurdist-humor", "theme:open-source-AI",
+      "theme:hallucination-ontology", "theme:theoretical-frameworks"
+    ],
+    "new_from_audit": [
+      "theme:psychedelic-phenomenology", "theme:hyperstition", "theme:mimetic-theory",
+      "theme:active-inference", "theme:free-energy-principle", "theme:embodiment",
+      "theme:somatic-awareness", "theme:trauma-as-epistemic", "theme:vibe-epistemology",
+      "theme:developmental-stages", "theme:archetypes", "theme:mythopoetics",
+      "theme:nebulosity", "theme:meta-rationality", "theme:abundance-mindset",
+      "theme:cosmic-humor", "theme:civilizational-diagnostics", "theme:field-building",
+      "theme:d/acc", "theme:network-state", "theme:proof-of-personhood"
+    ],
+    "do_not_duplicate": {
+      "_note": "These are the SAME theme under different names. Use ONLY the first form.",
+      "theme:AI-safety": ["theme:AI alignment", "theme:AI-alignment", "theme:alignment", "theme:ai-alignment", "theme:ai-safety", "theme:existential-risk", "theme:AI-risk"],
+      "theme:contemplative-practice": ["theme:contemplative-tech", "theme:intentional-living"],
+      "theme:social-commentary": ["theme:personal-reflection"]
+    }
   },
 
-  "undersampled_communities": {
-    "_note": "These communities have very little labeling evidence. Priority for next labeling rounds.",
-    "Queer-TPOT": "1 account, 1 bit — need to label accounts like @transkatgirl, @alicetiara, etc.",
-    "TfT-Coordination": "1 account, 1 bit — need to label @RhysLindmark, @MichaelGarfield type accounts.",
-    "AI-Creativity": "2 accounts, 11 bits — need to label generative artists, @RiversHaveWings type accounts.",
-    "NYC-Institution-Builders": "3 accounts, 13 bits — need to label @Malcolm_Ocean, @devonzuegel type accounts.",
-    "Internet-Intellectuals": "4 accounts, 26 bits — need to label @visakanv (already in DB but thin), @DanielleFong type accounts."
+  "account_assignments": {
+    "_note": "Grok-validated community assignments for well-known TPOT accounts. Use as calibration reference.",
+    "@deepfates": "Core-TPOT (with Quiet-Creative/LLM flavor). Vibe curator and meme sovereign.",
+    "@vgr": "Internet-Intellectuals. The ur-essayist.",
+    "@Malcolm_Ocean": "Relational-Explorers / Contemplative-Practitioners. Circling, relationship design.",
+    "@RhysLindmark": "Collective-Intelligence / Core-TPOT. Positive-sum builder.",
+    "@eigenrobot": "highbies / AI-Safety. Sharp high-decoupling shitposting intelligence.",
+    "@goblinodds": "highbies / Core-TPOT. Rationalist humor + prediction markets.",
+    "@nickcammarata": "Contemplative-Practitioners (with Qualia/LLM). Perception, art, meditation.",
+    "@RomeoStevens76": "Contemplative-Practitioners (nootropics/meditation/body optimization).",
+    "@mykola": "Internet-Intellectuals. Cultural diagnostician. Bridge to contemplative side.",
+    "@pee_zombie": "Qualia-Research. Self-labeled 'qualia haver.'",
+    "@visakanv": "Internet-Intellectuals (patron saint). Thin bits = labeling failure, not real profile.",
+    "@Teknium": "Open-Source-AI (emerging). Model trainer, NOT LLM-Whisperer."
+  },
+
+  "anti_patterns": {
+    "_note": "Common LLM misassignments caught in audit. Avoid these.",
+    "Core-TPOT-as-default": "Do NOT assign Core-TPOT:+1 or +2 to every tweet just because it's on TPOT Twitter. Require the distinctive posting STYLE.",
+    "keyword-matching": "Do NOT assign communities based on keywords alone. 'institutions' ≠ NYC-Institution-Builders. 'collective intelligence' ≠ Collective-Intelligence. 'mind' ≠ Qualia-Research.",
+    "retweet-attribution": "Retweets signal INTEREST, not IDENTITY. Reduce confidence by -1 on retweets. 'RT @NousResearch: ...' tells you about NousResearch, not the retweeter.",
+    "new-community-noise": "Do NOT create new-community-signal for things that match existing communities. 'Alignment-Researchers' = AI-Safety. 'Sensemaking-Builders' = TfT-Coordination.",
+    "regen-absorption": "Be CONSERVATIVE with Collective-Intelligence assignments. Many metacrisis/integral accounts are adjacent-but-NOT-TPOT."
   },
 
   "adjacent_ecosystems": {
-    "_note": "These are NOT TPOT communities. Accounts primarily in these spaces should get low/no bits. Useful for understanding what TPOT is NOT.",
-    "Mainstream-AI-Twitter": "Corporate AI Twitter. Product launches, benchmark comparisons, career advice. Not TPOT even if they discuss AI.",
-    "Crypto-Finance": "DeFi, trading, token launches. Not TPOT unless they also bridge into coordination/philosophy.",
-    "Mainstream-Rationalist": "LessWrong/EA institutional accounts. TPOT-adjacent but distinct culture.",
-    "Indian-Intellectual-Twitter": "Indian political/cultural commentary. Some TPOT members are Indian but the community itself is distinct.",
-    "Wellness-Influencer": "Mainstream wellness content. Distinct from Contemplative-Practitioners (who have analytical rigor) and Somatic-Coaching (who have professional depth)."
+    "_note": "NOT TPOT. Accounts primarily in these spaces should get low/no bits.",
+    "Mainstream-AI-Twitter": "Benchmark chasers, paper droppers, pure ML engineering without consciousness/interiority/self-experimentation.",
+    "Crypto-Finance": "DeFi, trading, token launches without regen/coordination/philosophy.",
+    "Hardcore-e/acc": "Beff orbit without safety nuance, contemplative turn, or weirdness. Anti-worrier culture.",
+    "LW-Sequences-Fundamentalism": "Old-school rationalist who never embraced Twitter chaos or post-rat turns.",
+    "Academic-Philosophy": "Dry credentialed philosophy without shitposting, self-experimentation, or high-openness weirdness.",
+    "New-Age-Woo": "Wellness/spiritual content without epistemic rigor or technical literacy.",
+    "Mainstream-EA": "Pure global health/poverty focus without x-risk or AI weirdness.",
+    "Culture-War-IDW": "Political commentary without phenomenological or builder impulse.",
+    "Indian-Intellectual-Twitter": "Indian political/cultural commentary. Some TPOT members are Indian but the community is distinct.",
+    "Wellness-Influencer": "Mainstream wellness. Distinct from Contemplative (analytical rigor) and Somatic-Coaching (professional depth)."
   }
 }
