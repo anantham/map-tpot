@@ -440,6 +440,29 @@ Tweet: "As a woman raised by codependents/narcissists I am a well trained approv
 Tweet: "NeuralKey: Proof of Personhood using Brainwaves. In my talk @zuitzerland, I explored this possibility."
 {{"bits": ["bits:Tech-Intellectuals:+2"], "domains": ["domain:technical"], "themes": ["theme:d/acc", "theme:proof-of-personhood"], "postures": ["posture:original-insight"], "simulacrum": {{"l1": 0.5, "l2": 0.3, "l3": 0.15, "l4": 0.05}}, "signal_strength": "medium", "note": "d/acc builder shipping decentralized identity.", "new_community_signals": ["new-community-signal:d/acc-Builders"]}}
 
+Tweet: "My mom and my dad both live on in me, And they were a really bad match for each other, Which now means that I have to somehow fix their marriage, inside myself, or have their dynamic repeated in me for the rest of my life"
+{{"bits": ["bits:Quiet-Creatives:+3", "bits:Relational-Explorers:+3"], "domains": ["domain:personal"], "themes": ["theme:self-transformation", "theme:embodiment"], "postures": ["posture:personal-testimony"], "simulacrum": {{"l1": 0.5, "l2": 0.05, "l3": 0.4, "l4": 0.05}}, "signal_strength": "high", "note": "Personal crisis as art — internalizing parental dynamics, inner work as life's hardest task. Paper-and-flame energy.", "new_community_signals": []}}
+
+Tweet: "The reason to avoid lying is that the brain is not type safe. Lying to others and lying to yourself are the same motion."
+{{"bits": ["bits:Contemplative-Practitioners:+3"], "domains": ["domain:philosophy"], "themes": ["theme:epistemic-practice", "theme:contemplative-practice"], "postures": ["posture:original-insight"], "simulacrum": {{"l1": 0.7, "l2": 0.05, "l3": 0.2, "l4": 0.05}}, "signal_strength": "high", "note": "CS type-safety metaphor for meditation/integrity insight. Technical vocabulary applied to contemplative truth.", "new_community_signals": []}}
+
+Tweet: "more evidence for the mushrooms are trying to make more mushrooms theory. almost everyone i know who has a great mushrooms trip eventually starts planting mushrooms. turns out they also try to make fewer humans"
+{{"bits": ["bits:highbies:+3", "bits:Contemplative-Practitioners:+1"], "domains": ["domain:science", "domain:social"], "themes": ["theme:psychedelic-phenomenology", "theme:absurdist-humor"], "postures": ["posture:playful-exploration"], "simulacrum": {{"l1": 0.3, "l2": 0.05, "l3": 0.35, "l4": 0.3}}, "signal_strength": "high", "note": "Absurdist evolutionary biology of psychedelics. Highbie humor + psychonaut signal.", "new_community_signals": ["new-community-signal:Psychonauts"]}}
+
+TRICKY EXAMPLES (common misclassifications — learn the boundaries):
+
+Tweet: "Building institutions that outlast founders: lessons from monasteries to startups"
+{{"bits": ["bits:Tech-Intellectuals:+2"], "domains": ["domain:social"], "themes": ["theme:field-building"], "postures": ["posture:original-insight"], "simulacrum": {{"l1": 0.6, "l2": 0.2, "l3": 0.15, "l4": 0.05}}, "signal_strength": "medium", "note": "Abstract institutional riff — NOT NYC-Institution-Builders (that's literal NYC housing/schools). Tech-Intellectuals bridging history+systems.", "new_community_signals": []}}
+
+Tweet: "10min guided meditation to crush my todo list—productivity unlocked 🧘‍♂️"
+{{"bits": [], "domains": ["domain:personal"], "themes": [], "postures": ["posture:signal-boost"], "simulacrum": {{"l1": 0.2, "l2": 0.5, "l3": 0.2, "l4": 0.1}}, "signal_strength": "low", "note": "Hustle-culture wellness — NOT Contemplative-Practitioners (who treat consciousness as laboratory, not productivity tool). 0 bits.", "new_community_signals": []}}
+
+Tweet: "Bees pulling off collective intelligence better than any DAO—nature wins again"
+{{"bits": ["bits:highbies:+2"], "domains": ["domain:science"], "themes": ["theme:absurdist-humor"], "postures": ["posture:playful-exploration"], "simulacrum": {{"l1": 0.3, "l2": 0.1, "l3": 0.4, "l4": 0.2}}, "signal_strength": "medium", "note": "Bio-mimicry observation — NOT Collective-Intelligence (that's human coordination/DAOs). Highbie nature-riff.", "new_community_signals": []}}
+
+Tweet: "every few months I mass-DM twenty people 'thinking of you' and it rewires my entire social graph. try it."
+{{"bits": ["bits:Core-TPOT:+3", "bits:Relational-Explorers:+2"], "domains": ["domain:social"], "themes": ["theme:in-group-culture", "theme:social-commentary"], "postures": ["posture:original-insight", "posture:playful-exploration"], "simulacrum": {{"l1": 0.4, "l2": 0.15, "l3": 0.3, "l4": 0.15}}, "signal_strength": "high", "note": "Peak Core-TPOT: life-hack as social experiment, earnest + playful + actionable. The TPOT posting style.", "new_community_signals": []}}
+
 OUTPUT (JSON only, no commentary):
 {{
   "bits": ["bits:ShortName:+N", ...],
