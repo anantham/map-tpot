@@ -354,10 +354,22 @@ def _label_single_tweet(
 
     Returns list of per-model label dicts (for agreement tracking).
     """
+    # Build enriched tweet text: original text + context (quotes, images, links)
+    tweet_text = tweet["text"]
+    context_json = tweet.get("context_json", "[]")
+    if context_json and context_json != "[]":
+        import json as _json
+        try:
+            context_items = _json.loads(context_json)
+            if context_items:
+                tweet_text += "\n" + "\n".join(context_items)
+        except (ValueError, TypeError):
+            pass
+
     tweet_ctx = assemble_tweet_context(
         conn,
         tweet_id=tweet["tweet_id"],
-        tweet_text=tweet["text"],
+        tweet_text=tweet_text,
         engagement_stats=f"likes={tweet.get('like_count', 0)} rt={tweet.get('retweet_count', 0)} replies={tweet.get('reply_count', 0)}",
         mentions=tweet.get("mentions_json", "[]"),
     )
