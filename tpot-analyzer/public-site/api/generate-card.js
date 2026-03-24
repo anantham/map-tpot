@@ -78,7 +78,7 @@ module.exports = async function handler(req, res) {
   }
 
   // --- 1. Validate request ---
-  const { handle, bio, communities, tweets } = req.body || {};
+  const { handle, bio, communities, tweets, force } = req.body || {};
   if (!handle || !communities || !Array.isArray(communities) || communities.length === 0) {
     return res.status(400).json({
       error: "Missing required fields: handle, communities[]",
@@ -91,8 +91,8 @@ module.exports = async function handler(req, res) {
   const budgetKey = `budget:${today}`;
   const dailyLimit = parseFloat(process.env.CARD_DAILY_BUDGET || "5.00");
 
-  // --- 2. Check cache ---
-  if (kv) {
+  // --- 2. Check cache (skip if force=true for regeneration) ---
+  if (kv && !force) {
     try {
       const cached = await kv.get(cacheKey);
       if (cached && cached !== "pending") {

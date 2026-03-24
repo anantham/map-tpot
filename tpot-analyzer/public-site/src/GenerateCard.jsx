@@ -216,11 +216,11 @@ async function generateDirect(apiKey, prompt, signal) {
  * Call the serverless /api/generate-card endpoint.
  * Handles 202 (in-progress) with retry.
  */
-async function generateServerless(cardRequest, signal, retryCount = 0) {
+async function generateServerless(cardRequest, signal, retryCount = 0, force = false) {
   const response = await fetch("/api/generate-card", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(cardRequest),
+    body: JSON.stringify({ ...cardRequest, force }),
     signal,
   });
 
@@ -276,7 +276,8 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
     }
 
     // Check cache first — skip API call if we have a cached card
-    if (!skipCacheRef.current) {
+    const isForceRegen = skipCacheRef.current;
+    if (!isForceRegen) {
       const cached = getCachedCard(handle);
       if (cached) {
         setImageUrl(cached.url);
@@ -323,8 +324,8 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
         const prompt = buildPromptText(cardRequest);
         url = await generateDirect(byokKey, prompt, controller.signal);
       } else {
-        // Serverless path
-        url = await generateServerless(cardRequest, controller.signal);
+        // Serverless path — force=true when regenerating to bust server cache
+        url = await generateServerless(cardRequest, controller.signal, 0, isForceRegen);
       }
 
       // Only update state if this is still the current request
