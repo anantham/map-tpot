@@ -184,12 +184,23 @@ export default function App() {
   const handleResult = (searchResult) => {
     // Update URL with handle param (without page reload)
     window.history.replaceState({}, '', `/?handle=${searchResult.handle}`)
-    if (searchResult.tier === 'classified') {
+    const tier = searchResult.tier
+
+    // Map new band tiers to display tiers
+    // exemplar = full color card (like old 'classified')
+    // specialist/bridge/frontier = grayscale card (like old 'propagated')
+    // faint = very faint grayscale card
+    // not_found = contribute prompt
+    const isClassified = tier === 'classified' || tier === 'exemplar'
+    const isPropagated = tier === 'propagated' || tier === 'specialist' || tier === 'bridge' || tier === 'frontier' || tier === 'faint'
+
+    if (isClassified || isPropagated) {
       const account = accountMap.get(searchResult.handle)
+      const displayTier = isClassified ? 'classified' : 'propagated'
       if (account) {
         setResult({
           handle: account.username,
-          tier: 'classified',
+          tier: displayTier,
           displayName: account.display_name,
           bio: account.bio,
           memberships: account.memberships,
@@ -198,22 +209,13 @@ export default function App() {
       } else {
         setResult({
           handle: searchResult.handle,
-          tier: 'classified',
+          tier: displayTier,
           displayName: null,
           bio: null,
           memberships: searchResult.memberships || [],
           sampleTweets: [],
         })
       }
-    } else if (searchResult.tier === 'propagated') {
-      setResult({
-        handle: searchResult.handle,
-        tier: 'propagated',
-        displayName: null,
-        bio: null,
-        memberships: searchResult.memberships || [],
-        sampleTweets: [],
-      })
     } else {
       setResult({
         handle: searchResult.handle,
