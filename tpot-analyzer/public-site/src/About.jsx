@@ -207,7 +207,7 @@ export default function About({ meta, onNavigate }) {
             <p>
               From those {classifiedStr} accounts, we can trace outward to ~200,000 accounts in
               their follow graph. For each archived account, we see everything&mdash;every follow,
-              every retweet. For the other 190K, we only know that <em>someone</em> follows
+              every retweet. For the other ~200K, we only know that <em>someone</em> follows
               them&mdash;not who <em>they</em> follow. It&rsquo;s like knowing which lectures
               a student attends, but not what the professors do on weekends.
             </p>
@@ -332,7 +332,7 @@ export default function About({ meta, onNavigate }) {
               it take to override the initial picture? A skeptical prior (worth 2 virtual
               tweets) gets corrected quickly. A strong prior (worth 20) resists correction.
               Full archive accounts get a confident prior. Accounts we only see through the
-              shadow graph get a weaker one.
+              wider network get a weaker one.
             </p>
 
             <h3>What about accounts that fit nowhere?</h3>
@@ -379,21 +379,21 @@ export default function About({ meta, onNavigate }) {
               they actually think, write, or care about. That gap is where tweet labeling comes in.
             </p>
             <p>
-              Three LLM models (Grok, DeepSeek, Gemini) independently label each tweet.
-              A consensus filter keeps only agreements: 3/3 models agree &rarr; median value;
-              2/3 agree &rarr; lower value; 1/3 &rarr; preserved at +1 (weak signal, not discarded).
-              Each consensus tag becomes a &ldquo;bit&rdquo; of evidence&mdash;a log-likelihood
-              ratio that shifts the account toward or away from a community. One tweet about
-              meditation nudges you toward Contemplative. Fifty tweets push you there firmly.
-              Bits are additive and reversible.
+              Three AI models independently read each tweet and tag it: what community
+              would claim this? We only keep tags where at least two models agree.
+              Each agreement becomes a small piece of evidence nudging the account
+              toward a community. One tweet about meditation is a nudge. Fifty tweets
+              is a shove. The evidence adds up and can be reversed if later tweets
+              point elsewhere.
             </p>
             <p>
-              A human then Chrome-audits the results&mdash;opening each tweet in the browser
-              to see images, thread context, and quoted tweets the LLM couldn&rsquo;t see.
-              Of 57 tweets audited, 33 needed corrections. The most common failure:
-              account-prior bias&mdash;when a tweet has no text (just a URL or image),
-              the LLM assigns bits based on who the person is, not what the tweet says.
-              We now enrich URL-only tweets by fetching article titles before labeling.
+              AI misses things humans see. A tweet that&rsquo;s just a link gives the AI
+              nothing to work with. An image-heavy thread carries meaning the AI can&rsquo;t
+              read. So a human opens each labeled tweet in a browser, checks the full
+              context&mdash;images, quoted tweets, who&rsquo;s replying&mdash;and corrects
+              mistakes. Of 57 tweets spot-checked this way, 33 needed corrections. The most
+              common error: the AI guessed based on who the person <em>is</em>, not what
+              the tweet <em>says</em>.
             </p>
             <p>
               Not all tweets carry equal weight. A sincere statement of belief (&ldquo;I think
@@ -446,8 +446,8 @@ export default function About({ meta, onNavigate }) {
               The correction didn&rsquo;t throw out the graph&mdash;it refined it. @repligate
               genuinely orbits Qualia Research (their follows prove it), but their active
               intellectual work lives in LLM Whisperers. Tweet labeling now covers
-              32 accounts (502 tweets) using a 3-model LLM ensemble with human
-              Chrome verification of images, threads, and quoted tweets.
+              32 accounts (502 tweets), each checked by three AI models and then
+              spot-checked by a human in the browser.
             </p>
           </section>
 
@@ -459,54 +459,49 @@ export default function About({ meta, onNavigate }) {
             </h2>
 
             <p>
-              NMF and tweet labeling classify {classifiedStr} seed accounts well. But what about
-              the other ~200,000 in the follow graph?
+              The {classifiedStr} seed accounts are well-classified. But what about
+              the other ~200,000 accounts in the network?
             </p>
             <p>
-              Label propagation uses the graph itself. Start with classified seeds. Their
-              community labels spread outward through follow edges&mdash;if you follow 10
+              Community labels spread outward through follow connections. If you follow 10
               people and 8 of them are Builders, you&rsquo;re probably Builder-adjacent.
               The intuition is simple: you are the company you keep.
             </p>
             <p>
-              Crucially, each community propagates independently. Your score in Qualia Research
-              has nothing to do with your score in LLM Whisperers&mdash;they don&rsquo;t sum
-              to 1. This means bridge accounts emerge naturally: someone followed by 12 Qualia
-              seeds and 8 LLM Whisperer seeds scores high in both. The old zero-sum approach
-              forced every account into a single community. Independent propagation holds space
-              for soft, multi-community membership.
+              Each community spreads independently. Your connection to Qualia Research has
+              nothing to do with your connection to LLM Whisperers. This matters because
+              real people belong to multiple scenes. Someone followed by 12 Qualia researchers
+              and 8 LLM tinkerers scores high in both&mdash;they&rsquo;re a bridge, not a
+              classification failure.
             </p>
             <p>
-              To separate real signal from noise, we count seed neighbors&mdash;how many
-              classified accounts directly follow you, per community. An account with 18 seed
-              neighbors across two communities is a genuine bridge. An account with 1 neighbor
-              in a sparse graph corner is noise, no matter what propagation says.
-              That&rsquo;s why mainstream accounts like @googlecalendar don&rsquo;t appear
-              in the map even though they&rsquo;re technically reachable.
+              To separate real connections from noise, we check: how many classified accounts
+              actually follow you, per community? An account followed by people from two
+              different communities is a genuine bridge. An account with one random connection
+              is noise&mdash;that&rsquo;s why @googlecalendar doesn&rsquo;t show up even
+              though it&rsquo;s technically in the network.
             </p>
             <p>
-              Not everyone gets a confident placement. Accounts close to many seeds in the
-              same community get strong colors. Accounts at community boundaries or far
-              from any seed stay gray&mdash;we&rsquo;d rather say &ldquo;we&rsquo;re not
-              sure&rdquo; than guess wrong. <strong>That restraint is why grayscale cards
-              exist.</strong>
+              Not everyone gets a confident placement. Accounts close to many classified
+              accounts get strong colors. Accounts far from anyone classified stay
+              gray&mdash;we&rsquo;d rather say &ldquo;we&rsquo;re not sure&rdquo; than
+              guess wrong. <strong>That restraint is why grayscale cards exist.</strong>
             </p>
 
-            <h3>Why independent propagation?</h3>
+            <h3>Why this approach?</h3>
             <p>
-              The earlier approach forced memberships to sum to 1&mdash;if you were 60%
-              Qualia, you could only be 40% everything else. This produced zero bridge
-              accounts. Every account was either a specialist or unknown. That&rsquo;s not
-              how communities work&mdash;people genuinely belong to multiple scenes.
+              An earlier version forced every account into exactly one community. If you
+              were 60% Qualia, you could only be 40% everything else combined. This
+              produced zero bridges&mdash;every account was either a specialist or unknown.
+              That&rsquo;s not how communities work.
             </p>
             <p>
-              Independent propagation runs the same harmonic solver 16 times, once per
-              community. Each solve takes ~4 seconds. The scores don&rsquo;t sum to 1,
-              so an account can be 0.07 Qualia AND 0.05 Contemplative simultaneously.
-              The threshold (0.02, calibrated via held-out validation at 80% precision)
-              determines what counts as membership. At this threshold, the map shows
+              The current system runs a separate calculation for each community. The
+              scores don&rsquo;t compete with each other, so someone can be strongly
+              connected to both Contemplative Practitioners and Qualia Research at the
+              same time. The map currently shows{' '}
               {(byBand.bridge || 0).toLocaleString()} bridge accounts that were invisible
-              before.
+              in the old approach.
             </p>
           </section>
 
@@ -547,31 +542,31 @@ export default function About({ meta, onNavigate }) {
               the naming is editorial.
             </p>
 
-            <h3>Propagation decays fast</h3>
+            <h3>Confidence decays with distance</h3>
             <p>
-              Signal is strong at 1 hop from seeds, useful at 2 hops, and noise at 3+.
-              With {classifiedStr} seeds in a 200K-node graph, most accounts are 3+ hops
-              away. Their placements are faint not because they&rsquo;re not TPOT, but
-              because the graph is too sparse to carry signal that far. More seeds fix
-              this&mdash;each active learning round pushes confidence outward.
+              The further you are from a classified account in the network, the weaker
+              the signal. One connection away is strong. Two connections is useful. Three
+              or more is mostly noise. With {classifiedStr} classified accounts in a
+              200K-account network, most accounts are far from anyone classified. Their
+              placements are faint not because they&rsquo;re not TPOT, but because the
+              network is too sparse to carry signal that far.
             </p>
 
-            <h3>LLM labeling has known failure modes</h3>
+            <h3>AI labeling makes mistakes</h3>
             <p>
-              The 3-model ensemble gets ~70% of tweets right on the first pass. Known
-              failures: keyword false matches (&ldquo;Claude Code&rdquo; &ne; LLM Whisperers),
-              account-prior bias on URL-only tweets, retweet content attributed to the
-              retweeter. Chrome audit catches these, but only 57 of 502 labeled tweets
-              have been manually verified so far.
+              The AI reads tweets and guesses communities, but it gets ~30% wrong on the
+              first pass. It confuses mentioning a tool with being part of that
+              tool&rsquo;s community. It can&rsquo;t see images. It attributes retweet
+              content to the person who retweeted. A human spot-checks in the browser,
+              but only 57 of 502 labeled tweets have been verified so far.
             </p>
 
             <h3>What we&rsquo;re doing about it</h3>
             <p>
-              Active learning runs continuously: select high-uncertainty accounts, fetch
-              their tweets, label with LLM ensemble, Chrome-audit, re-propagate, measure
-              recall. Each round adds seeds, fills graph gaps, and corrects prior mistakes.
-              The recall numbers on this page update with each round. The pipeline is
-              designed to improve its own blind spots over time.
+              The system continuously improves: find accounts we&rsquo;re uncertain about,
+              read their tweets, classify them, spot-check the results, update the map,
+              measure how much better we got. Each round adds more classified accounts
+              and corrects prior mistakes. The numbers on this page update with each round.
             </p>
           </section>
 
@@ -602,9 +597,10 @@ export default function About({ meta, onNavigate }) {
 
             <h3>Holdout recall</h3>
             <p>
-              We test against 1,822 accounts from four independent ground truth
-              sources&mdash;none used to build the map. The honest question is: of accounts
-              that ARE TPOT and ARE reachable in our graph, how many do we find?
+              We test against 1,822 accounts from four independent lists of known TPOT
+              accounts&mdash;none of which were used to build the map. The honest question
+              is: of accounts that are known TPOT and reachable in our network, how many
+              does the map find?
             </p>
 
             <div className="about-recall-table">
@@ -612,44 +608,44 @@ export default function About({ meta, onNavigate }) {
                 <thead>
                   <tr>
                     <th>Source</th>
-                    <th>In-graph recall</th>
-                    <th>Total recall</th>
-                    <th>Not reachable</th>
+                    <th>Found (in network)</th>
+                    <th>Found (total)</th>
+                    <th>Not in network</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Multi-source (3+ sources agree)</td>
+                    <td>Accounts on 3+ lists</td>
                     <td><strong>65%</strong></td>
                     <td>65%</td>
                     <td>0%</td>
                   </tr>
                   <tr>
-                    <td>Strangest Loop directory</td>
+                    <td><a href="https://strangestloop.io/a-tpot-directory" target="_blank" rel="noopener noreferrer">Strangest Loop directory</a></td>
                     <td><strong>64%</strong></td>
                     <td>52%</td>
                     <td>19%</td>
                   </tr>
                   <tr>
-                    <td>Orange TPOT directory</td>
+                    <td><a href="https://tyleralterman.notion.site/Orange-TPOT-tpot-on-substack-2f0ff954ab4980fa9f26f8441870350d" target="_blank" rel="noopener noreferrer">Orange TPOT directory</a></td>
                     <td><strong>54%</strong></td>
                     <td>33%</td>
                     <td>39%</td>
                   </tr>
                   <tr>
-                    <td>Multi-source (2+ sources)</td>
+                    <td>Accounts on 2+ lists</td>
                     <td><strong>43%</strong></td>
                     <td>42%</td>
                     <td>1%</td>
                   </tr>
                   <tr>
-                    <td>Curated X list (219 accounts)</td>
+                    <td><a href="https://x.com/i/lists/1788441465326064008" target="_blank" rel="noopener noreferrer">Aditya&rsquo;s watchlist</a> (219 accounts)</td>
                     <td>31%</td>
                     <td>30%</td>
                     <td>4%</td>
                   </tr>
                   <tr>
-                    <td>Ego follows (~1,400 accounts)</td>
+                    <td><a href="https://x.com/adityaarpitha/following" target="_blank" rel="noopener noreferrer">Aditya&rsquo;s follows</a> (~1,400 accounts)</td>
                     <td>30%</td>
                     <td>30%</td>
                     <td>0%</td>
@@ -659,10 +655,10 @@ export default function About({ meta, onNavigate }) {
             </div>
 
             <p>
-              Ego follows have low recall because most are mainstream accounts that
-              aren&rsquo;t TPOT&mdash;the denominator is inflated. The more curated
-              the source, the higher the recall. Accounts confirmed by 3+ independent
-              sources are found 65% of the time.
+              Aditya&rsquo;s follows have low recall because most are mainstream
+              accounts that aren&rsquo;t TPOT&mdash;the denominator is inflated.
+              The more curated the source, the higher the recall. Accounts confirmed
+              by 3+ independent sources are found 65% of the time.
             </p>
             <p>
               Two bottlenecks limit recall: <strong>graph coverage</strong> (39% of Orange
