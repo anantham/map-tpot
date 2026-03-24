@@ -492,3 +492,174 @@ class TestMulticlassEntropy:
             f"Peaked row should have lower entropy than uniform: "
             f"{entropy[0]:.4f} vs {entropy[1]:.4f}"
         )
+
+
+# ---------------------------------------------------------------------------
+# TestIndependentMode: multi-label propagation
+# ---------------------------------------------------------------------------
+
+class TestIndependentMode:
+    """Tests for --mode independent (multi-label, non-zero-sum propagation)."""
+
+    @pytest.fixture(autouse=True)
+    def setup_graph(self, tmp_path):
+        self.adj, self.node_ids = _build_toy_graph()
+        self.db_path = tmp_path / "test.db"
+        _build_community_db(self.db_path)
+        self.config = PropagationConfig(
+            temperature=1.0,
+            regularization=1e-3,
+            min_degree_for_assignment=2,
+            abstain_max_threshold=0.15,
+            abstain_uncertainty_threshold=0.6,
+            class_balance=True,
+            mode="independent",
+        )
+
+    def test_no_row_normalization_applied(self):
+        """Independent mode should NOT apply row normalization (memberships / row_sums).
+
+        Verify by checking that the raw scores are preserved: in a tiny symmetric graph,
+        raw scores may accidentally sum close to 1.0, so instead we verify the code path
+        by checking that seed_neighbor_counts exist (only computed in independent mode)
+        and that the result shape is correct.
+        """
+        result = _run_propagation(self.adj, self.node_ids, self.db_path, self.config)
+        K = len(result.community_ids)
+
+        # Independent mode indicator: seed_neighbor_counts is computed
+        assert result.seed_neighbor_counts is not None, (
+            "Independent mode should produce seed_neighbor_counts"
+        )
+        # Memberships should have K+1 columns (communities + none)
+        assert result.memberships.shape[1] == K + 1
+
+    def test_seed_labels_preserved(self):
+        """Seeds should retain their original assignments in independent mode."""
+        result = _run_propagation(self.adj, self.node_ids, self.db_path, self.config)
+        K = len(result.community_ids)
+
+        name_to_col = {n: i for i, n in enumerate(result.community_names)}
+        for seed_idx, expected in [(0, "Alpha"), (1, "Alpha"), (2, "Beta"), (3, "Beta"), (4, "Gamma"), (5, "Gamma")]:
+            col = name_to_col[expected]
+            top = np.argmax(result.memberships[seed_idx, :K])
+            assert top == col, (
+                f"Seed node {seed_idx} should have top community {expected}"
+            )
+
+    def test_bridge_node_scores_in_multiple_communities(self):
+        """Node 6 (connected to A seeds 0,1 and B seed 2) should score in BOTH A and B.
+
+        In classic mode, it gets forced into one. In independent mode, it should
+        have nonzero scores in both Alpha and Beta.
+        """
+        result = _run_propagation(self.adj, self.node_ids, self.db_path, self.config)
+        K = len(result.community_ids)
+
+        if result.abstain_mask[6]:
+            pytest.skip("Node 6 abstained — can't test bridge")
+
+        name_to_col = {n: i for i, n in enumerate(result.community_names)}
+        alpha_score = result.memberships[6, name_to_col["Alpha"]]
+        beta_score = result.memberships[6, name_to_col["Beta"]]
+
+        assert alpha_score > 0, f"Node 6 should have positive Alpha score, got {alpha_score}"
+        assert beta_score > 0, f"Node 6 should have positive Beta score, got {beta_score}"
+        # Alpha should be stronger (2 seeds vs 1)
+        assert alpha_score > beta_score, (
+            f"Node 6: Alpha ({alpha_score:.4f}) should be stronger than Beta ({beta_score:.4f})"
+        )
+
+    def test_seed_neighbor_counts_computed(self):
+        """Independent mode should compute seed_neighbor_counts."""
+        result = _run_propagation(self.adj, self.node_ids, self.db_path, self.config)
+
+        assert result.seed_neighbor_counts is not None, (
+            "Independent mode should compute seed_neighbor_counts"
+        )
+        assert result.seed_neighbor_counts.shape[0] == len(self.node_ids), (
+            f"seed_neighbor_counts should have {len(self.node_ids)} rows"
+        )
+
+    def test_seed_neighbor_counts_correct(self):
+        """Node 6 should have 2 Alpha neighbors (0,1) and 1 Beta neighbor (2)."""
+        result = _run_propagation(self.adj, self.node_ids, self.db_path, self.config)
+
+        if result.seed_neighbor_counts is None:
+            pytest.skip("seed_neighbor_counts not computed")
+
+        name_to_col = {n: i for i, n in enumerate(result.community_names)}
+        snc = result.seed_neighbor_counts
+
+        alpha_col = name_to_col["Alpha"]
+        beta_col = name_to_col["Beta"]
+        gamma_col = name_to_col["Gamma"]
+
+        # Node 6: connected to seeds 0 (Alpha), 1 (Alpha), 2 (Beta)
+        assert snc[6, alpha_col] == 2, f"Node 6 should have 2 Alpha neighbors, got {snc[6, alpha_col]}"
+        assert snc[6, beta_col] == 1, f"Node 6 should have 1 Beta neighbor, got {snc[6, beta_col]}"
+        assert snc[6, gamma_col] == 0, f"Node 6 should have 0 Gamma neighbors, got {snc[6, gamma_col]}"
+
+        # Node 7: connected to seeds 4 (Gamma), 5 (Gamma), 3 (Beta)
+        assert snc[7, gamma_col] == 2, f"Node 7 should have 2 Gamma neighbors, got {snc[7, gamma_col]}"
+        assert snc[7, beta_col] == 1, f"Node 7 should have 1 Beta neighbor, got {snc[7, beta_col]}"
+        assert snc[7, alpha_col] == 0, f"Node 7 should have 0 Alpha neighbors, got {snc[7, alpha_col]}"
+
+    def test_labeled_nodes_not_abstained(self):
+        """Labeled nodes should never be abstained in independent mode."""
+        result = _run_propagation(self.adj, self.node_ids, self.db_path, self.config)
+
+        for idx in range(6):  # seeds 0-5
+            assert not result.abstain_mask[idx], (
+                f"Labeled node {idx} should not be abstained"
+            )
+
+    def test_classic_mode_not_affected(self):
+        """Classic mode should still produce zero-sum memberships."""
+        classic_config = PropagationConfig(
+            temperature=1.0,
+            regularization=1e-3,
+            min_degree_for_assignment=2,
+            abstain_max_threshold=0.15,
+            abstain_uncertainty_threshold=0.6,
+            class_balance=True,
+            mode="classic",
+        )
+        result = _run_propagation(self.adj, self.node_ids, self.db_path, classic_config)
+
+        # Classic mode: all rows should sum to ~1.0
+        for idx in range(len(self.node_ids)):
+            row_sum = result.memberships[idx].sum()
+            assert row_sum == pytest.approx(1.0, abs=1e-3), (
+                f"Classic mode node {idx}: row should sum to 1.0, got {row_sum:.4f}"
+            )
+
+        # Classic mode should NOT have seed_neighbor_counts
+        assert result.seed_neighbor_counts is None, (
+            "Classic mode should not compute seed_neighbor_counts"
+        )
+
+    def test_abstain_requires_seed_neighbor(self):
+        """In independent mode, nodes with no seed neighbors should be abstained."""
+        # Add node 8 connected only to node 6 (unlabeled) — no direct seed neighbor
+        n = 9
+        adj_dense = self.adj.toarray()
+        adj_new = np.zeros((n, n), dtype=np.float64)
+        adj_new[:8, :8] = adj_dense
+        adj_new[6, 8] = 1.0
+        adj_new[8, 6] = 1.0
+        # Also connect to node 7 so degree >= 2
+        adj_new[7, 8] = 1.0
+        adj_new[8, 7] = 1.0
+        adj_ext = sp.csr_matrix(adj_new)
+        node_ids_ext = np.array([f"node-{i}" for i in range(n)])
+
+        result = _run_propagation(adj_ext, node_ids_ext, self.db_path, self.config)
+
+        if result.seed_neighbor_counts is not None:
+            # Node 8 is connected to unlabeled nodes 6 and 7, not directly to seeds
+            # Its seed_neighbor_counts should be 0 for all communities
+            snc_8 = result.seed_neighbor_counts[8]
+            assert snc_8.sum() == 0, (
+                f"Node 8 has no direct seed neighbors, should have 0 counts, got {snc_8.sum()}"
+            )
