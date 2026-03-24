@@ -66,6 +66,8 @@ def load_community_labels(
         community_ids, community_names, community_colors: metadata lists
         holdout_info: dict with holdout account IDs and their community assignments
             (None if holdout_fraction == 0)
+        raw_seed_weights: (n_labeled, K) unbalanced community weights from DB
+            (used for seed-neighbor counting, unaffected by class balancing)
     """
     if db_path is None:
         db_path = DEFAULT_ARCHIVE_DB
@@ -163,13 +165,16 @@ def load_community_labels(
         balance_weights /= balance_weights.max()  # normalize so max = 1
 
     # Build boundary matrix: K community columns + 1 "none" column
+    # Also preserve raw (unbalanced) weights for seed-neighbor counting
     labeled_accounts = sorted(account_weights.keys())
     labeled_indices = np.array([id_to_idx[aid] for aid in labeled_accounts], dtype=np.int64)
     n_labeled = len(labeled_indices)
 
     boundary = np.zeros((n_labeled, K + 1), dtype=np.float64)
+    raw_seed_weights = np.zeros((n_labeled, K), dtype=np.float64)
     for i, aid in enumerate(labeled_accounts):
         raw = account_weights[aid]
+        raw_seed_weights[i] = raw
         balanced = raw * balance_weights
         # Cap total community weight at 1.0 (can exceed due to multi-membership)
         total = balanced.sum()
@@ -200,7 +205,7 @@ def load_community_labels(
         except Exception as e:
             print(f"Seed eligibility table not found, using uniform weighting: {e}")
 
-    return boundary, labeled_indices, community_ids, community_names, community_colors, holdout_info
+    return boundary, labeled_indices, community_ids, community_names, community_colors, holdout_info, raw_seed_weights
 
 
 def propagate(
@@ -229,7 +234,7 @@ def propagate(
     n_nodes = adjacency.shape[0]
 
     # Load boundary conditions from community database
-    boundary, labeled_idx, community_ids, community_names, community_colors, holdout_info = (
+    boundary, labeled_idx, community_ids, community_names, community_colors, holdout_info, raw_seed_weights = (
         load_community_labels(
             node_ids, config,
             holdout_fraction=holdout_fraction,
@@ -328,11 +333,10 @@ def propagate(
         print("  Post-processing: independent mode (raw scores + seed-neighbor counts)")
 
         seed_neighbor_counts = np.zeros((n_nodes, K), dtype=np.int32)
-        for li in labeled_idx:
-            li_boundary_idx = np.where(labeled_idx == li)[0][0]
+        for li_pos, li in enumerate(labeled_idx):
             neighbors = sym[li].nonzero()[1]
             for c in range(K):
-                if boundary[li_boundary_idx, c] > 0:
+                if raw_seed_weights[li_pos, c] > 0:
                     seed_neighbor_counts[neighbors, c] += 1
 
         print(f"  Seed-neighbor counts computed for {len(labeled_idx)} seeds")
