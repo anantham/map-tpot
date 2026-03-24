@@ -138,18 +138,37 @@ def main():
     api_key = get_api_key()
     conn = sqlite3.connect(str(args.db_path))
 
-    # Get ranked frontier accounts with usernames (non-holdout)
+    # Get ranked frontier accounts with usernames (non-holdout, not already well-enriched)
+    # Skip accounts with >= MIN_OUTBOUND outbound edges (already have enough data)
+    MIN_OUTBOUND = 108
     targets = conn.execute("""
         SELECT fr.account_id, fr.info_value, fr.top_community, fr.degree, fr.in_holdout,
-               COALESCE(p.username, ra.username) as username
+               COALESCE(p.username, ra.username) as username,
+               COALESCE(outbound.cnt, 0) as outbound_edges
         FROM frontier_ranking fr
         LEFT JOIN profiles p ON fr.account_id = p.account_id
         LEFT JOIN resolved_accounts ra ON fr.account_id = ra.account_id
+        LEFT JOIN (
+            SELECT account_id, COUNT(*) as cnt
+            FROM account_following
+            GROUP BY account_id
+        ) outbound ON fr.account_id = outbound.account_id
         WHERE fr.in_holdout = 0
         AND COALESCE(p.username, ra.username) IS NOT NULL
+        AND COALESCE(outbound.cnt, 0) < ?
         ORDER BY fr.info_value DESC
         LIMIT ?
-    """, (args.top,)).fetchall()
+    """, (MIN_OUTBOUND, args.top)).fetchall()
+
+    # Report how many were skipped due to existing data
+    already_enriched = conn.execute("""
+        SELECT COUNT(DISTINCT af.account_id)
+        FROM (SELECT account_id, COUNT(*) as cnt FROM account_following GROUP BY account_id) af
+        JOIN frontier_ranking fr ON af.account_id = fr.account_id
+        WHERE fr.in_holdout = 0 AND af.cnt >= ?
+    """, (MIN_OUTBOUND,)).fetchone()[0]
+    if already_enriched:
+        print(f"Skipping {already_enriched} accounts with >= {MIN_OUTBOUND} outbound edges")
 
     print(f"Fetching following lists for top {len(targets)} frontier accounts")
     print(f"Budget: ${args.budget:.2f} (~{int(args.budget / COST_PER_CALL)} calls)")
