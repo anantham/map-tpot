@@ -533,13 +533,23 @@ export default function About({ meta, onNavigate }) {
               compensates, but the graph structure is largely frozen.
             </p>
 
-            <h3>Ontology is one curator&rsquo;s lens</h3>
+            <h3>This is Aditya&rsquo;s map, not <em>the</em> map</h3>
             <p>
-              The {numCommunities} communities are named and bounded by one person&rsquo;s
-              judgment. &ldquo;Jhana Practitioners&rdquo; vs &ldquo;Contemplative
-              Practitioners&rdquo;&mdash;where exactly is the line? A different curator would
-              draw different boundaries, merge some, split others. NMF gives us factors;
-              the naming is editorial.
+              These {numCommunities} communities are one person&rsquo;s reading of the
+              landscape. Where I see &ldquo;Jhana Practitioners&rdquo; and &ldquo;Contemplative
+              Practitioners&rdquo; as distinct, you might see one community. Where I
+              see one &ldquo;Core TPOT,&rdquo; you might see three. The algorithm finds
+              clusters; the naming and boundary-drawing is editorial&mdash;mine.
+            </p>
+            <p>
+              If this doesn&rsquo;t match your experience of these communities, that&rsquo;s
+              not a bug. The{' '}
+              <a href={links.repo} target="_blank" rel="noopener noreferrer">
+                entire pipeline is open source
+              </a>
+              . Fork it, feed in your own follow data, label tweets by your own aesthetics,
+              and you&rsquo;ll get a different map&mdash;your part of Twitter, carved up by
+              your intuitions. Different seeds, different communities, different blind spots.
             </p>
 
             <h3>Confidence decays with distance</h3>
