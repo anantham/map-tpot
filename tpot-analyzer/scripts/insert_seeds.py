@@ -54,10 +54,26 @@ def insert_llm_seeds(conn: sqlite3.Connection, account_ids: list[str]) -> int:
 
         # Insert into seed_eligibility with reduced concentration (0.5)
         # NMF seeds default to 1.0; LLM seeds propagate with half strength
-        _ensure_seed_eligibility_table(conn)
+        # Compute required fields from the bits data
+        max_pct = max(pct for _, pct in bits_rows)
+        max_weight = max_pct / 100.0
+        dominant_community = max(bits_rows, key=lambda r: r[1])[0]
+
+        # Entropy: measure how spread the bits are across communities
+        import math
+        total_pct = sum(pct for _, pct in bits_rows)
+        if total_pct > 0:
+            probs = [pct / total_pct for _, pct in bits_rows]
+            entropy = -sum(p * math.log2(p) for p in probs if p > 0)
+        else:
+            entropy = 0.0
+
         conn.execute(
-            "INSERT OR REPLACE INTO seed_eligibility (account_id, concentration) VALUES (?, 0.5)",
-            (account_id,),
+            """INSERT OR REPLACE INTO seed_eligibility
+               (account_id, max_weight, dominant_community, entropy,
+                concentration, content_agrees, eligible, created_at)
+               VALUES (?, ?, ?, ?, 0.5, NULL, 1, ?)""",
+            (account_id, max_weight, dominant_community, entropy, now),
         )
 
     conn.commit()
