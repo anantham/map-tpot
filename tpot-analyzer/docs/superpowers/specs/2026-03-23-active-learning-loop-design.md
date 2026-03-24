@@ -415,7 +415,18 @@ The `source = 'llm_ensemble'` distinguishes these from NMF seeds (`source = 'nmf
 
 **Propagation reads from `community_account` unchanged** — it loads all rows regardless of source. The new LLM seeds participate in the next propagation run automatically.
 
-**Optionally** add rows to `seed_eligibility` with concentration derived from the bits distribution, so the concentration-weighted boundary conditions apply to these seeds too.
+**Seed eligibility with concentration discount (recommended):** Also INSERT into `seed_eligibility` with a discounted concentration. The propagation script (line 412-433) already weights boundary conditions by concentration — seeds with low concentration propagate weakly. LLM seeds should propagate with reduced authority compared to NMF/human seeds:
+
+```python
+# LLM seeds get concentration = 0.5 (NMF seeds default to 1.0)
+# This means LLM seeds propagate but with half the boundary strength
+conn.execute(
+    "INSERT OR REPLACE INTO seed_eligibility (account_id, concentration) VALUES (?, 0.5)",
+    (account_id,)
+)
+```
+
+**Why 0.5:** Seeds are clamped — propagation overwrites them back to their boundary values after solving (line 588 of `propagate_community_labels.py`). If an LLM hallucinates a community assignment that contradicts the graph topology, the clamped boundary forces that signal to propagate regardless. The concentration discount mitigates this by reducing the LLM seed's propagation strength. The graph can still partially override a bad LLM assignment through its neighbors' influence on the surrounding nodes.
 
 ## Assertions (Fail Loud)
 
