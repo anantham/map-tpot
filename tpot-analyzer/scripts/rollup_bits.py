@@ -230,17 +230,99 @@ def load_short_to_id(conn: sqlite3.Connection) -> Dict[str, str]:
 def load_bits_tags(conn: sqlite3.Connection) -> List[Tuple[str, str, str]]:
     """Load (account_id, tweet_id, tag) triples for all bits-category tags.
 
-    Joins tweet_tags with tweets to resolve account_id from tweet_id.
+    Joins tweet_tags with both tweets (archive) and enriched_tweets (API-fetched)
+    to resolve account_id from tweet_id.
     """
-    rows = conn.execute(
+    # Check if enriched_tweets table exists
+    tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+
+    if "enriched_tweets" in tables:
+        query = """
+            SELECT t.account_id, tt.tweet_id, tt.tag
+            FROM tweet_tags tt
+            JOIN tweets t ON t.tweet_id = tt.tweet_id
+            WHERE tt.category = 'bits'
+            UNION ALL
+            SELECT e.account_id, tt.tweet_id, tt.tag
+            FROM tweet_tags tt
+            JOIN enriched_tweets e ON tt.tweet_id = e.tweet_id
+            WHERE tt.category = 'bits'
         """
-        SELECT t.account_id, tt.tweet_id, tt.tag
-        FROM tweet_tags tt
-        JOIN tweets t ON t.tweet_id = tt.tweet_id
-        WHERE tt.category = 'bits'
+    else:
+        query = """
+            SELECT t.account_id, tt.tweet_id, tt.tag
+            FROM tweet_tags tt
+            JOIN tweets t ON t.tweet_id = tt.tweet_id
+            WHERE tt.category = 'bits'
         """
-    ).fetchall()
+
+    rows = conn.execute(query).fetchall()
     return [(row[0], row[1], row[2]) for row in rows]
+
+
+def scoped_delete_bits(
+    conn: sqlite3.Connection, account_ids: List[str]
+) -> int:
+    """Delete account_community_bits rows for specific accounts only.
+
+    Unlike the global DELETE in write_rollup, this preserves rows for
+    accounts not in the list.
+    """
+    if not account_ids:
+        return 0
+    placeholders = ",".join("?" for _ in account_ids)
+    cur = conn.execute(
+        f"DELETE FROM account_community_bits WHERE account_id IN ({placeholders})",
+        account_ids,
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+def compute_discount(conn: sqlite3.Connection, account_id: str) -> float:
+    """Compute informativeness discount for an account.
+
+    Archive accounts (tweets in `tweets` table) get no discount (1.0).
+    Enriched accounts (tweets in `enriched_tweets` table) get sqrt(N/50)
+    discount where N is the number of enriched tweets.
+
+    This prevents 20 viral API-fetched tweets from generating the same
+    confidence as 50+ deeply-labeled archive tweets.
+    """
+    import math
+
+    # Check if enriched_tweets table exists
+    tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()}
+
+    if "enriched_tweets" not in tables:
+        return 1.0
+
+    # Count enriched tweets for this account
+    enriched_count = conn.execute(
+        "SELECT COUNT(*) FROM enriched_tweets WHERE account_id = ?",
+        (account_id,),
+    ).fetchone()[0]
+
+    if enriched_count == 0:
+        # No enriched tweets — this is an archive account
+        return 1.0
+
+    # Check if account also has archive tweets
+    archive_count = conn.execute(
+        "SELECT COUNT(*) FROM tweets WHERE account_id = ?",
+        (account_id,),
+    ).fetchone()[0]
+
+    if archive_count > 0:
+        # Has archive tweets — no discount (archive is primary)
+        return 1.0
+
+    # Pure enriched account — apply discount
+    return min(1.0, math.sqrt(enriched_count / 50))
 
 
 def ensure_weighted_bits_column(conn: sqlite3.Connection) -> None:
