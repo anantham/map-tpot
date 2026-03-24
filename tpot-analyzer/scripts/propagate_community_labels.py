@@ -937,7 +937,10 @@ def save_results(result: PropagationResult, output_dir: Path) -> Path:
         community_colors=np.array(result.community_colors),
         converged=np.array(result.converged, dtype=bool),
         cg_iterations=np.array(result.cg_iterations, dtype=np.int32),
+        mode=np.array(result.config.mode),  # "classic" or "independent"
     )
+    if result.seed_neighbor_counts is not None:
+        save_arrays["seed_neighbor_counts"] = result.seed_neighbor_counts.astype(np.int16)
 
     np.savez_compressed(str(archive_path), **save_arrays)
     np.savez_compressed(str(active_path), **save_arrays)
