@@ -338,6 +338,76 @@ def log_model_agreement(all_labels: list[list[dict]]) -> None:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
+def _enrich_low_text_tweet(tweet_text: str, context_json: str) -> str:
+    """Enrich tweets with minimal text by fetching linked content.
+
+    For URL-only or image-only tweets, the LLM has nothing to tag.
+    This fetches article titles/descriptions from URLs to provide
+    actual content for labeling.
+    """
+    import json as _json
+    import re
+
+    # Extract URLs from tweet text
+    urls = re.findall(r'https?://\S+', tweet_text)
+
+    # Also check context_json for URLs
+    try:
+        context_items = _json.loads(context_json) if context_json else []
+    except (ValueError, TypeError):
+        context_items = []
+
+    for item in context_items:
+        if isinstance(item, str):
+            urls.extend(re.findall(r'https?://\S+', item))
+
+    # Strip text to check if it's "low text" (only URLs, no real content)
+    stripped = re.sub(r'https?://\S+', '', tweet_text).strip()
+    if len(stripped) >= 30:
+        # Enough real text — no enrichment needed
+        return tweet_text
+
+    # Try to fetch article metadata for each URL
+    enrichments = []
+    for url in urls[:2]:  # max 2 URLs to keep costs down
+        # Skip t.co, image URLs, and media
+        if 't.co/' in url or 'pbs.twimg.com' in url or 'video.twimg.com' in url:
+            continue
+        try:
+            import httpx
+            resp = httpx.get(
+                url, follow_redirects=True, timeout=5.0,
+                headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"},
+            )
+            if resp.status_code == 200:
+                html = resp.text[:5000]  # first 5KB
+                # Extract title
+                title_match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
+                # Extract og:description
+                desc_match = re.search(
+                    r'<meta[^>]+(?:property|name)=["\']og:description["\'][^>]+content=["\']([^"\']+)',
+                    html, re.IGNORECASE,
+                )
+                parts = []
+                if title_match:
+                    parts.append(f"[Article: {title_match.group(1).strip()[:150]}]")
+                if desc_match:
+                    parts.append(f"[Description: {desc_match.group(1).strip()[:200]}]")
+                if parts:
+                    enrichments.append("\n".join(parts))
+        except Exception:
+            pass  # network errors are fine — we just lose enrichment
+
+    if enrichments:
+        return tweet_text + "\n" + "\n".join(enrichments)
+
+    # If we couldn't enrich, add a cue so the LLM knows to be cautious
+    if len(stripped) < 10:
+        return tweet_text + "\n[This tweet has minimal text — only links/media. Assign 0 bits unless the linked content is clearly community-specific.]"
+
+    return tweet_text
+
+
 def _label_single_tweet(
     conn: sqlite3.Connection,
     openrouter_key: str,
@@ -365,6 +435,9 @@ def _label_single_tweet(
                 tweet_text += "\n" + "\n".join(context_items)
         except (ValueError, TypeError):
             pass
+
+    # Enrich low-text tweets by fetching linked content (#1: bias leak fix)
+    tweet_text = _enrich_low_text_tweet(tweet_text, context_json)
 
     tweet_ctx = assemble_tweet_context(
         conn,

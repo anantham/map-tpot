@@ -59,6 +59,12 @@ VALID_SHORT_NAMES: set[str] = {
     "Tech-Intellectuals",
     "TfT-Coordination",
     "highbies",
+    # Promoted emerging clusters (ontology birth)
+    "Open-Source-AI",
+    "AI-Mystics",
+    "d-acc-Builders",
+    # Explicit non-TPOT classification
+    "None",
 }
 
 
@@ -229,11 +235,17 @@ def build_consensus(label_dicts: list[dict]) -> dict:
             sign = f"+{med}" if med >= 0 else str(med)
             consensus_bits.append(f"bits:{community}:{sign}")
         elif count == 2:
-            # 2/3 → conservative (lower absolute? spec says lower of the two)
+            # 2/3 → conservative (lower of the two)
             lower = min(values)
             sign = f"+{lower}" if lower >= 0 else str(lower)
             consensus_bits.append(f"bits:{community}:{sign}")
-        # count == 1 → discard
+        elif count == 1:
+            # 1/3 → preserve at +1 max (weak signal, not discarded)
+            # Prevents total information loss when models map to different
+            # communities for the same domain (e.g., Open-Source-AI emerging)
+            val = min(abs(values[0]), 1)  # cap at 1
+            if val > 0:
+                consensus_bits.append(f"bits:{community}:+{val}")
 
     # --- Union of set-type fields ---
     themes: set[str] = set()
@@ -419,6 +431,11 @@ CRITICAL RULES:
   - "institutions" ≠ NYC-Institution-Builders (that's literal NYC housing/schools).
   - "collective intelligence" as phrase ≠ Collective-Intelligence (that's DAOs/regen).
   - "mind"/"brain" ≠ Qualia-Research (that's consciousness geometry/valence formalism).
+  - Mentioning AI tools by name (Claude, GPT, Gemini, Copilot, Cursor) ≠ LLM-Whisperers. LLM-Whisperers probe model PSYCHOLOGY — seeing agency, interiority, recursive self-awareness. Using AI as a productivity tool is neutral — 0 bits.
+  - bits:None:+N means "this tweet is clearly NOT TPOT — mainstream tech, crypto finance, generic news, corporate AI." Use None when the content belongs to an adjacent ecosystem, not any TPOT community.
+
+ADJACENT ECOSYSTEMS (assign bits:None:+2 or +3):
+  Mainstream-AI-Twitter (benchmark results, corporate AI announcements), Crypto-Finance, Political-Commentary, Generic-Self-Help, Hustle-Culture, News-Media.
 
 FEW-SHOT EXAMPLES:
 
@@ -448,6 +465,12 @@ Tweet: "The reason to avoid lying is that the brain is not type safe. Lying to o
 
 Tweet: "more evidence for the mushrooms are trying to make more mushrooms theory. almost everyone i know who has a great mushrooms trip eventually starts planting mushrooms. turns out they also try to make fewer humans"
 {{"bits": ["bits:highbies:+3", "bits:Contemplative-Practitioners:+1"], "domains": ["domain:science", "domain:social"], "themes": ["theme:psychedelic-phenomenology", "theme:absurdist-humor"], "postures": ["posture:playful-exploration"], "simulacrum": {{"l1": 0.3, "l2": 0.05, "l3": 0.35, "l4": 0.3}}, "signal_strength": "high", "note": "Absurdist evolutionary biology of psychedelics. Highbie humor + psychonaut signal.", "new_community_signals": ["new-community-signal:Psychonauts"]}}
+
+Tweet: "Claude Code just saved me 2 hours on this refactor, the future is now"
+{{"bits": [], "domains": ["domain:technical"], "themes": [], "postures": ["posture:signal-boost"], "simulacrum": {{"l1": 0.3, "l2": 0.4, "l3": 0.2, "l4": 0.1}}, "signal_strength": "low", "note": "Tool usage — NOT LLM-Whisperers (no model psychology, just productivity). 0 bits.", "new_community_signals": []}}
+
+Tweet: "Just hit 100M ARR. Grateful for the team. The future of enterprise AI is here."
+{{"bits": ["bits:None:+3"], "domains": ["domain:technical"], "themes": [], "postures": ["posture:signal-boost"], "simulacrum": {{"l1": 0.2, "l2": 0.6, "l3": 0.1, "l4": 0.1}}, "signal_strength": "high", "note": "Corporate AI announcement. Adjacent ecosystem — not TPOT.", "new_community_signals": []}}
 
 TRICKY EXAMPLES (common misclassifications — learn the boundaries):
 
