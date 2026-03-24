@@ -343,8 +343,14 @@ def _label_single_tweet(
     openrouter_key: str,
     tweet: dict,
     account_ctx: dict,
+    current_prior: str = "",
 ) -> list[dict]:
     """Label a single tweet with all models, store consensus.
+
+    Args:
+        current_prior: accumulating bits profile so far, e.g.
+            "LLM-Whisperers:40%, Qualia-Research:30%, AI-Safety:20%"
+            The LLM uses this to focus on surprising/extending evidence.
 
     Returns list of per-model label dicts (for agreement tracking).
     """
@@ -360,7 +366,7 @@ def _label_single_tweet(
         username=account_ctx["username"],
         bio=account_ctx.get("bio", ""),
         graph_signal=account_ctx["graph_signal"],
-        other_tweets="",  # Could aggregate other tweets here in future
+        other_tweets=current_prior,
         tweet_text=tweet_ctx["tweet_text"],
         engagement=tweet_ctx["engagement_stats"],
         mentions=tweet_ctx["mentions"],
@@ -510,12 +516,38 @@ def run_round_1(
             if n_rts:
                 logger.info("  %d/%d tweets are retweets (labeled with RT context)", n_rts, len(parsed))
 
+            # Build accumulating prior as we label tweets
+            bits_accumulator: dict[str, int] = {}  # community → total bits so far
+
             for tweet in parsed:
+                # Build prior string from accumulated bits
+                if bits_accumulator:
+                    total = sum(bits_accumulator.values())
+                    prior_parts = sorted(bits_accumulator.items(), key=lambda x: -x[1])
+                    current_prior = ", ".join(f"{c}:{b*100//total}%" for c, b in prior_parts[:4])
+                else:
+                    current_prior = ""
+
                 try:
                     per_model = _label_single_tweet(
-                        conn, openrouter_key, tweet, account_ctx
+                        conn, openrouter_key, tweet, account_ctx,
+                        current_prior=current_prior,
                     )
                     all_agreement_labels.append(per_model)
+
+                    # Update accumulator from consensus bits
+                    if per_model:
+                        consensus = build_consensus(per_model)
+                        for bit_tag in consensus.get("bits", []):
+                            parts = bit_tag.split(":")
+                            if len(parts) == 3:
+                                comm = parts[1]
+                                try:
+                                    val = int(parts[2])
+                                    bits_accumulator[comm] = bits_accumulator.get(comm, 0) + val
+                                except ValueError:
+                                    pass
+
                 except Exception:
                     logger.exception(
                         "Error labeling tweet %s for @%s",

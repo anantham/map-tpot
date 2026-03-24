@@ -459,19 +459,22 @@ FIELD DEFINITIONS:
   simulacrum: L1=truth-seeking, L2=social positioning, L3=aesthetic/narrative/vibe, L4=meta/ironic/memetic. Must sum to ~1.0. Important for tracking how ideas propagate through communities.
 """
 
-    # User prompt — present account context lightly so it doesn't dominate
+    # Build current prior string if available from account context
+    # The orchestrator can pass this via other_tweets or we extract from graph_signal
     rt_flag = "\n⚠️ THIS IS A RETWEET — at most one weak bit for interest." if is_rt else ""
 
     user_prompt = f"""\
-Context (for disambiguation only, do NOT let this override tweet-level evidence):
-  Account: @{username} | Bio: {bio[:100]}
-  Followed by: {graph_signal[:150]}
+Account: @{username} | Bio: {bio[:100]}
+Graph: {graph_signal[:150]}
+{"Current prior: " + other_tweets if other_tweets else ""}
 
 TWEET TO TAG:{rt_flag}
 {tweet_text}
 
 Engagement: {engagement}
 {f"Engagement context: {engagement_context}" if engagement_context and engagement_context != "No engagement data from classified accounts." else ""}
+
+Focus on bits that SURPRISE relative to the prior. Confirming evidence = low signal_strength. Contradicting or extending = high signal_strength.
 """
 
     return system_prompt + "\n---\n\n" + user_prompt
