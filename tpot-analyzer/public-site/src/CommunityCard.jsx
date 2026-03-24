@@ -196,6 +196,12 @@ export default function CommunityCard({
       {isClassified && bio && (
         <p className="card-bio">{bio}</p>
       )}
+      {!isClassified && displayName && (
+        <p className="card-bio">{displayName}</p>
+      )}
+      {!isClassified && bio && (
+        <p className="card-bio">{bio}</p>
+      )}
 
       <div className="card-bars">
         {bars.map((bar, i) => (
@@ -218,7 +224,11 @@ export default function CommunityCard({
 
       {!isClassified && (
         <p className="card-note">
-          Based on your network position. Contribute your data to see yourself in color.
+          {confidence >= 0.15
+            ? 'Identified from the network — contribute your data for a richer, full-color card.'
+            : confidence >= 0.05
+            ? 'Detected — a faint signal from the follow graph. Contribute your data to sharpen it.'
+            : 'Glimpsed — barely visible in the network. Contribute your data to appear in full color.'}
         </p>
       )}
 
