@@ -310,6 +310,22 @@ export default function About({ meta, onNavigate }) {
               and see <em>why</em> it exists.
             </p>
 
+            <h3>How many communities?</h3>
+            <p>
+              We tested k=12, 14, and 16 factors with the same data. At k=14, 11 of 14
+              communities matched across runs (46% average overlap). At k=16, 14 of 16
+              matched to k=14 (91% overlap) with two clean splits&mdash;tech-intellectuals
+              and creatives each resolved into finer subcommunities. We use k=16 because
+              the splits are meaningful and the structure is the most stable across
+              random restarts.
+            </p>
+            <p>
+              NMF is non-unique&mdash;different random seeds give slightly different
+              decompositions. We mitigate this by running multiple initializations and
+              checking factor alignment. The communities that appear consistently
+              across restarts are real structure, not artifacts.
+            </p>
+
             <h3>How strong is the initial picture?</h3>
             <p>
               NMF gives you factors, not beliefs. The question is: how much evidence should
@@ -363,11 +379,21 @@ export default function About({ meta, onNavigate }) {
               they actually think, write, or care about. That gap is where tweet labeling comes in.
             </p>
             <p>
-              A human reads tweets and tags each one: what domain is this about? What community
-              would recognize this as theirs? Each tag becomes a &ldquo;bit&rdquo; of
-              evidence&mdash;a log-likelihood ratio that shifts the account toward or away from
-              a community. One tweet about meditation nudges you toward Contemplative. Fifty
-              tweets push you there firmly. Bits are additive and reversible.
+              Three LLM models (Grok, DeepSeek, Gemini) independently label each tweet.
+              A consensus filter keeps only agreements: 3/3 models agree &rarr; median value;
+              2/3 agree &rarr; lower value; 1/3 &rarr; preserved at +1 (weak signal, not discarded).
+              Each consensus tag becomes a &ldquo;bit&rdquo; of evidence&mdash;a log-likelihood
+              ratio that shifts the account toward or away from a community. One tweet about
+              meditation nudges you toward Contemplative. Fifty tweets push you there firmly.
+              Bits are additive and reversible.
+            </p>
+            <p>
+              A human then Chrome-audits the results&mdash;opening each tweet in the browser
+              to see images, thread context, and quoted tweets the LLM couldn&rsquo;t see.
+              Of 57 tweets audited, 33 needed corrections. The most common failure:
+              account-prior bias&mdash;when a tweet has no text (just a URL or image),
+              the LLM assigns bits based on who the person is, not what the tweet says.
+              We now enrich URL-only tweets by fetching article titles before labeling.
             </p>
             <p>
               Not all tweets carry equal weight. A sincere statement of belief (&ldquo;I think
@@ -464,6 +490,88 @@ export default function About({ meta, onNavigate }) {
               from any seed stay gray&mdash;we&rsquo;d rather say &ldquo;we&rsquo;re not
               sure&rdquo; than guess wrong. <strong>That restraint is why grayscale cards
               exist.</strong>
+            </p>
+
+            <h3>Why independent propagation?</h3>
+            <p>
+              The earlier approach forced memberships to sum to 1&mdash;if you were 60%
+              Qualia, you could only be 40% everything else. This produced zero bridge
+              accounts. Every account was either a specialist or unknown. That&rsquo;s not
+              how communities work&mdash;people genuinely belong to multiple scenes.
+            </p>
+            <p>
+              Independent propagation runs the same harmonic solver 16 times, once per
+              community. Each solve takes ~4 seconds. The scores don&rsquo;t sum to 1,
+              so an account can be 0.07 Qualia AND 0.05 Contemplative simultaneously.
+              The threshold (0.02, calibrated via held-out validation at 80% precision)
+              determines what counts as membership. At this threshold, the map shows
+              {(byBand.bridge || 0).toLocaleString()} bridge accounts that were invisible
+              before.
+            </p>
+          </section>
+
+          {/* Stage 5.5: Honest Uncertainties */}
+          <section className="about-section">
+            <h2>
+              <span className="about-stage-num">&#x26A0;</span>
+              What We Don&rsquo;t Know
+            </h2>
+
+            <p>
+              Every map has blind spots. Here are ours, honestly stated.
+            </p>
+
+            <h3>Archive bias</h3>
+            <p>
+              The seed accounts are people who voluntarily uploaded their Twitter data to the
+              Community Archive. That&rsquo;s not random&mdash;it skews toward people who are
+              technically literate, EA-adjacent, and comfortable sharing data publicly. Communities
+              where people value privacy (somatic practitioners, some queer scenes) are
+              underrepresented in the seeds. The map sees what the seeds can reach.
+            </p>
+
+            <h3>Temporal freeze</h3>
+            <p>
+              Follow patterns change. Someone who followed AI safety accounts in 2023 might
+              have pivoted to contemplative practice by 2026. The archive is a snapshot, not a
+              stream. The active learning pipeline (fetching recent tweets via API) partially
+              compensates, but the graph structure is largely frozen.
+            </p>
+
+            <h3>Ontology is one curator&rsquo;s lens</h3>
+            <p>
+              The {numCommunities} communities are named and bounded by one person&rsquo;s
+              judgment. &ldquo;Jhana Practitioners&rdquo; vs &ldquo;Contemplative
+              Practitioners&rdquo;&mdash;where exactly is the line? A different curator would
+              draw different boundaries, merge some, split others. NMF gives us factors;
+              the naming is editorial.
+            </p>
+
+            <h3>Propagation decays fast</h3>
+            <p>
+              Signal is strong at 1 hop from seeds, useful at 2 hops, and noise at 3+.
+              With {classifiedStr} seeds in a 200K-node graph, most accounts are 3+ hops
+              away. Their placements are faint not because they&rsquo;re not TPOT, but
+              because the graph is too sparse to carry signal that far. More seeds fix
+              this&mdash;each active learning round pushes confidence outward.
+            </p>
+
+            <h3>LLM labeling has known failure modes</h3>
+            <p>
+              The 3-model ensemble gets ~70% of tweets right on the first pass. Known
+              failures: keyword false matches (&ldquo;Claude Code&rdquo; &ne; LLM Whisperers),
+              account-prior bias on URL-only tweets, retweet content attributed to the
+              retweeter. Chrome audit catches these, but only 57 of 502 labeled tweets
+              have been manually verified so far.
+            </p>
+
+            <h3>What we&rsquo;re doing about it</h3>
+            <p>
+              Active learning runs continuously: select high-uncertainty accounts, fetch
+              their tweets, label with LLM ensemble, Chrome-audit, re-propagate, measure
+              recall. Each round adds seeds, fills graph gaps, and corrects prior mistakes.
+              The recall numbers on this page update with each round. The pipeline is
+              designed to improve its own blind spots over time.
             </p>
           </section>
 
