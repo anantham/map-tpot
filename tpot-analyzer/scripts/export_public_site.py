@@ -83,6 +83,11 @@ def _extract_bits_accounts(
     Returns dict: {account_id: [{community_id, weight}]}.
     Converts pct (0-100) to weight (0-1) for compatibility with NMF format.
     """
+    # Build short_name → UUID lookup (account_community_bits may store short_names)
+    short_to_uuid = {}
+    for row in conn.execute("SELECT id, short_name FROM community WHERE short_name IS NOT NULL").fetchall():
+        short_to_uuid[row["short_name"]] = row["id"]
+
     rows = conn.execute(
         "SELECT account_id, community_id, pct FROM account_community_bits "
         "ORDER BY account_id, pct DESC"
@@ -94,10 +99,13 @@ def _extract_bits_accounts(
         if weight < min_weight:
             continue
         aid = r["account_id"]
+        # Resolve short_name to UUID if needed
+        cid = r["community_id"]
+        cid = short_to_uuid.get(cid, cid)
         if aid not in accounts:
             accounts[aid] = []
         accounts[aid].append({
-            "community_id": r["community_id"],
+            "community_id": cid,
             "weight": round(weight, 4),
         })
     return accounts
