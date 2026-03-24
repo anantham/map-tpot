@@ -2,6 +2,7 @@
 
 Base URL: `https://api.twitterapi.io/twitter/`
 Auth: `X-API-Key` header
+Full docs index: `https://docs.twitterapi.io/llms.txt`
 
 ## Cost-Conscious Usage
 
@@ -16,29 +17,74 @@ Syndication API (free, no auth) should be preferred for single-tweet data.
 
 | Endpoint | Method | Params | Returns | Calls/account | Notes |
 |----------|--------|--------|---------|---------------|-------|
-| `user/info` | GET | userName | Profile, follower/following count, bio | 1 | |
+| `user/info` | GET | userName | Profile, follower/following count, bio, location, isAutomated | 1 | Also returns pinnedTweetIds, profile_bio with URL entities |
+| `user/batch_info_by_ids` | GET | userIds (comma-sep, max 100) | Same as user/info but batched | 1 per 100 | Key: response has `users` array |
 | `user/last_tweets` | GET | userName, pageSize, cursor | Tweets (nested in data.tweets) | 3-5 | Filter RTs client-side |
-| `user/followings` | GET | userName, pageSize, cursor | Following list | 10 per 1890 | Key for community signal |
+| `user/followings` | GET | userName, pageSize, cursor | Following list | 10 per 1890 | Key: `followings` not `data` |
 | `user/followers` | GET | userName, pageSize, cursor | Follower list | 1-2 | First 200 usually enough |
 | `tweet/replies` | GET | tweetId | Reply tweets with author info | 1/tweet | Replaces Chrome for engagement |
-| `tweet/retweeters` | GET | tweetId | Users who retweeted | 1/tweet | |
+| `tweet/retweeters` | GET | tweetId, cursor | Users who retweeted, ~100/page | 1/tweet | |
 | `user/mentions` | GET | userName | Tweets mentioning user | 1 | Empty for small accounts |
 | `tweet/advanced_search` | GET | query, queryType | Tweets matching query | 1 | queryType: "Latest" or "Top" |
 
-### Available (from official docs, 2026-03-23)
+### Available (from official docs, 2026-03-24)
 
 | Endpoint | Method | Params | Returns | Notes |
 |----------|--------|--------|---------|-------|
-| `user/tweet_timeline` | GET | userId, includeReplies, includeParentTweet, cursor | Tweets in profile order, 20/page | Use userId (not userName); same content as last_tweets but by ID |
+| `user/tweet_timeline` | GET | userId, includeReplies, includeParentTweet, cursor | Tweets in profile order, 20/page | Use userId (not userName) |
+| `user_about` | GET | userName | Extended profile: account_based_in, affiliate_username, username_changes | Verified location + org badges |
+| `user/check_follow` | GET | sourceUserName, targetUserName | Boolean follow relationship | Per-pair check, no pagination |
 | `tweet/quotes` | GET | tweetId, sinceTime, untilTime, includeReplies, cursor | Quote tweets, 20/page | URL is `/tweet/quotes` (not `/tweet/quotations`) |
 | `tweet/thread_context` | GET | tweetId, cursor | Full thread: ancestors + descendants | Input any tweet in thread, get full context |
-| `tweet/retweeters` | GET | tweetId, cursor | Users who retweeted, ~100/page | Order by retweet time desc |
 | `user/search` | GET | query | Users matching keyword | |
 | `user/verified_followers` | GET | userId, cursor | Blue-verified followers | |
-| `user/profile_about` | GET | userName | Extended profile info | |
 | `tweet/replies_v2` | GET | tweetId, cursor | Replies (v2 format) | |
 | List endpoints | GET | various | List timeline, followers, members | `/list/tweet_timeline`, `/list/followers`, `/list/members` |
 | Community endpoints | GET | various | Community info, members, tweets | `/community/info`, `/community/members`, `/community/tweets` |
+
+### Key Response Fields (user/info)
+
+```json
+{
+  "data": {
+    "userName": "...", "id": "...", "name": "...",
+    "description": "...",           // bio text
+    "location": "...",              // self-reported location
+    "followers": 123,               // follower count
+    "following": 123,               // following count
+    "statusesCount": 123,           // total tweets
+    "favouritesCount": 123,         // total likes given
+    "isBlueVerified": true,
+    "isAutomated": true,            // bot flag
+    "automatedBy": "...",           // who runs the bot
+    "pinnedTweetIds": ["..."],
+    "createdAt": "2006-07-16T...",
+    "profile_bio": {                // bio with resolved URLs
+      "description": "...",
+      "entities": { "description": { "urls": [...] }, "url": { "urls": [...] } }
+    }
+  }
+}
+```
+
+### Key Response Fields (user_about)
+
+```json
+{
+  "data": {
+    "id": "...", "userName": "...",
+    "about_profile": {
+      "account_based_in": "United States",   // verified location (X determines this)
+      "location_accurate": true,
+      "affiliate_username": "OpenAI",         // org affiliation
+      "username_changes": { "count": "2" }    // handle change history
+    },
+    "affiliates_highlighted_label": {         // org badge
+      "label": { "description": "OpenAI", "badge": { "url": "..." } }
+    }
+  }
+}
+```
 
 ### Not Working
 
