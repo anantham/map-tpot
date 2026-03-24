@@ -3,14 +3,15 @@ from __future__ import annotations
 import pytest
 from flask import Flask
 
-import src.api.cluster_routes as cluster_routes
+import src.api.cluster.state as cluster_routes
+from src.api.cluster import cluster_bp, ClusterCache
 
 
 @pytest.fixture
 def cluster_app(monkeypatch, tmp_path) -> Flask:
     app = Flask(__name__)
     app.testing = True
-    app.register_blueprint(cluster_routes.cluster_bp)
+    app.register_blueprint(cluster_bp)
 
     # Minimal global state for this route.
     monkeypatch.setattr(cluster_routes, "_spectral_result", object(), raising=False)
@@ -18,7 +19,8 @@ def cluster_app(monkeypatch, tmp_path) -> Flask:
     cluster_routes._tag_store = None
 
     # Avoid cross-test cache pollution.
-    monkeypatch.setattr(cluster_routes, "_cache", cluster_routes.ClusterCache(), raising=False)
+    monkeypatch.setattr(cluster_routes, "_adjacency", object(), raising=False)
+    monkeypatch.setattr(cluster_routes, "_cache", ClusterCache(), raising=False)
     return app
 
 

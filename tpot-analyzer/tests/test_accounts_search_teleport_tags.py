@@ -9,7 +9,7 @@ from scipy.cluster.hierarchy import fcluster, linkage
 
 from src.api.routes.accounts import accounts_bp
 import src.api.routes.accounts as accounts_routes
-import src.api.cluster_routes as cluster_routes
+import src.api.cluster.state as cluster_routes
 
 
 @pytest.fixture
