@@ -143,12 +143,16 @@ export default function CommunityCard({
 
             <div className="card-fullscreen-center" onClick={(e) => e.stopPropagation()}>
               <img
-                className="card-fullscreen-image"
+                className={`card-fullscreen-image ${!isClassified ? 'card-fullscreen-image--faint' : ''}`}
                 src={fsUrl}
                 alt={`AI-generated card for @${handle}`}
+                style={{ opacity: ciOpacity }}
               />
               <div className="card-fullscreen-handle">
                 @{handle}
+                {confidence > 0 && (
+                  <span className="card-fullscreen-ci">{Math.round(confidence * 100)}% confidence</span>
+                )}
                 {hasMultipleVersions && (
                   <span className="card-fullscreen-counter">
                     {(versionIdx < 0 ? versions.length : versionIdx + 1)} / {versions.length}
