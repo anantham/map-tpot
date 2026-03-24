@@ -2,21 +2,30 @@
 
 After the active learning rollup, newly classified accounts must be inserted
 into community_account so harmonic label propagation can use them as seeds.
-Also inserts into seed_eligibility with concentration=0.5 (reduced authority
-compared to NMF seeds at 1.0).
+
+Weight is based on ABSOLUTE evidence (bits) not percentages, so bridge accounts
+with strong evidence in multiple communities propagate at full strength in each.
+
+Accounts dominated by bits:None are blocked from seed insertion (not TPOT).
 """
 from __future__ import annotations
 
+import math
 import sqlite3
 from datetime import datetime, timezone
+
+# Reference: 30 absolute bits = full weight (1.0). Fewer = proportionally less.
+BITS_REFERENCE = 30
+# Minimum absolute bits to be considered a seed for a community
+MIN_BITS_THRESHOLD = 3
 
 
 def insert_llm_seeds(conn: sqlite3.Connection, account_ids: list[str]) -> int:
     """Insert rollup results into community_account for propagation.
 
     Skips accounts already present with source='nmf' (don't overwrite NMF seeds).
-    Inserts with source='llm_ensemble' and weight = pct/100.
-    Also inserts into seed_eligibility with concentration=0.5.
+    Uses absolute bits for weight: weight = min(1.0, abs(bits) / BITS_REFERENCE).
+    Blocks accounts where None bits dominate (not TPOT — adjacent ecosystem).
 
     Returns count of community_account rows inserted.
     """
@@ -32,68 +41,83 @@ def insert_llm_seeds(conn: sqlite3.Connection, account_ids: list[str]) -> int:
         if existing:
             continue  # don't overwrite NMF seeds
 
-        # Load bits rollup for this account
-        bits_rows = conn.execute(
-            "SELECT community_id, pct FROM account_community_bits WHERE account_id = ? AND pct > 5.0",
+        # Load ALL bits rollup for this account (including None)
+        all_bits_rows = conn.execute(
+            "SELECT community_id, total_bits, pct FROM account_community_bits WHERE account_id = ?",
             (account_id,),
         ).fetchall()
 
-        if not bits_rows:
+        if not all_bits_rows:
             continue
 
-        for community_id, pct in bits_rows:
-            weight = pct / 100.0
-            assert 0.0 <= weight <= 1.0, f"Invalid weight {weight} for {account_id}/{community_id}"
+        # --- None community gate (#5) ---
+        # Check if this account is dominated by None bits (not TPOT)
+        none_community_id = conn.execute(
+            "SELECT id FROM community WHERE short_name = 'None'"
+        ).fetchone()
+        none_bits = 0
+        real_bits_rows = []
+        for community_id, total_bits, pct in all_bits_rows:
+            if none_community_id and str(community_id) == str(none_community_id[0]):
+                none_bits = abs(total_bits)
+            else:
+                real_bits_rows.append((community_id, total_bits, pct))
+
+        total_real_bits = sum(abs(tb) for _, tb, _ in real_bits_rows)
+
+        # If None dominates (more than real bits), mark ineligible and skip
+        if none_bits > total_real_bits and none_bits >= 5:
+            _ensure_seed_eligibility_table(conn)
+            conn.execute(
+                """INSERT OR REPLACE INTO seed_eligibility
+                   (account_id, max_weight, dominant_community, entropy,
+                    concentration, content_agrees, eligible, created_at)
+                   VALUES (?, 0, 'None', 0, 0, NULL, 0, ?)""",
+                (account_id, now),
+            )
+            continue
+
+        # Filter to communities with enough absolute evidence
+        seed_rows = [(cid, tb, pct) for cid, tb, pct in real_bits_rows if abs(tb) >= MIN_BITS_THRESHOLD]
+
+        if not seed_rows:
+            continue
+
+        # --- Absolute-bits weight (#4) ---
+        # Weight per community based on absolute evidence, NOT percentage
+        for community_id, total_bits, _pct in seed_rows:
+            weight = min(1.0, abs(total_bits) / BITS_REFERENCE)
             conn.execute(
                 "INSERT OR REPLACE INTO community_account "
                 "(community_id, account_id, weight, source, updated_at) "
                 "VALUES (?, ?, ?, 'llm_ensemble', ?)",
-                (community_id, account_id, weight, now),
+                (community_id, account_id, round(weight, 4), now),
             )
             inserted += 1
 
-        # Compute principled concentration from evidence quality
-        import math
+        # Compute concentration from evidence quality
+        # Now concentration only controls the "none" column strength in propagation,
+        # NOT the individual community weights (those are set by absolute bits above)
+        max_abs_bits = max(abs(tb) for _, tb, _ in seed_rows)
+        max_weight = min(1.0, max_abs_bits / BITS_REFERENCE)
+        dominant_community = max(seed_rows, key=lambda r: abs(r[1]))[0]
 
-        max_pct = max(pct for _, pct in bits_rows)
-        max_weight = max_pct / 100.0
-        dominant_community = max(bits_rows, key=lambda r: r[1])[0]
+        total_bits = sum(abs(tb) for _, tb, _ in seed_rows)
 
-        # Total bits across all communities for this account
-        total_bits_row = conn.execute(
-            "SELECT SUM(total_bits), MAX(tweet_count) FROM account_community_bits WHERE account_id = ?",
-            (account_id,),
-        ).fetchone()
-        total_bits = total_bits_row[0] or 0
-        tweet_count = total_bits_row[1] or 0
-
-        # Entropy: how spread the bits are (0 = all in one community, high = diffuse)
-        total_pct = sum(pct for _, pct in bits_rows)
-        if total_pct > 0:
-            probs = [pct / total_pct for _, pct in bits_rows]
+        # Entropy over absolute bits distribution
+        if total_bits > 0 and len(seed_rows) > 1:
+            probs = [abs(tb) / total_bits for _, tb, _ in seed_rows]
             entropy = -sum(p * math.log2(p) for p in probs if p > 0)
-            # Normalize: max entropy for N communities = log2(N)
-            max_entropy = math.log2(len(bits_rows)) if len(bits_rows) > 1 else 1.0
-            normalized_entropy = entropy / max_entropy
+            max_entropy = math.log2(len(seed_rows))
+            normalized_entropy = entropy / max_entropy if max_entropy > 0 else 1.0
         else:
             entropy = 0.0
-            normalized_entropy = 1.0
+            normalized_entropy = 0.0
 
-        # Principled concentration:
-        #   evidence_mass = sqrt(total_bits / 50) capped at 1.0
-        #     → 50+ bits = full mass, 10 bits = 0.45, 5 bits = 0.32
-        #   focus = 1 - normalized_entropy
-        #     → all bits in one community = 1.0, evenly spread = 0.0
-        #   concentration = evidence_mass × focus
-        #     → repligate (213 bits, concentrated) → ~0.8
-        #     → bryan_johnson (17 bits, diffuse) → ~0.15
-        #     → NMF seeds stay at 1.0 (not affected by this code)
+        # evidence_mass from total absolute bits
         evidence_mass = min(1.0, math.sqrt(total_bits / 50))
         focus = 1.0 - normalized_entropy
-        concentration = round(evidence_mass * focus, 3)
-
-        # Floor: minimum 0.05 so even weak seeds contribute something
-        concentration = max(0.05, concentration)
+        concentration = round(max(0.05, evidence_mass * focus), 3)
 
         _ensure_seed_eligibility_table(conn)
         conn.execute(

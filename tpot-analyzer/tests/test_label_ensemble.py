@@ -108,14 +108,15 @@ def test_consensus_2_of_3():
     assert "bits:highbies:+2" in result["bits"]
 
 
-def test_consensus_1_of_3_discarded():
+def test_consensus_1_of_3_preserved_at_plus_1():
+    """1/3 agreement now preserves at +1 (weak signal, not discarded)."""
     labels = [
         {"bits": ["bits:highbies:+3"], "themes": [], "domains": [], "postures": [], "simulacrum": {"l1": 0.5, "l2": 0.2, "l3": 0.2, "l4": 0.1}, "note": "", "signal_strength": "high"},
         {"bits": [], "themes": [], "domains": [], "postures": [], "simulacrum": {"l1": 0.5, "l2": 0.2, "l3": 0.2, "l4": 0.1}, "note": "", "signal_strength": "low"},
         {"bits": [], "themes": [], "domains": [], "postures": [], "simulacrum": {"l1": 0.5, "l2": 0.2, "l3": 0.2, "l4": 0.1}, "note": "", "signal_strength": "low"},
     ]
     result = build_consensus(labels)
-    assert result["bits"] == []
+    assert result["bits"] == ["bits:highbies:+1"]
 
 
 def test_consensus_themes_union():
