@@ -402,6 +402,14 @@ body {
 .card-fullscreen-close:hover {
   color: #fff;
 }
+.card-fullscreen-image--faint {
+  filter: grayscale(0.7) brightness(0.8);
+}
+.card-fullscreen-ci {
+  color: #666;
+  font-size: 0.8rem;
+  margin-left: 8px;
+}
 .card-fullscreen-center {
   display: flex;
   flex-direction: column;
