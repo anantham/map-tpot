@@ -2,6 +2,7 @@
 """
 Soft community detection via NMF (Non-negative Matrix Factorization).
 
+
 Unlike hard clustering, NMF gives each account a fractional membership weight
 per community — so @thezvi can be EA=0.7 + consciousness=0.4 simultaneously.
 
@@ -19,6 +20,7 @@ Usage:
 
 import argparse
 import hashlib
+import logging
 import math
 import sqlite3
 import sys
@@ -32,6 +34,8 @@ from scipy.sparse import hstack
 from sklearn.decomposition import NMF
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.preprocessing import normalize
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -73,8 +77,8 @@ def resolve_account_ids(target_ids: list) -> dict:
         ).fetchall():
             id_to_user[aid] = username if status == "active" else None
         arc.close()
-    except Exception:
-        pass
+    except (sqlite3.OperationalError, sqlite3.DatabaseError, FileNotFoundError) as exc:
+        logger.warning("resolve_account_ids: resolved_accounts lookup failed: %s", exc)
 
     # Fallback: profiles table (in case resolved_accounts hasn't been built yet)
     missing = [tid for tid in target_ids if tid not in id_to_user]
@@ -89,8 +93,8 @@ def resolve_account_ids(target_ids: list) -> dict:
             ).fetchall():
                 id_to_user[aid] = username
             arc.close()
-        except Exception:
-            pass
+        except (sqlite3.OperationalError, sqlite3.DatabaseError, FileNotFoundError) as exc:
+            logger.warning("resolve_account_ids: profiles lookup failed: %s", exc)
 
     # Fallback: cache.db account table
     still_missing = [tid for tid in target_ids if tid not in id_to_user]
@@ -105,8 +109,8 @@ def resolve_account_ids(target_ids: list) -> dict:
             ).fetchall():
                 id_to_user[aid] = username
             cache.close()
-        except Exception:
-            pass
+        except (sqlite3.OperationalError, sqlite3.DatabaseError, FileNotFoundError) as exc:
+            logger.warning("resolve_account_ids: cache.db lookup failed: %s", exc)
 
     return id_to_user
 

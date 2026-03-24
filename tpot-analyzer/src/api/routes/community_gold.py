@@ -56,7 +56,7 @@ def list_communities():
         return jsonify({"communities": _get_store().list_communities()})
     except RuntimeError as exc:
         logger.error("Community gold communities failed: %s", exc)
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "Failed to list communities"}), 500
     except Exception as exc:  # pragma: no cover
         logger.exception("Community gold communities failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -79,7 +79,7 @@ def get_labels():
         return jsonify({"error": str(exc)}), 400
     except RuntimeError as exc:
         logger.error("Community gold labels query failed: %s", exc)
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "Failed to query labels"}), 500
     except Exception as exc:  # pragma: no cover
         logger.exception("Community gold labels query failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -110,7 +110,7 @@ def upsert_label():
         return jsonify({"error": str(exc)}), 400
     except RuntimeError as exc:
         logger.error("Community gold label upsert failed: %s", exc)
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "Failed to save label"}), 500
     except Exception as exc:  # pragma: no cover
         logger.exception("Community gold label upsert failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -156,7 +156,7 @@ def get_metrics():
         return jsonify(_get_store().metrics())
     except RuntimeError as exc:
         logger.error("Community gold metrics failed: %s", exc)
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "Failed to compute metrics"}), 500
     except Exception as exc:  # pragma: no cover
         logger.exception("Community gold metrics failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -176,10 +176,10 @@ def get_candidates():
         return jsonify({"error": str(exc)}), 400
     except RuntimeError as exc:
         logger.error("Community gold candidate queue failed: %s", exc)
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "Failed to list candidates"}), 500
     except FileNotFoundError as exc:
         logger.error("Community gold candidate artifact missing: %s", exc)
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "Required data artifact not found"}), 500
     except Exception as exc:  # pragma: no cover
         logger.exception("Community gold candidate queue failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -210,10 +210,10 @@ def evaluate():
         return jsonify({"error": str(exc)}), 400
     except RuntimeError as exc:
         logger.error("Community gold evaluation failed: %s", exc)
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "Evaluation failed"}), 500
     except FileNotFoundError as exc:
         logger.error("Community gold evaluation artifact missing: %s", exc)
-        return jsonify({"error": str(exc)}), 400
+        return jsonify({"error": "Required data artifact not found"}), 500
     except Exception as exc:  # pragma: no cover
         logger.exception("Community gold evaluation failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500

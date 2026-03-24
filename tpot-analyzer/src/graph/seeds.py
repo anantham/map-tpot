@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, MutableMapping, Optional, Set, Tuple
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_PRESET_FILE = Path(__file__).resolve().parents[2] / "docs" / "seed_presets.json"
 _SEED_STATE_FILE = Path(__file__).resolve().parents[2] / "config" / "graph_settings.json"
@@ -39,7 +42,8 @@ def _read_json(path: Path) -> Dict:
         return {}
     try:
         return json.loads(path.read_text())
-    except Exception:
+    except (json.JSONDecodeError, ValueError, UnicodeDecodeError) as exc:
+        logger.warning("Could not parse %s: %s — using empty defaults", path, exc)
         return {}
 
 

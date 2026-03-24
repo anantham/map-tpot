@@ -89,8 +89,8 @@ class DiscoveryCache:
             try:
                 manifest = json.loads(manifest_path.read_text())
                 key_data['snapshot_version'] = manifest.get("generated_at", "unknown")
-            except:
-                pass
+            except (json.JSONDecodeError, ValueError, OSError) as exc:
+                logger.warning("Could not read snapshot manifest for cache key: %s", exc)
 
         key_json = json.dumps(key_data, sort_keys=True)
         return hashlib.md5(key_json.encode()).hexdigest()
@@ -566,8 +566,8 @@ def discover_subgraph(
 
             response['meta']['snapshot_version'] = manifest['generated_at']
             response['meta']['snapshot_age_hours'] = round(age_hours, 1)
-        except:
-            pass
+        except (json.JSONDecodeError, KeyError, ValueError, OSError) as exc:
+            logger.warning("Could not read snapshot manifest for response meta: %s", exc)
 
     # Cache result
     if request.use_cache and cache_key:
