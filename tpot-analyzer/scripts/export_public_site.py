@@ -236,13 +236,24 @@ def _load_npz_memberships(
 ) -> dict[str, list[dict]]:
     """Load propagation NPZ and return memberships per node.
 
+    Handles both classic (zero-sum) and independent (raw scores) modes.
+    In independent mode, seed_neighbor_counts are used for noise filtering
+    (accounts with 0 classified neighbors are excluded).
+
     Returns:
-        memberships_by_id: {account_id: [{community_id, weight}]}
+        memberships_by_id: {account_id: [{community_id, weight, seed_neighbors?}]}
     """
+    # Note: allow_pickle needed for mode string array
     data = np.load(str(npz_path), allow_pickle=False)
     memberships_arr = data["memberships"]      # (N, K+1) -- last col is "none"
     node_ids = data["node_ids"]                # (N,)
     community_ids = data["community_ids"]      # (K,)
+
+    # Detect mode from saved arrays
+    has_snc = "seed_neighbor_counts" in data
+    snc = data["seed_neighbor_counts"] if has_snc else None
+    # If seed_neighbor_counts present, this is independent mode
+    is_independent = has_snc
 
     n_communities = len(community_ids)
     result: dict[str, list[dict]] = {}
@@ -254,7 +265,19 @@ def _load_npz_memberships(
         entry_memberships = []
         for j in range(n_communities):
             w = float(community_weights[j])
-            if w >= min_weight:
+            if w < min_weight:
+                continue
+            # In independent mode, filter by seed neighbors (noise gate)
+            if is_independent and snc is not None:
+                neighbors = int(snc[i, j])
+                if neighbors < 1:
+                    continue  # no classified neighbors = noise
+                entry_memberships.append({
+                    "community_id": str(community_ids[j]),
+                    "weight": round(w, 4),
+                    "seed_neighbors": neighbors,
+                })
+            else:
                 entry_memberships.append({
                     "community_id": str(community_ids[j]),
                     "weight": round(w, 4),
@@ -415,11 +438,23 @@ def extract_band_accounts(
         if not memberships:
             continue
         # Compute CI from propagation signals
+        # Works for both classic (zero-sum) and independent (raw scores) modes.
+        # In independent mode: use top weight + seed neighbor count.
+        # In classic mode: use original formula.
         meta = band_meta.get(aid, {})
         tw = meta.get("top_weight", 0)
         ent = meta.get("entropy", 0)
         nw = meta.get("none_weight", 0)
-        ci = round(tw * (1 - nw) * (1 - ent), 3)
+        top_membership = memberships[0] if memberships else {}
+        top_neighbors = top_membership.get("seed_neighbors", 0) if isinstance(top_membership, dict) else 0
+        if top_neighbors > 0:
+            # Independent mode CI: weight × neighbor evidence
+            # More seed neighbors = more confident
+            neighbor_factor = min(1.0, top_neighbors / 5.0)  # 5+ neighbors = full confidence
+            ci = round(float(top_membership.get("weight", 0)) * neighbor_factor, 3)
+        else:
+            # Classic mode CI (original formula)
+            ci = round(tw * (1 - nw) * (1 - ent), 3)
         result.append({
             "id": aid,
             "tier": band,
