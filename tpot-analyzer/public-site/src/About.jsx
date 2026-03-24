@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function About({ meta }) {
+export default function About({ meta, onNavigate }) {
   const [path, setPath] = useState(null)
   const counts = meta?.counts || {}
   const links = meta?.links || {}
@@ -14,7 +14,7 @@ export default function About({ meta }) {
 
   return (
     <div className="about-page">
-      <a href="/" className="about-back">&larr; Back to search</a>
+      <a href="/" className="about-back" onClick={(e) => { e.preventDefault(); onNavigate ? onNavigate('/') : window.history.back() }}>&larr; Back to search</a>
 
       <h1 className="about-title">Find My Ingroup</h1>
       <p className="about-subtitle">A map of the communities inside your timeline</p>

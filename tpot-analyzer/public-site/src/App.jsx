@@ -159,6 +159,8 @@ export default function App() {
     showCommunity, showResult, showHome,
     handleCommunityClick, handleBackFromCommunity,
     handleMemberClick, handleSearchAgain,
+    navigateTo,
+    galleryMode, setGalleryMode,
   } = useRouting(data, accountMap)
 
   // Auto-search from URL param (?handle=xxx) once data + search index are loaded
@@ -183,8 +185,8 @@ export default function App() {
   }, [data, pendingHandle])
 
   const handleResult = (searchResult) => {
-    // Update URL with handle param (without page reload)
-    window.history.replaceState({}, '', `/?handle=${searchResult.handle}`)
+    // Update URL with handle param — pushState creates history entry so back button works
+    window.history.pushState({}, '', `/?handle=${searchResult.handle}`)
     const tier = searchResult.tier
 
     // All known tiers get a card — CI drives the visual treatment
@@ -227,11 +229,18 @@ export default function App() {
 
   // Simple path routing (no library needed)
   if (pathname === '/about') {
-    return <About meta={data?.meta} />
+    return <About meta={data?.meta} onNavigate={navigateTo} />
   }
 
   if (pathname === '/gallery') {
-    return <CardGallery onMemberClick={handleMemberClick} onBack={handleSearchAgain} />
+    return (
+      <CardGallery
+        onMemberClick={handleMemberClick}
+        onBack={() => navigateTo('/')}
+        galleryMode={galleryMode}
+        onModeChange={setGalleryMode}
+      />
+    )
   }
 
   if (!data) return <div className="loading">Loading...</div>
@@ -296,9 +305,9 @@ export default function App() {
           <div className="hero-footer">
             <span className="hero-stat">{data.meta.counts.total_searchable.toLocaleString()} accounts indexed</span>
             <span className="hero-sep">&middot;</span>
-            <a href="/about" className="hero-link">How it works</a>
+            <a href="/about" className="hero-link" onClick={(e) => { e.preventDefault(); navigateTo('/about') }}>How it works</a>
             <span className="hero-sep">&middot;</span>
-            <a href="/gallery" className="hero-link">Card gallery</a>
+            <a href="/gallery" className="hero-link" onClick={(e) => { e.preventDefault(); navigateTo('/gallery') }}>Card gallery</a>
             <span className="hero-sep">&middot;</span>
             <a href={data.meta.links.repo} target="_blank" rel="noopener noreferrer" className="hero-link">Open source</a>
             <span className="hero-sep">&middot;</span>
