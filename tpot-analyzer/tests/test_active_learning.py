@@ -130,19 +130,18 @@ def test_select_accounts_respects_top_n(tmp_path):
     assert accounts[0]["info_value"] == 10.0
 
 
-def test_select_accounts_partially_enriched_included(tmp_path):
-    """Account with <20 enriched tweets should still be selected."""
+def test_select_accounts_skips_any_enriched(tmp_path):
+    """Account with ANY enriched tweets should be skipped (already fetched once)."""
     conn = _setup_orchestrator_db(tmp_path)
     conn.execute("INSERT INTO frontier_ranking VALUES ('a1','frontier',10.0,'c1',0.5,5,0,'')")
     conn.execute("INSERT INTO profiles VALUES ('a1','user1','')")
-    for i in range(19):  # 19 < 20
-        conn.execute(
-            "INSERT INTO enriched_tweets (tweet_id,account_id,username,text,fetch_source,fetched_at) "
-            f"VALUES ('t{i}','a1','user1','text','last_tweets','')"
-        )
+    conn.execute(
+        "INSERT INTO enriched_tweets (tweet_id,account_id,username,text,fetch_source,fetched_at) "
+        "VALUES ('t0','a1','user1','text','last_tweets','')"
+    )
     conn.commit()
     accounts = select_accounts(conn, top_n=10, round_num=1)
-    assert len(accounts) == 1
+    assert len(accounts) == 0  # skipped — already has enriched tweets
 
 
 def test_triage_single_dominant():
