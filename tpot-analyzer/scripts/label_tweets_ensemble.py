@@ -438,6 +438,14 @@ def store_labels(
     )
 
     # --- tweet_label_set ---
+    # Check if already labeled (idempotent re-runs)
+    existing = conn.execute(
+        "SELECT id FROM tweet_label_set WHERE tweet_id = ? AND axis = ? AND reviewer = ?",
+        (tweet_id, "active_learning", reviewer),
+    ).fetchone()
+    if existing:
+        return  # already labeled, skip
+
     cursor = conn.execute(
         "INSERT INTO tweet_label_set (tweet_id, axis, reviewer, note, created_at) VALUES (?, ?, ?, ?, ?)",
         (tweet_id, "active_learning", reviewer, label_dict.get("note", ""), now),

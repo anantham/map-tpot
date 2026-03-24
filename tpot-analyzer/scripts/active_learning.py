@@ -93,8 +93,7 @@ def select_accounts(
             WHERE account_id IS NOT NULL
         )
         AND fr.account_id NOT IN (
-            SELECT account_id FROM enriched_tweets
-            GROUP BY account_id HAVING COUNT(*) >= 20
+            SELECT DISTINCT account_id FROM enriched_tweets
         )
         ORDER BY fr.info_value DESC
         LIMIT ?
