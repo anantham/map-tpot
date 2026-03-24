@@ -189,11 +189,11 @@ export default function About({ meta, onNavigate }) {
       {/* ════════════════════════════════════════════════ */}
       {path === 'c' && (
         <>
-          {/* Stage 1: What We Can See */}
+          {/* Stage 1: The Raw Material */}
           <section className="about-section">
             <h2>
               <span className="about-stage-num">1</span>
-              What We Can See
+              The Raw Material
             </h2>
 
             <p>
@@ -205,213 +205,143 @@ export default function About({ meta, onNavigate }) {
               shared who they follow, who they retweet, and their tweets. That&rsquo;s the seed.
             </p>
             <p>
-              From those {classifiedStr} accounts, we can trace outward to ~200,000 accounts in
-              their follow graph. For each archived account, we see everything&mdash;every follow,
-              every retweet. For the other ~200K, we only know that <em>someone</em> follows
-              them&mdash;not who <em>they</em> follow. It&rsquo;s like knowing which lectures
-              a student attends, but not what the professors do on weekends.
+              From those {classifiedStr}, we can trace outward to around 200,000 accounts in
+              their follow graph. For the archived accounts we see everything. For the other 200K
+              we only know that <em>someone</em> follows them. It&rsquo;s like knowing which
+              lectures a student attends, but not what the professors do on weekends.
             </p>
             <p>
-              Take @repligate. They&rsquo;re one of the {classifiedStr} who shared data. We can
-              see all ~1,200 accounts they follow and all their retweets. But for those 1,200
-              accounts, we only know @repligate follows them. The result is a giant matrix
-              that&rsquo;s almost entirely empty&mdash;about 0.3% of cells are filled. That
-              sparsity is the raw material.
+              Take @repligate. They shared their data, so we can see all ~1,200 accounts they
+              follow and all their retweets. For those 1,200 accounts, we only know @repligate
+              follows them. The result is a giant matrix that&rsquo;s almost entirely
+              empty&mdash;about 0.3% filled. That sparsity is the raw material.
             </p>
           </section>
 
-          {/* Stage 2: What Signals We Use */}
+          {/* Stage 2: Reading the Signals */}
           <section className="about-section">
             <h2>
               <span className="about-stage-num">2</span>
-              What Signals We Use
+              Reading the Signals
             </h2>
             <p>
               Who you follow is the strongest signal. It&rsquo;s deliberate, stable, and reveals
-              what you chose to listen to. But it&rsquo;s not the only one.
+              what you chose to listen to. But a person is more than their follow list.
             </p>
             <p>
               What you retweet shows what you amplify. What you like shows what catches your eye.
               Who replies to your posts&mdash;and whether you liked their reply&mdash;hints at who
-              you&rsquo;re actually in conversation with. Each signal has a different shape. Follows
+              you&rsquo;re in conversation with. Each signal has a different shape. Follows
               are architectural. Retweets are behavioral. Likes are reflexive. Replies are relational.
             </p>
             <p>
-              Then there are signals that don&rsquo;t come from individual actions at all. If 200
+              Then there are patterns that emerge from the whole network at once. If 200
               people all follow both you and the same niche consciousness researcher, that&rsquo;s
-              not coincidence&mdash;that&rsquo;s topology. We compute these co-followed patterns
-              across the whole network. Separately, we run topic models over 17.5 million liked
-              tweets to ask: <em>what does this person read about?</em> That gives us 25
-              macro-interest dimensions&mdash;an entirely different lens from the social graph.
+              not coincidence&mdash;that&rsquo;s structure. We also run topic models over 17.5 million
+              liked tweets to build an entirely different picture: not who you listen to, but
+              what you read about.
             </p>
             <p>
-              Here&rsquo;s why layering matters. @repligate&rsquo;s follow targets say
-              &ldquo;Qualia Research&rdquo;&mdash;they follow QRI researchers, consciousness
-              Twitter. But their liked content says &ldquo;LLM Whisperers&rdquo;&mdash;AI agents,
-              prompt engineering, recursive self-improvement. The follow signal and the content
-              signal disagree. That disagreement is the most informative thing in the data. It
-              means @repligate orbits one community but intellectually lives in another. You need
-              both signals to see that.
-            </p>
-            <p>
-              In total we use eight signal types: follow targets, retweet targets, resolved
-              like-author edges (~24K pairs), content vectors (25 topics), co-followed topology,
-              17K signed reply pairs, human tweet labeling, and engagement-weighted propagation.
-              Most run across all accounts. Tweet labeling is experimental&mdash;applied to a
-              handful so far.
+              The interesting cases are where these signals disagree. @repligate&rsquo;s follow
+              list says &ldquo;Qualia Research&rdquo;&mdash;they follow consciousness researchers,
+              QRI people. But their liked content says &ldquo;LLM Whisperers&rdquo;&mdash;AI agents,
+              prompt engineering, recursive self-improvement. That disagreement is the most informative
+              thing in the data. It means @repligate orbits one community but intellectually lives
+              in another. You need both signals to see that.
             </p>
           </section>
 
-          {/* Stage 3: How The First Map Is Made */}
+          {/* Stage 3: Finding the Communities */}
           <section className="about-section">
             <h2>
               <span className="about-stage-num">3</span>
-              How the First Map Is Made
+              Finding the Communities
             </h2>
 
             <p>
-              Before writing any code, four questions need answers. What counts as evidence? How
-              do we define a community? How confident should we be in the initial picture? And
-              what do we do with accounts that fit nowhere?
-            </p>
-
-            <h3>What counts as evidence</h3>
-            <p>
-              Not all actions carry the same weight. Following a niche consciousness researcher
-              separates communities. Following @elonmusk doesn&rsquo;t. We weight signals by how
-              distinctive they are&mdash;a technique called TF-IDF&mdash;so that rare, specific
-              follows dominate the picture. Follows are primary. Retweets count at 0.6&times;.
-              Resolved like-author edges (where we can identify whose tweet was liked) count
+              Not all follows are equal. Following a niche consciousness researcher separates
+              communities. Following Elon Musk doesn&rsquo;t. So rare, specific follows
+              dominate the picture. Follows are primary. Retweets count at 0.6&times;. Likes
               at 0.4&times;.
             </p>
             <p>
-              Of 17.5M raw likes in the archive, only ~24K can be attributed to an author. That&rsquo;s
-              a partial signal, but it covers ~79% of seed accounts and meaningfully shifted
-              community boundaries when we added it.
-            </p>
-
-            <h3>What is a community membership?</h3>
-            <p>
-              The central question. Is each account in exactly one community? A weighted mixture
-              that sums to 1? Or independent memberships&mdash;you can be 80% Builders AND
-              60% Contemplative?
-            </p>
-            <p>
-              We chose NMF (Non-negative Matrix Factorization)&mdash;independent, non-negative,
-              parts-based. It decomposes the giant matrix into two smaller ones:
+              The core technique is matrix factorization. You have a giant sparse matrix of
+              who-follows-whom. The algorithm decomposes it into two smaller matrices:
             </p>
             <p className="about-formula">
               <em>A</em> &asymp; <em>W</em> &middot; <em>H</em>
             </p>
             <p>
-              <em>W</em> gives each account&rsquo;s community weights. <em>H</em> shows what
+              <em>W</em> tells you each account&rsquo;s community mixture. <em>H</em> tells you what
               defines each community&mdash;which follow targets, which retweet targets. That
-              second matrix is what makes human curation possible: you can look at a cluster
-              and see <em>why</em> it exists.
-            </p>
-
-            <h3>How many communities?</h3>
-            <p>
-              We tested k=12, 14, and 16 factors with the same data. At k=14, 11 of 14
-              communities matched across runs (46% average overlap). At k=16, 14 of 16
-              matched to k=14 (91% overlap) with two clean splits&mdash;tech-intellectuals
-              and creatives each resolved into finer subcommunities. We use k=16 because
-              the splits are meaningful and the structure is the most stable across
-              random restarts.
+              second matrix is crucial: you can look at a cluster and see <em>why</em> it
+              exists, which is what makes human naming possible.
             </p>
             <p>
-              NMF is non-unique&mdash;different random seeds give slightly different
-              decompositions. We mitigate this by running multiple initializations and
-              checking factor alignment. The communities that appear consistently
-              across restarts are real structure, not artifacts.
-            </p>
-
-            <h3>How strong is the initial picture?</h3>
-            <p>
-              NMF gives you factors, not beliefs. The question is: how much evidence should
-              it take to override the initial picture? A skeptical prior (worth 2 virtual
-              tweets) gets corrected quickly. A strong prior (worth 20) resists correction.
-              Full archive accounts get a confident prior. Accounts we only see through the
-              wider network get a weaker one.
-            </p>
-
-            <h3>What about accounts that fit nowhere?</h3>
-            <p>
-              Some accounts are bridges between communities. Some are outliers. Some are
-              evidence the ontology is incomplete. The system includes a &ldquo;none&rdquo;
-              class and an entropy-based uncertainty score. Accounts with high uncertainty
-              are classified as &ldquo;frontier&rdquo;&mdash;we&rsquo;d rather say &ldquo;we
-              don&rsquo;t know&rdquo; than guess wrong.
+              Crucially, these memberships don&rsquo;t sum to one. You can be 80% Builders
+              and 60% Contemplative at the same time. Real people belong to multiple scenes.
             </p>
             <p>
-              Bridge accounts are not failures. @vgr is followed by 117 seeds across all{' '}
-              {numCommunities} communities. They genuinely straddle everything&mdash;they&rsquo;re
-              pan-TPOT. The system preserves that full distribution rather than forcing them
-              into a single bucket.
-            </p>
-
-            <h3>Then: human naming</h3>
-            <p>
-              The {numCommunities} factors that come out of NMF are anonymous&mdash;&ldquo;Factor
-              7&rdquo; means nothing. A curator reviews the top accounts and top follow targets in
-              each factor and names them: &ldquo;these people all follow the same meditation teachers
-              and consciousness researchers&rdquo; becomes Contemplative Practitioners.
+              We tested 12, 14, and 16 communities on the same data. At 16, 14 of the communities
+              matched the 14-factor run (91% overlap), plus two clean splits where tech-intellectuals
+              and creatives each resolved into finer subcommunities. We use 16 because those splits
+              are meaningful and the structure is the most stable across random restarts.
             </p>
             <p>
-              For @repligate, the NMF result with likes is: <strong>52% LLM Whisperers, 16% AI
-              Creatives, 15% Queer TPOT.</strong> The old follow-only NMF said 100% Qualia Research.
-              Adding likes and retweets shifted them dramatically&mdash;their like patterns reveal
-              the LLM tinkering identity that follows alone couldn&rsquo;t see. This is the graph
-              prior. It&rsquo;s closer to the truth now, but tweet labeling refines it further.
+              The {numCommunities} factors come out as anonymous math&mdash;&ldquo;Factor
+              7&rdquo; means nothing. A curator reviews the top accounts and top follow targets
+              in each factor and names them: &ldquo;these people all follow the same meditation
+              teachers and consciousness researchers&rdquo; becomes Contemplative Practitioners.
+            </p>
+            <p>
+              For @repligate, the result: <strong>52% LLM Whisperers, 16% AI
+              Creatives, 15% Queer TPOT.</strong> A follow-only analysis had said 100% Qualia
+              Research. Adding likes and retweets revealed the LLM tinkering identity that
+              follows alone couldn&rsquo;t see. This is the starting picture. Tweet labeling
+              refines it further.
             </p>
           </section>
 
-          {/* Stage 4: How The First Map Gets Corrected */}
+          {/* Stage 4: Correcting the Map */}
           <section className="about-section">
             <h2>
               <span className="about-stage-num">4</span>
-              How the First Map Gets Corrected
+              Correcting the Map
               <span className="about-badge-status about-badge-status--experimental">EXPERIMENTAL</span>
             </h2>
 
             <p>
               The follow graph tells you who someone listens to. It doesn&rsquo;t tell you what
-              they actually think, write, or care about. That gap is where tweet labeling comes in.
+              they actually think, write, or care about. For that, you have to read their tweets.
             </p>
             <p>
-              Three AI models independently read each tweet and tag it: what community
-              would claim this? We only keep tags where at least two models agree.
-              Each agreement becomes a small piece of evidence nudging the account
-              toward a community. One tweet about meditation is a nudge. Fifty tweets
-              is a shove. The evidence adds up and can be reversed if later tweets
-              point elsewhere.
+              Three AI models independently read each tweet and tag it: what community would
+              claim this? We only keep tags where at least two agree. Each agreement becomes
+              a small piece of evidence. One tweet about meditation is a nudge. Fifty tweets
+              is a shove. The evidence accumulates, and it can be reversed if later tweets point
+              elsewhere.
             </p>
             <p>
-              AI misses things humans see. A tweet that&rsquo;s just a link gives the AI
-              nothing to work with. An image-heavy thread carries meaning the AI can&rsquo;t
-              read. So a human opens each labeled tweet in a browser, checks the full
-              context&mdash;images, quoted tweets, who&rsquo;s replying&mdash;and corrects
-              mistakes. Of 57 tweets spot-checked this way, 33 needed corrections. The most
-              common error: the AI guessed based on who the person <em>is</em>, not what
-              the tweet <em>says</em>.
+              AI misses things humans see. A tweet that&rsquo;s just a link gives it nothing
+              to work with. An image-heavy thread carries meaning it can&rsquo;t read. So a
+              human opens each labeled tweet, checks the full context&mdash;images, quoted tweets,
+              who&rsquo;s replying&mdash;and corrects mistakes. Of 57 tweets checked this way,
+              33 needed corrections. The most common error: the AI guessed based on who the
+              person <em>is</em>, not what the tweet <em>says</em>.
             </p>
             <p>
-              Not all tweets carry equal weight. A sincere statement of belief (&ldquo;I think
-              consciousness is fundamental&rdquo;) reveals intellectual commitments. A strategic
-              argument (&ldquo;here&rsquo;s why you should care&rdquo;) reveals what someone
-              promotes. But the strongest community signal comes from performative
-              tweets&mdash;in-group memes, shared references, the specific jokes only your
-              people would get. These L3 tweets count double, because they&rsquo;re the purest
-              expression of belonging. Vibes-only shitposts signal that someone speaks the
-              language, but not which community they&rsquo;re in.
+              Not all tweets carry equal weight. A sincere statement of belief reveals
+              intellectual commitments. A strategic argument reveals what someone promotes.
+              But the strongest community signal comes from performative tweets&mdash;in-group
+              memes, shared references, the specific jokes only your people would get. These
+              count double, because they&rsquo;re the purest expression of belonging.
             </p>
             <p>
-              After labeling 51 of @repligate&rsquo;s tweets (683 tags, 213 bits across 6
-              communities), the picture shifts:
+              After labeling 51 of @repligate&rsquo;s tweets, the picture shifts:
             </p>
             <div className="about-before-after">
               <div className="about-before-after-col">
-                <div className="about-before-after-label">Graph prior (NMF with likes)</div>
+                <div className="about-before-after-label">Before (graph only)</div>
                 <div className="about-bar-chart">
                   <div className="about-bar" style={{ width: '100%', background: '#39FF14' }}>
                     <span>LLM Whisperers 52%</span>
@@ -425,7 +355,7 @@ export default function About({ meta, onNavigate }) {
                 </div>
               </div>
               <div className="about-before-after-col">
-                <div className="about-before-after-label">After tweet labeling (bits)</div>
+                <div className="about-before-after-label">After (graph + tweets)</div>
                 <div className="about-bar-chart">
                   <div className="about-bar" style={{ width: '78.8%', background: '#39FF14' }}>
                     <span>LLM Whisperers 39%</span>
@@ -443,19 +373,17 @@ export default function About({ meta, onNavigate }) {
               </div>
             </div>
             <p>
-              The correction didn&rsquo;t throw out the graph&mdash;it refined it. @repligate
+              The tweets didn&rsquo;t throw out the graph&mdash;they refined it. @repligate
               genuinely orbits Qualia Research (their follows prove it), but their active
-              intellectual work lives in LLM Whisperers. Tweet labeling now covers
-              32 accounts (502 tweets), each checked by three AI models and then
-              spot-checked by a human in the browser.
+              intellectual work lives in LLM Whisperers. The correction preserves both truths.
             </p>
           </section>
 
-          {/* Stage 5: How Confidence Spreads */}
+          {/* Stage 5: Spreading Outward */}
           <section className="about-section">
             <h2>
               <span className="about-stage-num">5</span>
-              How Confidence Spreads
+              Spreading Outward
             </h2>
 
             <p>
@@ -475,33 +403,19 @@ export default function About({ meta, onNavigate }) {
               classification failure.
             </p>
             <p>
-              To separate real connections from noise, we check: how many classified accounts
+              To separate real connections from noise, we count: how many classified accounts
               actually follow you, per community? An account followed by people from two
               different communities is a genuine bridge. An account with one random connection
-              is noise&mdash;that&rsquo;s why @googlecalendar doesn&rsquo;t show up even
-              though it&rsquo;s technically in the network.
+              is noise&mdash;@googlecalendar doesn&rsquo;t show up even though it&rsquo;s
+              technically in the network.
             </p>
             <p>
               Not everyone gets a confident placement. Accounts close to many classified
               accounts get strong colors. Accounts far from anyone classified stay
               gray&mdash;we&rsquo;d rather say &ldquo;we&rsquo;re not sure&rdquo; than
-              guess wrong. <strong>That restraint is why grayscale cards exist.</strong>
-            </p>
-
-            <h3>Why this approach?</h3>
-            <p>
-              An earlier version forced every account into exactly one community. If you
-              were 60% Qualia, you could only be 40% everything else combined. This
-              produced zero bridges&mdash;every account was either a specialist or unknown.
-              That&rsquo;s not how communities work.
-            </p>
-            <p>
-              The current system runs a separate calculation for each community. The
-              scores don&rsquo;t compete with each other, so someone can be strongly
-              connected to both Contemplative Practitioners and Qualia Research at the
-              same time. The map currently shows{' '}
-              {(byBand.bridge || 0).toLocaleString()} bridge accounts that were invisible
-              in the old approach.
+              guess wrong. <strong>That restraint is why grayscale cards exist.</strong> The
+              map currently shows {(byBand.bridge || 0).toLocaleString()} bridge accounts
+              connecting different scenes.
             </p>
           </section>
 
@@ -518,19 +432,19 @@ export default function About({ meta, onNavigate }) {
 
             <h3>Archive bias</h3>
             <p>
-              The seed accounts are people who voluntarily uploaded their Twitter data to the
-              Community Archive. That&rsquo;s not random&mdash;it skews toward people who are
-              technically literate, EA-adjacent, and comfortable sharing data publicly. Communities
-              where people value privacy (somatic practitioners, some queer scenes) are
-              underrepresented in the seeds. The map sees what the seeds can reach.
+              The seed accounts are people who voluntarily uploaded their Twitter data. That&rsquo;s
+              not random&mdash;it skews toward people who are technically literate, EA-adjacent,
+              and comfortable sharing data publicly. Communities where people value privacy
+              (somatic practitioners, some queer scenes) are underrepresented. The map sees
+              what the seeds can reach.
             </p>
 
             <h3>Temporal freeze</h3>
             <p>
               Follow patterns change. Someone who followed AI safety accounts in 2023 might
               have pivoted to contemplative practice by 2026. The archive is a snapshot, not a
-              stream. The active learning pipeline (fetching recent tweets via API) partially
-              compensates, but the graph structure is largely frozen.
+              stream. Reading recent tweets partially compensates, but the underlying graph
+              structure is largely frozen.
             </p>
 
             <h3>This is Aditya&rsquo;s map, not <em>the</em> map</h3>
@@ -542,75 +456,73 @@ export default function About({ meta, onNavigate }) {
               clusters; the naming and boundary-drawing is editorial&mdash;mine.
             </p>
             <p>
-              If this doesn&rsquo;t match your experience of these communities, that&rsquo;s
-              not a bug. The{' '}
+              If this doesn&rsquo;t match your experience, that&rsquo;s not a bug. The{' '}
               <a href={links.repo} target="_blank" rel="noopener noreferrer">
                 entire pipeline is open source
               </a>
-              . Fork it, feed in your own follow data, label tweets by your own aesthetics,
-              and you&rsquo;ll get a different map&mdash;your part of Twitter, carved up by
-              your intuitions. Different seeds, different communities, different blind spots.
+              . Fork it, bring your own follow data, label tweets by your own aesthetics,
+              and you&rsquo;ll get a different map. Different seeds, different communities,
+              different blind spots.
             </p>
 
             <h3>Confidence decays with distance</h3>
             <p>
               The further you are from a classified account in the network, the weaker
-              the signal. One connection away is strong. Two connections is useful. Three
-              or more is mostly noise. With {classifiedStr} classified accounts in a
-              200K-account network, most accounts are far from anyone classified. Their
-              placements are faint not because they&rsquo;re not TPOT, but because the
-              network is too sparse to carry signal that far.
+              the signal. One connection away is strong. Two is useful. Three or more is
+              mostly noise. With {classifiedStr} classified accounts in a 200K-node network,
+              most accounts are far from anyone classified. Their placements are faint not
+              because they&rsquo;re not TPOT, but because the network is too sparse to carry
+              signal that far.
             </p>
 
             <h3>AI labeling makes mistakes</h3>
             <p>
-              The AI reads tweets and guesses communities, but it gets ~30% wrong on the
-              first pass. It confuses mentioning a tool with being part of that
+              The AI reads tweets and guesses communities, but it gets around 30% wrong on
+              the first pass. It confuses mentioning a tool with being part of that
               tool&rsquo;s community. It can&rsquo;t see images. It attributes retweet
-              content to the person who retweeted. A human spot-checks in the browser,
-              but only 57 of 502 labeled tweets have been verified so far.
+              content to the person who retweeted. A human spot-checks every batch, but
+              verification is ongoing.
             </p>
 
             <h3>What we&rsquo;re doing about it</h3>
             <p>
               The system continuously improves: find accounts we&rsquo;re uncertain about,
-              read their tweets, classify them, spot-check the results, update the map,
+              read their tweets, classify them, check the results, update the map,
               measure how much better we got. Each round adds more classified accounts
               and corrects prior mistakes. The numbers on this page update with each round.
             </p>
           </section>
 
-          {/* Stage 6: How We Validate */}
+          {/* Stage 6: How We Know It Works */}
           <section className="about-section">
             <h2>
               <span className="about-stage-num">6</span>
-              How We Validate
+              How We Know It Works
             </h2>
             <p>
               A community that only shows up in one signal could be an artifact. A community
               confirmed by three independent methods is real.
             </p>
             <p>
-              We check each community against three orthogonal signals: graph structure
-              (who follows whom), content vectors (what people like reading&mdash;25 topics
-              from 17.5M liked tweets), and co-followed topology (who is followed by the
-              same people). <strong>12 of 15 communities</strong> are validated by all
-              three. The remaining 3 are confirmed by 2 of 3&mdash;real communities, but
-              with weaker independent confirmation.
+              We check each community against three signals that have nothing to do with each
+              other: the follow graph (who follows whom), topic models (what people like
+              reading), and co-followed structure (who gets followed by the same people).{' '}
+              <strong>12 of 15 communities</strong> are confirmed by all three. The remaining
+              3 are confirmed by two&mdash;real communities, but with weaker independent evidence.
             </p>
             <p>
-              @repligate illustrates what convergence looks like. Their content profile
-              (32% LLM-tinkering, 15% philosophy, 15% highbies social) aligns with their
-              graph community (52% LLM Whisperers). When graph and content agree,
-              confidence is high.
+              We also re-ran the entire analysis on a graph with 85% more data (815K edges
+              vs 441K). The same communities emerged. 11 of 16 matched strongly; the other 5
+              showed minor boundary shifts. If the communities were an artifact of sparse data,
+              doubling the data would have destroyed them. It didn&rsquo;t.
             </p>
 
-            <h3>Holdout recall</h3>
+            <h3>Testing against known lists</h3>
             <p>
               We test against 1,822 accounts from four independent lists of known TPOT
-              accounts&mdash;none of which were used to build the map. The honest question
-              is: of accounts that are known TPOT and reachable in our network, how many
-              does the map find?
+              accounts&mdash;none of which were used to build the map. The honest question:
+              of accounts that are known TPOT and reachable in our network, how many does
+              the map find?
             </p>
 
             <div className="about-recall-table">
@@ -665,17 +577,17 @@ export default function About({ meta, onNavigate }) {
             </div>
 
             <p>
-              Aditya&rsquo;s follows have low recall because most are mainstream
-              accounts that aren&rsquo;t TPOT&mdash;the denominator is inflated.
               The more curated the source, the higher the recall. Accounts confirmed
-              by 3+ independent sources are found 65% of the time.
+              by 3+ independent sources are found 65% of the time. Aditya&rsquo;s raw
+              follow list has low recall because most follows are mainstream accounts that
+              aren&rsquo;t TPOT&mdash;the denominator is inflated.
             </p>
             <p>
               Two bottlenecks limit recall: <strong>graph coverage</strong> (39% of Orange
-              directory accounts aren&rsquo;t reachable&mdash;we don&rsquo;t have their
-              follow data yet) and <strong>seed density</strong> ({classifiedStr} seeds in
-              a 200K-node graph means each seed covers ~600 nodes). Each round of active
-              learning adds more seeds and pushes recall up.
+              directory accounts aren&rsquo;t reachable in our network yet) and{' '}
+              <strong>classified density</strong> ({classifiedStr} classified accounts in
+              a 200K-node graph means each seed covers ~600 nodes). Each round of improvement
+              adds more classified accounts and pushes recall up.
             </p>
 
             <div className="about-recall-table">
