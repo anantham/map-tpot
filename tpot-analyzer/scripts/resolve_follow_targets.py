@@ -18,13 +18,18 @@ Usage:
 
 import argparse
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-ROOT       = Path(__file__).resolve().parents[1]
-ARCHIVE_DB = ROOT / "data" / "archive_tweets.db"
-CACHE_DB   = ROOT / "data" / "cache.db"
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
+from src.config import DEFAULT_ARCHIVE_DB, DEFAULT_CACHE_DB
+
+ARCHIVE_DB = DEFAULT_ARCHIVE_DB
+CACHE_DB   = DEFAULT_CACHE_DB
 
 CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS resolved_accounts (

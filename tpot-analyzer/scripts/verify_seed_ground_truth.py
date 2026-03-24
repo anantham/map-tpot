@@ -8,9 +8,15 @@ Usage:
     .venv/bin/python3 -m scripts.verify_seed_ground_truth
 """
 import sqlite3
+import sys
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "archive_tweets.db"
+_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_ROOT / "src"))
+
+from src.config import DEFAULT_ARCHIVE_DB
+
+DB_PATH = DEFAULT_ARCHIVE_DB
 
 
 def main() -> None:

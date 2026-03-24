@@ -15,25 +15,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import pickle  # NOTE: only used to load our own cached adjacency matrix, not untrusted data
 from pathlib import Path
 
 import numpy as np
 import scipy.sparse as sp
 
+from src.config import DEFAULT_DATA_DIR
+from src.data.adjacency import load_adjacency_cache
 from src.graph.tpot_relevance import build_core_halo_mask, compute_relevance
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = PROJECT_ROOT / "data"
-
-
-def load_adjacency(path: Path) -> sp.csr_matrix:
-    """Load cached adjacency matrix (our own precomputed data, not untrusted)."""
-    with open(path, "rb") as f:
-        cached = pickle.load(f)
-    if isinstance(cached, dict) and "adjacency" in cached:
-        return cached["adjacency"].tocsr()
-    return cached.tocsr()
+DATA_DIR = DEFAULT_DATA_DIR
 
 
 def compute_degrees(adjacency: sp.csr_matrix) -> np.ndarray:
@@ -77,7 +68,7 @@ def main() -> None:
     # --- Load adjacency for degree computation ---
     adj_path = data_dir / "adjacency_matrix_cache.pkl"
     print(f"Loading adjacency: {adj_path}")
-    adjacency = load_adjacency(adj_path)
+    adjacency = load_adjacency_cache(adj_path)
     degrees = compute_degrees(adjacency)
     median_deg = float(np.median(degrees[degrees > 0]))
     print(f"Median degree (nonzero): {median_deg:.1f}")

@@ -25,7 +25,11 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
-ARCHIVE_DB = ROOT / "data" / "archive_tweets.db"
+sys.path.insert(0, str(ROOT / "src"))
+
+from src.config import DEFAULT_ARCHIVE_DB
+
+ARCHIVE_DB = DEFAULT_ARCHIVE_DB
 MARKER_FILE = ROOT / "data" / ".last_export_state.json"
 PUBLIC_SITE_DIR = ROOT / "public-site" / "public"
 DEFAULT_THRESHOLD = 10

@@ -33,8 +33,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from config import get_supabase_config
+from src.config import DEFAULT_ARCHIVE_DB
 
-DB_PATH = ROOT / "data" / "archive_tweets.db"
+DB_PATH = DEFAULT_ARCHIVE_DB
 CURSOR_PATH = ROOT / "data" / ".quote_cursor.json"
 
 QUOTE_GRAPH_DDL = """\

@@ -29,6 +29,7 @@ import argparse
 import logging
 import math
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,7 +38,11 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DB_PATH = ROOT / "data" / "archive_tweets.db"
+sys.path.insert(0, str(ROOT / "src"))
+
+from src.config import DEFAULT_ARCHIVE_DB
+
+DEFAULT_DB_PATH = DEFAULT_ARCHIVE_DB
 DEFAULT_NPZ_PATH = ROOT / "data" / "community_propagation.npz"
 
 # ── Schema ───────────────────────────────────────────────────────────────────

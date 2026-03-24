@@ -18,11 +18,17 @@ from __future__ import annotations
 
 import argparse
 import sqlite3
+import sys
 import numpy as np
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "archive_tweets.db"
+_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_ROOT / "src"))
+
+from src.config import DEFAULT_ARCHIVE_DB
+
+DB_PATH = DEFAULT_ARCHIVE_DB
 
 # Rough mapping: community short_name → content topic index
 # (from CT3 analysis this session)

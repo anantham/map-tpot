@@ -39,8 +39,11 @@ logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-ARCHIVE_DB = ROOT / "data" / "archive_tweets.db"
-CACHE_DB   = ROOT / "data" / "cache.db"
+
+from src.config import DEFAULT_ARCHIVE_DB, DEFAULT_CACHE_DB
+
+ARCHIVE_DB = DEFAULT_ARCHIVE_DB
+CACHE_DB   = DEFAULT_CACHE_DB
 
 
 # ── data loading ────────────────────────────────────────────────────────────

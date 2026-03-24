@@ -14,12 +14,13 @@ from flask import Blueprint, jsonify, request
 
 from src.communities import store
 from src.communities import versioning
+from src.config import DEFAULT_ARCHIVE_DB
 
 logger = logging.getLogger(__name__)
 
 branches_bp = Blueprint("branches", __name__, url_prefix="/api/communities/branches")
 
-_DEFAULT_DB = Path(__file__).resolve().parents[3] / "data" / "archive_tweets.db"
+_DEFAULT_DB = DEFAULT_ARCHIVE_DB
 
 
 def _get_db() -> sqlite3.Connection:

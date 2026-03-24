@@ -14,7 +14,9 @@ logger = logging.getLogger(__name__)
 
 community_gold_bp = Blueprint("community_gold", __name__, url_prefix="/api/community-gold")
 
-_DEFAULT_DB = Path(__file__).resolve().parents[3] / "data" / "archive_tweets.db"
+from src.config import DEFAULT_ARCHIVE_DB
+
+_DEFAULT_DB = DEFAULT_ARCHIVE_DB
 _community_gold_store: Optional[CommunityGoldStore] = None
 _community_gold_store_path: Optional[Path] = None
 
