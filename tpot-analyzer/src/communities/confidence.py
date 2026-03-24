@@ -267,9 +267,9 @@ def compute_confidence(conn: sqlite3.Connection, account_id: str) -> dict:
 
 def compute_all_confidences(db_path: str | None = None) -> list[dict]:
     """Compute confidence for all accounts that have any community data."""
-    from pathlib import Path
     if db_path is None:
-        db_path = str(Path(__file__).parent.parent.parent / "data" / "archive_tweets.db")
+        from src.config import DEFAULT_ARCHIVE_DB
+        db_path = str(DEFAULT_ARCHIVE_DB)
 
     conn = sqlite3.connect(db_path)
 

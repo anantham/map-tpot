@@ -21,7 +21,12 @@ import sqlite3
 import sys
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "archive_tweets.db"
+_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_ROOT / "src"))
+
+from src.config import DEFAULT_ARCHIVE_DB
+
+DB_PATH = DEFAULT_ARCHIVE_DB
 
 # Mapping: community UUID -> short_name (labeling handle)
 # These match the names used in bits tags: bits:LLM-Whisperers:+3

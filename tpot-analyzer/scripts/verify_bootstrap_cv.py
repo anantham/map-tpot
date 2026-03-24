@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import sqlite3
+import sys
 import time
 from pathlib import Path
 
@@ -31,7 +32,11 @@ import scipy.sparse as sp
 from scipy.sparse.linalg import cg
 
 ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = ROOT / "data" / "archive_tweets.db"
+sys.path.insert(0, str(ROOT / "src"))
+
+from src.config import DEFAULT_ARCHIVE_DB
+
+DB_PATH = DEFAULT_ARCHIVE_DB
 
 RECALL_THRESHOLD = 0.05  # min community weight to count as "found" (matches verify_holdout_recall.py)
 REGULARIZATION = 1e-3

@@ -18,7 +18,11 @@ from pathlib import Path
 from typing import Optional
 
 ROOT = Path(__file__).resolve().parents[1]
-ARCHIVE_DB = ROOT / "data" / "archive_tweets.db"
+sys.path.insert(0, str(ROOT / "src"))
+
+from src.config import DEFAULT_ARCHIVE_DB
+
+ARCHIVE_DB = DEFAULT_ARCHIVE_DB
 
 # Accounts whose community profiles we track across runs
 KNOWN_ACCOUNTS = [

@@ -19,7 +19,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "archive_tweets.db"
+from src.config import DEFAULT_ARCHIVE_DB
+
+DB_PATH = DEFAULT_ARCHIVE_DB
 
 _SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&token=x"
 

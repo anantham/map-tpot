@@ -25,7 +25,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "src"))
 
+from src.config import DEFAULT_ARCHIVE_DB
 from rollup_bits import (
     SIMULACRUM_WEIGHTS,
     aggregate_bits,
@@ -34,7 +36,7 @@ from rollup_bits import (
     load_simulacrum_weights,
 )
 
-DEFAULT_DB_PATH = ROOT / "data" / "archive_tweets.db"
+DEFAULT_DB_PATH = DEFAULT_ARCHIVE_DB
 PCT_TOLERANCE = 0.5  # percent
 
 

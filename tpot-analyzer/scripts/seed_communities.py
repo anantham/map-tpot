@@ -24,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from src.config import DEFAULT_ARCHIVE_DB
 from communities.store import (
     init_db,
     list_runs,
@@ -35,7 +36,7 @@ from communities.store import (
     list_communities,
 )
 
-ARCHIVE_DB = ROOT / "data" / "archive_tweets.db"
+ARCHIVE_DB = DEFAULT_ARCHIVE_DB
 
 # 16-color palette for UI — cycles if k > 16
 PALETTE = [

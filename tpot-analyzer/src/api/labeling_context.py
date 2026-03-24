@@ -15,7 +15,9 @@ import sqlite3
 from collections import defaultdict
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "archive_tweets.db"
+from src.config import DEFAULT_ARCHIVE_DB
+
+DB_PATH = DEFAULT_ARCHIVE_DB
 
 
 def _get_conn(db_path: Path | None = None) -> sqlite3.Connection:

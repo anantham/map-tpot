@@ -32,7 +32,12 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "archive_tweets.db"
+_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_ROOT / "src"))
+
+from src.config import DEFAULT_ARCHIVE_DB
+
+DB_PATH = DEFAULT_ARCHIVE_DB
 MIN_JACCARD_DEFAULT = 0.1
 
 

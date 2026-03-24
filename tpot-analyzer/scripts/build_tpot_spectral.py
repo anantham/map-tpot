@@ -14,30 +14,21 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import pickle  # NOTE: only loads our own cached adjacency matrix, not untrusted data
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
+from src.config import DEFAULT_DATA_DIR
+from src.data.adjacency import load_adjacency_cache
 from src.graph.spectral import SpectralConfig, compute_spectral_embedding, save_spectral_result
 from src.graph.tpot_relevance import build_core_halo_mask, compute_relevance, reweight_adjacency
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR = DEFAULT_DATA_DIR
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-
-
-def load_adjacency(path: Path) -> sp.csr_matrix:
-    """Load cached adjacency matrix (our own precomputed data)."""
-    with open(path, "rb") as f:
-        cached = pickle.load(f)
-    if isinstance(cached, dict) and "adjacency" in cached:
-        return cached["adjacency"].tocsr()
-    return cached.tocsr()
 
 
 def main() -> None:
@@ -85,7 +76,7 @@ def main() -> None:
     # --- Load adjacency ---
     adj_path = data_dir / "adjacency_matrix_cache.pkl"
     logger.info("Loading adjacency: %s", adj_path)
-    adjacency = load_adjacency(adj_path)
+    adjacency = load_adjacency_cache(adj_path)
 
     # Symmetrize for spectral (needs undirected)
     adjacency_sym = adjacency.maximum(adjacency.T).tocsr()
