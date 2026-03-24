@@ -8,8 +8,8 @@ import pytest
 from flask import Flask
 from scipy import sparse
 
-import src.api.cluster_routes as cluster_routes
-from src.api.cluster_routes import ClusterCache, cluster_bp
+import src.api.cluster.state as cluster_routes
+from src.api.cluster import ClusterCache, cluster_bp
 from src.data.account_tags import AccountTagStore
 
 

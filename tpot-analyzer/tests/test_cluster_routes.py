@@ -318,7 +318,7 @@ class TestGetClustersEndpoint:
 
     def test_503_when_not_initialized(self, client):
         """Returns 503 when spectral data not loaded."""
-        with patch("src.api.cluster_routes._spectral_result", None):
+        with patch("src.api.cluster.state._spectral_result", None):
             resp = client.get("/api/clusters")
             assert resp.status_code == 503
             assert "error" in resp.get_json()
@@ -327,12 +327,12 @@ class TestGetClustersEndpoint:
         self, client, mock_spectral_result, mock_adjacency, mock_node_metadata
     ):
         """Returns cluster data when properly initialized."""
-        with patch("src.api.cluster_routes._spectral_result", mock_spectral_result), \
-             patch("src.api.cluster_routes._adjacency", mock_adjacency), \
-             patch("src.api.cluster_routes._node_metadata", mock_node_metadata), \
-             patch("src.api.cluster_routes._label_store", None), \
-             patch("src.api.cluster_routes._louvain_communities", {}), \
-             patch("src.api.cluster_routes._cache", ClusterCache()):
+        with patch("src.api.cluster.state._spectral_result", mock_spectral_result), \
+             patch("src.api.cluster.state._adjacency", mock_adjacency), \
+             patch("src.api.cluster.state._node_metadata", mock_node_metadata), \
+             patch("src.api.cluster.state._label_store", None), \
+             patch("src.api.cluster.state._louvain_communities", {}), \
+             patch("src.api.cluster.state._cache", ClusterCache()):
 
             resp = client.get("/api/clusters?n=2&budget=10")
             assert resp.status_code == 200
@@ -344,12 +344,12 @@ class TestGetClustersEndpoint:
 
     def test_granularity_bounded(self, client, mock_spectral_result, mock_adjacency, mock_node_metadata):
         """Granularity parameter is bounded to valid range."""
-        with patch("src.api.cluster_routes._spectral_result", mock_spectral_result), \
-             patch("src.api.cluster_routes._adjacency", mock_adjacency), \
-             patch("src.api.cluster_routes._node_metadata", mock_node_metadata), \
-             patch("src.api.cluster_routes._label_store", None), \
-             patch("src.api.cluster_routes._louvain_communities", {}), \
-             patch("src.api.cluster_routes._cache", ClusterCache()):
+        with patch("src.api.cluster.state._spectral_result", mock_spectral_result), \
+             patch("src.api.cluster.state._adjacency", mock_adjacency), \
+             patch("src.api.cluster.state._node_metadata", mock_node_metadata), \
+             patch("src.api.cluster.state._label_store", None), \
+             patch("src.api.cluster.state._louvain_communities", {}), \
+             patch("src.api.cluster.state._cache", ClusterCache()):
 
             # Very low granularity gets bounded to 5
             resp = client.get("/api/clusters?n=1&budget=10")
@@ -365,12 +365,12 @@ class TestGetClustersEndpoint:
         """Second request with same params returns cached result."""
         cache = ClusterCache()
 
-        with patch("src.api.cluster_routes._spectral_result", mock_spectral_result), \
-             patch("src.api.cluster_routes._adjacency", mock_adjacency), \
-             patch("src.api.cluster_routes._node_metadata", mock_node_metadata), \
-             patch("src.api.cluster_routes._label_store", None), \
-             patch("src.api.cluster_routes._louvain_communities", {}), \
-             patch("src.api.cluster_routes._cache", cache):
+        with patch("src.api.cluster.state._spectral_result", mock_spectral_result), \
+             patch("src.api.cluster.state._adjacency", mock_adjacency), \
+             patch("src.api.cluster.state._node_metadata", mock_node_metadata), \
+             patch("src.api.cluster.state._label_store", None), \
+             patch("src.api.cluster.state._louvain_communities", {}), \
+             patch("src.api.cluster.state._cache", cache):
 
             # First request - builds view
             resp1 = client.get("/api/clusters?n=2&budget=10")
@@ -394,7 +394,7 @@ class TestGetClusterMembersEndpoint:
 
     def test_503_when_not_initialized(self, client):
         """Returns 503 when spectral data not loaded."""
-        with patch("src.api.cluster_routes._spectral_result", None):
+        with patch("src.api.cluster.state._spectral_result", None):
             resp = client.get("/api/clusters/d_0/members")
             assert resp.status_code == 503
 
@@ -404,13 +404,13 @@ class TestGetClusterMembersEndpoint:
         """Returns paginated members list."""
         cache = ClusterCache()
 
-        with patch("src.api.cluster_routes._spectral_result", mock_spectral_result), \
-             patch("src.api.cluster_routes._adjacency", mock_adjacency), \
-             patch("src.api.cluster_routes._node_metadata", mock_node_metadata), \
-             patch("src.api.cluster_routes._label_store", None), \
-             patch("src.api.cluster_routes._louvain_communities", {}), \
-             patch("src.api.cluster_routes._node_id_to_idx", {}), \
-             patch("src.api.cluster_routes._cache", cache):
+        with patch("src.api.cluster.state._spectral_result", mock_spectral_result), \
+             patch("src.api.cluster.state._adjacency", mock_adjacency), \
+             patch("src.api.cluster.state._node_metadata", mock_node_metadata), \
+             patch("src.api.cluster.state._label_store", None), \
+             patch("src.api.cluster.state._louvain_communities", {}), \
+             patch("src.api.cluster.state._node_id_to_idx", {}), \
+             patch("src.api.cluster.state._cache", cache):
 
             cluster_resp = client.get("/api/clusters?n=2&budget=10")
             assert cluster_resp.status_code == 200
@@ -431,7 +431,7 @@ class TestClusterLabelEndpoints:
 
     def test_post_label_503_when_no_store(self, client):
         """Returns 503 when label store not initialized."""
-        with patch("src.api.cluster_routes._label_store", None):
+        with patch("src.api.cluster.state._label_store", None):
             resp = client.post(
                 "/api/clusters/d_0/label",
                 json={"label": "Test Label"}
@@ -441,7 +441,7 @@ class TestClusterLabelEndpoints:
     def test_post_label_400_when_empty(self, client, tmp_path):
         """Returns 400 when label is empty."""
         store = ClusterLabelStore(tmp_path / "clusters.db")
-        with patch("src.api.cluster_routes._label_store", store):
+        with patch("src.api.cluster.state._label_store", store):
             resp = client.post(
                 "/api/clusters/d_0/label",
                 json={"label": "   "}
@@ -451,7 +451,7 @@ class TestClusterLabelEndpoints:
     def test_post_label_success(self, client, tmp_path):
         """Successfully sets cluster label."""
         store = ClusterLabelStore(tmp_path / "clusters.db")
-        with patch("src.api.cluster_routes._label_store", store):
+        with patch("src.api.cluster.state._label_store", store):
             resp = client.post(
                 "/api/clusters/d_0/label",
                 json={"label": "My Label"}
@@ -468,7 +468,7 @@ class TestClusterLabelEndpoints:
         """Successfully deletes cluster label."""
         store = ClusterLabelStore(tmp_path / "clusters.db")
         store.set_label("spectral_d_0", "My Label")
-        with patch("src.api.cluster_routes._label_store", store):
+        with patch("src.api.cluster.state._label_store", store):
             resp = client.delete("/api/clusters/d_0/label")
             assert resp.status_code == 200
             labels = store.get_all_labels()
@@ -480,7 +480,7 @@ class TestPreviewEndpoint:
 
     def test_503_when_not_initialized(self, client):
         """Returns 503 when spectral data not loaded."""
-        with patch("src.api.cluster_routes._spectral_result", None):
+        with patch("src.api.cluster.state._spectral_result", None):
             resp = client.get("/api/clusters/d_0/preview")
             assert resp.status_code == 503
 
@@ -488,8 +488,10 @@ class TestPreviewEndpoint:
         self, client, mock_spectral_result
     ):
         """Returns both expand and collapse preview data."""
-        with patch("src.api.cluster_routes._spectral_result", mock_spectral_result), \
-             patch("src.api.cluster_routes._cache", ClusterCache()):
+        mock_adjacency = sparse.eye(len(mock_spectral_result.node_ids), format="csr")
+        with patch("src.api.cluster.state._spectral_result", mock_spectral_result), \
+             patch("src.api.cluster.state._adjacency", mock_adjacency), \
+             patch("src.api.cluster.state._cache", ClusterCache()):
 
             resp = client.get("/api/clusters/d_4/preview?n=2&budget=10")
             assert resp.status_code == 200
@@ -506,13 +508,15 @@ class TestTagSummaryEndpoint:
 
     def test_503_when_not_initialized(self, client):
         """Returns 503 when spectral data not loaded."""
-        with patch("src.api.cluster_routes._spectral_result", None):
+        with patch("src.api.cluster.state._spectral_result", None):
             resp = client.get("/api/clusters/d_0/tag_summary")
             assert resp.status_code == 503
 
     def test_400_when_ego_missing(self, client, mock_spectral_result):
         """Returns 400 when ego parameter is missing."""
-        with patch("src.api.cluster_routes._spectral_result", mock_spectral_result):
+        mock_adjacency = sparse.eye(len(mock_spectral_result.node_ids), format="csr")
+        with patch("src.api.cluster.state._spectral_result", mock_spectral_result), \
+             patch("src.api.cluster.state._adjacency", mock_adjacency):
             resp = client.get("/api/clusters/d_0/tag_summary")
             assert resp.status_code == 400
             assert "ego" in resp.get_json().get("error", "").lower()

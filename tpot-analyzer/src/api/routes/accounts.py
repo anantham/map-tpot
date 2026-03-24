@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Blueprint, current_app, jsonify, request
 
-from src.api import cluster_routes
+from src.api.cluster import state as cluster_routes
 from src.config import get_snapshot_dir
 from src.data.account_tags import AccountTagStore
 from src.graph import (
