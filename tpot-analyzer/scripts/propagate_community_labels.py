@@ -96,6 +96,12 @@ class PropagationConfig:
     # <1 sharpens it. T=2 is conservative; T=1 is raw propagation output.
     temperature: float = 2.0
 
+    # Propagation mode: "classic" = zero-sum (memberships sum to 1),
+    # "independent" = each community propagated independently (no sum constraint).
+    # Independent mode enables bridge detection — accounts can score high
+    # in multiple communities simultaneously.
+    mode: str = "classic"
+
     # Tikhonov regularization added to L_UU diagonal. Prevents singular systems
     # and biases unlabeled nodes toward the prior (stabilizes sparse regions).
     regularization: float = 1e-3
@@ -570,47 +576,89 @@ def propagate(
     # CG can produce small negatives at convergence boundary — clip to 0
     memberships = np.clip(memberships, 0.0, None)
 
-    # Temperature scaling: raise to power 1/T then re-normalize.
-    # T > 1 flattens the distribution (makes multi-community membership visible).
-    # T = 1 leaves the raw propagation output.
-    # T < 1 sharpens (approaches argmax / hard assignment).
-    if config.temperature != 1.0:
-        scaled = memberships ** (1.0 / config.temperature)
-        row_sums = scaled.sum(axis=1, keepdims=True)
-        row_sums = np.where(row_sums > 0, row_sums, 1.0)
-        memberships = scaled / row_sums
+    if config.mode == "independent":
+        # ═══ INDEPENDENT MODE ═══
+        # Each community column is normalized independently to [0, 1].
+        # Scores do NOT sum to 1 — an account can be 0.7 Qualia AND 0.6 Contemplative.
+        # This enables bridge detection: accounts with 2-3 high scores.
+        print("  Post-processing: independent mode (per-column normalization)")
+
+        for c in range(n_classes):
+            col = memberships[unlabeled_idx, c]
+            col_max = col.max()
+            if col_max > 0:
+                # Scale unlabeled scores to [0, 1] relative to max propagation for this community
+                memberships[unlabeled_idx, c] = col / col_max
+
+        # Restore labeled nodes exactly
+        memberships[labeled_idx] = boundary
+
+        # Low-degree override: set all community scores to 0 (not "none" — just no signal)
+        memberships[low_degree_unlabeled, :] = 0.0
+
+        # Uncertainty for independent mode: based on degree only (entropy is meaningless
+        # when scores don't sum to 1 — high entropy could mean "bridge" not "uncertain")
+        degree_uncertainty = 1.0 / np.sqrt(degrees + 1.0)
+        degree_uncertainty /= degree_uncertainty.max()
+        uncertainty = degree_uncertainty
+        uncertainty = np.clip(uncertainty, 0.0, 1.0)
+        uncertainty[labeled_idx] = 0.0
+
+        # Entropy: still compute for diagnostics, but it doesn't drive abstain
+        entropy = multiclass_entropy(memberships / (memberships.sum(axis=1, keepdims=True) + 1e-10))
+
+        # Abstain gate for independent mode: abstain if ALL community scores < threshold
+        # (not just max — bridges with several medium scores should NOT abstain)
+        max_community_score = memberships[:, :K].max(axis=1)
+        sum_community_score = memberships[:, :K].sum(axis=1)
+        abstain_mask = (
+            (max_community_score < config.abstain_max_threshold)
+            | (sum_community_score < config.abstain_max_threshold * 2)
+        ) & ~labeled_mask
+
     else:
-        row_sums = memberships.sum(axis=1, keepdims=True)
-        row_sums = np.where(row_sums > 0, row_sums, 1.0)
-        memberships = memberships / row_sums
+        # ═══ CLASSIC MODE ═══
+        # Temperature scaling: raise to power 1/T then re-normalize.
+        # T > 1 flattens the distribution (makes multi-community membership visible).
+        # T = 1 leaves the raw propagation output.
+        # T < 1 sharpens (approaches argmax / hard assignment).
+        if config.temperature != 1.0:
+            scaled = memberships ** (1.0 / config.temperature)
+            row_sums = scaled.sum(axis=1, keepdims=True)
+            row_sums = np.where(row_sums > 0, row_sums, 1.0)
+            memberships = scaled / row_sums
+        else:
+            row_sums = memberships.sum(axis=1, keepdims=True)
+            row_sums = np.where(row_sums > 0, row_sums, 1.0)
+            memberships = memberships / row_sums
 
-    # Restore labeled nodes exactly (propagation shouldn't alter known assignments)
-    memberships[labeled_idx] = boundary
+        # Restore labeled nodes exactly (propagation shouldn't alter known assignments)
+        memberships[labeled_idx] = boundary
 
-    # Low-degree override: degree-1 nodes get "none" regardless of propagation.
-    # Their single edge doesn't constitute meaningful community evidence.
-    memberships[low_degree_unlabeled, :K] = 0.0
-    memberships[low_degree_unlabeled, K] = 1.0
+        # Low-degree override: degree-1 nodes get "none" regardless of propagation.
+        # Their single edge doesn't constitute meaningful community evidence.
+        memberships[low_degree_unlabeled, :K] = 0.0
+        memberships[low_degree_unlabeled, K] = 1.0
 
-    # Uncertainty: combines entropy (how spread is the distribution?) with
-    # degree (how much evidence does this node have?).
-    entropy = multiclass_entropy(memberships)
-    degree_uncertainty = 1.0 / np.sqrt(degrees + 1.0)
-    degree_uncertainty /= degree_uncertainty.max()
+        # Uncertainty: combines entropy (how spread is the distribution?) with
+        # degree (how much evidence does this node have?).
+        entropy = multiclass_entropy(memberships)
+        degree_uncertainty = 1.0 / np.sqrt(degrees + 1.0)
+        degree_uncertainty /= degree_uncertainty.max()
 
-    # Weights match existing GRF convention (membership_grf.py)
-    uncertainty = 0.7 * entropy + 0.3 * degree_uncertainty
-    uncertainty = np.clip(uncertainty, 0.0, 1.0)
-    uncertainty[labeled_idx] = 0.0  # labeled nodes have zero uncertainty by definition
+        # Weights match existing GRF convention (membership_grf.py)
+        uncertainty = 0.7 * entropy + 0.3 * degree_uncertainty
+        uncertainty = np.clip(uncertainty, 0.0, 1.0)
+        uncertainty[labeled_idx] = 0.0  # labeled nodes have zero uncertainty by definition
 
-    # Abstain gate: nodes where we genuinely can't tell.
-    # Different from "none" — "none" means "probably not in any community",
-    # "abstain" means "we don't have enough signal to say either way."
-    max_community_weight = memberships[:, :K].max(axis=1)
-    abstain_mask = (
-        (max_community_weight < config.abstain_max_threshold)
-        | (uncertainty > config.abstain_uncertainty_threshold)
-    ) & ~labeled_mask
+        # Abstain gate: nodes where we genuinely can't tell.
+        # Different from "none" — "none" means "probably not in any community",
+        # "abstain" means "we don't have enough signal to say either way."
+        max_community_weight = memberships[:, :K].max(axis=1)
+        abstain_mask = (
+            (max_community_weight < config.abstain_max_threshold)
+            | (uncertainty > config.abstain_uncertainty_threshold)
+        ) & ~labeled_mask
 
     result = PropagationResult(
         memberships=memberships,
@@ -914,6 +962,8 @@ def main():
                         help="Disable engagement weighting (use binary follow edges only)")
     parser.add_argument("--no-seed-eligibility", action="store_true",
                         help="Disable concentration-based seed weighting")
+    parser.add_argument("--mode", choices=["classic", "independent"], default="classic",
+                        help="Propagation mode: classic (zero-sum) or independent (multi-label)")
     args = parser.parse_args()
 
     # --use-spectral-graph overrides --use-archive-graph
@@ -927,6 +977,7 @@ def main():
         abstain_max_threshold=args.abstain_max,
         class_balance=not args.no_balance,
         max_iter=args.max_cg_iter,
+        mode=args.mode,
     )
 
     print("=== Community Label Propagation (ADR 012 Phase 0) ===")
