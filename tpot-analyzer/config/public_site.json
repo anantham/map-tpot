@@ -8,7 +8,7 @@
     "curator_site": "https://adityaarpitha.com"
   },
   "export": {
-    "min_weight": 0.05,
+    "min_weight": 0.02,
     "abstain_threshold": 0.08,
     "output_dir": "public-site/public"
   }
