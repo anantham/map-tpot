@@ -119,18 +119,18 @@ Scan performed after sessions 8-10 (rapid development: active learning pipeline,
 
 ~25 in `src/`, ~22 in `scripts/`.
 
-**Most dangerous:**
+**Most dangerous (FIXED 2026-03-24):**
 
-| File | Lines | Swallowed | Consequence |
-|------|-------|-----------|-------------|
-| `scripts/cluster_soft.py` | 76, 92, 108 | 3x `except Exception: pass` in `load_accounts()` — tries 3 data sources | Empty dict if all fail, clustering produces nothing silently |
-| `src/api/snapshot_loader.py` | 323 | Bare `except: pass` — JSON edge metadata | Edges silently dropped |
-| `src/api/discovery.py` | 92, 569 | Two bare `except: pass` | Discovery results incomplete |
-| `src/communities/confidence.py` | 72 | `except Exception: pass` "Table may not exist" | Confidence factor = 0, score underestimated |
-| `src/graph/seeds.py` | 42 | Returns empty dict on any error | No seeds loaded, propagation starts empty |
+| File | Lines | Fix |
+|------|-------|-----|
+| `scripts/cluster_soft.py` | 76, 92, 108 | ✅ Narrowed to `sqlite3.OperationalError/DatabaseError/FileNotFoundError` + `logger.warning()` |
+| `src/api/snapshot_loader.py` | 323 | ✅ Narrowed to `json.JSONDecodeError/TypeError` + `logger.warning()` |
+| `src/api/discovery.py` | 92, 569 | ✅ Narrowed to `json.JSONDecodeError/ValueError/OSError/KeyError` + `logger.warning()` |
+| `src/communities/confidence.py` | 72 | ✅ Narrowed to `sqlite3.OperationalError` + `logger.warning()` |
+| `src/graph/seeds.py` | 42 | ✅ Narrowed to `json.JSONDecodeError/ValueError/UnicodeDecodeError` + `logger.warning()` |
 
-**Fix:** `logger.warning()` minimum. Narrow to specific exception types.
-**Effort:** Moderate
+**Remaining:** ~30 low-risk instances with already-specific exception types (e.g., `sqlite3.IntegrityError: pass` for duplicate inserts). These are acceptable patterns.
+**Effort:** Done for critical path; remaining are low-priority.
 
 ### 3.2 Scattered str() for community_id
 
@@ -157,26 +157,23 @@ Same `confidence` field, two completely different formulas. Consumers cannot dis
 
 ### CRITICAL
 
-**S1: SQL Injection — `debug_single_account.py:230,242,252,260-265`**
+**S1: SQL Injection — `debug_single_account.py:230,242,252,260-265`** ✅ FIXED 2026-03-24
 
-`account_id` from CLI `args.username` interpolated via f-string: `text(f"WHERE source_id = '{account_id}'")`. Username `'; DROP TABLE shadow_edge; --` injects.
-
-**Fix:** Parameterized queries.
+Parameterized all 8 queries with `.bindparams()`.
 
 ### HIGH
 
-**S2: 43x `str(exc)` in API Responses**
+**S2: `str(exc)` in API Responses** ✅ PARTIALLY FIXED 2026-03-24
 
-Leaks stack traces, paths, schema to API consumers:
-- `community_gold.py` (13), `extension.py` (11), `golden.py` (9), `accounts.py` (5), `extension_read_routes.py` (4), `branches.py` (1)
+Original count: 43. Analysis revealed:
+- **9 dangerous** (`RuntimeError`, `FileNotFoundError` leaking internals/paths) → ✅ FIXED: generic messages + server-side logging
+- **34 safe** (`ValueError`, `PermissionError` from input validation) → kept as-is: these are controlled, user-friendly validation messages
 
-**Fix:** Generic error messages. Log full exception server-side.
+Fixed files: `community_gold.py` (8 fixes), `extension.py` (1 fix).
 
-**S3: `debug=True` + `host='0.0.0.0'` — `api_server.py:147`**
+**S3: `debug=True` + `host='0.0.0.0'` — `api_server.py:147`** ✅ FIXED 2026-03-24
 
-Werkzeug debugger (interactive Python console) accessible on all network interfaces.
-
-**Fix:** Bind to `127.0.0.1` or gate behind env var.
+Gated behind `FLASK_DEBUG` env var, bound to `127.0.0.1`.
 
 ### MEDIUM
 
@@ -250,17 +247,17 @@ Exists only in session handovers. No runbook for: tweet selection, verdict meani
 ## Action Sequence
 
 ### This Sprint
-1. Fix SQL injection `debug_single_account.py:230-265`
-2. Fix `debug=True` on `0.0.0.0` `api_server.py:147`
+1. ~~Fix SQL injection `debug_single_account.py:230-265`~~ ✅ DONE
+2. ~~Fix `debug=True` on `0.0.0.0` `api_server.py:147`~~ ✅ DONE
 3. Standardize community_id on UUID in `account_community_bits`
 
 ### This Month
-4. Add `logger.warning()` to 47 `except: pass`
-5. Replace 43 `str(exc)` in API responses
+4. ~~Add `logger.warning()` to critical `except: pass`~~ ✅ DONE (5 critical files fixed; ~30 low-risk with specific types remain)
+5. ~~Replace dangerous `str(exc)` in API responses~~ ✅ DONE (9 RuntimeError/FileNotFoundError fixed; 34 safe ValueError kept)
 6. Migrate 109 errors to `error_response()` helper
 7. Document `archive_tweets.db` schema
 8. Add confidence + band thresholds to TUNING_PARAMETERS.md
-9. Write independent mode tests
+9. ~~Write independent mode tests~~ ✅ DONE (8 tests in TestIndependentMode)
 
 ### Backlog
 10. Test top 5 untested pipeline scripts

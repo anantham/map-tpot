@@ -320,8 +320,8 @@ class SnapshotLoader:
                 if row.get("metadata"):
                     try:
                         edge_attrs["metadata"] = json.loads(row["metadata"])
-                    except:
-                        pass
+                    except (json.JSONDecodeError, TypeError) as exc:
+                        logger.warning("Malformed edge metadata for %s→%s: %s", row["source"], row["target"], exc)
 
                 edge_attrs = {k: v for k, v in edge_attrs.items() if v is not None}
                 directed.add_edge(row["source"], row["target"], **edge_attrs)

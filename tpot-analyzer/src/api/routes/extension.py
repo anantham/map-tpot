@@ -106,7 +106,8 @@ def ingest_feed_events():
     except PermissionError as exc:
         return jsonify({"error": str(exc)}), 401
     except RuntimeError as exc:
-        return jsonify({"error": str(exc)}), 503
+        logger.error("Feed event ingest service error: %s", exc)
+        return jsonify({"error": "Service temporarily unavailable"}), 503
 
     events = payload.get("events")
     if not isinstance(events, list):

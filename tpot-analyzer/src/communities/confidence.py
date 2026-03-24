@@ -13,13 +13,17 @@ Factors (weights sum to 1.0):
 Usage:
     from src.communities.confidence import compute_confidence, compute_all_confidences
     ci = compute_confidence(conn, account_id)
+
     # Returns: {"score": 0.72, "factors": {...}, "level": "bits_stable"}
 """
 from __future__ import annotations
 
+import logging
 import math
 import sqlite3
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 
 def _data_richness(conn: sqlite3.Connection, account_id: str) -> float:
@@ -69,8 +73,8 @@ def _data_richness(conn: sqlite3.Connection, account_id: str) -> float:
             score += 0.03
         elif engagement_edges > 0:
             score += 0.01
-    except Exception:
-        pass  # Table may not exist
+    except sqlite3.OperationalError as exc:
+        logger.warning("engagement table missing for confidence calc (account %s): %s", account_id, exc)
 
     return min(0.25, score)
 
