@@ -65,11 +65,10 @@ export default function About({ meta, onNavigate }) {
             <h2>The Illegibility Is the Point</h2>
 
             <p>
-              You can understand TPOT&rsquo;s language. You&rsquo;re in because you recognize it.
-              This isn&rsquo;t just a cute thing&mdash;it&rsquo;s an admission of how language shapes
-              your mind. The shared references, the nested irony, the specific way people hold ideas
-              here&mdash;it&rsquo;s a form of containment. People who know, know. People who don&rsquo;t,
-              can&rsquo;t participate until they do.
+              You understand TPOT&rsquo;s language. You&rsquo;re in because you recognize it.
+              The shared references, the nested irony, the way people hold ideas here&mdash;it&rsquo;s
+              a membrane. People who know, know. People who don&rsquo;t, can&rsquo;t
+              participate until they do.
             </p>
             <p>
               That illegibility protects the culture. But it has a cost: <strong>coordination is
@@ -82,53 +81,48 @@ export default function About({ meta, onNavigate }) {
 
             <p>
               &ldquo;Who&rsquo;s working on agent foundations?&rdquo; &ldquo;Where&rsquo;s dharma
-              Twitter?&rdquo; &ldquo;I want to learn about jhanas&mdash;who should I follow?&rdquo;
-              &ldquo;What about nutrition, Ayurveda, somatic therapy?&rdquo; &ldquo;What about
-              Kegan stages and adult development?&rdquo; &ldquo;What about farming, embodied living,
-              beautiful cartography?&rdquo; &ldquo;What about gender discourse, dating?&rdquo;
-              &ldquo;Who&rsquo;s in my city that&rsquo;s like me?&rdquo;
+              Twitter?&rdquo; &ldquo;Who should I follow for jhanas?&rdquo; &ldquo;What about
+              Ayurveda, somatic therapy, Kegan stages?&rdquo; &ldquo;What about farming, embodied
+              living, beautiful cartography?&rdquo; &ldquo;Who&rsquo;s in my city that&rsquo;s
+              like me?&rdquo;
             </p>
             <p>
-              I know the accounts. I know Richard Ngo is in agent foundations, I know repligate is in
-              cyborgism, I know specific people working at specific niche corners of AI safety, meditation,
-              and everything in between. But it&rsquo;s trapped in my head. It&rsquo;s not legible.
-              I can&rsquo;t scale it.
+              I know the answers. Richard Ngo is in agent foundations. @repligate is in cyborgism.
+              I know specific people at specific niche corners of AI safety, meditation, and
+              everything in between. But it&rsquo;s trapped in my head. Not legible.
+              Doesn&rsquo;t scale.
             </p>
             <p>
-              I&rsquo;m community building. I&rsquo;m field building. And there are people who need
-              this map to find each other&mdash;to collaborate, to build projects, to start communities
-              around shared interests.
+              People need this map to find each other&mdash;to collaborate, to build projects,
+              to start communities around shared interests.
             </p>
           </section>
 
           <section className="about-section">
-            <h2>Take Charge</h2>
+            <h2>Make the Structure Visible</h2>
             <p>
-              Rather than let Grok or an algorithm decide whose tweets you see in your feed, I want
-              to make the structure visible. This site is one version of the map. But it&rsquo;s
-              not <em>the</em> map.
+              Rather than let an algorithm decide whose tweets you see, this site makes the
+              community structure visible. It&rsquo;s one version of the map. Not <em>the</em> map.
             </p>
             <p>
-              The whole thing is open source. You can fork the repo, feed in your own follow data,
-              label tweets by your own aesthetics, carve out your own ontology of what this part of
-              Twitter is&mdash;and thereby discover others you can work with.
+              The whole thing is open source. Fork the repo, feed in your own follow data,
+              label tweets by your own aesthetics, carve out your own ontology&mdash;and
+              discover others you can work with.
             </p>
-            {/* placeholder for links to posts about levels, language, etc. */}
           </section>
 
           <section className="about-section about-origin">
             <h2>My Story</h2>
             <p>
               I followed around 2,000 people on Twitter. My feed was a firehose&mdash;brilliant
-              posts from people I cared about buried under noise from people I&rsquo;d followed
-              in a different season of my life. Lists were too manual; follow/unfollow felt like
-              a false dichotomy.
+              posts buried under noise from people I&rsquo;d followed in a different season
+              of my life. Lists were too manual. Follow/unfollow felt like a false dichotomy.
             </p>
             <p>
-              The real problem was that TPOT isn&rsquo;t one thing. It&rsquo;s{' '}
-              {numCommunities} overlapping subcultures with their own inside references,
-              aesthetic sensibilities, and epistemic norms. Some of those subcultures I&rsquo;m
-              deeply embedded in. Others I just orbit. I wanted to see the map.
+              The real problem: TPOT isn&rsquo;t one thing. It&rsquo;s{' '}
+              {numCommunities} overlapping subcultures, each with its own references, aesthetics,
+              and epistemic norms. Some I&rsquo;m deeply embedded in. Others I just orbit.
+              I wanted to see the map.
             </p>
             <p>
               This site is that map, made public so you can find your place in it too.
@@ -146,28 +140,25 @@ export default function About({ meta, onNavigate }) {
             <h2>There&rsquo;s a Loose Network on Twitter</h2>
 
             <p>
-              It&rsquo;s not a hashtag. It&rsquo;s not a list. It&rsquo;s not an organization.
-              It&rsquo;s a loose network of tens of thousands of accounts that share references,
-              aesthetic sensibilities, and ways of thinking. People call it TPOT&mdash;&ldquo;this
-              part of Twitter.&rdquo;
+              Not a hashtag. Not a list. Not an organization. It&rsquo;s tens of thousands
+              of accounts that share references, aesthetics, and ways of thinking. People
+              call it TPOT&mdash;&ldquo;this part of Twitter.&rdquo;
             </p>
             <p>
               You&rsquo;re &ldquo;in&rdquo; if you understand the language. That sounds circular,
-              and it is. The shared language&mdash;the nested irony, the philosophical shitposts,
-              the way people hold ideas loosely while caring deeply&mdash;is what defines the
-              boundary. It&rsquo;s hard to see from outside because it&rsquo;s not trying to
-              be seen.
+              and it is. The nested irony, the philosophical shitposts, the way people hold
+              ideas loosely while caring deeply&mdash;that&rsquo;s the boundary. It&rsquo;s
+              hard to see from outside because it&rsquo;s not trying to be seen.
             </p>
           </section>
 
           <section className="about-section">
-            <h2>It&rsquo;s Actually Many Communities</h2>
+            <h2>It&rsquo;s Actually {numCommunities} Communities</h2>
 
             <p>
-              Inside this network there are builders, contemplatives, poets, AI safety researchers,
-              identity experimentalists, institution designers, people doing embodiment work,
-              people exploring psychedelics, people building new forms of governance&mdash;overlapping
-              but distinct. Currently we&rsquo;ve mapped {numCommunities} subcommunities.
+              Builders, contemplatives, poets, AI safety researchers, identity experimentalists,
+              institution designers, embodiment practitioners, psychonauts, governance
+              designers&mdash;overlapping but distinct.
             </p>
             <p>
               This site maps those subcommunities. Search your handle and see where you land.
@@ -177,18 +168,17 @@ export default function About({ meta, onNavigate }) {
           </section>
 
           <section className="about-section">
-            <h2>How It Works (the Short Version)</h2>
+            <h2>How It Works (Short Version)</h2>
             <p>
-              We look at who follows whom. People who follow the same niche accounts tend to be
-              in the same subcommunity&mdash;following a meditation teacher tells us more than
-              following Elon Musk. An algorithm finds clusters of accounts with similar follow
-              patterns, then a human curator reviews and names each cluster.
+              We look at who follows whom. Following a meditation teacher tells us more than
+              following Elon Musk. An algorithm finds clusters of accounts with similar
+              follow patterns. A human curator reviews and names each cluster.
             </p>
             <p>
-              For accounts not in the core dataset, we infer community placement from their
-              position in the network&mdash;if most of your connections are Builders, you&rsquo;re
-              probably Builder-adjacent. These inferred placements get a grayscale card instead
-              of a colorful one, to signal lower confidence.
+              For accounts not in the core dataset, we infer placement from their position
+              in the network&mdash;if most of your connections are Builders, you&rsquo;re
+              probably Builder-adjacent. Inferred placements get a grayscale card instead
+              of a colorful one, signaling lower confidence.
             </p>
           </section>
         </>
