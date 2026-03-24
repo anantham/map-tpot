@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-03-08
+Last reviewed: 2026-03-23
 
 ## Start Here
 
@@ -13,6 +13,15 @@ Last reviewed: 2026-03-08
 | [Playbook](PLAYBOOK.md) | End-to-end daily workflow (backend, frontend, verification) |
 | [Worklog](WORKLOG.md) | Timestamped implementation history and rationale |
 | [Roadmap](ROADMAP.md) | Living backlog and future work |
+
+## Community Mapping & Labeling
+
+| Document | Scope |
+|----------|-------|
+| [Labeling Model Spec](LABELING_MODEL_SPEC.md) | Operational guide for tweet tagging — dimensions, bits scale, community exemplars, ontology evolution |
+| [Account Labeling Runbook](ACCOUNT_LABELING_RUNBOOK.md) | Step-by-step labeling workflow per account |
+| [Twitter API Endpoints](TWITTERAPI_ENDPOINTS.md) | twitterapi.io endpoint map — tested endpoints, response structures, cost estimates |
+| [Data Inventory](DATA_INVENTORY.md) | What data we have — archive, signals, engagement, holdout |
 
 ## Canonical Operational Docs
 
@@ -50,16 +59,38 @@ Last reviewed: 2026-03-08
 |------|----------|
 | ADRs | [docs/adr/](adr/) |
 | Technical specs | [docs/specs/](specs/) |
+| Design specs | [docs/superpowers/specs/](superpowers/specs/) |
+| Implementation plans | [docs/superpowers/plans/](superpowers/plans/) |
 | Diagnostics | [docs/diagnostics/](diagnostics/) |
 
-Latest architecture decision:
-- [ADR 013: Probabilistic Cluster Color Contract and Uncertainty Rendering](adr/013-probabilistic-cluster-color-contract.md) (Accepted, 2026-03-06)
-- [ADR 011: Content-Aware Fingerprinting and Community Visualization](adr/011-content-aware-fingerprinting-and-community-visualization.md) (Proposed, 2026-02-25)
+### Design Specs (superpowers)
+
+| Spec | Date | Status |
+|------|------|--------|
+| [Active Learning Loop](superpowers/specs/2026-03-23-active-learning-loop-design.md) | 2026-03-23 | In progress — pipeline built, first 5 accounts labeled |
+| [Prior Improvement Roadmap](superpowers/specs/2026-03-22-prior-improvement-roadmap-design.md) | 2026-03-22 | Tier A+B complete, Tier C in progress |
+| [Community Detail Pages](superpowers/specs/2026-03-21-community-detail-pages-design.md) | 2026-03-21 | Shipped |
+| [JIT Collectible Cards](superpowers/specs/2026-03-19-jit-collectible-cards-design.md) | 2026-03-19 | Shipped |
+| [Find My Ingroup](superpowers/specs/2026-03-19-find-my-ingroup-design.md) | 2026-03-19 | Shipped — amiingroup.vercel.app |
+
+### ADRs
+
+- [ADR 013: Probabilistic Cluster Color Contract](adr/013-probabilistic-cluster-color-contract.md) (Accepted, 2026-03-06)
+- [ADR 011: Content-Aware Fingerprinting](adr/011-content-aware-fingerprinting-and-community-visualization.md) (Proposed, 2026-02-25)
 - [ADR 010: Labeling Dashboard and LLM Eval Harness](adr/010-labeling-dashboard-and-llm-eval-harness.md) (Proposed, 2026-02-25)
-- [ADR 009: Golden Curation Schema and MVP A Active-Learning Loop](adr/009-golden-curation-schema-and-active-learning-loop.md) (Proposed, 2026-02-25)
-- [ADR 008: Tweet-Level LLM Classification as Account Fingerprinting Foundation](adr/008-tweet-classification-account-fingerprinting.md) (Proposed, 2026-02-25)
-- [ADR 007: Observation-Aware Clustering and Membership Inference](adr/007-observation-aware-clustering-membership.md) (Proposed, 2026-02-17)
-- [ADR 006: Shared Tagging and Anchor-Conditioned TPOT Membership](adr/006-shared-tagging-and-tpot-membership.md) (Proposed, 2026-02-10)
+- [ADR 009: Golden Curation Schema](adr/009-golden-curation-schema-and-active-learning-loop.md) (Proposed, 2026-02-25)
+- [ADR 008: Tweet-Level LLM Classification](adr/008-tweet-classification-account-fingerprinting.md) (Proposed, 2026-02-25)
+- [ADR 007: Observation-Aware Clustering](adr/007-observation-aware-clustering-membership.md) (Proposed, 2026-02-17)
+- [ADR 006: Shared Tagging and TPOT Membership](adr/006-shared-tagging-and-tpot-membership.md) (Proposed, 2026-02-10)
+
+### Handover & Session Context
+
+| Document | Notes |
+|----------|-------|
+| [Session 8 Handover](HANDOVER_SESSION8.md) | Comprehensive state — 18+ commits, Tier A+B, propagation fix |
+| [Session 8 Ideas Inventory](SESSION8_IDEAS_INVENTORY.md) | 70+ ideas captured during session 8 |
+| [Iconography System](TPOT_TAROT_ICONOGRAPHY_v2.md) | Community tarot/symbol system for card generation |
+| [Vision](VISION.md) | Product vision and distribution model |
 
 ## Testing and QA Docs
 
