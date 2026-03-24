@@ -542,7 +542,9 @@ def main():
         logger.error("Database not found: %s", args.db_path)
         sys.exit(1)
 
-    conn = sqlite3.connect(str(args.db_path))
+    conn = sqlite3.connect(str(args.db_path), timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     create_tables(conn)
 
     if args.measure:

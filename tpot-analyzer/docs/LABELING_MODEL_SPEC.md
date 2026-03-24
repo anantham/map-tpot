@@ -130,20 +130,23 @@ This document tells a future labeling agent exactly what each dimension means, h
 The rule: **If someone is IN the discourse — arguing, questioning, riffing, even mocking — they are part of the community.** Sustained engagement from any angle = positive bits. Only a one-off dismissal from outside the discourse (no insider vocabulary, no follow-up, no sustained interest) = negative bits. Communities are defined by shared attention, not shared agreement.
 
 **Community names for bits** (use exactly these — these match `community.short_name` in DB):
-- `LLM-Whisperers`
-- `Qualia-Research`
+- `AI-Creativity`
 - `AI-Safety`
-- `Contemplative-Practitioners`
-- `Emergence-Self-Transformation`
-- `highbies`
-- `Quiet-Creatives`
-- `Builders`
 - `Collective-Intelligence`
-- `Feline-Poetics`
+- `Contemplative-Practitioners`
+- `Core-TPOT`
+- `Internet-Intellectuals`
+- `LLM-Whisperers`
 - `NYC-Institution-Builders`
+- `Qualia-Research`
 - `Queer-TPOT`
+- `Quiet-Creatives`
 - `Relational-Explorers`
-- `Ethereum-Builders`
+- `Tech-Intellectuals`
+- `TfT-Coordination`
+- `highbies`
+
+*Updated 2026-03-23 — was 14 stale names (Builders, Feline-Poetics, Ethereum-Builders, Emergence-Self-Transformation), now 15 current DB names. If communities change, re-query: `SELECT short_name FROM community ORDER BY short_name`.*
 
 New community signals don't get bits — they get `new-community-signal:Name` tags instead.
 

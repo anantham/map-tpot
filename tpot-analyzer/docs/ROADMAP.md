@@ -3,6 +3,75 @@
 Living backlog of follow-on work items. Update this document as new ideas,
 coverage gaps, or UX improvements surface.
 
+*Last updated: 2026-03-23*
+
+---
+
+## What's Shipped (Sessions 7-9, 2026-03-21 to 2026-03-23)
+
+These items were built but not tracked in the original Phase 4-8 roadmap below. They leapfrogged parts of the original plan.
+
+### Community System
+- [x] 15 named communities (k=16 NMF with likes), all with descriptions + iconography
+- [x] 75 community aliases in `community_alias` table
+- [x] Community short_names for labeling: `SELECT short_name FROM community`
+
+### Label Propagation + Bands
+- [x] Harmonic label propagation on 189K-node archive follow graph (`propagate_community_labels.py`)
+- [x] Four-band classification: exemplar / specialist / bridge / frontier / unknown (`classify_bands.py`)
+- [x] Frontier ranking by information value for enrichment prioritization (`rank_frontier.py`)
+- [x] Seed eligibility with concentration-based weighting
+
+### Labeling System
+- [x] Per-tweet labeling ontology: domain, thematic, posture, bits, simulacrum, new-community signals
+- [x] Labeling model spec: `docs/LABELING_MODEL_SPEC.md` — 15 community profiles, exemplar tweets
+- [x] 20 accounts labeled with bits (213+ total bits across 51 tweets for @repligate alone)
+- [x] Bits rollup: `rollup_bits.py` with simulacrum weighting option
+
+### Active Learning Pipeline (2026-03-23)
+- [x] Active learning spec + plan: `docs/superpowers/specs/2026-03-23-active-learning-loop-design.md`
+- [x] Tweet fetcher via twitterapi.io with budget tracking + dedup guard
+- [x] 3-model LLM ensemble labeler (Grok + DeepSeek + Gemini) via OpenRouter
+- [x] Context assembly: graph signal, engagement context, community descriptions
+- [x] Rollup modification: UNION enriched_tweets, scoped DELETE, informativeness discount
+- [x] Seed insertion with concentration discount (0.5 for LLM seeds vs 1.0 for NMF)
+- [x] Orchestrator with CLI, budget hard stop, holdout guard, model agreement logging
+- [x] Verification script: `scripts/verify_active_learning.py`
+- [x] 85 tests across 7 test files, all passing
+- [x] First experiment: 5 accounts enriched + labeled ($0.25 spent), @Teknium correctly classified
+
+### Signal Framework
+- [x] Mention graph: 8.5M edges from Supabase user_mentions
+- [x] Quote graph: from Supabase quote_tweets (keyset pagination + resume)
+- [x] Signed replies: 17,362 pairs (R1-R2 heuristics)
+- [x] Co-followed similarity: 16,701 pairs
+- [x] Content topics: 25 topics via TF-IDF + NMF on 17.5M liked tweets
+
+### Public Site
+- [x] amiingroup.vercel.app — deployed, 8,429 searchable accounts
+- [x] Export: four-band system, community descriptions, iconography
+- [x] Community detail pages with spotlights + all-members sidebar
+- [x] Card generation with community iconography
+- [x] Gallery, share-to-X, card regeneration
+
+### Holdout / Cross-Validation
+- [x] 389 holdout accounts in `tpot_directory_holdout`
+- [x] 122 testable (in graph, not seed) — baseline recall: 1.6% (2/122)
+- [x] Holdout recall verification script: `scripts/verify_holdout_recall.py`
+
+### What's Next
+- [ ] Full active learning Round 1 (50 accounts, $2.50)
+- [ ] Round 2: deepen ambiguous accounts via advanced_search
+- [ ] Label @mykola from archive (109K tweets, NMF says Essayists but graph says Quiet Creatives + Jhana)
+- [ ] Label @earthlypath, @YeshodharaB via API fetch
+- [ ] Investigate Regen absorption (68x ratio — bridge into non-TPOT metacrisis ecosystem)
+- [ ] Re-export + deploy updated public site
+- [ ] TF-IDF precompute for similar archive tweet context in labeling
+- [ ] Roadmap restructure (Phases 4-8 below are partially stale)
+- [ ] Send CA team message (bookmarks, lists, feed JSONL)
+
+---
+
 ## Testing Coverage
 
 - Expand Selenium worker coverage to browser lifecycle + scrolling workflows once
