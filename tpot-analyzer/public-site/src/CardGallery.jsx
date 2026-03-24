@@ -56,12 +56,21 @@ export default function CardGallery({ onMemberClick, onBack }) {
       setLoading(false)
     }
 
-    // Then fetch server gallery (may have more cards)
+    // Then fetch server gallery and merge with local (local wins for freshness)
     fetch('/api/gallery')
       .then(r => r.json())
       .then(data => {
         if (data.cards && data.cards.length > 0) {
-          setCards(data.cards)
+          // Merge: local cards + server cards, dedup by handle, prefer local (fresher)
+          const localCards = getAllCachedCards()
+          const localMap = new Map(localCards.map(c => [c.handle, c]))
+          for (const sc of data.cards) {
+            if (!localMap.has(sc.handle)) {
+              localMap.set(sc.handle, sc)
+            }
+          }
+          const merged = [...localMap.values()].sort((a, b) => (b.cachedAt || b.generatedAt || 0) - (a.cachedAt || a.generatedAt || 0))
+          setCards(merged)
         }
       })
       .catch(() => {})
@@ -73,7 +82,7 @@ export default function CardGallery({ onMemberClick, onBack }) {
   return (
     <div className="gallery">
       <div className="gallery-back">
-        <a href="/" onClick={(e) => { e.preventDefault(); onBack() }}>←</a>
+        <a href="/" onClick={(e) => { e.preventDefault(); onBack() }}>← Back</a>
       </div>
 
       <h1 className="gallery-title">Card Gallery</h1>

@@ -109,7 +109,7 @@ export default function CommunityPage({
   return (
     <div className="community-page">
       <div className="cp-back">
-        <a href="/" onClick={(e) => { e.preventDefault(); onBack() }}>←</a>
+        <a href="/" onClick={(e) => { e.preventDefault(); onBack() }}>← Back</a>
       </div>
 
       <div className="cp-hero" style={{ borderBottomColor: color }}>

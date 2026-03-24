@@ -242,7 +242,7 @@ export default function App() {
     <div className={showCommunity ? "app app-wide" : "app"}>
       <div className="app-header">
         {showResult && (
-          <a className="app-back" href="/" onClick={(e) => { e.preventDefault(); handleSearchAgain() }}>←</a>
+          <a className="app-back" href="/" onClick={(e) => { e.preventDefault(); handleSearchAgain() }}>← Back</a>
         )}
         <div className="app-header-spacer" />
         <SettingsIcon onClick={() => setSettingsOpen(true)} />
