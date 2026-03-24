@@ -348,8 +348,11 @@ def write_rollup(
 ) -> int:
     """Write rollup to account_community_bits table.
 
-    Deletes all existing rows and inserts computed ones.
-    When simulacrum_weighted=True, also writes the weighted_bits column.
+    WARNING: This does a GLOBAL DELETE of account_community_bits before inserting.
+    Only use this for full rebuilds from the CLI (rollup_bits.py --run).
+    For scoped updates (e.g., active learning --measure), use scoped_delete_bits()
+    + manual INSERT instead.
+
     Returns the number of rows written (or that would be written in dry-run).
     """
     now = datetime.now(timezone.utc).isoformat()
