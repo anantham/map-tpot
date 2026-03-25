@@ -1,72 +1,59 @@
-# Handover: 2026-03-24 (Session 10 Final — Edge Enrichment + Independent Propagation + NMF v2 + Deploy)
+# Handover: 2026-03-25 (Session 11 — Seed Fix + Profiles + Bio Embeddings + Labeling)
 
 ## Session Summary
-Massive session across 10a/10b/10c: graph grew 85% (441K → 815K edges, 297K nodes). Found and fixed critical API bug (`followings` key). Built resumable edge fetcher. Shifted propagation from zero-sum to independent mode (17,634 searchable accounts, 1,974 bridges). Chrome-audited 28 accounts (57 tweets). NMF v2 validated ontology (11/16 strong match). Round 1 active learning: 26/50 accounts, $2.55. About page dejargoned + honest recall. Tech debt scan (14 items).
+Fixed seed-neighbor counting (raw weights, not class-balanced). Fetched profiles for 8,532 core members ($1.54) — bio, location, follower counts. Embedded 15,182 bios (all-MiniLM-L6-v2, 384-dim). Labeled 5 accounts (ilex_ulmus, eenthymeme, dissproportion + AaronBergman18 enriched, bayeslord empty). Rewrote About page Path C in essay voice. Updated Vancouver outreach doc with 23 new leads. Deep brainstorm on noise filtering — reciprocity is the cleanest signal but requires API calls. 355 seeds now.
 
 ## Resume Instructions
-1. **Seed-neighbor fix**: ~~DONE~~ (session 11) — uses raw `community_account.weight` instead of class-balanced boundary
-2. **Re-propagate + re-export + deploy**: now that seed-neighbor fix is in, re-run propagation and export
-3. **About page voice rewrite**: Path C needs Scott Alexander style. See `memory/feedback_about_page_voice.md`
-4. **Round 1 remaining 24 accounts**: `--round 1 --top 24 --budget 2.50`
-5. **Label 6 accounts**: `--accounts AaronBergman18,ilex_ulmus,eenthymeme,dissproportion,bayeslord,AlexKrusz`
-6. **Continue Tier 2 edge fetch**: `scripts/fetch_edges_resumable.py --continue-incomplete --max-pages 15`
-7. **NMF v2 promotion decision**: needs formal factor alignment score, then human review of 3 shifted communities
+1. **Deploy** — export is ready (17,634 accounts), waiting on KV storage fix (other agent handling)
+2. **After deploy** — re-export once more (propagation with 355 seeds running at session end)
+3. **Reciprocity spot-check** — `check_follow` endpoint for top 500 accounts, ~5K API calls
+4. **NMF v2 alignment + promotion** — formal factor alignment score, human review of 3 shifted communities
+5. **Round 1 remaining** — @bayeslord had no tweets, 24+ accounts still in the Round 1 queue
+6. **Label remaining** — @AlexKrusz (holdout, skip), @bayeslord (empty)
 
 ## Key Context
 
-### API Bug (CRITICAL for future work)
-twitterapi.io `user/followings` returns `{"followings": [...]}` NOT `{"data": [...]}`. Schema Guesser anti-pattern added to CLAUDE.md.
+### Data State
+- **799,521 follow edges**, 297,402 nodes
+- **355 seeds** (317 NMF + 38 LLM ensemble) across 16 communities
+- **50 accounts** with bits rollup (tweet-level evidence)
+- **9,364 profiles** in `user_profile_cache` (8,913 with bio, 6,693 with location)
+- **331 user_about** profiles with verified locations
+- **15,182 bio embeddings** in `bio_embeddings` table (384-dim, all-MiniLM-L6-v2)
+- **17,634 accounts** in latest export (338 exemplar, 4,831 specialist, 1,974 bridge, 1,097 frontier, 9,394 faint)
 
-### Graph State (final)
-- **815,363 edges** (was 441K at session start, +85%)
-- **297,402 nodes** (was 201K, +47%)
-- **352 seeds** (338 NMF + 14 Round 1)
-- `edge_fetch_state` table tracks cursor per account for resume
-- 5 protected accounts: @tracewoodgrains, @lioninawhat, @teleosistem, @grantadever, @HamishDoodles
-- 3 deleted/renamed: @sashachapin, @chairsign, @prerationalist
+### Noise Analysis (Session 11 Key Finding)
+No graph-internal signal cleanly separates "famous tech accounts" from "TPOT members." Tried:
+- Concentration (seed_neighbors / inbound): fooled by low-degree nodes
+- Spread (entropy of seed-neighbor vector): TPOT communities overlap too much, everything is high-spread
+- Score × neighbors composite: Elon (0.35) overlaps with TPOT P25 (0.27)
 
-### Independent Propagation (deployed)
-- `--mode independent`: each community propagated separately, scores don't sum to 1
-- 17,634 accounts exported (t=0.02, seed_neighbors >= 1)
-- 1,974 bridges detected (was 0 in classic mode)
-- Seed-neighbor counting fix: now uses raw `community_account.weight` directly (not class-balanced boundary)
-- NPZ saves `seed_neighbor_counts` + `mode` for downstream use
+**Reciprocity is the answer:** `mutual_seeds / inbound_seeds`. Famous < 0.06, TPOT > 0.17. Clean 3x gap. But requires knowing who accounts follow (only 14% of placed accounts have outbound data). `check_follow` API endpoint can spot-check ~10 seeds per account.
 
-### NMF v2 Validation
-- Re-ran NMF (k=16, with likes) on 800K-edge graph
-- 11/16 communities strongly match v1, 3 partial (Core TPOT narrowed, Sensemaking split, Essayists merged)
-- Saved as branch `nmf-k16-follow+rt+like-lw0.4-20260324-6f6f95` — NOT promoted to primary yet
-- See `docs/NMF_V2_VALIDATION.md`
+**Decision:** Accept famous accounts as "adjacent/faint" — TPOT IS tech-adjacent. Use celebrity concentration filter (from commit f9727e4) for accounts with > 100K followers. Frontend UX fix (hide faint from community pages by default) is better than data-level filtering.
 
-### Export Pipeline
-- `_extract_bits_accounts` resolves short_name → UUID
-- CI formula: independent mode uses `weight × neighbor_factor`
-- `min_weight=0.02` in `config/public_site.json`
-- 338 exemplars, 4,831 specialists, 1,974 bridges, 1,097 frontier
+### Bio Embeddings (Experiment Results)
+- **Partial separation:** TfT-Coordination, LLM-Whisperers, AI-Safety most distinct by bio content
+- **Near-identical:** Core-TPOT ↔ Internet-Intellectuals (0.86 cosine) — bios sound the same
+- **Intra-community coherence:** 0.38-0.53 (moderate clustering)
+- **Verdict:** Useful as secondary signal for cold-start accounts. Not a replacement for graph structure.
 
-### Key Numbers
-| Metric | Session start | Session end |
-|--------|-------------|-------------|
-| Graph edges | 441,226 | 815,363 |
-| Graph nodes | 201,723 | 297,402 |
-| Searchable accounts | 13,360 | 17,634 |
-| Bridges | 1,362 | 1,974 |
-| Seeds | 338 | 352 |
+### New DB Tables
+- `user_profile_cache`: followers, following, bio, location, raw_json (from batch_info_by_ids)
+- `user_about_cache`: account_based_in, affiliate_label, username_changes (from user_about)
+- `bio_embeddings`: 384-dim sentence-transformer vectors per account
 
-### DB Tables Created This Session
-- `chrome_audit_log`: 57 tweet-level audit records
-- `chrome_audit_findings`: 5 systemic findings
-- `quality_candidates`: 256 accounts ranked by TPOT-following concentration
-- `edge_fetch_state`: cursor persistence for resumable edge fetching
-- `protected_accounts`: 5 protected + 3 deleted/renamed
-- `None` community row in `community` table
+### Commits This Session (6)
+- `ab859bd` fix(propagation): raw weights for seed-neighbor counting
+- `bec6b64` docs(about): Path C rewrite in essay voice
+- `8eedd9c` docs: HANDOVER + API endpoint docs updated
+- `d6bb27d` docs: Schema Guesser anti-pattern + README rewrite
+- `f735430` docs(vancouver): 23 new leads + 7 stale locations corrected
 
-### Documentation Created
-- `docs/SESSION10_IDEAS_INVENTORY.md` — 45 shipped, 6 designed, 4 blocked, 9 deferred
-- `docs/HOLDOUT_SOURCES.md` — 4 ground truth sources
-- `docs/PROPAGATION_ANALYSIS.md` — independent mode analysis
-- `docs/NMF_V2_VALIDATION.md` — v2 factor alignment
-- `docs/TECH_DEBT_SCAN_2026-03-24.md` — 14 tech debt items
+### Running / Pending
+- **Propagation with 355 seeds** — running at session end (~15 min)
+- **KV storage fix** — other agent migrating to Vercel Blob or purging gallery
+- **@bayeslord** — no tweets available from API, may need Chrome or archive
 
 ---
-*Handover updated by Claude Opus 4.6 (session 11)*
+*Handover by Claude Opus 4.6 (session 11, ~45% context)*
