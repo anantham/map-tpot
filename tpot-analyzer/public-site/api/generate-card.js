@@ -62,6 +62,12 @@ try {
   // Redis unavailable — graceful degradation (no cache, no budget enforcement)
 }
 
+let blobPut = null;
+try {
+  const { put } = require("@vercel/blob");
+  blobPut = put;
+} catch {}
+
 const MODEL = "google/gemini-2.5-flash-image";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const ABORT_TIMEOUT_MS = 8000; // 8s abort (Vercel Hobby ceiling = 10s)
@@ -204,27 +210,48 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // --- 8. Track cost & cache result ---
+    // --- 8. Upload to Blob storage + track cost ---
     const completionTokens = data.usage?.completion_tokens || 0;
     const costUsd = completionTokens * (30 / 1_000_000); // $30/1M tokens
 
+    // Upload image to Vercel Blob for a permanent CDN URL.
+    // Falls back to storing the raw data URI if Blob is unavailable.
+    let permanentUrl = imageUrl;
+    if (blobPut && imageUrl.startsWith("data:image/")) {
+      try {
+        const match = imageUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
+        if (match) {
+          const mimeType = match[1] === "jpg" ? "jpeg" : match[1];
+          const buffer = Buffer.from(match[2], "base64");
+          const blob = await blobPut(
+            `cards/${handle.toLowerCase()}-${Date.now()}.${mimeType === "jpeg" ? "jpg" : mimeType}`,
+            buffer,
+            { access: "public", contentType: `image/${mimeType}` },
+          );
+          permanentUrl = blob.url;
+          console.log("[generate-card] Uploaded to Blob:", permanentUrl, `(${(buffer.length / 1024).toFixed(0)}KB)`);
+        }
+      } catch (blobErr) {
+        console.warn("[generate-card] Blob upload failed, using data URI:", blobErr.message);
+      }
+    }
+
     if (kv) {
       try {
-        // Cache latest image URL for 24h
-        await kv.set(cacheKey, imageUrl, { ex: 86400 });
-        // Persist to permanent gallery — append to version history
+        // Cache latest permanent URL for 24h
+        await kv.set(cacheKey, permanentUrl, { ex: 86400 });
+        // Persist to permanent gallery — URL only (not the image data)
         const galleryKey = handle.toLowerCase();
         let versions = [];
         try {
           const existing = await kv.hget("gallery", galleryKey);
           if (existing) {
             const parsed = JSON.parse(existing);
-            // Migrate from old format (single entry) to array
             versions = Array.isArray(parsed) ? parsed : [parsed];
           }
         } catch {}
         versions.push({
-          url: imageUrl,
+          url: permanentUrl,
           generatedAt: Date.now(),
           communities: communities.slice(0, 5).map(c => ({
             name: c.name, color: c.color, weight: c.weight,
@@ -244,7 +271,7 @@ module.exports = async function handler(req, res) {
 
     // --- 9. Return result ---
     return res.status(200).json({
-      imageUrl,
+      imageUrl: permanentUrl,
       cached: false,
       model: MODEL,
     });

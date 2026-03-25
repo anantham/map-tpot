@@ -9,6 +9,12 @@
  * Returns: 200 OK | 400 validation error
  */
 
+let blobPut = null;
+try {
+  const { put } = require("@vercel/blob");
+  blobPut = put;
+} catch {}
+
 let kv = null;
 try {
   const Redis = require("ioredis");
@@ -48,6 +54,26 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    // Upload base64 images to Blob for permanent CDN URL
+    let permanentUrl = imageUrl;
+    if (blobPut && imageUrl.startsWith("data:image/")) {
+      try {
+        const match = imageUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
+        if (match) {
+          const mimeType = match[1] === "jpg" ? "jpeg" : match[1];
+          const buffer = Buffer.from(match[2], "base64");
+          const blob = await blobPut(
+            `cards/${handle.toLowerCase()}-${Date.now()}.${mimeType === "jpeg" ? "jpg" : mimeType}`,
+            buffer,
+            { access: "public", contentType: `image/${mimeType}` },
+          );
+          permanentUrl = blob.url;
+        }
+      } catch (blobErr) {
+        console.warn("[gallery-submit] Blob upload failed, using original URL:", blobErr.message);
+      }
+    }
+
     const galleryKey = handle.toLowerCase();
     let versions = [];
     try {
@@ -58,7 +84,7 @@ module.exports = async function handler(req, res) {
       }
     } catch {}
     versions.push({
-      url: imageUrl,
+      url: permanentUrl,
       generatedAt: Date.now(),
       communities: (communities || []).slice(0, 5).map(c => ({
         name: c.name, color: c.color, weight: c.weight,

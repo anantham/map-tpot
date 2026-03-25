@@ -47,14 +47,31 @@ module.exports = async function handler(req, res) {
       return res.status(404).json({ error: "No card generated for this handle" });
     }
 
-    const entry = JSON.parse(raw);
-    const imageUrl = entry.url;
+    // Parse gallery entry — supports both old format and versioned array
+    let imageUrl;
+    try {
+      const entry = JSON.parse(raw);
+      if (Array.isArray(entry)) {
+        imageUrl = entry[entry.length - 1]?.url;
+      } else {
+        imageUrl = entry.url || entry;
+      }
+    } catch {
+      // Raw string (legacy: bare URL or data URI)
+      imageUrl = raw;
+    }
 
     if (!imageUrl) {
       return res.status(404).json({ error: "No image URL" });
     }
 
-    // Base64 data URI → decode and serve as image
+    // Blob URL or external URL → redirect (fast path, no decoding)
+    if (imageUrl.startsWith("https://")) {
+      res.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
+      return res.redirect(302, imageUrl);
+    }
+
+    // Legacy: Base64 data URI → decode and serve as image
     if (imageUrl.startsWith("data:image/")) {
       const match = imageUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
       if (!match) {
@@ -68,9 +85,8 @@ module.exports = async function handler(req, res) {
       return res.status(200).send(buffer);
     }
 
-    // External URL → redirect
-    res.setHeader("Cache-Control", "public, s-maxage=86400");
-    return res.redirect(302, imageUrl);
+    // Unknown format
+    return res.status(500).json({ error: "Unrecognized image format" });
   } catch (err) {
     console.error("[card-image] Error:", err.message);
     return res.status(500).json({ error: "Internal error" });
