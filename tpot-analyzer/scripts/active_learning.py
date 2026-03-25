@@ -458,6 +458,11 @@ def _label_single_tweet(
         mentions=tweet.get("mentions_json", "[]"),
     )
 
+    # Resolve mention communities and RT source for richer context
+    from scripts.assemble_context import resolve_mention_communities, get_rt_source_community
+    mention_communities = resolve_mention_communities(conn, tweet.get("mentions_json", "[]"))
+    rt_source = get_rt_source_community(tweet_text, conn)
+
     prompt_text = build_prompt(
         username=account_ctx["username"],
         bio=account_ctx.get("bio", ""),
@@ -470,6 +475,9 @@ def _label_single_tweet(
         community_descriptions=account_ctx["community_descriptions"],
         community_short_names=account_ctx["community_short_names"],
         content_profile=account_ctx.get("content_profile", ""),
+        engagement_partners=account_ctx.get("engagement_partners", ""),
+        mention_communities=mention_communities,
+        rt_source=rt_source,
     )
 
     # Split prompt into system + user at the --- delimiter

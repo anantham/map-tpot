@@ -175,6 +175,166 @@ def get_content_profile(conn: sqlite3.Connection, account_id: str, top_n: int = 
     return "Content interests (from liked tweets): " + ", ".join(parts)
 
 
+def get_rich_bio(conn: sqlite3.Connection, account_id: str, fallback_bio: str = "") -> str:
+    """
+    Get the best available bio for an account.
+
+    Priority: user_profile_cache (freshest API fetch) > profiles > resolved_accounts > fallback.
+    """
+    try:
+        row = conn.execute(
+            "SELECT description FROM user_profile_cache WHERE account_id = ?", (account_id,)
+        ).fetchone()
+        if row and row[0]:
+            return row[0]
+    except sqlite3.OperationalError:
+        pass  # Table doesn't exist
+    try:
+        row = conn.execute(
+            "SELECT bio FROM profiles WHERE account_id = ? AND bio IS NOT NULL AND bio != ''",
+            (account_id,),
+        ).fetchone()
+        if row and row[0]:
+            return row[0]
+    except sqlite3.OperationalError:
+        pass
+    return fallback_bio
+
+
+def get_engagement_partners(conn: sqlite3.Connection, account_id: str, top_n: int = 8) -> str:
+    """
+    Who does this account engage with most (likes, RTs, replies)?
+
+    Uses account_engagement_agg to find top engagement targets,
+    resolves them to community membership. This reveals sub-community
+    affinity better than follow patterns.
+
+    Returns formatted string like:
+        "Top engagement: @davidad (AI-Safety, 45 likes), @NunoSempere (AI-Safety, 32 likes)"
+    """
+    try:
+        rows = conn.execute("""
+            SELECT aeg.target_id, aeg.like_count, aeg.rt_count,
+                   COALESCE(ra.username, p.username) as target_username
+            FROM account_engagement_agg aeg
+            LEFT JOIN resolved_accounts ra ON ra.account_id = aeg.target_id
+            LEFT JOIN profiles p ON p.account_id = aeg.target_id
+            WHERE aeg.source_id = ?
+            ORDER BY (aeg.like_count + aeg.rt_count * 2) DESC
+            LIMIT ?
+        """, (account_id, top_n)).fetchall()
+    except Exception:
+        return ""
+
+    if not rows:
+        return ""
+
+    parts = []
+    for target_id, likes, rts, uname in rows:
+        if not uname:
+            continue
+        # Look up community membership
+        comm = conn.execute("""
+            SELECT c.short_name FROM community_account ca
+            JOIN community c ON c.id = ca.community_id
+            WHERE ca.account_id = ? ORDER BY ca.weight DESC LIMIT 1
+        """, (target_id,)).fetchone()
+        comm_str = f" ({comm[0]})" if comm else ""
+        engagement_str = f"{likes}L" + (f"+{rts}RT" if rts else "")
+        parts.append(f"@{uname}{comm_str} {engagement_str}")
+
+    if not parts:
+        return ""
+    return "Top engagement targets: " + ", ".join(parts)
+
+
+def resolve_mention_communities(conn: sqlite3.Connection, mentions_json: str) -> str:
+    """
+    For @mentions in a tweet, resolve which communities the mentioned accounts belong to.
+
+    Returns formatted string like:
+        "Mentions: @ChrisOlah (AI-Safety/mech-interp), @davidad (AI-Safety)"
+    """
+    if not mentions_json or mentions_json == "[]":
+        return ""
+
+    import json
+    try:
+        handles = json.loads(mentions_json)
+    except (json.JSONDecodeError, TypeError):
+        return ""
+
+    if not handles:
+        return ""
+
+    parts = []
+    for handle in handles[:5]:  # limit to 5 mentions
+        row = conn.execute(
+            "SELECT account_id FROM resolved_accounts WHERE lower(username) = lower(?)",
+            (handle,),
+        ).fetchone()
+        if not row:
+            row = conn.execute(
+                "SELECT account_id FROM profiles WHERE lower(username) = lower(?)",
+                (handle,),
+            ).fetchone()
+        if not row:
+            parts.append(f"@{handle}")
+            continue
+
+        comm = conn.execute("""
+            SELECT c.short_name FROM community_account ca
+            JOIN community c ON c.id = ca.community_id
+            WHERE ca.account_id = ? ORDER BY ca.weight DESC LIMIT 1
+        """, (row[0],)).fetchone()
+
+        if comm:
+            parts.append(f"@{handle} ({comm[0]})")
+        else:
+            parts.append(f"@{handle}")
+
+    return "Mentions: " + ", ".join(parts)
+
+
+def get_rt_source_community(tweet_text: str, conn: sqlite3.Connection) -> str:
+    """
+    For retweets, extract the original author and their community membership.
+
+    Returns formatted string like:
+        "RT source: @robbensinger (AI-Safety)"
+    """
+    import re
+    if not tweet_text.strip().startswith("RT @"):
+        return ""
+
+    match = re.match(r"RT @(\w+):", tweet_text)
+    if not match:
+        return ""
+
+    handle = match.group(1)
+    row = conn.execute(
+        "SELECT account_id FROM resolved_accounts WHERE lower(username) = lower(?)",
+        (handle,),
+    ).fetchone()
+    if not row:
+        row = conn.execute(
+            "SELECT account_id FROM profiles WHERE lower(username) = lower(?)",
+            (handle,),
+        ).fetchone()
+    if not row:
+        return f"RT source: @{handle} (unknown)"
+
+    comm = conn.execute("""
+        SELECT c.short_name FROM community_account ca
+        JOIN community c ON c.id = ca.community_id
+        WHERE ca.account_id = ? ORDER BY ca.weight DESC LIMIT 1
+    """, (row[0],)).fetchone()
+
+    if comm:
+        return f"RT source: @{handle} ({comm[0]})"
+    return f"RT source: @{handle} (not classified)"
+
+
 def assemble_account_context(
     conn: sqlite3.Connection,
     account_id: str,
@@ -185,27 +345,33 @@ def assemble_account_context(
     Assemble account-level context for the LLM labeling prompt.
 
     Combines:
+      - bio: richest available (profile cache > profiles > resolved_accounts)
       - graph_signal: inbound seed follows grouped by community
       - following_overlap: outbound follows toward classified accounts
       - content_profile: TF-IDF topic weights from liked tweets
+      - engagement_partners: top accounts they like/RT (with community labels)
       - community_descriptions: name→description mapping
       - community_short_names: list of community short names
 
     Returns a dict with keys: account_id, username, bio, graph_signal,
-    following_overlap, content_profile, community_descriptions, community_short_names.
+    following_overlap, content_profile, engagement_partners,
+    community_descriptions, community_short_names.
     """
+    rich_bio = get_rich_bio(conn, account_id, bio)
     graph_signal = get_graph_signal(conn, account_id)
     following_overlap = get_following_overlap(conn, account_id)
     content_profile = get_content_profile(conn, account_id)
+    engagement_partners = get_engagement_partners(conn, account_id)
     community_descriptions, community_short_names = get_community_descriptions(conn)
 
     return {
         "account_id": account_id,
         "username": username,
-        "bio": bio,
+        "bio": rich_bio,
         "graph_signal": graph_signal,
         "following_overlap": following_overlap,
         "content_profile": content_profile,
+        "engagement_partners": engagement_partners,
         "community_descriptions": community_descriptions,
         "community_short_names": community_short_names,
     }
