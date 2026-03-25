@@ -8,6 +8,8 @@ from typing import Dict
 import numpy as np
 from flask import jsonify, request
 
+from src.api.responses import error_response
+
 from src.api.cluster.state import (
     cluster_bp,
     _require_loaded,
@@ -29,28 +31,26 @@ def get_account_membership(account_id: str):
     """Return TPOT-membership probability for one account using GRF anchors."""
 
     if not _membership_engine_enabled():
-        return jsonify(
-            {
-                "error": "membership_engine is disabled; set settings.membership_engine=grf",
-                "engine": state._graph_settings.get("membership_engine", "off"),
-            }
-        ), 400
+        return error_response(
+            "membership_engine is disabled; set settings.membership_engine=grf",
+            details={"engine": state._graph_settings.get("membership_engine", "off")},
+        )
 
     try:
         ego = _require_ego()
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
 
     node_id = str(account_id)
     node_index = state._node_id_to_idx.get(node_id)
     if node_index is None:
-        return jsonify({"error": "Account not found in graph snapshot", "accountId": node_id}), 404
+        return error_response("Account not found in graph snapshot", status=404, details={"accountId": node_id})
 
     positive, negative, anchor_stats = _resolve_anchor_indices(ego)
     if not positive or not negative:
-        return jsonify(
-            {
-                "error": "Need both positive and negative anchor labels for GRF membership",
+        return error_response(
+            "Need both positive and negative anchor labels for GRF membership",
+            details={
                 "ego": ego,
                 "anchorCounts": {
                     "positive": len(positive),
@@ -58,8 +58,8 @@ def get_account_membership(account_id: str):
                     "rows": anchor_stats.get("anchor_rows", 0),
                     "dropped": anchor_stats.get("anchors_dropped", 0),
                 },
-            }
-        ), 400
+            },
+        )
 
     prior = len(positive) / float(len(positive) + len(negative))
     cache_key = (

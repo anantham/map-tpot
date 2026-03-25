@@ -10,6 +10,8 @@ from uuid import uuid4
 import numpy as np
 from flask import jsonify, request
 
+from src.api.responses import error_response
+
 from src.api.cluster.state import (
     cluster_bp,
     _require_loaded,
@@ -190,7 +192,7 @@ def get_clusters():
     except Exception as exc:
         logger.exception("clusters build failed req=%s expanded=%s collapsed=%s: %s", req_id, expanded_ids, collapsed_ids, exc)
         state._cache.inflight_clear(cache_key)
-        return jsonify({"error": "cluster build failed", "req_id": req_id}), 500
+        return error_response("cluster build failed", status=500, details={"req_id": req_id})
     finally:
         state._cache.inflight_clear(cache_key)
 

@@ -12,6 +12,8 @@ from uuid import uuid4
 
 from flask import Blueprint, jsonify, request
 
+from src.api.responses import error_response
+
 from src.communities import store
 from src.communities import versioning
 from src.config import DEFAULT_ARCHIVE_DB
@@ -61,14 +63,14 @@ def create_branch_route():
         body = request.get_json() or {}
         name = body.get("name")
         if not name:
-            return jsonify({"error": "name is required"}), 400
+            return error_response("name is required")
 
         # Check uniqueness
         exists = conn.execute(
             "SELECT 1 FROM community_branch WHERE name = ?", (name,)
         ).fetchone()
         if exists:
-            return jsonify({"error": f"branch '{name}' already exists"}), 409
+            return error_response(f"branch '{name}' already exists", status=409)
 
         # Auto-save current branch
         current = versioning.get_active_branch(conn)
@@ -135,7 +137,7 @@ def delete_branch_route(branch_id):
         try:
             versioning.delete_branch(conn, branch_id)
         except ValueError as e:
-            return jsonify({"error": str(e)}), 409
+            return error_response(str(e), status=409)
         return jsonify({"deleted": True})
     finally:
         conn.close()
@@ -209,7 +211,7 @@ def restore_snapshot_route(branch_id, snapshot_id):
             (snapshot_id, branch_id),
         ).fetchone()
         if not snap:
-            return jsonify({"error": "snapshot not found on this branch"}), 404
+            return error_response("snapshot not found on this branch", status=404)
 
         versioning.restore_snapshot(conn, snapshot_id)
         return jsonify({"restored": True, "snapshot_id": snapshot_id})

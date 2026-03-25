@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Blueprint, current_app, jsonify, request
 
+from src.api.responses import error_response
+
 from src.api.cluster import state as cluster_routes
 from src.config import get_snapshot_dir
 from src.data.account_tags import AccountTagStore
@@ -85,7 +87,7 @@ def get_account(account_id):
     """Get details for a specific account."""
     meta = _get_node_metadata().get(str(account_id))
     if not meta:
-        return jsonify({"error": "Account not found"}), 404
+        return error_response("Account not found", status=404)
     return jsonify({"id": str(account_id), **meta})
 
 
@@ -164,7 +166,7 @@ def get_account_tags(account_id: str):
     try:
         ego = _require_ego()
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     store = _get_tag_store()
     tags = store.list_tags(ego=ego, account_id=str(account_id))
     return jsonify({"ego": ego, "accountId": str(account_id), "tags": [asdict(t) for t in tags]})
@@ -176,7 +178,7 @@ def upsert_account_tag(account_id: str):
     try:
         ego = _require_ego()
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     data = request.get_json(silent=True) or {}
     tag = (data.get("tag") or "").strip()
     polarity_raw = data.get("polarity")
@@ -192,7 +194,7 @@ def upsert_account_tag(account_id: str):
         elif key in ("not_in", "not-in", "neg", "negative", "no", "false"):
             polarity = -1
     if polarity is None:
-        return jsonify({"error": "polarity must be 'in' or 'not_in'"}), 400
+        return error_response("polarity must be 'in' or 'not_in'")
 
     store = _get_tag_store()
     try:
@@ -205,7 +207,7 @@ def upsert_account_tag(account_id: str):
         )
     except Exception as exc:
         logger.warning("Tag upsert failed ego=%s account=%s tag=%s: %s", ego, account_id, tag, exc)
-        return jsonify({"error": "tag upsert failed"}), 400
+        return error_response("tag upsert failed")
     return jsonify({"status": "ok", "tag": asdict(saved)})
 
 
@@ -215,7 +217,7 @@ def delete_account_tag(account_id: str, tag: str):
     try:
         ego = _require_ego()
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     store = _get_tag_store()
     deleted = store.delete_tag(ego=ego, account_id=str(account_id), tag=tag)
     return jsonify({"status": "deleted" if deleted else "not_found"})
@@ -227,7 +229,7 @@ def list_tags():
     try:
         ego = _require_ego()
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     store = _get_tag_store()
     return jsonify({"ego": ego, "tags": store.list_distinct_tags(ego=ego)})
 
@@ -238,7 +240,7 @@ def get_teleport_plan(account_id: str):
     spectral = getattr(cluster_routes, "_spectral_result", None)
     node_to_idx = getattr(cluster_routes, "_node_id_to_idx", None) or {}
     if spectral is None or not node_to_idx:
-        return jsonify({"error": "Cluster data not loaded"}), 503
+        return error_response("Cluster data not loaded", status=503)
 
     budget = int(request.args.get("budget") or 25)
     budget = max(5, min(500, budget))
@@ -248,7 +250,7 @@ def get_teleport_plan(account_id: str):
 
     idx = node_to_idx.get(str(account_id))
     if idx is None:
-        return jsonify({"error": "Account not found in snapshot"}), 404
+        return error_response("Account not found in snapshot", status=404)
 
     # Determine leaf node in dendrogram
     if spectral.micro_labels is None:
@@ -334,7 +336,7 @@ def update_seeds():
     """Update seed lists and/or graph settings."""
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict):
-        return jsonify({"error": "Request body must be a JSON object"}), 400
+        return error_response("Request body must be a JSON object")
 
     try:
         if "settings" in data:
@@ -343,7 +345,7 @@ def update_seeds():
 
         name = (data.get("name") or "").strip()
         if not name:
-            return jsonify({"error": "name is required"}), 400
+            return error_response("name is required")
 
         set_active = bool(data.get("set_active", True))
         if "seeds" in data and data.get("seeds") is not None:
@@ -356,7 +358,7 @@ def update_seeds():
 
         return jsonify({"status": "ok", "state": get_seed_state()})
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except Exception as exc:
         logger.exception("Failed to update seed settings: %s", exc)
-        return jsonify({"error": "Failed to update seed settings"}), 500
+        return error_response("Failed to update seed settings", status=500)

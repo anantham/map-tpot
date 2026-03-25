@@ -12,6 +12,8 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
+from src.api.responses import error_response
+
 from src.communities import store
 from src.communities import preview as account_preview
 from src.config import DEFAULT_ARCHIVE_DB
@@ -68,7 +70,7 @@ def get_members_route(community_id):
             "SELECT 1 FROM community WHERE id = ?", (community_id,)
         ).fetchone()
         if not exists:
-            return jsonify({"error": "community not found"}), 404
+            return error_response("community not found", status=404)
 
         members = store.get_community_members(conn, community_id)
         ego_following = store.get_ego_following_set(conn, ego) if ego else set()
@@ -120,7 +122,7 @@ def assign_member_route(community_id, account_id):
             "SELECT 1 FROM community WHERE id = ?", (community_id,)
         ).fetchone()
         if not exists:
-            return jsonify({"error": "community not found"}), 404
+            return error_response("community not found", status=404)
 
         store.upsert_community_account(
             conn, community_id, account_id, weight=1.0, source="human"
@@ -161,7 +163,7 @@ def update_community_route(community_id):
             (community_id,),
         ).fetchone()
         if not exists:
-            return jsonify({"error": "community not found"}), 404
+            return error_response("community not found", status=404)
 
         body = request.get_json() or {}
         name = body.get("name", exists[0])
@@ -191,7 +193,7 @@ def delete_community_route(community_id):
             "SELECT 1 FROM community WHERE id = ?", (community_id,)
         ).fetchone()
         if not exists:
-            return jsonify({"error": "community not found"}), 404
+            return error_response("community not found", status=404)
 
         store.delete_community(conn, community_id)
         return jsonify({"deleted": True, "community_id": community_id})
@@ -251,7 +253,7 @@ def put_account_weights_route(account_id):
                 "SELECT 1 FROM community WHERE id = ?", (cid,)
             ).fetchone()
             if not exists:
-                return jsonify({"error": f"community {cid} not found"}), 404
+                return error_response(f"community {cid} not found", status=404)
             store.upsert_community_account(
                 conn, cid, account_id, weight=float(weight), source="human"
             )

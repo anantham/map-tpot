@@ -5,6 +5,7 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
+from src.api.responses import error_response
 from src.api.routes.extension_runtime import get_feed_store
 from src.api.routes.extension_utils import parse_positive_int, require_scope
 
@@ -21,7 +22,7 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
             keyword_limit = parse_positive_int(request, "keyword_limit", 12, minimum=1, maximum=100)
             sample_limit = parse_positive_int(request, "sample_limit", 8, minimum=1, maximum=100)
         except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+            return error_response(str(exc))
 
         try:
             summary = get_feed_store().account_summary(
@@ -33,7 +34,7 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
                 sample_limit=sample_limit,
             )
         except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+            return error_response(str(exc))
         except Exception as exc:
             logger.exception(
                 "feed summary failed workspace=%s ego=%s account=%s: %s",
@@ -42,7 +43,7 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
                 account_id,
                 exc,
             )
-            return jsonify({"error": "account feed summary failed"}), 500
+            return error_response("account feed summary failed", status=500)
         return jsonify(summary)
 
     @blueprint.route("/exposure/top", methods=["GET"])
@@ -53,7 +54,7 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
             days = parse_positive_int(request, "days", 30, minimum=1, maximum=3650)
             limit = parse_positive_int(request, "limit", 20, minimum=1, maximum=200)
         except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+            return error_response(str(exc))
 
         try:
             accounts = get_feed_store().top_exposed_accounts(
@@ -63,10 +64,10 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
                 limit=limit,
             )
         except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+            return error_response(str(exc))
         except Exception as exc:
             logger.exception("top exposure query failed workspace=%s ego=%s: %s", workspace_id, ego, exc)
-            return jsonify({"error": "top exposure query failed"}), 500
+            return error_response("top exposure query failed", status=500)
         return jsonify(
             {
                 "workspaceId": workspace_id,
