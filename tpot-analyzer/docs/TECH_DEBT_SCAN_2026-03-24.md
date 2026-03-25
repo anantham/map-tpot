@@ -254,15 +254,15 @@ Exists only in session handovers. No runbook for: tweet selection, verdict meani
 ### This Month
 4. ~~Add `logger.warning()` to critical `except: pass`~~ ✅ DONE (5 critical files fixed; ~30 low-risk with specific types remain)
 5. ~~Replace dangerous `str(exc)` in API responses~~ ✅ DONE (9 RuntimeError/FileNotFoundError fixed; 34 safe ValueError kept)
-6. Migrate 109 errors to `error_response()` helper
+6. ~~Migrate 109 errors to `error_response()` helper~~ ✅ DONE (64 calls migrated across 12 files)
 7. Document `archive_tweets.db` schema
 8. Add confidence + band thresholds to TUNING_PARAMETERS.md
 9. ~~Write independent mode tests~~ ✅ DONE (8 tests in TestIndependentMode)
 
 ### Backlog
 10. Test top 5 untested pipeline scripts
-11. Standardize DB connections
-12. Extract duplicated functions + DB paths
+11. ~~Standardize DB connections~~ PARTIALLY DONE (shared paths extracted, scripts use src.config)
+12. ~~Extract duplicated functions + DB paths~~ ✅ DONE (src/config.py + src/data/adjacency.py)
 13. Write Chrome audit runbook
 14. Fix ADR numbering + index
 
