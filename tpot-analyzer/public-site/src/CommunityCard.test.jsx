@@ -181,13 +181,29 @@ describe('CommunityCard', () => {
           tier="propagated"
           memberships={[{ community_id: 1, weight: 0.65, community_name: 'Core TPOT' }]}
           communityMap={communityMap}
-          confidence={0.1}
+          confidence={0.01}
         />
       )
 
       const fill = container.querySelector('.bar-fill')
-      // jsdom returns rgb() format for hex colors
+      // CI < 0.05 uses grayscale; jsdom returns rgb() format for hex colors
       expect(fill.style.backgroundColor).toBe('rgb(85, 85, 85)')
+    })
+
+    it('uses community colors for propagated with high CI', () => {
+      const { container } = render(
+        <CommunityCard
+          handle="alice"
+          tier="propagated"
+          memberships={[{ community_id: 1, weight: 0.65, community_name: 'Core TPOT' }]}
+          communityMap={communityMap}
+          confidence={0.2}
+        />
+      )
+
+      const fill = container.querySelector('.bar-fill')
+      // CI >= 0.05 uses community color
+      expect(fill.style.backgroundColor).toBe('rgb(255, 255, 0)')
     })
 
     it('uses community colors for classified', () => {

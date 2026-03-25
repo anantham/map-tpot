@@ -13,8 +13,14 @@ export default function CommunityCard({
   confidence = 0,
 }) {
   const isClassified = tier === 'classified'
-  // CI drives bar opacity: 0.3 (floor) to 1.0 (full confidence)
-  const ciOpacity = Math.max(0.3, Math.min(1, isClassified ? 1 : 0.3 + confidence * 1.4))
+  // CI drives visual intensity: high CI = full color, low CI = dim/gray
+  // Exemplars (classified) always get full treatment
+  // Everyone else scales with confidence: 0.2 floor to 1.0
+  const ciOpacity = isClassified
+    ? 1.0
+    : Math.max(0.2, Math.min(1, 0.2 + confidence * 1.6))
+  // Show community colors when CI is high enough (not just for classified)
+  const useColor = isClassified || confidence >= 0.05
   const cardRef = useRef(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
   const [fullscreen, setFullscreen] = useState(false)
@@ -90,7 +96,7 @@ export default function CommunityCard({
       <>
         <div
           ref={cardRef}
-          className={`card-ai-container ${!isClassified ? 'card-ai-grayscale' : ''}`}
+          className={`card-ai-container ${!useColor ? 'card-ai-grayscale' : ''}`}
           id="community-card"
           onClick={() => setFullscreen(true)}
           onMouseMove={handleMouseMove}
@@ -108,7 +114,7 @@ export default function CommunityCard({
           <div className="card-ai-overlay" />
           <div className="card-ai-text">
             <div className="card-ai-handle">@{handle}</div>
-            {isClassified && displayName && (
+            {displayName && (
               <div className="card-ai-display-name">{displayName}</div>
             )}
             <div className="card-ai-communities">
@@ -116,7 +122,7 @@ export default function CommunityCard({
                 <div className="card-ai-community-row" key={i}>
                   <span
                     className="card-ai-community-dot"
-                    style={{ backgroundColor: isClassified ? bar.color : '#555' }}
+                    style={{ backgroundColor: useColor ? bar.color : '#555' }}
                   />
                   <span className="card-ai-community-name">{bar.name}</span>
                   <span className="card-ai-community-pct">{bar.pct}%</span>
@@ -143,7 +149,7 @@ export default function CommunityCard({
 
             <div className="card-fullscreen-center" onClick={(e) => e.stopPropagation()}>
               <img
-                className={`card-fullscreen-image ${!isClassified ? 'card-fullscreen-image--faint' : ''}`}
+                className={`card-fullscreen-image ${!useColor ? 'card-fullscreen-image--faint' : ''}`}
                 src={fsUrl}
                 alt={`AI-generated card for @${handle}`}
                 style={{ opacity: ciOpacity }}
@@ -179,7 +185,7 @@ export default function CommunityCard({
   const ciPct = Math.round(confidence * 100)
   return (
     <div
-      className={`community-card ${isClassified ? 'card-classified' : 'card-propagated'} ${isGenerating ? 'generating' : ''}`}
+      className={`community-card ${useColor ? 'card-classified' : 'card-propagated'} ${isGenerating ? 'generating' : ''}`}
       id="community-card"
       style={{ opacity: ciOpacity }}
     >
@@ -187,7 +193,7 @@ export default function CommunityCard({
 
       <div className="card-header">
         <span className="card-handle">@{handle}</span>
-        {isClassified && displayName && (
+        {displayName && (
           <span className="card-display-name">{displayName}</span>
         )}
         {confidence > 0 && (
@@ -197,13 +203,7 @@ export default function CommunityCard({
         )}
       </div>
 
-      {isClassified && bio && (
-        <p className="card-bio">{bio}</p>
-      )}
-      {!isClassified && displayName && (
-        <p className="card-bio">{displayName}</p>
-      )}
-      {!isClassified && bio && (
+      {bio && (
         <p className="card-bio">{bio}</p>
       )}
 
@@ -216,7 +216,7 @@ export default function CommunityCard({
                 className="bar-fill"
                 style={{
                   width: `${bar.pct}%`,
-                  backgroundColor: isClassified ? bar.color : '#555',
+                  backgroundColor: useColor ? bar.color : '#555',
                   opacity: ciOpacity,
                 }}
               />
@@ -226,13 +226,15 @@ export default function CommunityCard({
         ))}
       </div>
 
-      {!isClassified && (
+      {!isClassified && confidence < 0.5 && (
         <p className="card-note">
           {confidence >= 0.15
-            ? 'Identified from the network — contribute your data for a richer, full-color card.'
+            ? 'Identified from the network — contribute your data for a richer card.'
             : confidence >= 0.05
-            ? 'Detected — a faint signal from the follow graph. Contribute your data to sharpen it.'
-            : 'Glimpsed — barely visible in the network. Contribute your data to appear in full color.'}
+            ? 'Detected — a faint signal from the follow graph.'
+            : confidence >= 0.001
+            ? 'Glimpsed — barely visible in the network.'
+            : 'Adjacent — in the wider orbit of the network.'}
         </p>
       )}
 
