@@ -18,6 +18,8 @@ import pandas as pd
 import scipy.sparse as sp
 from flask import Blueprint, jsonify, request
 
+from src.api.responses import error_response
+
 from src.data.account_tags import AccountTagStore
 from src.graph.clusters import ClusterLabelStore
 from src.graph.hierarchy import (
@@ -364,7 +366,7 @@ def _require_loaded(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         if _spectral_result is None or _adjacency is None:
-            return jsonify({"error": "Cluster data not loaded"}), 503
+            return error_response("Cluster data not loaded", status=503)
         return f(*args, **kwargs)
     return wrapper
 

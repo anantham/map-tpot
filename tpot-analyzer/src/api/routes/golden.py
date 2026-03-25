@@ -14,6 +14,8 @@ import httpx
 import yaml
 from flask import Blueprint, jsonify, request
 
+from src.api.responses import error_response
+
 from src.config import get_snapshot_dir
 from src.data.golden_store import AXIS_SIMULACRUM, GoldenStore
 
@@ -149,10 +151,10 @@ def get_candidates():
             }
         )
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except RuntimeError as exc:
         logger.error("Golden candidates runtime error: %s", exc)
-        return jsonify({"error": "golden candidates query failed"}), 400
+        return error_response("golden candidates query failed")
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden candidates failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -190,7 +192,7 @@ def upsert_label():
             }
         )
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden label upsert failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -217,7 +219,7 @@ def get_queue():
             }
         )
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden queue fetch failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -259,7 +261,7 @@ def ingest_predictions_run():
             **result,
         })
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden predictions ingest failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -294,7 +296,7 @@ def run_eval():
         )
         return jsonify({"status": "ok", **result})
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden eval failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -309,7 +311,7 @@ def get_metrics():
         store.ensure_fixed_splits(axis, assigned_by="system")
         return jsonify(store.metrics(axis, reviewer=reviewer))
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden metrics failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -338,7 +340,7 @@ def save_tags():
         )
         return jsonify({"status": "ok", "tweetId": tweet_id, "count": count})
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except Exception as exc:  # pragma: no cover
         logger.exception("Golden save_tags failed: %s", exc)
         return jsonify({"error": "internal_error"}), 500
@@ -1005,9 +1007,9 @@ def interpret_tweet():
         return jsonify({"status": "ok", "model": model, "mode": mode, **result})
 
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except PermissionError as exc:
-        return jsonify({"error": str(exc)}), 403
+        return error_response(str(exc), status=403)
     except json.JSONDecodeError as exc:
         logger.error("LLM returned non-JSON: %s", exc)
         return jsonify({"error": "parse_error", "detail": "LLM returned non-JSON response"}), 502

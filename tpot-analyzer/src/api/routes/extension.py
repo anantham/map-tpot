@@ -6,6 +6,8 @@ from typing import Any
 
 from flask import Blueprint, jsonify, request
 
+from src.api.responses import error_response
+
 from src.api.routes.extension_read_routes import register_extension_read_routes
 from src.api.routes.extension_runtime import (
     get_feed_admin_store,
@@ -37,7 +39,7 @@ def get_extension_settings():
     try:
         workspace_id, ego = require_scope(request)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
     return jsonify(policy.as_dict())
 
@@ -51,9 +53,9 @@ def update_extension_settings():
         require_ingest_auth(policy, request)
         payload = parse_json_body(request)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except PermissionError as exc:
-        return jsonify({"error": str(exc)}), 401
+        return error_response(str(exc), status=401)
 
     update_args: dict[str, Any] = {}
     try:
@@ -85,10 +87,10 @@ def update_extension_settings():
             workspace_id=workspace_id, ego=ego, **update_args
         )
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except Exception as exc:
         logger.exception("failed to update extension settings workspace=%s ego=%s", workspace_id, ego)
-        return jsonify({"error": "settings update failed"}), 500
+        return error_response("settings update failed", status=500)
 
     return jsonify({"status": "ok", "settings": settings.as_dict()})
 
@@ -102,18 +104,18 @@ def ingest_feed_events():
         require_ingest_auth(policy, request)
         payload = parse_json_body(request)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except PermissionError as exc:
-        return jsonify({"error": str(exc)}), 401
+        return error_response(str(exc), status=401)
     except RuntimeError as exc:
         logger.error("Feed event ingest service error: %s", exc)
-        return jsonify({"error": "Service temporarily unavailable"}), 503
+        return error_response("Service temporarily unavailable", status=503)
 
     events = payload.get("events")
     if not isinstance(events, list):
-        return jsonify({"error": "events must be an array"}), 400
+        return error_response("events must be an array")
     if len(events) > 5000:
-        return jsonify({"error": "events batch too large; max 5000"}), 400
+        return error_response("events batch too large; max 5000")
 
     feed_store = get_feed_store()
     admin_store = get_feed_admin_store()
@@ -127,10 +129,10 @@ def ingest_feed_events():
         inserted_keys = ingest_stats.pop("insertedEventKeys", [])
     except ValueError as exc:
         logger.warning("feed event ingest rejected workspace=%s ego=%s: %s", workspace_id, ego, exc)
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except Exception as exc:
         logger.exception("feed event ingest failed workspace=%s ego=%s: %s", workspace_id, ego, exc)
-        return jsonify({"error": "feed event ingest failed"}), 500
+        return error_response("feed event ingest failed", status=500)
 
     firehose_status = {
         "enabled": bool(policy.firehose_enabled),
@@ -197,10 +199,10 @@ def get_raw_feed_events():
             before_seen_at=before_seen_at,
         )
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except Exception as exc:
         logger.exception("raw feed query failed workspace=%s ego=%s: %s", workspace_id, ego, exc)
-        return jsonify({"error": "raw feed query failed"}), 500
+        return error_response("raw feed query failed", status=500)
     return jsonify(payload)
 
 
@@ -218,12 +220,12 @@ def purge_feed_events_by_tag():
         dry_run = bool(payload.get("dryRun", False))
         account_ids = get_tag_store().list_account_ids_for_tag(ego=ego, tag=tag)
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
     except PermissionError as exc:
-        return jsonify({"error": str(exc)}), 401
+        return error_response(str(exc), status=401)
     except Exception as exc:
         logger.exception("tag-scope lookup failed workspace=%s ego=%s: %s", workspace_id, ego, exc)
-        return jsonify({"error": "tag-scope lookup failed"}), 500
+        return error_response("tag-scope lookup failed", status=500)
 
     if dry_run:
         return jsonify(

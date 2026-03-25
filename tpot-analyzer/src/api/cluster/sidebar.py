@@ -8,6 +8,8 @@ from typing import Dict, Set
 import numpy as np
 from flask import jsonify, request
 
+from src.api.responses import error_response
+
 from src.api.cluster.state import (
     cluster_bp,
     _require_loaded,
@@ -142,7 +144,7 @@ def get_cluster_tag_summary(cluster_id: str):
     try:
         ego = _require_ego()
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return error_response(str(exc))
 
     granularity = request.args.get("n", 25, type=int)
     granularity = max(5, min(500, granularity))
@@ -208,7 +210,7 @@ def get_cluster_tag_summary(cluster_id: str):
             found = cluster
             break
     if not found:
-        return jsonify({"error": "Cluster not found"}), 404
+        return error_response("Cluster not found", status=404)
 
     member_ids = [str(v) for v in (found.get("memberIds") or [])]
     total_members = len(member_ids)

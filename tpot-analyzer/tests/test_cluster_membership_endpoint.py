@@ -82,8 +82,9 @@ def test_membership_endpoint_requires_positive_and_negative_anchors(
     resp = client.get("/api/clusters/accounts/node_1/membership?ego=ego1")
     assert resp.status_code == 400
     payload = resp.get_json()
-    assert payload["anchorCounts"]["positive"] == 1
-    assert payload["anchorCounts"]["negative"] == 0
+    details = payload.get("details", payload)
+    assert details["anchorCounts"]["positive"] == 1
+    assert details["anchorCounts"]["negative"] == 0
 
 
 def test_membership_endpoint_returns_probability_and_uses_cache(

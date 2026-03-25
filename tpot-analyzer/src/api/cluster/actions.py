@@ -6,6 +6,8 @@ from typing import Set
 
 from flask import jsonify, request
 
+from src.api.responses import error_response
+
 from src.api.cluster.state import (
     cluster_bp,
     _require_loaded,
@@ -22,11 +24,11 @@ logger = logging.getLogger(__name__)
 def set_cluster_label(cluster_id: str):
     """Set user label."""
     if state._label_store is None:
-        return jsonify({"error": "Label store unavailable"}), 503
+        return error_response("Label store unavailable", status=503)
     data = request.get_json(silent=True) or {}
     label = (data.get("label") or "").strip()
     if not label:
-        return jsonify({"error": "Label cannot be empty"}), 400
+        return error_response("Label cannot be empty")
     # Label key independent of granularity (hierarchical IDs are stable)
     key = f"spectral_{cluster_id}"
     state._label_store.set_label(key, label)
@@ -37,7 +39,7 @@ def set_cluster_label(cluster_id: str):
 def delete_cluster_label(cluster_id: str):
     """Delete user label."""
     if state._label_store is None:
-        return jsonify({"error": "Label store unavailable"}), 503
+        return error_response("Label store unavailable", status=503)
     key = f"spectral_{cluster_id}"
     state._label_store.delete_label(key)
     return jsonify({"status": "deleted"})
