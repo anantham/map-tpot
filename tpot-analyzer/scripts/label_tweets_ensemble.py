@@ -326,6 +326,9 @@ def build_prompt(
     community_descriptions: dict[str, str],
     community_short_names: list[str],
     content_profile: str = "",
+    engagement_partners: str = "",
+    mention_communities: str = "",
+    rt_source: str = "",
 ) -> str:
     """Build the combined system+user prompt for a single tweet labeling call.
 
@@ -438,6 +441,12 @@ CRITICAL RULES:
 ADJACENT ECOSYSTEMS (assign bits:None:+2 or +3):
   Mainstream-AI-Twitter (benchmark results, corporate AI announcements), Crypto-Finance, Political-Commentary, Generic-Self-Help, Hustle-Culture, News-Media.
 
+SUB-COMMUNITY FACETS (tag as theme:facet-name when you see them):
+  Within AI-Safety: alignment-theory, mech-interp, agent-foundations, ai-governance, pause-ai, e-acc, d-acc, s-risk, forecasting, field-building
+  Within Contemplative: jhana-practice, somatic-healing, nondual, psychedelic-integration, contemplative-science
+  Within LLM-Whisperers: model-interiority, prompt-sorcery, open-source-ai, ai-art
+  These are THEMES, not separate communities. Tag them alongside community bits to capture fine-grained signals.
+
 FEW-SHOT EXAMPLES:
 
 Tweet: "haha, it's like there's a little person in there!"
@@ -511,18 +520,22 @@ FIELD DEFINITIONS:
     rt_flag = "\n⚠️ THIS IS A RETWEET — at most one weak bit for interest." if is_rt else ""
 
     user_prompt = f"""\
-Account: @{username} | Bio: {bio[:100]}
+Account: @{username} | Bio: {bio[:200]}
 Graph: {graph_signal[:150]}
-{content_profile if content_profile else ""}
+{content_profile if content_profile else ""}\
+{engagement_partners if engagement_partners else ""}\
 {"Current prior: " + other_tweets if other_tweets else ""}
 
 TWEET TO TAG:{rt_flag}
 {tweet_text}
 
 Engagement: {engagement}
-{f"Engagement context: {engagement_context}" if engagement_context and engagement_context != "No engagement data from classified accounts." else ""}
+{f"Engagement context: {engagement_context}" if engagement_context and engagement_context != "No engagement data from classified accounts." else ""}\
+{rt_source if rt_source else ""}\
+{mention_communities if mention_communities else ""}
 
 Focus on bits that SURPRISE relative to the prior. Confirming evidence = low signal_strength. Contradicting or extending = high signal_strength.
+Tag sub-community facets as themes when you see them (e.g., theme:mech-interp, theme:jhana-practice).
 """
 
     return system_prompt + "\n---\n\n" + user_prompt
