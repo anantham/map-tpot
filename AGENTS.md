@@ -27,6 +27,8 @@ PHILOSOPHY: We are computational peers collaborating with human developers. Oper
 
 12. **Capture Future Work** - Whenever new feature ideas, testing gaps, or developer-experience improvements surface, append them to `docs/ROADMAP.md` under the appropriate section (`Testing Coverage`, `Features & Analysis`, etc.). This keeps ideas visible without cluttering README or losing context. Worklog entries can reference the roadmap but should remain focused on current phase summaries.
 
+13. **Log Experiments** - When you test a hypothesis empirically (run a script, measure a signal, try an approach), record it in `docs/EXPERIMENT_LOG.md` with: question, hypothesis, method, result, lesson, and next step. Negative results are as valuable as positive ones — they prevent future sessions from re-running the same failed experiment. The experiment log is the institutional memory for "what we tried and what we learned." Domain-specific findings go here, not in CLAUDE.md (which is for general agent behavior).
+
 ---
 
 Below is the Bug Squashing protocol that might be invoked when we are dealing with difficult bugs that need careful precise repair. This protocol is designed to prevent you from goodharting and trying to quickly get the app working. The idea is to do it beautifully, completely like a work of art.
