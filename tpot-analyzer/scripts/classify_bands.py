@@ -41,13 +41,22 @@ DEFAULT_DB_PATH = DEFAULT_ARCHIVE_DB
 DEFAULT_NPZ_PATH = ROOT / "data" / "community_propagation.npz"
 
 # ── Band thresholds ──────────────────────────────────────────────────────────
-
+# Classic mode (zero-sum, memberships sum to 1.0)
 SPECIALIST_MIN_WEIGHT = 0.30
 SPECIALIST_MAX_ENTROPY = 0.70
 BRIDGE_MIN_WEIGHT = 0.15
 BRIDGE_MIN_COMMUNITIES = 2
 BRIDGE_MAX_NONE = 0.40
 FRONTIER_MIN_WEIGHT = 0.08
+
+# Independent mode (raw scores, much smaller — calibrated to produce similar
+# band sizes as classic mode on the same graph)
+INDEPENDENT_SPECIALIST_MIN_WEIGHT = 0.06
+INDEPENDENT_SPECIALIST_MAX_ENTROPY = 0.70
+INDEPENDENT_BRIDGE_MIN_WEIGHT = 0.02
+INDEPENDENT_BRIDGE_MIN_COMMUNITIES = 2
+INDEPENDENT_BRIDGE_MAX_NONE = 0.90  # none is large in independent mode
+INDEPENDENT_FRONTIER_MIN_WEIGHT = 0.02
 
 
 # ── Schema ───────────────────────────────────────────────────────────────────
@@ -79,14 +88,19 @@ def load_propagation(npz_path: Path) -> dict:
     if missing:
         raise ValueError(f"NPZ missing keys: {missing}")
 
-    return {
-        "memberships": data["memberships"],       # (N, 16) — 15 communities + none
+    is_independent = "seed_neighbor_counts" in data
+    result = {
+        "memberships": data["memberships"],       # (N, K+1) — K communities + none
         "abstain_mask": data["abstain_mask"],      # (N,) bool
         "labeled_mask": data["labeled_mask"],      # (N,) bool
         "node_ids": data["node_ids"],              # (N,) str
-        "community_names": data["community_names"],  # (15,) str
+        "community_names": data["community_names"],  # (K,) str
         "uncertainty": data.get("uncertainty", np.zeros(len(data["node_ids"]))),
+        "independent_mode": is_independent,
     }
+    if is_independent:
+        result["seed_neighbor_counts"] = data["seed_neighbor_counts"]
+    return result
 
 
 def compute_normalized_entropy(community_weights: np.ndarray) -> np.ndarray:
@@ -108,32 +122,63 @@ def compute_normalized_entropy(community_weights: np.ndarray) -> np.ndarray:
 def classify_bands(prop: dict) -> dict:
     """Classify every account into one of 5 bands.
 
+    Detects independent mode (raw scores) vs classic mode (zero-sum) and
+    uses calibrated thresholds for each.
+
     Returns dict with arrays: band, top_community_idx, top_weight, entropy, none_weight.
     """
     N = len(prop["node_ids"])
-    comm_weights = prop["memberships"][:, :15]   # (N, 15) community columns
+    K = len(prop["community_names"])
+    comm_weights = prop["memberships"][:, :K]     # (N, K) community columns
     none_weight = prop["memberships"][:, -1]      # (N,) none column
     labeled = prop["labeled_mask"]
     abstain = prop["abstain_mask"]
+    is_independent = prop.get("independent_mode", False)
+
+    # Select thresholds based on mode
+    if is_independent:
+        spec_min = INDEPENDENT_SPECIALIST_MIN_WEIGHT
+        spec_max_ent = INDEPENDENT_SPECIALIST_MAX_ENTROPY
+        bridge_min = INDEPENDENT_BRIDGE_MIN_WEIGHT
+        bridge_min_comms = INDEPENDENT_BRIDGE_MIN_COMMUNITIES
+        bridge_max_none = INDEPENDENT_BRIDGE_MAX_NONE
+        frontier_min = INDEPENDENT_FRONTIER_MIN_WEIGHT
+        logger.info("Using independent mode thresholds (spec=%.3f, bridge=%.3f, frontier=%.3f)",
+                     spec_min, bridge_min, frontier_min)
+    else:
+        spec_min = SPECIALIST_MIN_WEIGHT
+        spec_max_ent = SPECIALIST_MAX_ENTROPY
+        bridge_min = BRIDGE_MIN_WEIGHT
+        bridge_min_comms = BRIDGE_MIN_COMMUNITIES
+        bridge_max_none = BRIDGE_MAX_NONE
+        frontier_min = FRONTIER_MIN_WEIGHT
 
     max_weight = comm_weights.max(axis=1)
     top_idx = comm_weights.argmax(axis=1)
     entropy = compute_normalized_entropy(comm_weights)
-    n_above_bridge = (comm_weights >= BRIDGE_MIN_WEIGHT).sum(axis=1)
+    n_above_bridge = (comm_weights >= bridge_min).sum(axis=1)
+
+    # In independent mode, use seed_neighbor_counts for bridge detection
+    # A real bridge needs 2+ communities with both score AND seed neighbors
+    if is_independent and "seed_neighbor_counts" in prop:
+        snc = prop["seed_neighbor_counts"]
+        # Count communities where BOTH score >= threshold AND snc >= 1
+        bridge_qualified = (comm_weights >= bridge_min) & (snc >= 1)
+        n_above_bridge = bridge_qualified.sum(axis=1)
 
     # Start with unknown, then apply bands in ascending priority
     band = np.full(N, "unknown", dtype="U12")
 
-    # Frontier: not abstain, max >= 0.08
-    frontier_mask = ~abstain & (max_weight >= FRONTIER_MIN_WEIGHT) & ~labeled
+    # Frontier
+    frontier_mask = ~abstain & (max_weight >= frontier_min) & ~labeled
     band[frontier_mask] = "frontier"
 
-    # Bridge: 2+ communities >= 0.15, none < 0.40 (overrides frontier)
-    bridge_mask = ~labeled & ~abstain & (n_above_bridge >= BRIDGE_MIN_COMMUNITIES) & (none_weight < BRIDGE_MAX_NONE)
+    # Bridge
+    bridge_mask = ~labeled & ~abstain & (n_above_bridge >= bridge_min_comms) & (none_weight < bridge_max_none)
     band[bridge_mask] = "bridge"
 
-    # Specialist: max >= 0.30, entropy < 0.70 (overrides bridge/frontier)
-    specialist_mask = ~labeled & ~abstain & (max_weight >= SPECIALIST_MIN_WEIGHT) & (entropy < SPECIALIST_MAX_ENTROPY)
+    # Specialist
+    specialist_mask = ~labeled & ~abstain & (max_weight >= spec_min) & (entropy < spec_max_ent)
     band[specialist_mask] = "specialist"
 
     # Exemplar: seed accounts (always wins)
