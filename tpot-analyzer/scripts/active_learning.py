@@ -462,10 +462,25 @@ def _label_single_tweet(
         mentions=tweet.get("mentions_json", "[]"),
     )
 
-    # Resolve mention communities and RT source for richer context
-    from scripts.assemble_context import resolve_mention_communities, get_rt_source_community
+    # Resolve mention communities, RT source, and reply communities for richer context
+    from scripts.assemble_context import resolve_mention_communities, get_rt_source_community, get_reply_communities
     mention_communities = resolve_mention_communities(conn, tweet.get("mentions_json", "[]"))
     rt_source = get_rt_source_community(tweet_text, conn)
+
+    # Fetch replies for tweets with enough engagement (reply_count >= 3)
+    reply_communities = ""
+    reply_count = tweet.get("reply_count", 0)
+    if reply_count and reply_count >= 3:
+        try:
+            import os
+            twitter_key = os.getenv("TWITTERAPI_IO_API_KEY") or os.getenv("TWITTERAPI_API_KEY") or os.getenv("API_KEY")
+            reply_communities = get_reply_communities(
+                conn, tweet["tweet_id"],
+                op_username=account_ctx.get("username", ""),
+                api_key=twitter_key,
+            )
+        except Exception as e:
+            logger.debug("Reply community fetch failed: %s", e)
 
     prompt_text = build_prompt(
         username=account_ctx["username"],
@@ -482,6 +497,7 @@ def _label_single_tweet(
         engagement_partners=account_ctx.get("engagement_partners", ""),
         mention_communities=mention_communities,
         rt_source=rt_source,
+        reply_communities=reply_communities,
     )
 
     # Split prompt into system + user at the --- delimiter
