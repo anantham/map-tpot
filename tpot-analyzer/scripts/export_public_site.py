@@ -951,6 +951,10 @@ def run_export(
         search_index[handle.lower()] = {
             "tier": acct["tier"],
             "memberships": acct["memberships"],
+            "confidence": acct.get("confidence", 0),
+            "bio": acct.get("bio"),
+            "display_name": acct.get("display_name"),
+            "followers": acct.get("followers"),
         }
 
     # --- Assemble output ---
