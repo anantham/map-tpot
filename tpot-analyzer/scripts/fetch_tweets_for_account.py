@@ -118,14 +118,23 @@ def fetch_last_tweets(api_key: str, username: str) -> tuple[list[dict], dict | N
     return tweets, author
 
 
-def fetch_advanced_search(api_key: str, query: str) -> list[dict]:
-    """GET /twitter/tweet/advanced_search?query=X&queryType=Latest
+def fetch_advanced_search(
+    api_key: str,
+    query: str,
+    query_type: str = "Latest",
+) -> list[dict]:
+    """GET /twitter/tweet/advanced_search?query=X&queryType=Latest|Top
+
+    Args:
+        api_key: Twitter API key.
+        query: Search query (e.g., "from:username").
+        query_type: "Latest" for chronological, "Top" for most-engaged.
 
     Returns list of tweet dicts.
     Sleeps 0.5s after the call for rate limiting.
     """
     url = f"{BASE_URL}/tweet/advanced_search"
-    r = _make_request(api_key, url, {"query": query, "queryType": "Latest"})
+    r = _make_request(api_key, url, {"query": query, "queryType": query_type})
 
     time.sleep(0.5)
 
@@ -255,6 +264,107 @@ def store_tweets(
 
     conn.commit()
     return inserted
+
+
+# ---------------------------------------------------------------------------
+# Multi-scale fetch strategy
+# ---------------------------------------------------------------------------
+
+# Default TTL: re-fetch if the most recent fetch is older than this many days
+STALE_TTL_DAYS = 30
+
+
+def is_stale(conn: sqlite3.Connection, account_id: str, ttl_days: int = STALE_TTL_DAYS) -> bool:
+    """Check if an account's enriched tweets are stale (older than ttl_days).
+
+    Returns True if account has no enriched tweets, or if the most recent
+    fetch is older than ttl_days. Returns False if recently fetched.
+    """
+    row = conn.execute(
+        "SELECT MAX(fetched_at) FROM enriched_tweets WHERE account_id = ?",
+        (account_id,),
+    ).fetchone()
+    if not row or not row[0]:
+        return True  # never fetched
+    try:
+        from dateutil import parser as dp
+        last_fetch = dp.parse(row[0])
+        now = datetime.now(timezone.utc)
+        age_days = (now - last_fetch).days
+        return age_days >= ttl_days
+    except Exception:
+        return True  # can't parse date, treat as stale
+
+
+def fetch_multi_scale(
+    api_key: str,
+    username: str,
+    account_id: str,
+    conn: sqlite3.Connection,
+    round_num: int = 1,
+    budget_limit: float = 5.0,
+) -> tuple[list[dict], int]:
+    """Fetch tweets at multiple time scales for representative sampling.
+
+    Strategy:
+      1. Top tweets (queryType=Top): most-engaged originals — strongest identity signal
+      2. Recent tweets (last_tweets): current interests — what they're posting NOW
+      3. Latest search (queryType=Latest): recent chronological — catches replies, threads
+      4. Time-windowed search: tweets from 3-6 months ago for temporal diversity
+
+    Each call is logged. Budget is checked before each call.
+    Returns (all parsed tweets, count of new tweets stored).
+    """
+    all_parsed = []
+    total_new = 0
+
+    def _fetch_and_store(tweets_raw, source, query=None):
+        nonlocal all_parsed, total_new
+        parsed = [parse_tweet(t, username) for t in tweets_raw if t.get("id")]
+        new = store_tweets(conn, parsed, source, query)
+        log_api_call(conn, account_id, username, round_num, source, len(parsed), query)
+        all_parsed.extend(parsed)
+        total_new += new
+        return len(parsed)
+
+    # 1. Top tweets — most-engaged, best identity signal
+    check_budget(conn, budget_limit, raise_on_exceed=True)
+    top_tweets = fetch_advanced_search(api_key, f"from:{username}", query_type="Top")
+    if top_tweets:
+        n = _fetch_and_store(top_tweets, "advanced_search_top", f"from:{username}")
+
+    # 2. Recent timeline — current interests
+    check_budget(conn, budget_limit, raise_on_exceed=True)
+    recent, author = fetch_last_tweets(api_key, username)
+    if recent:
+        n = _fetch_and_store(recent, "last_tweets")
+
+    # 3. Latest search — catches different tweets than timeline
+    check_budget(conn, budget_limit, raise_on_exceed=True)
+    latest = fetch_advanced_search(api_key, f"from:{username}", query_type="Latest")
+    if latest:
+        n = _fetch_and_store(latest, "advanced_search", f"from:{username}")
+
+    # 4. Time-windowed search for temporal diversity (3-6 months ago)
+    # advanced_search supports sinceTime/untilTime but we use date operators in query
+    try:
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        # 3 months ago window
+        since_3m = (now - timedelta(days=120)).strftime("%Y-%m-%d")
+        until_3m = (now - timedelta(days=60)).strftime("%Y-%m-%d")
+        check_budget(conn, budget_limit, raise_on_exceed=True)
+        older = fetch_advanced_search(
+            api_key,
+            f"from:{username} since:{since_3m} until:{until_3m}",
+            query_type="Top",
+        )
+        if older:
+            n = _fetch_and_store(older, "advanced_search_older", f"from:{username} since:{since_3m} until:{until_3m}")
+    except BudgetExhaustedError:
+        pass  # Skip temporal diversity if budget is tight
+
+    return all_parsed, total_new
 
 
 # ---------------------------------------------------------------------------
