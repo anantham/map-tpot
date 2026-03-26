@@ -8,6 +8,7 @@ import { useCardGeneration } from './GenerateCard'
 import About from './About'
 import CommunityPage from './CommunityPage'
 import CardGallery from './CardGallery'
+import EvidenceSummary from './EvidenceSummary'
 import useRouting from './useRouting'
 
 /**
@@ -38,6 +39,13 @@ function ResultArea({ result, communityMap, links, onCommunityClick }) {
           generationStatus={status}
           onCommunityClick={onCommunityClick}
           confidence={result.confidence || 0}
+        />
+        <EvidenceSummary
+          tier={result.originalTier || result.tier}
+          confidence={result.confidence || 0}
+          memberships={result.memberships}
+          communityMap={communityMap}
+          followers={result.followers}
         />
         {status === 'generated' && (
           <button
@@ -202,21 +210,25 @@ export default function App() {
         setResult({
           handle: account.username,
           tier: displayTier,
+          originalTier: tier,
           displayName: account.display_name,
           bio: account.bio,
           memberships: account.memberships,
           sampleTweets: account.sample_tweets || [],
           confidence,
+          followers: account.followers,
         })
       } else {
         setResult({
           handle: searchResult.handle,
           tier: displayTier,
-          displayName: null,
-          bio: null,
+          originalTier: tier,
+          displayName: searchResult.display_name || null,
+          bio: searchResult.bio || null,
           memberships: searchResult.memberships || [],
           sampleTweets: [],
           confidence,
+          followers: searchResult.followers || null,
         })
       }
     } else {
