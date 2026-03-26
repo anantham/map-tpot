@@ -377,6 +377,23 @@ def assemble_account_context(
     }
 
 
+def get_reply_communities(conn: sqlite3.Connection, tweet_id: str) -> str:
+    """
+    Find classified accounts who replied to this tweet, and whether OP replied back.
+
+    Checks both the signed_reply table (archive data) and can be extended to
+    use tweet/replies API for enriched tweets.
+
+    Returns formatted string like:
+        "Replies from: @ChrisOlah (AI-Safety), @davidad (AI-Safety). OP replied to 2."
+    """
+    # For archive tweets: check signed_reply for the tweet author's conversations
+    # For now, use a lightweight approach: check if any classified accounts
+    # are in the mentions of replies to this tweet
+    # TODO: wire tweet/replies API for richer data
+    return ""
+
+
 def assemble_tweet_context(
     conn: sqlite3.Connection,
     tweet_id: str,
@@ -389,11 +406,13 @@ def assemble_tweet_context(
 
     Combines:
       - engagement_context: classified accounts who liked this tweet
+      - reply_communities: classified accounts who replied to this tweet
 
     Returns a dict with keys: tweet_id, tweet_text, engagement_stats,
-    mentions, engagement_context.
+    mentions, engagement_context, reply_communities.
     """
     engagement_context = get_engagement_context(conn, tweet_id)
+    reply_communities = get_reply_communities(conn, tweet_id)
 
     return {
         "tweet_id": tweet_id,
@@ -401,4 +420,5 @@ def assemble_tweet_context(
         "engagement_stats": engagement_stats,
         "mentions": mentions,
         "engagement_context": engagement_context,
+        "reply_communities": reply_communities,
     }

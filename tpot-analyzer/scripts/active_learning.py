@@ -29,6 +29,8 @@ from scripts.fetch_tweets_for_account import (
     check_budget,
     fetch_advanced_search,
     fetch_last_tweets,
+    fetch_multi_scale,
+    is_stale,
     log_api_call,
     parse_tweet,
     store_tweets,
@@ -227,9 +229,11 @@ def select_accounts_by_handle(
             logger.warning("@%s is a holdout account — skipping", handle)
             continue
 
-        if aid in enriched_ids:
-            logger.warning("@%s already enriched — skipping", handle)
+        if aid in enriched_ids and not is_stale(conn, aid):
+            logger.warning("@%s already enriched (fresh) — skipping", handle)
             continue
+        if aid in enriched_ids and is_stale(conn, aid):
+            logger.info("@%s enriched but stale (>%d days) — re-fetching", handle, 30)
 
         # Get info_value if available (might not be in frontier_ranking)
         iv_row = conn.execute(
@@ -551,61 +555,25 @@ def run_round_1(
             # 2. Holdout guard
             assert_not_holdout(conn, account_id)
 
-            # 3. Fetch tweets — two calls for diverse sampling
-            # Call 1: recent tweets (current state)
-            raw_tweets, author_info = fetch_last_tweets(twitter_key, username)
-            parsed = [parse_tweet(t, username) for t in raw_tweets]
-            inserted = store_tweets(conn, parsed, fetch_source="last_tweets")
-
-            # Call 2: most-liked tweets (best/most representative content)
-            check_budget(conn, limit=budget, raise_on_exceed=True)
-            top_query = f"from:{username}"
-            raw_top = fetch_advanced_search(twitter_key, top_query)
-            parsed_top = [parse_tweet(t, username) for t in raw_top]
-            inserted_top = store_tweets(conn, parsed_top, fetch_source="advanced_search", fetch_query=top_query)
-            log_api_call(
-                conn, account_id=account_id, username=username,
-                round_num=1, action="advanced_search",
-                tweets_fetched=len(parsed_top), query=top_query,
+            # 3. Fetch tweets — multi-scale strategy
+            # Top tweets (most-engaged), recent timeline, latest search, older window
+            parsed, total_new = fetch_multi_scale(
+                twitter_key, username, account_id, conn,
+                round_num=1, budget_limit=budget,
             )
 
-            # Merge: label all unique tweets (dedup by tweet_id)
+            # Dedup across all sources
             seen_ids = set()
-            all_parsed = []
-            for t in parsed + parsed_top:
+            unique_parsed = []
+            for t in parsed:
                 if t["tweet_id"] not in seen_ids:
-                    all_parsed.append(t)
+                    unique_parsed.append(t)
                     seen_ids.add(t["tweet_id"])
-            parsed = all_parsed
-
-            # 5. Store bio from API response (if not already in DB)
-            if author_info:
-                api_bio = author_info.get("description", "")
-                if api_bio:
-                    # Update resolved_accounts with bio from API
-                    conn.execute(
-                        "INSERT OR IGNORE INTO resolved_accounts (account_id, username, bio) VALUES (?, ?, ?)",
-                        (account_id, username, api_bio),
-                    )
-                    conn.execute(
-                        "UPDATE resolved_accounts SET bio = ? WHERE account_id = ? AND (bio IS NULL OR bio = '')",
-                        (api_bio, account_id),
-                    )
-                    conn.commit()
-
-            # 6. Log API call
-            log_api_call(
-                conn,
-                account_id=account_id,
-                username=username,
-                round_num=1,
-                action="last_tweets",
-                tweets_fetched=len(parsed),
-            )
+            parsed = unique_parsed
 
             logger.info(
                 "Fetched %d tweets for @%s (%d new), info_value=%.3f",
-                len(parsed), username, inserted, acct["info_value"],
+                len(parsed), username, total_new, acct["info_value"],
             )
 
             # 7. Label each tweet
