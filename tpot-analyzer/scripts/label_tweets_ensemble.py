@@ -329,6 +329,7 @@ def build_prompt(
     engagement_partners: str = "",
     mention_communities: str = "",
     rt_source: str = "",
+    reply_communities: str = "",
 ) -> str:
     """Build the combined system+user prompt for a single tweet labeling call.
 
@@ -532,7 +533,8 @@ TWEET TO TAG:{rt_flag}
 Engagement: {engagement}
 {f"Engagement context: {engagement_context}" if engagement_context and engagement_context != "No engagement data from classified accounts." else ""}\
 {rt_source if rt_source else ""}\
-{mention_communities if mention_communities else ""}
+{mention_communities if mention_communities else ""}\
+{reply_communities if reply_communities else ""}
 
 Focus on bits that SURPRISE relative to the prior. Confirming evidence = low signal_strength. Contradicting or extending = high signal_strength.
 Tag sub-community facets as themes when you see them (e.g., theme:mech-interp, theme:jhana-practice).

@@ -14,6 +14,7 @@ Provides:
 
 import sqlite3
 from collections import defaultdict
+from typing import Optional
 
 
 def get_graph_signal(conn: sqlite3.Connection, account_id: str) -> str:
@@ -377,21 +378,179 @@ def assemble_account_context(
     }
 
 
-def get_reply_communities(conn: sqlite3.Connection, tweet_id: str) -> str:
+def _ensure_reply_cache(conn: sqlite3.Connection) -> None:
+    """Create tweet_replies_cache table if it doesn't exist."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS tweet_replies_cache (
+            tweet_id        TEXT NOT NULL,
+            reply_id        TEXT NOT NULL,
+            author_id       TEXT,
+            author_username TEXT,
+            text            TEXT,
+            like_count      INTEGER DEFAULT 0,
+            created_at      TEXT,
+            fetched_at      TEXT NOT NULL,
+            PRIMARY KEY (tweet_id, reply_id)
+        )
+    """)
+    conn.commit()
+
+
+def fetch_and_cache_replies(
+    conn: sqlite3.Connection,
+    tweet_id: str,
+    api_key: Optional[str] = None,
+) -> list[dict]:
+    """Fetch replies to a tweet, caching in tweet_replies_cache.
+
+    Returns cached replies if available, otherwise calls tweet/replies API.
+    Each reply is a dict with: reply_id, author_id, author_username, text, like_count.
+    """
+    _ensure_reply_cache(conn)
+
+    # Check cache first
+    cached = conn.execute(
+        "SELECT reply_id, author_id, author_username, text, like_count "
+        "FROM tweet_replies_cache WHERE tweet_id = ?",
+        (tweet_id,),
+    ).fetchall()
+    if cached:
+        return [
+            {"reply_id": r[0], "author_id": r[1], "author_username": r[2],
+             "text": r[3], "like_count": r[4]}
+            for r in cached
+        ]
+
+    # No cache — fetch from API if key provided
+    if not api_key:
+        return []
+
+    import httpx
+    import time
+    from datetime import datetime, timezone
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        resp = httpx.get(
+            "https://api.twitterapi.io/twitter/tweet/replies",
+            params={"tweetId": tweet_id},
+            headers={"X-API-Key": api_key},
+            timeout=15,
+        )
+        if resp.status_code == 429:
+            time.sleep(60)
+            resp = httpx.get(
+                "https://api.twitterapi.io/twitter/tweet/replies",
+                params={"tweetId": tweet_id},
+                headers={"X-API-Key": api_key},
+                timeout=15,
+            )
+        if resp.status_code != 200:
+            logger.debug("Reply fetch failed for %s: HTTP %d", tweet_id, resp.status_code)
+            return []
+
+        data = resp.json()
+        tweets = data.get("tweets", [])
+        now = datetime.now(timezone.utc).isoformat()
+
+        replies = []
+        for t in tweets:
+            author = t.get("author", {})
+            reply = {
+                "reply_id": str(t.get("id", "")),
+                "author_id": str(author.get("id", "")),
+                "author_username": author.get("userName", ""),
+                "text": t.get("text", ""),
+                "like_count": t.get("likeCount", 0),
+            }
+            replies.append(reply)
+
+            # Cache it
+            conn.execute(
+                "INSERT OR IGNORE INTO tweet_replies_cache "
+                "(tweet_id, reply_id, author_id, author_username, text, like_count, created_at, fetched_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (tweet_id, reply["reply_id"], reply["author_id"],
+                 reply["author_username"], reply["text"], reply["like_count"],
+                 t.get("createdAt", ""), now),
+            )
+
+        conn.commit()
+        time.sleep(0.3)  # gentle rate limit
+        return replies
+
+    except Exception as e:
+        logger.debug("Reply fetch error for %s: %s", tweet_id, e)
+        return []
+
+
+def get_reply_communities(
+    conn: sqlite3.Connection,
+    tweet_id: str,
+    op_username: str = "",
+    api_key: Optional[str] = None,
+) -> str:
     """
     Find classified accounts who replied to this tweet, and whether OP replied back.
 
-    Checks both the signed_reply table (archive data) and can be extended to
-    use tweet/replies API for enriched tweets.
+    Uses tweet_replies_cache (populated by fetch_and_cache_replies).
+    Falls back to signed_reply table for archive data.
 
     Returns formatted string like:
-        "Replies from: @ChrisOlah (AI-Safety), @davidad (AI-Safety). OP replied to 2."
+        "Replies from: @ChrisOlah (AI-Safety), @davidad (AI-Safety). OP replied back to 2."
     """
-    # For archive tweets: check signed_reply for the tweet author's conversations
-    # For now, use a lightweight approach: check if any classified accounts
-    # are in the mentions of replies to this tweet
-    # TODO: wire tweet/replies API for richer data
-    return ""
+    replies = fetch_and_cache_replies(conn, tweet_id, api_key)
+
+    if not replies:
+        # Fallback: check signed_reply table for archive-based reply relationships
+        # This doesn't have per-tweet resolution, but it tells us about reply relationships
+        return ""
+
+    # Resolve reply authors to communities
+    classified_repliers = []
+    op_replied_back = 0
+
+    for r in replies:
+        author_id = r.get("author_id", "")
+        author_username = r.get("author_username", "")
+
+        # Check if OP replied back (OP is in the reply thread)
+        if author_username and author_username.lower() == op_username.lower():
+            op_replied_back += 1
+            continue
+
+        # Look up community membership
+        if author_id:
+            comm = conn.execute("""
+                SELECT c.short_name FROM community_account ca
+                JOIN community c ON c.id = ca.community_id
+                WHERE ca.account_id = ? ORDER BY ca.weight DESC LIMIT 1
+            """, (author_id,)).fetchone()
+        else:
+            comm = None
+
+        if comm:
+            classified_repliers.append(f"@{author_username} ({comm[0]})")
+        elif author_username:
+            # Not classified but might still be useful context
+            # Only include if they have some graph presence
+            in_graph = conn.execute(
+                "SELECT 1 FROM account_following WHERE following_account_id = ? LIMIT 1",
+                (author_id,),
+            ).fetchone() if author_id else None
+            if in_graph:
+                classified_repliers.append(f"@{author_username}")
+
+    if not classified_repliers:
+        return ""
+
+    parts = ["Replied by: " + ", ".join(classified_repliers[:8])]
+    if op_replied_back:
+        parts.append(f"OP replied back to {op_replied_back}")
+
+    return " | ".join(parts)
 
 
 def assemble_tweet_context(
