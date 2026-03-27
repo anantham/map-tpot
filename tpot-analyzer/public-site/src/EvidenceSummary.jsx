@@ -15,7 +15,6 @@ export default function EvidenceSummary({
 }) {
   if (!tier || tier === 'not_found') return null
 
-  const ciPct = Math.round(confidence * 100)
   const bars = (memberships || [])
     .map(m => {
       const community = communityMap?.get(m.community_id)
@@ -115,9 +114,6 @@ export default function EvidenceSummary({
         </span>
         {tierLabels[tier] && tier !== 'exemplar' && tier !== 'classified' && (
           <span className="evidence-tier-label">{tierLabels[tier]}</span>
-        )}
-        {ciPct > 0 && (
-          <span className="evidence-ci">{ciPct}%</span>
         )}
       </div>
       {lines.map((line, i) => (

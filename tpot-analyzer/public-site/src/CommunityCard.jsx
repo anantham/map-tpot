@@ -156,9 +156,6 @@ export default function CommunityCard({
               />
               <div className="card-fullscreen-handle">
                 @{handle}
-                {confidence > 0 && (
-                  <span className="card-fullscreen-ci">{Math.round(confidence * 100)}% confidence</span>
-                )}
                 {hasMultipleVersions && (
                   <span className="card-fullscreen-counter">
                     {(versionIdx < 0 ? versions.length : versionIdx + 1)} / {versions.length}
@@ -182,7 +179,6 @@ export default function CommunityCard({
   }
 
   // -- Fallback: bar-chart card (with optional shimmer during generation) --
-  const ciPct = Math.round(confidence * 100)
   return (
     <div
       className={`community-card ${useColor ? 'card-classified' : 'card-propagated'} ${isGenerating ? 'generating' : ''}`}
@@ -195,11 +191,6 @@ export default function CommunityCard({
         <span className="card-handle">@{handle}</span>
         {displayName && (
           <span className="card-display-name">{displayName}</span>
-        )}
-        {confidence > 0 && (
-          <span className="card-ci" title="Confidence index — how certain we are about these communities">
-            {ciPct}% confidence
-          </span>
         )}
       </div>
 
