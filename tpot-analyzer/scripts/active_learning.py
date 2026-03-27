@@ -441,6 +441,7 @@ def _label_single_tweet(
             pass
 
     # Enrich reply tweets with thread context (parent tweets)
+    # Also store thread tweets in enriched_tweets for future use
     if tweet.get("is_reply") and tweet.get("tweet_id"):
         try:
             from src.config import DEFAULT_ARCHIVE_DB
@@ -448,6 +449,29 @@ def _label_single_tweet(
             if thread and len(thread) > 1:
                 thread_text = format_thread_for_prompt(thread, tweet["tweet_id"])
                 tweet_text = f"[Thread context]\n{thread_text}\n[End thread]"
+                # Store thread tweets we fetched (they're tweets from other accounts)
+                now_ts = __import__("datetime").datetime.now(
+                    __import__("datetime").timezone.utc
+                ).isoformat()
+                for t in thread:
+                    t_id = str(t.get("id", ""))
+                    t_author = t.get("author", {}).get("userName", "")
+                    t_author_id = str(t.get("author", {}).get("id", ""))
+                    if t_id and t_id != tweet["tweet_id"]:
+                        conn.execute(
+                            """INSERT OR IGNORE INTO enriched_tweets
+                            (tweet_id, account_id, username, text,
+                             like_count, retweet_count, reply_count, view_count,
+                             created_at, lang, is_reply, in_reply_to_user,
+                             has_media, mentions_json, fetch_source, fetched_at)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            (t_id, t_author_id, t_author, t.get("text", ""),
+                             t.get("likeCount", 0), t.get("retweetCount", 0),
+                             t.get("replyCount", 0), t.get("viewCount", 0),
+                             t.get("createdAt", ""), t.get("lang", ""),
+                             0, None, 0, "[]", "thread_context", now_ts),
+                        )
+                conn.commit()
         except Exception as e:
             logger.debug("Thread fetch failed for %s: %s", tweet["tweet_id"], e)
 
@@ -608,7 +632,19 @@ def run_round_1(
             # Build accumulating prior as we label tweets
             bits_accumulator: dict[str, int] = {}  # community → total bits so far
 
+            # Pre-compute which tweets already have tags (skip re-labeling)
+            already_labeled = set(
+                r[0] for r in conn.execute(
+                    "SELECT DISTINCT tweet_id FROM tweet_tags"
+                ).fetchall()
+            )
+
             for tweet in parsed:
+                # Skip tweets that already have labels (avoid re-paying LLM calls)
+                if tweet.get("tweet_id") in already_labeled:
+                    logger.debug("Skipping already-labeled tweet %s", tweet["tweet_id"])
+                    continue
+
                 # Build prior string from accumulated bits
                 if bits_accumulator:
                     total = sum(bits_accumulator.values())

@@ -267,6 +267,93 @@ def store_tweets(
 
 
 # ---------------------------------------------------------------------------
+# Archive-first loading
+# ---------------------------------------------------------------------------
+
+
+def load_archive_tweets(
+    conn: sqlite3.Connection,
+    account_id: str,
+    username: str,
+    limit: int = 100,
+) -> tuple[list[dict], int]:
+    """Load tweets from the archive (tweets table) into enriched_tweets.
+
+    For archive accounts (those who uploaded to Community Archive), we have
+    their full tweet history — no need to pay for API calls.
+
+    Returns (list of parsed tweet dicts, count of newly inserted).
+    """
+    # Check if this account has archive tweets
+    archive_count = conn.execute(
+        "SELECT COUNT(*) FROM tweets WHERE account_id = ?", (account_id,)
+    ).fetchone()[0]
+
+    if archive_count == 0:
+        return [], 0
+
+    # Load archive tweets, prioritizing high-engagement ones
+    rows = conn.execute(
+        """SELECT tweet_id, full_text, like_count, retweet_count, reply_count,
+                  created_at, lang
+           FROM tweets
+           WHERE account_id = ?
+           ORDER BY (like_count + retweet_count * 2) DESC
+           LIMIT ?""",
+        (account_id, limit),
+    ).fetchall()
+
+    now = datetime.now(timezone.utc).isoformat()
+    parsed = []
+    inserted = 0
+
+    for tweet_id, text, likes, rts, replies, created_at, lang in rows:
+        tweet_dict = {
+            "tweet_id": str(tweet_id),
+            "account_id": account_id,
+            "username": username,
+            "text": text or "",
+            "like_count": likes or 0,
+            "retweet_count": rts or 0,
+            "reply_count": replies or 0,
+            "view_count": 0,
+            "created_at": created_at or "",
+            "lang": lang or "",
+            "is_reply": 1 if (text or "").startswith("@") else 0,
+            "in_reply_to_user": None,
+            "has_media": 0,
+            "mentions_json": "[]",
+        }
+        parsed.append(tweet_dict)
+
+        cursor = conn.execute(
+            """INSERT OR IGNORE INTO enriched_tweets (
+                tweet_id, account_id, username, text,
+                like_count, retweet_count, reply_count, view_count,
+                created_at, lang, is_reply, in_reply_to_user,
+                has_media, mentions_json,
+                fetch_source, fetch_query, fetched_at
+            ) VALUES (
+                :tweet_id, :account_id, :username, :text,
+                :like_count, :retweet_count, :reply_count, :view_count,
+                :created_at, :lang, :is_reply, :in_reply_to_user,
+                :has_media, :mentions_json,
+                :fetch_source, :fetch_query, :fetched_at
+            )""",
+            {
+                **tweet_dict,
+                "fetch_source": "archive",
+                "fetch_query": None,
+                "fetched_at": now,
+            },
+        )
+        inserted += cursor.rowcount
+
+    conn.commit()
+    return parsed, inserted
+
+
+# ---------------------------------------------------------------------------
 # Multi-scale fetch strategy
 # ---------------------------------------------------------------------------
 
@@ -306,11 +393,16 @@ def fetch_multi_scale(
 ) -> tuple[list[dict], int]:
     """Fetch tweets at multiple time scales for representative sampling.
 
-    Strategy:
+    Strategy (archive-first):
+      0. Check archive (tweets table) — if account has archive data, load top 100
+         tweets by engagement. FREE, no API calls needed.
       1. Top tweets (queryType=Top): most-engaged originals — strongest identity signal
       2. Recent tweets (last_tweets): current interests — what they're posting NOW
       3. Latest search (queryType=Latest): recent chronological — catches replies, threads
       4. Time-windowed search: tweets from 3-6 months ago for temporal diversity
+
+    Archive tweets are loaded first. API calls supplement with recent activity
+    that post-dates the archive snapshot.
 
     Each call is logged. Budget is checked before each call.
     Returns (all parsed tweets, count of new tweets stored).
@@ -327,7 +419,18 @@ def fetch_multi_scale(
         total_new += new
         return len(parsed)
 
-    # 1. Top tweets — most-engaged, best identity signal
+    # 0. Archive-first: load from tweets table if available (FREE)
+    archive_parsed, archive_new = load_archive_tweets(conn, account_id, username, limit=100)
+    if archive_parsed:
+        all_parsed.extend(archive_parsed)
+        total_new += archive_new
+        import logging
+        logging.getLogger(__name__).info(
+            "Loaded %d archive tweets for @%s (%d new to enriched_tweets)",
+            len(archive_parsed), username, archive_new,
+        )
+
+    # 1. Top tweets — most-engaged, best identity signal (supplements archive with recent)
     check_budget(conn, budget_limit, raise_on_exceed=True)
     top_tweets = fetch_advanced_search(api_key, f"from:{username}", query_type="Top")
     if top_tweets:

@@ -467,7 +467,7 @@ def fetch_and_cache_replies(
             }
             replies.append(reply)
 
-            # Cache it
+            # Cache in reply-specific table
             conn.execute(
                 "INSERT OR IGNORE INTO tweet_replies_cache "
                 "(tweet_id, reply_id, author_id, author_username, text, like_count, created_at, fetched_at) "
@@ -475,6 +475,21 @@ def fetch_and_cache_replies(
                 (tweet_id, reply["reply_id"], reply["author_id"],
                  reply["author_username"], reply["text"], reply["like_count"],
                  t.get("createdAt", ""), now),
+            )
+
+            # Also store in enriched_tweets for future labeling of reply authors
+            conn.execute(
+                """INSERT OR IGNORE INTO enriched_tweets
+                (tweet_id, account_id, username, text,
+                 like_count, retweet_count, reply_count, view_count,
+                 created_at, lang, is_reply, in_reply_to_user,
+                 has_media, mentions_json, fetch_source, fetched_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (reply["reply_id"], reply["author_id"], reply["author_username"],
+                 reply["text"], reply["like_count"],
+                 t.get("retweetCount", 0), t.get("replyCount", 0), 0,
+                 t.get("createdAt", ""), t.get("lang", ""),
+                 1, None, 0, "[]", "reply_fetch", now),
             )
 
         conn.commit()
