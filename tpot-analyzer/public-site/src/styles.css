@@ -316,27 +316,22 @@ body {
 .evidence-ci {
   color: #666;
   font-size: 0.75rem;
+  margin-left: auto;
 }
 
-.evidence-tier {
-  margin: 0.3rem 0;
-  color: #888;
-}
-
-.evidence-placement {
-  margin: 0.3rem 0;
-  color: #aaa;
-}
-
-.evidence-desc {
-  margin: 0.3rem 0;
+.evidence-tier-label {
   color: #777;
-  font-style: italic;
+  font-size: 0.75rem;
 }
 
-.evidence-detail {
-  margin: 0.2rem 0 0;
-  color: #555;
+.evidence-line {
+  margin: 0.25rem 0;
+  color: #888;
+  line-height: 1.5;
+}
+
+.evidence-line:last-child {
+  color: #666;
   font-size: 0.75rem;
 }
 

@@ -948,6 +948,12 @@ def run_export(
         handle = acct.get("handle") or acct.get("username")
         if not handle or handle.lower() in _INVALID_USERNAMES:
             continue
+        # Compute evidence summary for transparency
+        total_seed_neighbors = sum(
+            m.get("seed_neighbors", 0)
+            for m in acct.get("memberships", [])
+            if isinstance(m, dict)
+        )
         search_index[handle.lower()] = {
             "tier": acct["tier"],
             "memberships": acct["memberships"],
@@ -955,6 +961,7 @@ def run_export(
             "bio": acct.get("bio"),
             "display_name": acct.get("display_name"),
             "followers": acct.get("followers"),
+            "seed_neighbors": total_seed_neighbors,
         }
 
     # --- Assemble output ---
