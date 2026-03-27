@@ -53,8 +53,8 @@ describe('CommunityCard', () => {
       expect(style).toContain('opacity')
     })
 
-    it('shows confidence percentage when > 0', () => {
-      render(
+    it('does not show raw CI percentage in card (delegated to EvidenceSummary)', () => {
+      const { container } = render(
         <CommunityCard
           handle="alice"
           tier="propagated"
@@ -64,21 +64,9 @@ describe('CommunityCard', () => {
         />
       )
 
-      expect(screen.getByText('42% confidence')).toBeTruthy()
-    })
-
-    it('does not show confidence when 0', () => {
-      render(
-        <CommunityCard
-          handle="alice"
-          tier="propagated"
-          memberships={baseMemberships}
-          communityMap={communityMap}
-          confidence={0}
-        />
-      )
-
-      expect(screen.queryByText(/confidence/)).toBeNull()
+      // CI percentage removed from card — EvidenceSummary handles it with badges
+      expect(container.querySelector('.card-ci')).toBeNull()
+      expect(screen.queryByText('42% confidence')).toBeNull()
     })
   })
 
