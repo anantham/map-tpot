@@ -624,6 +624,84 @@ export default function About({ meta, onNavigate }) {
               honest measurement so we know what works and what doesn&rsquo;t.
             </p>
           </section>
+
+          {/* Stage 7: The Veil of Ignorance */}
+          <section className="about-section">
+            <h2>
+              <span className="about-stage-num">7</span>
+              The Veil of Ignorance
+            </h2>
+
+            <p>
+              The hardest question about any map isn&rsquo;t &ldquo;does it look right?&rdquo;
+              It&rsquo;s: <strong>would it still find the territory if you hid the landmarks?</strong>
+            </p>
+            <p>
+              So we ran the experiment. Take a known TPOT account. Remove them from the seed
+              set. Propagate the entire network without them. Then ask: does the system rediscover
+              them from the structure alone?
+            </p>
+            <p>
+              The answer is yes&mdash;with near-perfect accuracy. Across five cross-validation
+              folds, the seed-neighbor signal (how many classified accounts follow you) recovers
+              held-out TPOT accounts with an AUC of 0.999. That&rsquo;s not a typo. The system
+              finds hidden TPOT accounts 100% of the time at a 5% false positive rate. A held-out
+              TPOT member has a median of 65 seed neighbors; a random non-TPOT account has 1.
+            </p>
+            <p>
+              Raw propagation scores, by contrast, are useless&mdash;AUC 0.225, worse than a coin
+              flip. TPOT accounts actually score <em>lower</em> than random noise because hub
+              nodes near many communities inherit diffuse signal. The math works, but only if you
+              measure the right thing: not &ldquo;how much signal reached you,&rdquo; but
+              &ldquo;how many community members specifically follow you.&rdquo;
+            </p>
+
+            <h3>The 17 skeleton keys</h3>
+            <p>
+              Here&rsquo;s where it gets interesting. We sorted all {classifiedStr} seeds by
+              connectivity&mdash;how many other seeds are their neighbors&mdash;and asked: how
+              few accounts do you need to find most of TPOT?
+            </p>
+            <p>
+              <strong>17 accounts.</strong> The top 5% of seeds, by neighbor count, are sufficient
+              to locate 81% of every independently-verified TPOT account in the network. Adding
+              the other 95% of seeds only pushes recall from 81% to 87%. The network has a
+              backbone, and it&rsquo;s remarkably small.
+            </p>
+            <p>
+              Those 17 accounts span most communities: contemplative practitioners, highbies,
+              internet essayists, AI safety, builders, creatives. They&rsquo;re the people who
+              bridge scenes&mdash;not specialists, but connectors. If you wanted to reconstruct
+              TPOT from scratch, you&rsquo;d start with them.
+            </p>
+
+            <h3>Communities survive deletion</h3>
+            <p>
+              The strongest test: remove an <em>entire community</em>. Delete every seed labeled
+              Jhana Practitioners&mdash;all 67 of them. Propagate from the remaining 14 communities.
+              Can seeds from other communities still find the Jhana people?
+            </p>
+            <p>
+              <strong>Yes. Every single one.</strong> 100% recall, from communities that share no
+              labels with them. Contemplative Practitioners and Highbies&mdash;the connective
+              tissue of TPOT&mdash;reach into Jhana&rsquo;s neighborhood because the follow
+              patterns overlap enough.
+            </p>
+            <p>
+              Every community survives full deletion. The weakest is TfT-Coordination at 86%&mdash;the
+              most insular group, with the fewest cross-community connections. The three most
+              resilient communities&mdash;Contemplative Practitioners, Highbies, and Core
+              TPOT&mdash;act as universal connectors. They appear in the top-3 recovery sources
+              for every other community. They are, in a structural sense, the fabric that holds
+              TPOT together.
+            </p>
+            <p>
+              This isn&rsquo;t circular. The communities weren&rsquo;t drawn to survive this test.
+              They were drawn to match follow patterns. The fact that they <em>also</em> survive
+              deletion means the structure is real. The graph knows about these communities
+              independently of our labeling. We named what was already there.
+            </p>
+          </section>
         </>
       )}
 
