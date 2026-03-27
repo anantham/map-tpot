@@ -11,87 +11,118 @@ export default function EvidenceSummary({
   memberships,
   communityMap,
   followers,
+  seedNeighbors,
 }) {
   if (!tier || tier === 'not_found') return null
 
   const ciPct = Math.round(confidence * 100)
+  const bars = (memberships || [])
+    .map(m => {
+      const community = communityMap?.get(m.community_id)
+      return {
+        name: community?.name || 'Unknown',
+        weight: m.weight,
+        pct: Math.round(m.weight * 100),
+        neighbors: m.seed_neighbors || 0,
+      }
+    })
+    .sort((a, b) => b.weight - a.weight)
 
-  // Describe the confidence level in plain language
-  const getConfidenceLabel = () => {
-    if (tier === 'exemplar' || tier === 'classified') {
-      return { label: 'Strong', desc: 'Full archive data — follows, retweets, liked content analyzed.' }
-    }
-    if (confidence >= 0.5) {
-      return { label: 'Strong', desc: 'Well-connected in the network with clear community signal.' }
-    }
-    if (confidence >= 0.15) {
-      return { label: 'Moderate', desc: 'Identified from the follow graph. More data would sharpen this.' }
-    }
-    if (confidence >= 0.05) {
-      return { label: 'Emerging', desc: 'Detected in the network but the signal is thin.' }
-    }
-    return { label: 'Faint', desc: 'Barely visible — far from classified accounts in the network.' }
+  const topBar = bars[0]
+  const significantBars = bars.filter(b => b.pct >= 10)
+  const totalNeighbors = seedNeighbors || bars.reduce((s, b) => s + b.neighbors, 0)
+
+  // Build specific evidence lines
+  const lines = []
+
+  // Line 1: What connections placed them
+  const barsWithNeighbors = bars.filter(b => b.neighbors > 0)
+  if (tier === 'exemplar' || tier === 'classified') {
+    lines.push('Seed account with full archive data — follows, retweets, and liked content analyzed.')
+  } else if (totalNeighbors > 0) {
+    const neighborDetail = barsWithNeighbors
+      .slice(0, 4)
+      .map(b => `${b.neighbors} ${b.name}`)
+      .join(', ')
+    lines.push(
+      `${totalNeighbors} classified accounts follow this account` +
+      (neighborDetail ? `: ${neighborDetail}.` : '.')
+    )
   }
 
-  // Describe what tier means
-  const getTierDesc = () => {
-    switch (tier) {
-      case 'exemplar':
-      case 'classified':
-        return 'Seed account — community placement based on full archive data + human curation.'
-      case 'specialist':
-        return 'Specialist — clearly belongs to one community based on follow patterns.'
-      case 'bridge':
-        return 'Bridge — connected to multiple communities. This is a social reality, not a classification failure.'
-      case 'frontier':
-        return 'Frontier — uncertain placement, pulled by many communities at once.'
-      case 'faint':
-        return 'Faint — present in the graph but below the confidence threshold.'
-      default:
-        return 'Placed via network analysis.'
-    }
+  // Line 2: Community placement detail
+  if (barsWithNeighbors.length > 1 && topBar) {
+    lines.push(
+      `Strongest: ${topBar.name} (${topBar.pct}%). ` +
+      `Connected to ${barsWithNeighbors.length} communit${barsWithNeighbors.length === 1 ? 'y' : 'ies'} total.`
+    )
+  } else if (topBar) {
+    lines.push(`Community: ${topBar.name} (${topBar.pct}%).`)
   }
 
-  // Build the evidence lines
-  const { label: confLabel, desc: confDesc } = getConfidenceLabel()
+  // Line 3: What would improve confidence
+  if (tier === 'exemplar' || tier === 'classified') {
+    // No improvement text for seeds
+  } else if (confidence < 0.15) {
+    lines.push(
+      'Based on network position only. Tweet analysis would sharpen this.'
+    )
+  } else if (confidence < 0.5) {
+    lines.push(
+      'Identified from the follow graph. Contributing data unlocks deeper analysis.'
+    )
+  }
 
-  // Count communities above 10%
-  const significantCommunities = (memberships || []).filter(m => m.weight >= 0.1).length
-  const totalCommunities = (memberships || []).length
+  // Line 4: Follower context (only if notable)
+  if (followers && followers >= 1000) {
+    lines.push(`${followers.toLocaleString()} followers on X.`)
+  }
 
-  // Top community
-  const topMembership = (memberships || []).sort((a, b) => b.weight - a.weight)[0]
-  const topCommunity = topMembership
-    ? communityMap?.get(topMembership.community_id)?.name || 'Unknown'
-    : null
-  const topPct = topMembership ? Math.round(topMembership.weight * 100) : 0
+  // Confidence badge
+  let badgeLabel, badgeClass
+  if (tier === 'exemplar' || tier === 'classified') {
+    badgeLabel = 'Seed'
+    badgeClass = 'strong'
+  } else if (confidence >= 0.5) {
+    badgeLabel = 'Strong'
+    badgeClass = 'strong'
+  } else if (confidence >= 0.15) {
+    badgeLabel = 'Moderate'
+    badgeClass = 'moderate'
+  } else if (confidence >= 0.05) {
+    badgeLabel = 'Emerging'
+    badgeClass = 'emerging'
+  } else {
+    badgeLabel = 'Faint'
+    badgeClass = 'faint'
+  }
+
+  // Tier label
+  const tierLabels = {
+    exemplar: 'Exemplar',
+    classified: 'Exemplar',
+    specialist: 'Specialist',
+    bridge: 'Bridge',
+    frontier: 'Frontier',
+    faint: 'Faint signal',
+  }
 
   return (
     <div className="evidence-summary">
       <div className="evidence-confidence">
-        <span className={`evidence-badge evidence-badge--${confLabel.toLowerCase()}`}>
-          {confLabel}
+        <span className={`evidence-badge evidence-badge--${badgeClass}`}>
+          {badgeLabel}
         </span>
-        <span className="evidence-ci">{ciPct > 0 ? `${ciPct}% confidence` : ''}</span>
+        {tierLabels[tier] && tier !== 'exemplar' && tier !== 'classified' && (
+          <span className="evidence-tier-label">{tierLabels[tier]}</span>
+        )}
+        {ciPct > 0 && (
+          <span className="evidence-ci">{ciPct}%</span>
+        )}
       </div>
-
-      <p className="evidence-tier">{getTierDesc()}</p>
-
-      {topCommunity && (
-        <p className="evidence-placement">
-          {significantCommunities > 1
-            ? `Scores in ${significantCommunities} communities — strongest: ${topCommunity} (${topPct}%).`
-            : `Primary community: ${topCommunity} (${topPct}%).`}
-          {totalCommunities > significantCommunities && significantCommunities > 0 &&
-            ` Plus ${totalCommunities - significantCommunities} weaker connections.`}
-        </p>
-      )}
-
-      <p className="evidence-desc">{confDesc}</p>
-
-      {followers && (
-        <p className="evidence-detail">{followers.toLocaleString()} followers on X</p>
-      )}
+      {lines.map((line, i) => (
+        <p className="evidence-line" key={i}>{line}</p>
+      ))}
     </div>
   )
 }

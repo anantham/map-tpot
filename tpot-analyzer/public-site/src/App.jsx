@@ -46,6 +46,7 @@ function ResultArea({ result, communityMap, links, onCommunityClick }) {
           memberships={result.memberships}
           communityMap={communityMap}
           followers={result.followers}
+          seedNeighbors={result.seedNeighbors || 0}
         />
         {status === 'generated' && (
           <button
@@ -217,6 +218,7 @@ export default function App() {
           sampleTweets: account.sample_tweets || [],
           confidence,
           followers: account.followers,
+          seedNeighbors: searchResult.seed_neighbors || 0,
         })
       } else {
         setResult({
@@ -229,6 +231,7 @@ export default function App() {
           sampleTweets: [],
           confidence,
           followers: searchResult.followers || null,
+          seedNeighbors: searchResult.seed_neighbors || 0,
         })
       }
     } else {
