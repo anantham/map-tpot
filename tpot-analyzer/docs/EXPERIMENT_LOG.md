@@ -2,7 +2,7 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-03-25 (Session 11)*
+*Last updated: 2026-03-26 (Session 11)*
 
 ---
 
@@ -92,6 +92,48 @@ Intra-community coherence: 0.38-0.53 (moderate). Tightest: Collective-Intelligen
 **Lesson:** The 16-community ontology is real structure, not a sparse-data artifact. More data sharpens boundaries rather than blurring them. The community that disappeared (Crypto) was the weakest signal.
 
 **Data:** v2 run saved as `nmf-k16-follow+rt+like-lw0.4-20260324-6f6f95` in `community_run` table. Not yet promoted to primary (v1 still active).
+
+---
+
+## EXP-005: Does tweet labeling agree with NMF graph placement?
+
+**Date:** 2026-03-26
+**Question:** If we label tweets for accounts already classified by NMF (graph-based), do the tweet-derived community assignments agree?
+
+**Hypothesis:** If both signals capture the same underlying community structure, they should agree most of the time. Disagreements reveal accounts where social affiliation (follows) diverges from intellectual identity (content).
+
+**Method:** Selected 15 NMF-only seeds (1 per community, weight > 0.3, no prior tweet labels). Ran through the enriched labeling pipeline (3-model LLM ensemble with bio, engagement partners, mention communities, RT source, sub-community facets, content profile). Compared NMF dominant community vs tweet-derived dominant community. 12 of 15 produced enough tags for comparison (3 had no tweets available).
+
+**Result:** **42% exact match, 58% top-3 match.**
+
+| Account | NMF (follows) | Tweets (content) | Verdict |
+|---------|--------------|-------------------|---------|
+| @NunoSempere | AI-Safety | AI-Safety | MATCH |
+| @technoshaman | Collective-Intelligence | Collective-Intelligence | MATCH |
+| @realpilleater | Core-TPOT | Core-TPOT | MATCH |
+| @v01dpr1mr0s3 | LLM-Whisperers | LLM-Whisperers | MATCH |
+| @Lithros | Highbies | Highbies | MATCH |
+| @AnniePosting | Queer-TPOT | Highbies | partial (Queer-TPOT in top-3) |
+| @taijitu_sees | Quiet-Creatives | Contemplative-Practitioners | partial |
+| @rndmcnlly | AI-Creativity | Tech-Intellectuals | DIFFER |
+| @sharanvkaur | Internet-Intellectuals | Highbies | DIFFER |
+| @archived_videos | Qualia-Research | Highbies | DIFFER |
+| @LChoshen | TfT-Coordination | Tech-Intellectuals | DIFFER |
+| @petersuber | Tech-Intellectuals | TfT-Coordination | DIFFER |
+
+**Pattern in disagreements:** All 5 "DIFFER" accounts follow one community but write content that fits another. @rndmcnlly follows AI art accounts but tweets about philosophy. @sharanvkaur follows essayists but posts highbie content. @LChoshen and @petersuber are mirror images — each assigned to the other's community by the opposite signal. These are genuine bridges where social scene ≠ intellectual identity.
+
+**The 5 exact matches** are accounts where social and intellectual identity align perfectly — @NunoSempere IS EA through and through, @v01dpr1mr0s3 IS pure LLM Whisperers.
+
+**Lesson:** Neither NMF (follows) nor tweet labeling (content) is "right" alone. They capture different dimensions:
+- **Follows** = who you listen to, your social scene, where you hang out
+- **Tweets** = what you think about, your intellectual identity, what you amplify
+
+The combination is the truth. An account that follows Qualia researchers but tweets Highbie content is genuinely straddling both worlds. The disagreement IS the signal, not an error to resolve.
+
+**Implication for seed criteria:** Accounts where NMF and tweets agree are the highest-confidence seeds (both signals converge). Accounts where they disagree should be flagged as bridges, not forced into one community. This suggests a confidence metric: `source_agreement = 1 if NMF_top == tweet_top else 0.5 if NMF_top in tweet_top3 else 0`.
+
+**Data:** Cross-validation results for 12 accounts stored in tweet_tags + account_community_bits. NMF assignments in community_membership table (run `nmf-k16-follow+rt+like-lw0.4-20260324-6f6f95`).
 
 ---
 
