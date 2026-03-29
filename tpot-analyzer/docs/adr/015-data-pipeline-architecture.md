@@ -1,4 +1,4 @@
-# ADR 001: Data Pipeline Architecture
+# ADR 015: Data Pipeline Architecture
 
 - Status: Accepted
 - Date: 2025-09-05
