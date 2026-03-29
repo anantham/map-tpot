@@ -42,8 +42,8 @@ logger = logging.getLogger(__name__)
 
 # ── Config ──────────────────────────────────────────────────────────────
 LMSTUDIO_URL = "http://localhost:1234/v1/embeddings"
-EMBEDDING_MODEL = "text-embedding-qwen3-embedding-8b"
-BATCH_SIZE = 64  # tweets per API call — tune based on VRAM
+EMBEDDING_MODEL = "text-embedding-qwen3-embedding-0.6b"
+BATCH_SIZE = 256  # tweets per API call — benchmarked at 46/sec on RTX 3080
 CHECKPOINT_EVERY = 5000  # save progress every N tweets
 MAX_TWEET_CHARS = 512  # truncate longer tweets
 
