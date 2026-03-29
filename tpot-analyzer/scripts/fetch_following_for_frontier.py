@@ -27,7 +27,7 @@ load_dotenv()
 
 DB_PATH = Path(__file__).parent.parent / "data" / "archive_tweets.db"
 BASE_URL = "https://api.twitterapi.io/twitter"
-COST_PER_CALL = 0.05  # estimated $/call for following list
+COST_PER_CALL = 0.03  # ~3000 credits/page, 2M credits/$20 = $0.01/1000 credits
 
 # API key resolution (same candidates as shadow_subset_audit)
 KEY_ENV_CANDIDATES = (
@@ -208,7 +208,7 @@ def main():
     print(f"Accounts to fetch: {len(targets)}")
     total_pages_est = sum(min(50, (fwing + 19) // 20) for _, _, _, fwing in targets if fwing > 0)
     print(f"Estimated API pages: ~{total_pages_est:,}")
-    print(f"Estimated cost: ~${total_pages_est * COST_PER_CALL / 20:.2f}")
+    print(f"Estimated cost: ~${total_pages_est * COST_PER_CALL:.2f}")
     print(f"Budget: ${args.budget:.2f}")
     if args.dry_run:
         print("DRY RUN — no API calls")

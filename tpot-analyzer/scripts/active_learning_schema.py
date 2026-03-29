@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS enrichment_log (
     query          TEXT,
     api_calls      INTEGER DEFAULT 1,
     tweets_fetched INTEGER DEFAULT 0,
-    estimated_cost REAL DEFAULT 0.05,
+    estimated_cost REAL DEFAULT 0.03,
     created_at     TEXT NOT NULL
 );
 """

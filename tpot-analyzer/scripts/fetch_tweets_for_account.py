@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_URL = "https://api.twitterapi.io/twitter"
-COST_PER_CALL = 0.05  # estimated $/call
+COST_PER_CALL = 0.03  # ~3000 credits/page, plan: 2M credits/$20
 
 KEY_ENV_CANDIDATES = (
     "TWITTERAPI_IO_API_KEY",
@@ -292,14 +292,48 @@ def load_archive_tweets(
     if archive_count == 0:
         return [], 0
 
+    tweet_columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(tweets)").fetchall()
+    }
+    text_expr = "full_text" if "full_text" in tweet_columns else "text"
+    like_expr = (
+        "favorite_count"
+        if "favorite_count" in tweet_columns
+        else "like_count"
+        if "like_count" in tweet_columns
+        else "0"
+    )
+    retweet_expr = "retweet_count" if "retweet_count" in tweet_columns else "0"
+    reply_expr = "reply_count" if "reply_count" in tweet_columns else "0"
+    reply_user_expr = (
+        "reply_to_username"
+        if "reply_to_username" in tweet_columns
+        else "in_reply_to_user"
+        if "in_reply_to_user" in tweet_columns
+        else "NULL"
+    )
+
+    if text_expr == "text" and "text" not in tweet_columns:
+        raise RuntimeError(
+            "tweets table is missing both full_text and text columns; "
+            "cannot load archive tweets"
+        )
+
     # Load archive tweets, prioritizing high-engagement ones
     rows = conn.execute(
-        """SELECT tweet_id, full_text, like_count, retweet_count, reply_count,
-                  created_at, lang
-           FROM tweets
-           WHERE account_id = ?
-           ORDER BY (like_count + retweet_count * 2) DESC
-           LIMIT ?""",
+        f"""SELECT tweet_id,
+                   {text_expr} AS tweet_text,
+                   {like_expr} AS like_count,
+                   {retweet_expr} AS retweet_count,
+                   {reply_expr} AS reply_count,
+                   created_at,
+                   lang,
+                   {reply_user_expr} AS reply_to_user
+            FROM tweets
+            WHERE account_id = ?
+            ORDER BY ({like_expr} + {retweet_expr} * 2 + {reply_expr}) DESC,
+                     created_at DESC
+            LIMIT ?""",
         (account_id, limit),
     ).fetchall()
 
@@ -307,7 +341,7 @@ def load_archive_tweets(
     parsed = []
     inserted = 0
 
-    for tweet_id, text, likes, rts, replies, created_at, lang in rows:
+    for tweet_id, text, likes, rts, replies, created_at, lang, reply_to_user in rows:
         tweet_dict = {
             "tweet_id": str(tweet_id),
             "account_id": account_id,
@@ -319,8 +353,8 @@ def load_archive_tweets(
             "view_count": 0,
             "created_at": created_at or "",
             "lang": lang or "",
-            "is_reply": 1 if (text or "").startswith("@") else 0,
-            "in_reply_to_user": None,
+            "is_reply": 1 if reply_to_user or (text or "").startswith("@") else 0,
+            "in_reply_to_user": reply_to_user,
             "has_media": 0,
             "mentions_json": "[]",
         }
@@ -384,12 +418,14 @@ def is_stale(conn: sqlite3.Connection, account_id: str, ttl_days: int = STALE_TT
 
 
 def fetch_multi_scale(
-    api_key: str,
+    api_key: str | None,
     username: str,
     account_id: str,
     conn: sqlite3.Connection,
     round_num: int = 1,
     budget_limit: float = 5.0,
+    archive_only: bool = False,
+    archive_limit: int = 100,
 ) -> tuple[list[dict], int]:
     """Fetch tweets at multiple time scales for representative sampling.
 
@@ -402,7 +438,7 @@ def fetch_multi_scale(
       4. Time-windowed search: tweets from 3-6 months ago for temporal diversity
 
     Archive tweets are loaded first. API calls supplement with recent activity
-    that post-dates the archive snapshot.
+    that post-dates the archive snapshot unless archive_only=True.
 
     Each call is logged. Budget is checked before each call.
     Returns (all parsed tweets, count of new tweets stored).
@@ -420,7 +456,12 @@ def fetch_multi_scale(
         return len(parsed)
 
     # 0. Archive-first: load from tweets table if available (FREE)
-    archive_parsed, archive_new = load_archive_tweets(conn, account_id, username, limit=100)
+    archive_parsed, archive_new = load_archive_tweets(
+        conn,
+        account_id,
+        username,
+        limit=archive_limit,
+    )
     if archive_parsed:
         all_parsed.extend(archive_parsed)
         total_new += archive_new
@@ -428,6 +469,19 @@ def fetch_multi_scale(
         logging.getLogger(__name__).info(
             "Loaded %d archive tweets for @%s (%d new to enriched_tweets)",
             len(archive_parsed), username, archive_new,
+        )
+
+    if archive_only:
+        if archive_parsed:
+            return all_parsed, total_new
+        raise RuntimeError(
+            f"Archive-only mode requested for @{username} ({account_id}) "
+            "but no archive tweets were found."
+        )
+
+    if not api_key:
+        raise RuntimeError(
+            "Twitter API key required for multi-scale fetch when archive_only is disabled."
         )
 
     # 1. Top tweets — most-engaged, best identity signal (supplements archive with recent)
