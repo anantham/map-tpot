@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-03-23
+Last reviewed: 2026-03-26
 
 ## Start Here
 
@@ -30,6 +30,7 @@ Last reviewed: 2026-03-23
 | [Testing Methodology](TESTING_METHODOLOGY.md) | Current testing strategy and execution guidance |
 | [Browser Binaries](diagnostics/BROWSER_BINARIES.md) | Playwright/browser setup in restricted environments |
 | [Backend API Implementation](reference/BACKEND_IMPLEMENTATION.md) | Backend architecture summary (historical context + modular layout) |
+| [Community Correctness Eval](reference/evals/phase1-community-correctness.md) | Phase 1 external-audit + human-review benchmark workflow |
 | [Database Schema](reference/DATABASE_SCHEMA.md) | Storage model and table contracts |
 | [Engineering Guardrails](reference/ENGINEERING_GUARDRAILS.md) | Empirical bug patterns mapped to invariants, tests, and migration policy |
 | [Features Intent](reference/FEATURES_INTENT.md) | Product/architecture intent for major behaviors |
@@ -75,13 +76,21 @@ Last reviewed: 2026-03-23
 
 ### ADRs
 
+- [ADR 015: Data Pipeline Architecture](adr/015-data-pipeline-architecture.md) (Accepted, 2025-09-05)
+- [ADR 014: Account-Community Gold Labels](adr/014-account-community-gold-labels-and-held-out-evaluation.md)
 - [ADR 013: Probabilistic Cluster Color Contract](adr/013-probabilistic-cluster-color-contract.md) (Accepted, 2026-03-06)
-- [ADR 011: Content-Aware Fingerprinting](adr/011-content-aware-fingerprinting-and-community-visualization.md) (Proposed, 2026-02-25)
-- [ADR 010: Labeling Dashboard and LLM Eval Harness](adr/010-labeling-dashboard-and-llm-eval-harness.md) (Proposed, 2026-02-25)
-- [ADR 009: Golden Curation Schema](adr/009-golden-curation-schema-and-active-learning-loop.md) (Proposed, 2026-02-25)
-- [ADR 008: Tweet-Level LLM Classification](adr/008-tweet-classification-account-fingerprinting.md) (Proposed, 2026-02-25)
-- [ADR 007: Observation-Aware Clustering](adr/007-observation-aware-clustering-membership.md) (Proposed, 2026-02-17)
-- [ADR 006: Shared Tagging and TPOT Membership](adr/006-shared-tagging-and-tpot-membership.md) (Proposed, 2026-02-10)
+- [ADR 012: Community-Seeded Cluster Navigation](adr/012-community-seeded-cluster-navigation.md)
+- [ADR 011: Content-Aware Fingerprinting](adr/011-content-aware-fingerprinting-and-community-visualization.md)
+- [ADR 010: Labeling Dashboard and LLM Eval Harness](adr/010-labeling-dashboard-and-llm-eval-harness.md)
+- [ADR 009: Golden Curation Schema](adr/009-golden-curation-schema-and-active-learning-loop.md)
+- [ADR 008: Tweet-Level LLM Classification](adr/008-tweet-classification-account-fingerprinting.md)
+- [ADR 007: Observation-Aware Clustering](adr/007-observation-aware-clustering-membership.md)
+- [ADR 006: Shared Tagging and TPOT Membership](adr/006-shared-tagging-and-tpot-membership.md)
+- [ADR 005: Blob Storage Import](adr/005-blob-storage-import.md) (Implemented, 2025-11-08)
+- [ADR 004: Precomputed Graph Snapshots](adr/004-precomputed-graph-snapshots.md)
+- [ADR 003: Backend API Integration](adr/003-backend-api-integration.md)
+- [ADR 002: Graph Analysis Foundation](adr/002-graph-analysis-foundation.md)
+- [ADR 001: Spectral Clustering Visualization](adr/001-spectral-clustering-visualization.md) (Proposed, 2024-12-05)
 
 ### Handover & Session Context
 
