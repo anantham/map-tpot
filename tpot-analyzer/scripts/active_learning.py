@@ -258,7 +258,7 @@ def select_accounts_by_handle(
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def triage_results(bits: dict[str, float]) -> str:
+def profile_results(bits: dict[str, float]) -> str:
     """Classify account labeling results by confidence.
 
     Returns:
@@ -571,7 +571,7 @@ def run_round_1(
     archive_limit: int = 20,
     enabled_signals: set | None = None,
 ) -> dict:
-    """Execute round 1: fetch tweets, label with ensemble, triage.
+    """Execute round 1: fetch tweets, label with ensemble, profile.
 
     For each account:
       1. Budget check
@@ -693,15 +693,15 @@ def run_round_1(
                         tweet["tweet_id"], username,
                     )
 
-            # 7. Triage — compute bits pct for this account
+            # 7. Profile — compute bits pct for this account
             bits_pct = _compute_account_bits_pct(conn, account_id)
-            triage = triage_results(bits_pct)
-            acct_result = {**acct, "triage": triage, "tweets_fetched": len(parsed)}
-            results[triage].append(acct_result)
+            profile = profile_results(bits_pct)
+            acct_result = {**acct, "profile": profile, "tweets_fetched": len(parsed)}
+            results[profile].append(acct_result)
 
             logger.info(
-                "  @%s triage=%s bits=%s",
-                username, triage,
+                "  @%s profile=%s bits=%s",
+                username, profile,
                 {k: f"{v:.1f}%" for k, v in sorted(bits_pct.items(), key=lambda x: -x[1])[:3]},
             )
 
