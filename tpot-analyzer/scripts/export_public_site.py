@@ -445,23 +445,20 @@ def extract_band_accounts(
         memberships = npz_memberships.get(aid, [])
         if not memberships:
             continue
-        # Compute CI from propagation signals
-        # Works for both classic (zero-sum) and independent (raw scores) modes.
-        # In independent mode: use top weight + seed neighbor count.
-        # In classic mode: use original formula.
-        meta = band_meta.get(aid, {})
-        tw = meta.get("top_weight", 0)
-        ent = meta.get("entropy", 0)
-        nw = meta.get("none_weight", 0)
+        # Compute CI from seed-neighbor count (veil CV: AUC 0.999).
+        # Raw propagation scores are worse than random (AUC 0.225).
+        # seed_neighbors = how many classified accounts follow you in your
+        # top community. 20+ = high confidence, 5-20 = moderate, 1-5 = emerging.
         top_membership = memberships[0] if memberships else {}
         top_neighbors = top_membership.get("seed_neighbors", 0) if isinstance(top_membership, dict) else 0
         if top_neighbors > 0:
-            # Independent mode CI: weight × neighbor evidence
-            # More seed neighbors = more confident
-            neighbor_factor = min(1.0, top_neighbors / 5.0)  # 5+ neighbors = full confidence
-            ci = round(float(top_membership.get("weight", 0)) * neighbor_factor, 3)
+            ci = round(min(1.0, top_neighbors / 20.0), 3)
         else:
-            # Classic mode CI (original formula)
+            # Fallback for classic mode or missing neighbor data
+            meta = band_meta.get(aid, {})
+            tw = meta.get("top_weight", 0)
+            ent = meta.get("entropy", 0)
+            nw = meta.get("none_weight", 0)
             ci = round(tw * (1 - nw) * (1 - ent), 3)
         result.append({
             "id": aid,
