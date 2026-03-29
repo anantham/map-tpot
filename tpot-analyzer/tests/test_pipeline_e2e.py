@@ -282,6 +282,32 @@ def _create_full_db(db_path: Path) -> None:
 
     # -- account_community_bits stays EMPTY initially (test_01 populates it) --
 
+    # -- account_band (four-band classification for export) --
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS account_band (
+            account_id TEXT PRIMARY KEY,
+            band TEXT NOT NULL,
+            top_community TEXT,
+            top_weight REAL,
+            entropy REAL,
+            none_weight REAL,
+            degree INTEGER,
+            created_at TEXT NOT NULL
+        )
+    """)
+    # All 4 core accounts are exemplars (seeds)
+    for aid, _ in CORE_ACCOUNTS:
+        conn.execute(
+            "INSERT INTO account_band VALUES (?, 'exemplar', ?, 0.85, 0.1, 0.0, 3, ?)",
+            (aid, COMMUNITY_NAMES[0], now),
+        )
+    # Shadow accounts as frontier (propagated, weak signal)
+    for aid, _ in SHADOW_ACCOUNTS:
+        conn.execute(
+            "INSERT INTO account_band VALUES (?, 'frontier', ?, 0.2, 0.3, 0.0, 2, ?)",
+            (aid, COMMUNITY_NAMES[0], now),
+        )
+
     conn.commit()
     conn.close()
 
@@ -744,7 +770,8 @@ class TestPipelineEndToEnd:
 
         # Meta should have counts
         assert data["meta"]["counts"]["communities"] == 3
-        assert data["meta"]["counts"]["classified_accounts"] == 4
+        assert data["meta"]["counts"]["total_accounts"] >= 4
+        assert "by_band" in data["meta"]["counts"]
 
         # Verify search.json
         search_path = export_out / "search.json"
@@ -752,16 +779,16 @@ class TestPipelineEndToEnd:
         search = json.loads(search_path.read_text())
         assert isinstance(search, dict)
 
-        # Classified handles should be in search
+        # Core handles should be in search as exemplars
         assert "alice" in search
         assert "bob" in search
         assert "carol" in search
         assert "dave" in search
 
-        # Classified entries should have tier
-        assert search["alice"]["tier"] == "classified"
+        # Exemplar entries should have tier
+        assert search["alice"]["tier"] == "exemplar"
 
-        # Total searchable should be at least the 4 classified
+        # Total searchable should be at least the 4 core accounts
         assert data["meta"]["counts"]["total_searchable"] >= 4
 
     # -- Test 08: Interface consistency ----------------------------------------

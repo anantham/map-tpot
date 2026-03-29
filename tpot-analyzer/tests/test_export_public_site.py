@@ -907,6 +907,16 @@ class TestExportIntegration:
             CREATE TABLE profiles (
                 account_id TEXT PRIMARY KEY, username TEXT
             );
+            CREATE TABLE account_band (
+                account_id TEXT PRIMARY KEY,
+                band TEXT NOT NULL,
+                top_community TEXT,
+                top_weight REAL,
+                entropy REAL,
+                none_weight REAL,
+                degree INTEGER,
+                created_at TEXT NOT NULL
+            );
         """)
         conn.execute(
             "INSERT INTO community VALUES (?, ?, ?, ?, ?, NULL, NULL, '2026-01-01', '2026-01-01')",
@@ -919,6 +929,15 @@ class TestExportIntegration:
         conn.execute(
             "INSERT INTO community_account VALUES (?, ?, ?, 'nmf', '2026-01-01')",
             ("comm-a", "acct-1", 0.95),
+        )
+        # Band assignments: acct-1 is exemplar (seed), node-x is specialist (propagated)
+        conn.execute(
+            "INSERT INTO account_band VALUES (?, ?, ?, ?, ?, ?, ?, '2026-01-01')",
+            ("acct-1", "exemplar", "Builders", 0.95, 0.1, 0.0, 5),
+        )
+        conn.execute(
+            "INSERT INTO account_band VALUES (?, ?, ?, ?, ?, ?, ?, '2026-01-01')",
+            ("node-x", "specialist", "Builders", 0.7, 0.2, 0.0, 3),
         )
         conn.commit()
         conn.close()
@@ -970,13 +989,13 @@ class TestExportIntegration:
 
         search = json.loads((output_dir / "search.json").read_text())
 
-        # alice (acct-1) should be classified, not overwritten by propagated
+        # alice (acct-1) should be exemplar (seed), not overwritten by propagated
         assert "alice" in search
-        assert search["alice"]["tier"] == "classified"
+        assert search["alice"]["tier"] == "exemplar"
 
-        # zara (node-x) should be propagated
+        # zara (node-x) should be specialist (propagated with good signal)
         assert "zara" in search
-        assert search["zara"]["tier"] == "propagated"
+        assert search["zara"]["tier"] == "specialist"
 
     def test_threshold_gate_filters_low_weight(self, community_db, tmp_path, config):
         """Accounts whose max community weight is below abstain_threshold (0.10 by

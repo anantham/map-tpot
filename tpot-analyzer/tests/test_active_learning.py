@@ -3,7 +3,7 @@ import sqlite3
 import pytest
 from scripts.active_learning import (
     select_accounts,
-    triage_results,
+    profile_results,
     log_model_agreement,
     run_round_1,
 )
@@ -83,21 +83,21 @@ def test_select_accounts_ordered_by_info_value(tmp_path):
 
 def test_triage_high_confidence():
     bits = {"highbies": 60.0, "Core-TPOT": 25.0, "LLM-Whisperers": 15.0}
-    assert triage_results(bits) == "high"
+    assert profile_results(bits) == "high"
 
 
 def test_triage_ambiguous():
     bits = {"highbies": 30.0, "Core-TPOT": 25.0, "LLM-Whisperers": 25.0, "Qualia-Research": 20.0}
-    assert triage_results(bits) == "ambiguous"
+    assert profile_results(bits) == "ambiguous"
 
 
 def test_triage_no_signal():
-    assert triage_results({}) == "no_signal"
+    assert profile_results({}) == "no_signal"
 
 
 def test_triage_borderline_high():
     bits = {"highbies": 45.0, "Core-TPOT": 35.0, "LLM-Whisperers": 20.0}
-    assert triage_results(bits) == "high"  # 45% is > 40%
+    assert profile_results(bits) == "high"  # 45% is > 40%
 
 
 def test_select_accounts_excludes_in_holdout_flag(tmp_path):
@@ -152,13 +152,13 @@ def test_select_accounts_skips_any_enriched(tmp_path):
 def test_triage_single_dominant():
     """Single community at 100% should be high."""
     bits = {"Core-TPOT": 100.0}
-    assert triage_results(bits) == "high"
+    assert profile_results(bits) == "high"
 
 
 def test_triage_exactly_40():
     """40% exactly should NOT be ambiguous — 40 <= 40 is ambiguous."""
     bits = {"highbies": 40.0, "Core-TPOT": 30.0, "LLM-Whisperers": 30.0}
-    assert triage_results(bits) == "ambiguous"
+    assert profile_results(bits) == "ambiguous"
 
 
 def test_log_model_agreement_all_agree(capsys):

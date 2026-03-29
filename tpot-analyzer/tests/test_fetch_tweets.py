@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 from scripts.fetch_tweets_for_account import (
     fetch_last_tweets, fetch_advanced_search, store_tweets,
     parse_tweet, check_budget, log_api_call, BudgetExhaustedError,
-    assert_not_holdout,
+    assert_not_holdout, load_archive_tweets, fetch_multi_scale,
 )
 from scripts.active_learning_schema import create_tables
 
@@ -102,9 +102,9 @@ def test_log_api_call(db):
                  action="last_tweets", tweets_fetched=20)
     row = db.execute("SELECT * FROM enrichment_log").fetchone()
     assert row is not None
-    # Verify estimated_cost defaults to 0.05
+    # Verify estimated_cost defaults to COST_PER_CALL (0.03)
     rows = db.execute("SELECT estimated_cost FROM enrichment_log").fetchall()
-    assert rows[0][0] == 0.05
+    assert rows[0][0] == 0.03
 
 
 def test_assert_not_holdout(db):
@@ -119,3 +119,99 @@ def test_assert_not_holdout_passes_for_normal(db):
     db.execute("CREATE TABLE IF NOT EXISTS tpot_directory_holdout (handle TEXT, account_id TEXT)")
     db.commit()
     assert_not_holdout(db, account_id="123")  # should not raise
+
+
+def test_load_archive_tweets_uses_top_engagement(db):
+    db.execute(
+        "CREATE TABLE tweets (tweet_id TEXT, account_id TEXT, full_text TEXT, like_count INTEGER, retweet_count INTEGER, reply_count INTEGER, created_at TEXT, lang TEXT)"
+    )
+    db.execute(
+        "INSERT INTO tweets VALUES ('t-low','acct1','low engagement',1,0,0,'2026-03-01','en')"
+    )
+    db.execute(
+        "INSERT INTO tweets VALUES ('t-high','acct1','high engagement',5,10,0,'2026-03-02','en')"
+    )
+    db.commit()
+
+    parsed, inserted = load_archive_tweets(db, account_id="acct1", username="user1", limit=1)
+
+    assert inserted == 1
+    assert len(parsed) == 1
+    assert parsed[0]["tweet_id"] == "t-high"
+    row = db.execute(
+        "SELECT tweet_id, fetch_source FROM enriched_tweets WHERE account_id='acct1'"
+    ).fetchone()
+    assert row == ("t-high", "archive")
+
+
+def test_load_archive_tweets_supports_real_archive_schema(db):
+    db.execute(
+        """CREATE TABLE tweets (
+            tweet_id TEXT,
+            account_id TEXT,
+            username TEXT,
+            full_text TEXT,
+            created_at TEXT,
+            reply_to_tweet_id TEXT,
+            reply_to_username TEXT,
+            favorite_count INTEGER,
+            retweet_count INTEGER,
+            lang TEXT,
+            is_note_tweet INTEGER,
+            fetched_at TEXT
+        )"""
+    )
+    db.execute(
+        "INSERT INTO tweets VALUES ('t-low','acct1','user1','low engagement','2026-03-01',NULL,NULL,1,0,'en',0,'')"
+    )
+    db.execute(
+        "INSERT INTO tweets VALUES ('t-high','acct1','user1','reply with favorite_count','2026-03-02','parent-1','target_user',5,3,'en',0,'')"
+    )
+    db.commit()
+
+    parsed, inserted = load_archive_tweets(db, account_id='acct1', username='user1', limit=1)
+
+    assert inserted == 1
+    assert len(parsed) == 1
+    assert parsed[0]["tweet_id"] == "t-high"
+    assert parsed[0]["like_count"] == 5
+    assert parsed[0]["reply_count"] == 0
+    assert parsed[0]["is_reply"] == 1
+    assert parsed[0]["in_reply_to_user"] == "target_user"
+
+
+def test_fetch_multi_scale_archive_only_skips_paid_fetches(db, monkeypatch):
+    db.execute(
+        "CREATE TABLE tweets (tweet_id TEXT, account_id TEXT, full_text TEXT, like_count INTEGER, retweet_count INTEGER, reply_count INTEGER, created_at TEXT, lang TEXT)"
+    )
+    db.execute(
+        "INSERT INTO tweets VALUES ('t1','acct1','archive tweet one',4,1,0,'2026-03-01','en')"
+    )
+    db.execute(
+        "INSERT INTO tweets VALUES ('t2','acct1','archive tweet two',3,2,0,'2026-03-02','en')"
+    )
+    db.commit()
+
+    def _should_not_run(*args, **kwargs):
+        raise AssertionError("paid Twitter API fetch should not run in archive-only mode")
+
+    monkeypatch.setattr("scripts.fetch_tweets_for_account.fetch_advanced_search", _should_not_run)
+    monkeypatch.setattr("scripts.fetch_tweets_for_account.fetch_last_tweets", _should_not_run)
+
+    parsed, inserted = fetch_multi_scale(
+        api_key=None,
+        username="user1",
+        account_id="acct1",
+        conn=db,
+        round_num=1,
+        budget_limit=0.0,
+        archive_only=True,
+        archive_limit=2,
+    )
+
+    assert len(parsed) == 2
+    assert inserted == 2
+    assert db.execute("SELECT COUNT(*) FROM enrichment_log").fetchone()[0] == 0
+    assert db.execute(
+        "SELECT COUNT(*) FROM enriched_tweets WHERE account_id='acct1' AND fetch_source='archive'"
+    ).fetchone()[0] == 2
