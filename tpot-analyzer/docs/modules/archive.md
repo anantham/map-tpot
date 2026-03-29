@@ -135,7 +135,7 @@ prompt_text = format_thread_for_prompt(tweets, target_tweet_id="1234567890")
 # Returns: formatted string with "← CLASSIFY THIS" marker on target tweet
 ```
 
-**Cost:** ~$0.15 per 1,000 calls to twitterapi.io. Results are cached in
+**Cost:** ~$0.03 per call to twitterapi.io (~3000 credits, 2M credits/$20). Results are cached in
 `thread_context_cache` (same `archive_tweets.db`) — each thread is fetched at most once.
 
 **API key resolution:** checks `TWITTERAPI_IO_API_KEY`, then `TWITTERAPI_API_KEY`, then

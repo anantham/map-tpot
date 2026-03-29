@@ -11,6 +11,23 @@ Syndication API (free, no auth) should be preferred for single-tweet data.
 
 **Budget per non-archive account: ~25 calls**
 
+### Pricing (2026-03-28)
+
+Plan: $20 for 2,000,000 credits.
+
+| Endpoint | Credits/page | Results/page | Cost/page | Notes |
+|----------|-------------|-------------|-----------|-------|
+| `user/followings` | ~3,000 | ~200 | $0.03 | Varies: 2745-3000/page, 495 for final partial page |
+| `user/info` | ~1,000 | 1 | $0.01 | Single profile |
+| `user/batch_info_by_ids` | ~1,000 | up to 100 | $0.01 | Bulk profiles — best value |
+| `user/last_tweets` | ~3,000 | ~20 | $0.03 | Per page |
+| `tweet/thread_context` | ~3,000 | varies | $0.03 | Full thread |
+
+**Actual cost examples (measured 2026-03-28):**
+- @ch402 (183 following): 1 page, 3,000 credits = $0.03
+- @natfriedman (832 following): 6 pages, 15,240 credits = $0.15
+- 188 zero-outbound accounts: estimated ~1.7M credits = ~$17
+
 ## Tested Endpoints (2026-03-22)
 
 ### Working

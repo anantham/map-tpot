@@ -4,8 +4,9 @@ Fetch tweet thread context from twitterapi.io, with local SQLite cache.
 Every result is saved to archive_tweets.db (thread_context_cache table)
 so we never pay for the same tweet twice.
 
-Cost: ~$0.15/1000 calls. Use strategically — only for tweets we need
-to classify that are replies to accounts outside our 334.
+Cost: ~$0.03/call (~3000 credits, plan: 2M credits/$20).
+Use strategically — only for tweets we need to classify that are
+replies to accounts outside our seeds.
 """
 
 import json
@@ -52,6 +53,7 @@ def get_thread_context(
     tweet_id: str,
     db_path: Path,
     force_refresh: bool = False,
+    allow_api: bool = True,
 ) -> Optional[List[dict]]:
     """
     Return the ordered list of tweets in a thread, from the top.
@@ -70,6 +72,11 @@ def get_thread_context(
             log.debug("Thread cache hit for %s", tweet_id)
             conn.close()
             return json.loads(row[0])
+
+    if not allow_api:
+        log.debug("Thread cache miss for %s; allow_api=False so skipping fetch", tweet_id)
+        conn.close()
+        return None
 
     api_key = _get_api_key()
     log.info("Fetching thread context for %s (API call)", tweet_id)
