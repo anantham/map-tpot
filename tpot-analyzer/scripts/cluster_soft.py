@@ -172,6 +172,47 @@ def build_likes_matrix(con, accounts, min_count=1):
     return csr_matrix(mat), targets
 
 
+def build_reply_matrix(con, accounts, min_count=2):
+    """Build sparse matrix of reply edges from signed_reply.
+
+    Directional: replier → author. Values are reply_count.
+    author_liked heuristic gets 1.5x weight (endorsed reply).
+    Handles missing table gracefully.
+    Returns (CSR matrix, sorted target_list).
+    """
+    account_idx = {aid: i for i, (aid, _) in enumerate(accounts)}
+    n = len(accounts)
+    try:
+        rows = con.execute(
+            "SELECT replier_id, author_id, reply_count, heuristic "
+            "FROM signed_reply WHERE reply_count >= ?",
+            (min_count,),
+        ).fetchall()
+    except Exception:
+        from scipy.sparse import csr_matrix
+        return csr_matrix((n, 0), dtype=np.float32), []
+
+    if not rows:
+        from scipy.sparse import csr_matrix
+        return csr_matrix((n, 0), dtype=np.float32), []
+
+    targets = sorted({r[1] for r in rows})
+    target_idx = {t: j for j, t in enumerate(targets)}
+    m = len(targets)
+
+    from scipy.sparse import lil_matrix, csr_matrix
+    mat = lil_matrix((n, m), dtype=np.float32)
+    for replier, author, count, heuristic in rows:
+        i = account_idx.get(replier)
+        j = target_idx.get(author)
+        if i is not None and j is not None:
+            w = float(count)
+            if heuristic == "author_liked":
+                w *= 1.5
+            mat[i, j] = w
+    return csr_matrix(mat), targets
+
+
 def make_run_id(k, signal, rt_w, like_w, accounts, halflife_days=None):
     """Deterministic run_id encoding all run-shaping params.
 
