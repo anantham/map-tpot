@@ -201,20 +201,24 @@ export default function About({ meta, onNavigate }) {
               <a href="https://www.community-archive.org/" target="_blank" rel="noopener noreferrer">
                 Community Archive
               </a>{' '}
-              is a project where Twitter users voluntarily share their data. {classifiedStr} people
-              shared who they follow, who they retweet, and their tweets. That&rsquo;s the seed.
+              is a project where Twitter users voluntarily share their data&mdash;their tweets,
+              who they follow, what they like. Around 330 people have done this so far. That&rsquo;s
+              millions of tweets and millions of likes, but more importantly, it&rsquo;s a detailed
+              record of who these people chose to listen to.
             </p>
             <p>
-              From those {classifiedStr}, we can trace outward to around 200,000 accounts in
-              their follow graph. For the archived accounts we see everything. For the other 200K
-              we only know that <em>someone</em> follows them. It&rsquo;s like knowing which
-              lectures a student attends, but not what the professors do on weekends.
+              Each archived account follows hundreds or thousands of people. Trace those outward and
+              you reach roughly 270,000 accounts&mdash;the shadow network. For the 330 we see
+              everything. For the 270,000 we initially know only that <em>someone</em> chose to follow
+              them. They&rsquo;re silhouettes: present in the graph but faceless.
             </p>
             <p>
-              Take @repligate. They shared their data, so we can see all ~1,200 accounts they
-              follow and all their retweets. For those 1,200 accounts, we only know @repligate
-              follows them. The result is a giant matrix that&rsquo;s almost entirely
-              empty&mdash;about 0.3% filled. That sparsity is the raw material.
+              To fill in the picture, we selectively fetch data for the most connected shadow accounts
+              via the Twitter API&mdash;who they follow, their recent tweets, their bios. This is
+              targeted, not exhaustive. We prioritize accounts that many archived people follow, or
+              that sit at the intersection of multiple communities. The result is a graph of about
+              800,000 follow relationships across 300,000 accounts&mdash;sparse, incomplete, but rich
+              enough to find structure in.
             </p>
           </section>
 
@@ -229,25 +233,26 @@ export default function About({ meta, onNavigate }) {
               what you chose to listen to. But a person is more than their follow list.
             </p>
             <p>
-              What you retweet shows what you amplify. What you like shows what catches your eye.
-              Who replies to your posts&mdash;and whether you liked their reply&mdash;hints at who
-              you&rsquo;re in conversation with. Each signal has a different shape. Follows
-              are architectural. Retweets are behavioral. Likes are reflexive. Replies are relational.
+              For the archived accounts, we also see what they retweet (what they amplify), what
+              they like (what catches their eye), and who replies to their posts. Follows are
+              architectural. Retweets are behavioral. Likes are reflexive. Replies are relational.
+              For enriched shadow accounts, we fetch their recent tweets and bios&mdash;what
+              they actually write and how they describe themselves.
             </p>
             <p>
               Then there are patterns that emerge from the whole network at once. If 200
               people all follow both you and the same niche consciousness researcher, that&rsquo;s
-              not coincidence&mdash;that&rsquo;s structure. We also run topic models over 17.5 million
-              liked tweets to build an entirely different picture: not who you listen to, but
-              what you read about.
+              not coincidence&mdash;that&rsquo;s structure. We also run topic models over the
+              millions of liked tweets to build an entirely different picture: not who you listen
+              to, but what you read about.
             </p>
             <p>
               The interesting cases are where these signals disagree. @repligate&rsquo;s follow
-              list says &ldquo;Qualia Research&rdquo;&mdash;they follow consciousness researchers,
-              QRI people. But their liked content says &ldquo;LLM Whisperers&rdquo;&mdash;AI agents,
-              prompt engineering, recursive self-improvement. That disagreement is the most informative
-              thing in the data. It means @repligate orbits one community but intellectually lives
-              in another. You need both signals to see that.
+              list says &ldquo;Qualia Research&rdquo;&mdash;they follow consciousness researchers.
+              But their liked content says &ldquo;LLM Whisperers&rdquo;&mdash;AI agents,
+              prompt engineering, recursive self-improvement. That disagreement is the most
+              informative thing in the data. It means @repligate orbits one community but
+              intellectually lives in another. You need both signals to see that.
             </p>
           </section>
 
