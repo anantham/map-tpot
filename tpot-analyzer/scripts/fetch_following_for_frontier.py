@@ -62,7 +62,7 @@ def fetch_user_info(api_key: str, username: str) -> dict | None:
         return None
 
 
-def fetch_following(api_key: str, username: str, max_pages: int = 5) -> list[str]:
+def fetch_following(api_key: str, username: str, max_pages: int = 50) -> list[str]:
     """Fetch who this user follows. Returns list of followed account_ids."""
     following_ids = []
     cursor = None
@@ -125,102 +125,125 @@ def store_following(conn: sqlite3.Connection, source_id: str, following_ids: lis
     return added
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Fetch following lists for frontier accounts")
-    parser.add_argument("--top", type=int, default=50, help="Fetch for top N frontier accounts")
-    parser.add_argument("--budget", type=float, default=5.0, help="Max spend in USD")
-    parser.add_argument("--db-path", type=Path, default=DB_PATH)
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--skip-holdout", action="store_true", default=True,
-                        help="Skip holdout accounts (default: True)")
-    args = parser.parse_args()
-
-    api_key = get_api_key()
-    conn = sqlite3.connect(str(args.db_path))
-
-    # Get ranked frontier accounts with usernames (non-holdout, not already well-enriched)
-    # Skip accounts with >= MIN_OUTBOUND outbound edges (already have enough data)
-    MIN_OUTBOUND = 108
+def select_frontier_targets(conn, top: int, min_outbound: int = 108):
+    """Original mode: top frontier_ranking accounts by info_value."""
     targets = conn.execute("""
-        SELECT fr.account_id, fr.info_value, fr.top_community, fr.degree, fr.in_holdout,
+        SELECT fr.account_id,
                COALESCE(p.username, ra.username) as username,
-               COALESCE(outbound.cnt, 0) as outbound_edges
+               fr.degree as inbound,
+               COALESCE(upc.following, 0) as total_following
         FROM frontier_ranking fr
         LEFT JOIN profiles p ON fr.account_id = p.account_id
         LEFT JOIN resolved_accounts ra ON fr.account_id = ra.account_id
+        LEFT JOIN user_profile_cache upc ON fr.account_id = upc.account_id
         LEFT JOIN (
             SELECT account_id, COUNT(*) as cnt
-            FROM account_following
-            GROUP BY account_id
+            FROM account_following GROUP BY account_id
         ) outbound ON fr.account_id = outbound.account_id
         WHERE fr.in_holdout = 0
         AND COALESCE(p.username, ra.username) IS NOT NULL
         AND COALESCE(outbound.cnt, 0) < ?
         ORDER BY fr.info_value DESC
         LIMIT ?
-    """, (MIN_OUTBOUND, args.top)).fetchall()
+    """, (min_outbound, top)).fetchall()
+    return [(r[0], r[1], r[2], r[3]) for r in targets]
 
-    # Report how many were skipped due to existing data
-    already_enriched = conn.execute("""
-        SELECT COUNT(DISTINCT af.account_id)
-        FROM (SELECT account_id, COUNT(*) as cnt FROM account_following GROUP BY account_id) af
-        JOIN frontier_ranking fr ON af.account_id = fr.account_id
-        WHERE fr.in_holdout = 0 AND af.cnt >= ?
-    """, (MIN_OUTBOUND,)).fetchone()[0]
-    if already_enriched:
-        print(f"Skipping {already_enriched} accounts with >= {MIN_OUTBOUND} outbound edges")
 
-    print(f"Fetching following lists for top {len(targets)} frontier accounts")
-    print(f"Budget: ${args.budget:.2f} (~{int(args.budget / COST_PER_CALL)} calls)")
+def select_zero_outbound_targets(conn, max_following: int = 1000, min_inbound: int = 50):
+    """Accounts with high inbound but zero outbound edges.
+
+    These are well-connected accounts (50+ TPOT seeds follow them) where
+    we have no reciprocity data. Fetching their following lists adds edges
+    to the graph and enables directional analysis.
+    """
+    targets = conn.execute("""
+        SELECT ra.account_id, ra.username,
+               inb.cnt as inbound,
+               COALESCE(upc.following, 0) as total_following
+        FROM resolved_accounts ra
+        JOIN (
+            SELECT following_account_id, COUNT(*) as cnt
+            FROM account_following GROUP BY following_account_id
+        ) inb ON ra.account_id = inb.following_account_id
+        LEFT JOIN (
+            SELECT account_id FROM account_following GROUP BY account_id
+        ) outb ON ra.account_id = outb.account_id
+        LEFT JOIN user_profile_cache upc ON ra.account_id = upc.account_id
+        LEFT JOIN tpot_directory_holdout h ON ra.account_id = h.account_id
+        WHERE outb.account_id IS NULL
+        AND inb.cnt >= ?
+        AND COALESCE(upc.following, 0) > 0
+        AND COALESCE(upc.following, 0) <= ?
+        AND ra.username IS NOT NULL
+        AND h.account_id IS NULL
+        ORDER BY inb.cnt DESC
+    """, (min_inbound, max_following)).fetchall()
+    return [(r[0], r[1], r[2], r[3]) for r in targets]
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Fetch following lists for frontier/zero-outbound accounts")
+    parser.add_argument("--mode", choices=["frontier", "zero-outbound"], default="frontier",
+                        help="frontier: top frontier_ranking. zero-outbound: high-inbound with no outbound edges.")
+    parser.add_argument("--top", type=int, default=50, help="Limit accounts (frontier mode)")
+    parser.add_argument("--max-following", type=int, default=1000,
+                        help="Skip accounts following more than this (zero-outbound mode)")
+    parser.add_argument("--min-inbound", type=int, default=50,
+                        help="Min inbound edges (zero-outbound mode)")
+    parser.add_argument("--budget", type=float, default=5.0, help="Max spend in USD")
+    parser.add_argument("--db-path", type=Path, default=DB_PATH)
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+
+    api_key = get_api_key()
+    conn = sqlite3.connect(str(args.db_path))
+
+    if args.mode == "zero-outbound":
+        targets = select_zero_outbound_targets(conn, args.max_following, args.min_inbound)
+        print(f"Mode: zero-outbound (inbound >= {args.min_inbound}, following <= {args.max_following})")
+    else:
+        targets = select_frontier_targets(conn, args.top)
+        print(f"Mode: frontier (top {args.top})")
+
+    print(f"Accounts to fetch: {len(targets)}")
+    total_pages_est = sum(min(50, (fwing + 19) // 20) for _, _, _, fwing in targets if fwing > 0)
+    print(f"Estimated API pages: ~{total_pages_est:,}")
+    print(f"Estimated cost: ~${total_pages_est * COST_PER_CALL / 20:.2f}")
+    print(f"Budget: ${args.budget:.2f}")
     if args.dry_run:
         print("DRY RUN — no API calls")
+        for aid, uname, inb, fwing in targets[:20]:
+            print(f"  @{uname:25s} inbound={inb:5d} following={fwing:5d}")
+        if len(targets) > 20:
+            print(f"  ... and {len(targets) - 20} more")
+        conn.close()
+        return
 
     total_cost = 0.0
     total_edges = 0
     fetched = 0
 
-    for aid, iv, comm, deg, holdout, username in targets:
+    for aid, username, inb, total_fwing in targets:
         if total_cost >= args.budget:
             print(f"\nBudget exhausted at ${total_cost:.2f}")
             break
 
-        display = username or aid[:12]
-        print(f"\n  [{fetched+1}/{len(targets)}] @{display} (deg={deg}, iv={iv:.1f}, comm={comm})")
+        pages = min(50, (total_fwing + 19) // 20) if total_fwing > 0 else 5
+        print(f"  [{fetched+1}/{len(targets)}] @{username} (inbound={inb}, following={total_fwing}, ~{pages}p)", end=" ", flush=True)
 
-        if args.dry_run:
-            print(f"    [dry-run] would fetch following list")
-            fetched += 1
-            continue
-
-        # Step 1: fetch bio (enrichment side effect)
-        info = fetch_user_info(api_key, username)
-        if info:
-            bio = info.get("description", "")
-            if bio:
-                conn.execute(
-                    "UPDATE resolved_accounts SET bio = ? WHERE account_id = ?",
-                    (bio, aid),
-                )
-                conn.commit()
-                print(f"    Bio: {bio[:60]}...")
-            total_cost += COST_PER_CALL
-        else:
-            print(f"    Could not fetch user info for @{username}")
-            total_cost += COST_PER_CALL
-
-        # Step 2: fetch following list
-        following_ids = fetch_following(api_key, username)
-        total_cost += COST_PER_CALL
+        following_ids = fetch_following(api_key, username, max_pages=pages)
+        est_pages_used = max(1, (len(following_ids) + 19) // 20)
+        total_cost += est_pages_used * COST_PER_CALL
 
         if following_ids:
             added = store_following(conn, aid, following_ids)
             total_edges += added
-            print(f"    Following: {len(following_ids)} accounts, {added} new edges added")
+            print(f"→ {len(following_ids)} fetched, {added} new edges (total: {total_edges:,})")
         else:
-            print(f"    No following data returned")
+            print(f"→ 0 fetched")
 
         fetched += 1
-        time.sleep(1.0)  # rate limiting between accounts
+        time.sleep(0.3)
 
     print(f"\n{'='*60}")
     print(f"  Fetched: {fetched} accounts")
