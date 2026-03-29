@@ -336,33 +336,124 @@ def get_rt_source_community(tweet_text: str, conn: sqlite3.Connection) -> str:
     return f"RT source: @{handle} (not classified)"
 
 
+def get_cofollowed_communities(conn: sqlite3.Connection, account_id: str, top_n: int = 5) -> str:
+    """
+    Find accounts that share audience with this account (co-followed).
+
+    Two accounts are co-followed if many of the same people follow both.
+    This reveals community affinity even without direct connection.
+
+    Returns formatted string like:
+        "Shares audience with: @eigenrobot (Highbies), @nosilverv (Qualia)"
+    """
+    try:
+        # Detect column names
+        cofollowed_cols = {
+            r[1] for r in conn.execute(
+                "PRAGMA table_info(cofollowed_similarity)"
+            ).fetchall()
+        }
+        if "account_a" in cofollowed_cols:
+            id1_col, id2_col = "account_a", "account_b"
+        elif "account_id_1" in cofollowed_cols:
+            id1_col, id2_col = "account_id_1", "account_id_2"
+        else:
+            return ""
+
+        shared_col = (
+            "shared_followers" if "shared_followers" in cofollowed_cols
+            else "jaccard" if "jaccard" in cofollowed_cols
+            else "similarity"
+        )
+
+        rows = conn.execute(
+            f"""SELECT {id2_col}, {shared_col} FROM cofollowed_similarity
+                WHERE {id1_col} = ?
+                UNION
+                SELECT {id1_col}, {shared_col} FROM cofollowed_similarity
+                WHERE {id2_col} = ?
+                ORDER BY 2 DESC LIMIT ?""",
+            (account_id, account_id, top_n),
+        ).fetchall()
+
+        if not rows:
+            return ""
+
+        parts = []
+        for other_id, shared in rows:
+            uname = conn.execute(
+                "SELECT username FROM resolved_accounts WHERE account_id = ?",
+                (other_id,),
+            ).fetchone()
+            if not uname:
+                uname = conn.execute(
+                    "SELECT username FROM profiles WHERE account_id = ?",
+                    (other_id,),
+                ).fetchone()
+            if not uname:
+                continue
+
+            comm = conn.execute("""
+                SELECT c.short_name FROM community_account ca
+                JOIN community c ON c.id = ca.community_id
+                WHERE ca.account_id = ? ORDER BY ca.weight DESC LIMIT 1
+            """, (other_id,)).fetchone()
+
+            name = uname[0]
+            comm_str = f" ({comm[0]})" if comm else ""
+            parts.append(f"@{name}{comm_str}")
+
+        if not parts:
+            return ""
+        return "Shares audience with: " + ", ".join(parts)
+    except Exception:
+        return ""
+
+
+# ---------------------------------------------------------------------------
+# Context budget — toggle signals on/off to control prompt size
+# ---------------------------------------------------------------------------
+
+# Each context signal with its approximate token cost and default on/off
+CONTEXT_SIGNALS = {
+    "bio":                  {"tokens": 50,  "default": True,  "desc": "Account bio text"},
+    "graph_signal":         {"tokens": 40,  "default": True,  "desc": "Seed follower counts per community"},
+    "following_overlap":    {"tokens": 40,  "default": True,  "desc": "Outbound follows to classified accounts"},
+    "content_profile":      {"tokens": 30,  "default": True,  "desc": "TF-IDF topic weights from liked tweets"},
+    "engagement_partners":  {"tokens": 60,  "default": True,  "desc": "Top like/RT targets with community labels"},
+    "cofollowed":           {"tokens": 40,  "default": False, "desc": "Accounts that share audience (co-followed)"},
+    "mention_communities":  {"tokens": 30,  "default": True,  "desc": "Community membership of @mentioned accounts"},
+    "rt_source":            {"tokens": 15,  "default": True,  "desc": "RT original author community"},
+    "reply_communities":    {"tokens": 40,  "default": True,  "desc": "Who replied and their communities"},
+}
+
+
 def assemble_account_context(
     conn: sqlite3.Connection,
     account_id: str,
     username: str,
     bio: str,
+    enabled_signals: Optional[set[str]] = None,
 ) -> dict:
     """
     Assemble account-level context for the LLM labeling prompt.
 
-    Combines:
-      - bio: richest available (profile cache > profiles > resolved_accounts)
-      - graph_signal: inbound seed follows grouped by community
-      - following_overlap: outbound follows toward classified accounts
-      - content_profile: TF-IDF topic weights from liked tweets
-      - engagement_partners: top accounts they like/RT (with community labels)
-      - community_descriptions: name→description mapping
-      - community_short_names: list of community short names
+    Args:
+        enabled_signals: Set of signal names to include. If None, uses
+            defaults from CONTEXT_SIGNALS. Pass a custom set to control
+            prompt size (e.g., {"bio", "graph_signal"} for minimal context).
 
-    Returns a dict with keys: account_id, username, bio, graph_signal,
-    following_overlap, content_profile, engagement_partners,
-    community_descriptions, community_short_names.
+    See CONTEXT_SIGNALS dict for available signals and their token costs.
     """
-    rich_bio = get_rich_bio(conn, account_id, bio)
-    graph_signal = get_graph_signal(conn, account_id)
-    following_overlap = get_following_overlap(conn, account_id)
-    content_profile = get_content_profile(conn, account_id)
-    engagement_partners = get_engagement_partners(conn, account_id)
+    if enabled_signals is None:
+        enabled_signals = {k for k, v in CONTEXT_SIGNALS.items() if v["default"]}
+
+    rich_bio = get_rich_bio(conn, account_id, bio) if "bio" in enabled_signals else bio or ""
+    graph_signal = get_graph_signal(conn, account_id) if "graph_signal" in enabled_signals else ""
+    following_overlap = get_following_overlap(conn, account_id) if "following_overlap" in enabled_signals else ""
+    content_profile = get_content_profile(conn, account_id) if "content_profile" in enabled_signals else ""
+    engagement_partners = get_engagement_partners(conn, account_id) if "engagement_partners" in enabled_signals else ""
+    cofollowed = get_cofollowed_communities(conn, account_id) if "cofollowed" in enabled_signals else ""
     community_descriptions, community_short_names = get_community_descriptions(conn)
 
     return {
@@ -373,6 +464,7 @@ def assemble_account_context(
         "following_overlap": following_overlap,
         "content_profile": content_profile,
         "engagement_partners": engagement_partners,
+        "cofollowed": cofollowed,
         "community_descriptions": community_descriptions,
         "community_short_names": community_short_names,
     }
