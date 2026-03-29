@@ -330,6 +330,7 @@ def build_prompt(
     mention_communities: str = "",
     rt_source: str = "",
     reply_communities: str = "",
+    cofollowed: str = "",
 ) -> str:
     """Build the combined system+user prompt for a single tweet labeling call.
 
@@ -525,6 +526,7 @@ Account: @{username} | Bio: {bio[:200]}
 Graph: {graph_signal[:150]}
 {content_profile if content_profile else ""}\
 {engagement_partners if engagement_partners else ""}\
+{cofollowed if cofollowed else ""}\
 {"Current prior: " + other_tweets if other_tweets else ""}
 
 TWEET TO TAG:{rt_flag}
@@ -555,31 +557,48 @@ def call_model(
     user_prompt: str,
     temperature: float = 0.3,
     max_tokens: int = 800,
+    max_retries: int = 3,
 ) -> str:
     """POST to OpenRouter and return the raw content string.
 
-    Raises httpx.HTTPStatusError on non-2xx responses.
+    Retries with exponential backoff on 429 (rate limit) and 5xx errors.
+    Raises httpx.HTTPStatusError on persistent failures.
     """
-    resp = httpx.post(
-        OPENROUTER_URL,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        },
-        timeout=60.0,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    return data["choices"][0]["message"]["content"]
+    import time as _time
+
+    for attempt in range(max_retries + 1):
+        resp = httpx.post(
+            OPENROUTER_URL,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+            timeout=60.0,
+        )
+        if resp.status_code == 429 or resp.status_code >= 500:
+            if attempt < max_retries:
+                wait = 2 ** attempt  # 1s, 2s, 4s
+                logger.warning(
+                    "%s returned %d, retrying in %ds (attempt %d/%d)",
+                    model, resp.status_code, wait, attempt + 1, max_retries,
+                )
+                _time.sleep(wait)
+                continue
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+    resp.raise_for_status()  # final attempt failed
+    return ""  # unreachable
 
 
 # ═══════════════════════════════════════════════════════════════════════════
