@@ -28,8 +28,9 @@ def _setup_db(tmp_path):
 
 def test_inserts_new_seeds(tmp_path):
     conn = _setup_db(tmp_path)
-    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','c1',10,5,80.0,'')")
-    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','c2',5,2,20.0,'')")
+    # account_community_bits stores short_name as community_id (set by rollup_bits.py)
+    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','Core-TPOT',10,5,80.0,'')")
+    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','LLM-Whisperers',5,2,20.0,'')")
     conn.commit()
     inserted = insert_llm_seeds(conn, account_ids=["acc1"])
     assert inserted == 2
@@ -44,7 +45,7 @@ def test_inserts_new_seeds(tmp_path):
 def test_does_not_overwrite_nmf_seeds(tmp_path):
     conn = _setup_db(tmp_path)
     conn.execute("INSERT INTO community_account VALUES ('c1','acc1',0.9,'nmf','')")
-    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','c1',10,5,100.0,'')")
+    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','Core-TPOT',10,5,100.0,'')")
     conn.commit()
     inserted = insert_llm_seeds(conn, account_ids=["acc1"])
     assert inserted == 0
@@ -54,7 +55,7 @@ def test_does_not_overwrite_nmf_seeds(tmp_path):
 
 def test_weight_in_valid_range(tmp_path):
     conn = _setup_db(tmp_path)
-    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','c1',5,3,50.0,'')")
+    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','Core-TPOT',5,3,50.0,'')")
     conn.commit()
     insert_llm_seeds(conn, account_ids=["acc1"])
     weight = conn.execute("SELECT weight FROM community_account WHERE account_id='acc1'").fetchone()[0]
@@ -63,7 +64,7 @@ def test_weight_in_valid_range(tmp_path):
 
 def test_skips_low_bits_communities(tmp_path):
     conn = _setup_db(tmp_path)
-    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','c1',2,1,3.0,'')")
+    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','Core-TPOT',2,1,3.0,'')")
     conn.commit()
     inserted = insert_llm_seeds(conn, account_ids=["acc1"])
     assert inserted == 0  # 2 absolute bits is below MIN_BITS_THRESHOLD (3)
@@ -71,7 +72,7 @@ def test_skips_low_bits_communities(tmp_path):
 
 def test_inserts_seed_eligibility(tmp_path):
     conn = _setup_db(tmp_path)
-    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','c1',10,5,80.0,'')")
+    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','Core-TPOT',10,5,80.0,'')")
     conn.commit()
     insert_llm_seeds(conn, account_ids=["acc1"])
     row = conn.execute("SELECT concentration FROM seed_eligibility WHERE account_id='acc1'").fetchone()
@@ -97,8 +98,8 @@ def test_none_community_blocks_seed(tmp_path):
     """Accounts dominated by None bits should be marked ineligible."""
     conn = _setup_db(tmp_path)
     # 10 None bits, only 3 real bits
-    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','none',10,5,70.0,'')")
-    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','c1',3,2,30.0,'')")
+    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','None',10,5,70.0,'')")
+    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','Core-TPOT',3,2,30.0,'')")
     conn.commit()
     inserted = insert_llm_seeds(conn, account_ids=["acc1"])
     assert inserted == 0
@@ -114,9 +115,9 @@ def test_none_community_blocks_seed(tmp_path):
 def test_bridge_account_absolute_weights(tmp_path):
     """Bridge accounts should get full weight for each community (not diluted by pct)."""
     conn = _setup_db(tmp_path)
-    # 30 bits in c1, 20 bits in c2 — a genuine bridge
-    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','c1',30,10,60.0,'')")
-    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','c2',20,8,40.0,'')")
+    # 30 bits in Core-TPOT, 20 bits in LLM-Whisperers — a genuine bridge
+    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','Core-TPOT',30,10,60.0,'')")
+    conn.execute("INSERT INTO account_community_bits VALUES ('acc1','LLM-Whisperers',20,8,40.0,'')")
     conn.commit()
     inserted = insert_llm_seeds(conn, account_ids=["acc1"])
     assert inserted == 2

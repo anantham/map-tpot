@@ -16,6 +16,9 @@ Edge types and their semantics:
   like        — "I endorse this" (low-effort, reflexive)
   rt          — "My audience should see this" (amplification, deliberate)
   cofollowed  — "We share an audience" (structural, neither party acted)
+  quote       — "I'm commenting on your exact words" (high-effort, semantic-rich)
+  mention     — "I'm referencing you" (directed, potentially noisy)
+  follower    — "They follow me" (inbound, enables reciprocity detection)
 """
 from __future__ import annotations
 
@@ -35,6 +38,9 @@ DEFAULT_EDGE_WEIGHTS = {
     "like": 0.3,
     "rt": 0.6,
     "cofollowed": 0.1,
+    "quote": 0.7,
+    "mention": 0.15,
+    "follower": 0.0,  # not combined by default — used for reciprocity queries
 }
 
 
@@ -49,7 +55,7 @@ class TypedGraph:
         graph.edge_summary()                     # print stats
     """
 
-    EDGE_TYPES = ("follow", "reply", "like", "rt", "cofollowed")
+    EDGE_TYPES = ("follow", "reply", "like", "rt", "cofollowed", "quote", "mention", "follower")
 
     def __init__(self, node_ids: list[str]):
         self.node_ids = node_ids
@@ -146,6 +152,38 @@ class TypedGraph:
             etype: int(mat[idx].nnz)
             for etype, mat in self._matrices.items()
         }
+
+    def reciprocity(self, account_id: str) -> Optional[float]:
+        """Compute reciprocity ratio: mutual_follows / inbound_follows.
+
+        Requires both 'follow' and 'follower' matrices.
+        Returns None if either is missing or the account has no inbound followers.
+
+        Famous accounts have low reciprocity (< 0.06).
+        TPOT members have high reciprocity (> 0.17).
+        See EXP-003 in docs/EXPERIMENT_LOG.md.
+        """
+        follow_mat = self._matrices.get("follow")
+        follower_mat = self._matrices.get("follower")
+        if follow_mat is None or follower_mat is None:
+            return None
+
+        idx = self.node_idx.get(account_id)
+        if idx is None:
+            return None
+
+        # outbound: who this account follows (row in follow matrix)
+        outbound = set(follow_mat[idx].indices)
+        # inbound: who follows this account
+        # follower matrix is stored as follower→account (row→col),
+        # so column idx gives inbound followers. CSC is needed for correct column indexing.
+        inbound = set(follower_mat.tocsc()[:, idx].indices)
+
+        if not inbound:
+            return None
+
+        mutuals = len(outbound & inbound)
+        return mutuals / len(inbound)
 
     @classmethod
     def from_archive(
@@ -337,6 +375,93 @@ class TypedGraph:
                         print(f"    {mat.nnz:,} co-followed edges (undirected)")
             except Exception as e:
                 print(f"    Warning: co-followed loading failed: {e}")
+
+        # 6. Quote edges (from quote_graph)
+        if "quote" in load_types:
+            try:
+                exists = conn.execute(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='quote_graph'"
+                ).fetchone()[0]
+                if exists:
+                    print("  Loading quote edges...")
+                    quote_data = conn.execute(
+                        "SELECT source_id, target_id, quote_count FROM quote_graph"
+                    ).fetchall()
+                    rows, cols, vals = [], [], []
+                    for src, tgt, count in quote_data:
+                        i = graph.node_idx.get(src)
+                        j = graph.node_idx.get(tgt)
+                        if i is not None and j is not None:
+                            rows.append(i)
+                            cols.append(j)
+                            vals.append(min(count / 5.0, 1.0))
+                    if vals:
+                        mat = sp.csr_matrix(
+                            (np.array(vals, dtype=np.float32), (rows, cols)),
+                            shape=(graph.n, graph.n),
+                        )
+                        graph.set("quote", mat)
+                        print(f"    {mat.nnz:,} quote edges")
+            except Exception as e:
+                print(f"    Warning: quote loading failed: {e}")
+
+        # 7. Mention edges (from mention_graph)
+        if "mention" in load_types:
+            try:
+                exists = conn.execute(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='mention_graph'"
+                ).fetchone()[0]
+                if exists:
+                    print("  Loading mention edges...")
+                    mention_data = conn.execute(
+                        "SELECT source_id, target_id, mention_count FROM mention_graph"
+                    ).fetchall()
+                    rows, cols, vals = [], [], []
+                    for src, tgt, count in mention_data:
+                        i = graph.node_idx.get(src)
+                        j = graph.node_idx.get(tgt)
+                        if i is not None and j is not None:
+                            rows.append(i)
+                            cols.append(j)
+                            vals.append(min(count / 10.0, 1.0))
+                    if vals:
+                        mat = sp.csr_matrix(
+                            (np.array(vals, dtype=np.float32), (rows, cols)),
+                            shape=(graph.n, graph.n),
+                        )
+                        graph.set("mention", mat)
+                        print(f"    {mat.nnz:,} mention edges")
+            except Exception as e:
+                print(f"    Warning: mention loading failed: {e}")
+
+        # 8. Follower edges (from account_followers — inbound follows)
+        if "follower" in load_types:
+            try:
+                exists = conn.execute(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='account_followers'"
+                ).fetchone()[0]
+                if exists:
+                    print("  Loading follower edges (inbound)...")
+                    follower_data = conn.execute(
+                        "SELECT account_id, follower_account_id FROM account_followers"
+                    ).fetchall()
+                    rows, cols, vals = [], [], []
+                    for account, follower in follower_data:
+                        i = graph.node_idx.get(follower)
+                        j = graph.node_idx.get(account)
+                        if i is not None and j is not None:
+                            rows.append(i)
+                            cols.append(j)
+                            vals.append(1.0)
+                    if vals:
+                        mat = sp.csr_matrix(
+                            (np.array(vals, dtype=np.float32), (rows, cols)),
+                            shape=(graph.n, graph.n),
+                        )
+                        graph.set("follower", mat)
+                        print(f"    {mat.nnz:,} follower edges (inbound)")
+            except Exception as e:
+                print(f"    Warning: follower loading failed: {e}")
 
         conn.close()
         graph.print_summary()
