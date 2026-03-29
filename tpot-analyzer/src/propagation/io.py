@@ -62,12 +62,21 @@ def build_adjacency_from_archive(
     The graph includes:
     - All follow edges from account_following (binary or engagement-weighted)
     - Edge weights from account_engagement_agg when available and weighted=True
+    - Signed reply edges from signed_reply (directional, reply = engagement)
+    - Co-followed similarity edges from cofollowed_similarity (undirected)
 
     Weight formula (engagement-enriched):
       base = 1.0 (follow edge)
       + 0.6 * min(rt_count / 10, 1.0)   — retweets signal strong alignment
       + 0.4 * min(like_count / 50, 1.0)  — likes signal weaker agreement
       + 0.2 * min(reply_count / 5, 1.0)  — replies signal interaction
+
+    Signed replies (directional):
+      0.3 * min(reply_count / 5, 1.0) — replying to someone = intentional engagement
+      author_liked heuristic gets 1.5x boost (author endorsed the reply)
+
+    Co-followed similarity (undirected):
+      0.1 * min(shared_followers / 20, 1.0) — shared audience = community signal
     """
     conn = sqlite3.connect(str(db_path))
 
@@ -154,6 +163,103 @@ def build_adjacency_from_archive(
                     print(f"  Enriched {enriched_count:,} edges with engagement weights")
         except Exception as e:
             print(f"  Warning: engagement enrichment failed: {e}")
+
+    # 4. Add signed reply edges (directional: replier → author)
+    if weighted:
+        try:
+            table_exists = conn.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='signed_reply'"
+            ).fetchone()[0]
+            if table_exists:
+                print("  Loading signed reply edges...")
+                reply_edges = conn.execute(
+                    "SELECT replier_id, author_id, reply_count, heuristic FROM signed_reply"
+                ).fetchall()
+
+                reply_rows = []
+                reply_cols = []
+                reply_vals = []
+                reply_added = 0
+                for replier, author, count, heuristic in reply_edges:
+                    i = node_idx.get(replier)
+                    j = node_idx.get(author)
+                    if i is not None and j is not None:
+                        # Replying = intentional engagement, weight by frequency
+                        w = 0.3 * min(count / 5, 1.0)
+                        # author_liked = author endorsed the reply (stronger signal)
+                        if heuristic == "author_liked":
+                            w *= 1.5
+                        if w > 0:
+                            reply_rows.append(i)
+                            reply_cols.append(j)
+                            reply_vals.append(w)
+                            reply_added += 1
+
+                if reply_vals:
+                    reply_mat = sp.csr_matrix(
+                        (np.array(reply_vals, dtype=np.float32),
+                         (reply_rows, reply_cols)),
+                        shape=(n, n),
+                    )
+                    adj = adj.maximum(reply_mat).tocsr()
+                    print(f"  Added {reply_added:,} signed reply edges")
+        except Exception as e:
+            print(f"  Warning: signed reply enrichment failed: {e}")
+
+    # 5. Add co-followed similarity edges (undirected)
+    if weighted:
+        try:
+            table_exists = conn.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='cofollowed_similarity'"
+            ).fetchone()[0]
+            if table_exists:
+                cofollowed_cols = {
+                    r[1] for r in conn.execute(
+                        "PRAGMA table_info(cofollowed_similarity)"
+                    ).fetchall()
+                }
+                # Table might have (account_id_1, account_id_2, shared_followers)
+                # or different column names
+                if "account_id_1" in cofollowed_cols:
+                    id1_col, id2_col = "account_id_1", "account_id_2"
+                elif "source_id" in cofollowed_cols:
+                    id1_col, id2_col = "source_id", "target_id"
+                else:
+                    raise ValueError(f"Unknown cofollowed_similarity columns: {cofollowed_cols}")
+
+                shared_col = "shared_followers" if "shared_followers" in cofollowed_cols else "similarity"
+
+                print("  Loading co-followed similarity edges...")
+                cofollow_edges = conn.execute(
+                    f"SELECT {id1_col}, {id2_col}, {shared_col} FROM cofollowed_similarity"
+                ).fetchall()
+
+                cf_rows = []
+                cf_cols = []
+                cf_vals = []
+                cf_added = 0
+                for id1, id2, shared in cofollow_edges:
+                    i = node_idx.get(id1)
+                    j = node_idx.get(id2)
+                    if i is not None and j is not None:
+                        # Shared audience = community signal, undirected
+                        w = 0.1 * min(shared / 20, 1.0)
+                        if w > 0:
+                            cf_rows.extend([i, j])
+                            cf_cols.extend([j, i])
+                            cf_vals.extend([w, w])
+                            cf_added += 1
+
+                if cf_vals:
+                    cf_mat = sp.csr_matrix(
+                        (np.array(cf_vals, dtype=np.float32),
+                         (cf_rows, cf_cols)),
+                        shape=(n, n),
+                    )
+                    adj = adj.maximum(cf_mat).tocsr()
+                    print(f"  Added {cf_added:,} co-followed similarity edges (undirected)")
+        except Exception as e:
+            print(f"  Warning: co-followed enrichment failed: {e}")
 
     conn.close()
 
