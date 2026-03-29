@@ -1,59 +1,67 @@
-# Handover: 2026-03-25 (Session 11 — Seed Fix + Profiles + Bio Embeddings + Labeling)
+# Handover: 2026-03-28 (Session 11 Final)
 
-## Session Summary
-Fixed seed-neighbor counting (raw weights, not class-balanced). Fetched profiles for 8,532 core members ($1.54) — bio, location, follower counts. Embedded 15,182 bios (all-MiniLM-L6-v2, 384-dim). Labeled 5 accounts (ilex_ulmus, eenthymeme, dissproportion + AaronBergman18 enriched, bayeslord empty). Rewrote About page Path C in essay voice. Updated Vancouver outreach doc with 23 new leads. Deep brainstorm on noise filtering — reciprocity is the cleanest signal but requires API calls. 355 seeds now.
+## Architecture
+
+**ADR 016 accepted:** Four-part epistemic architecture.
+```
+Events → Fingerprints → Derived Views → Task Heads
+```
+Graph is the backbone, not the ontology. Fingerprints are the primary representation. See `docs/adr/016-four-part-epistemic-architecture.md` and `docs/ROADMAP_NEXT.md` for details.
+
+## What's Running
+
+**Bulk archive-only labeling** — 86 core accounts, free-tier LLMs, ~20h total.
+```bash
+# Check progress:
+grep -c "triage=" /tmp/archive_labeling.log
+# When done, re-run fingerprint rollup:
+.venv/bin/python3 -m scripts.rollup_fingerprints
+```
 
 ## Resume Instructions
-1. **Deploy** — export is ready (17,634 accounts), waiting on KV storage fix (other agent handling)
-2. **After deploy** — re-export once more (propagation with 355 seeds running at session end)
-3. **Reciprocity spot-check** — `check_follow` endpoint for top 500 accounts, ~5K API calls
-4. **NMF v2 alignment + promotion** — formal factor alignment score, human review of 3 shifted communities
-5. **Round 1 remaining** — @bayeslord had no tweets, 24+ accounts still in the Round 1 queue
-6. **Label remaining** — @AlexKrusz (holdout, skip), @bayeslord (empty)
 
-## Key Context
+1. **Check bulk labeling** — how many of 86 accounts finished?
+2. **Re-run fingerprint rollup** — `scripts/rollup_fingerprints.py` (produces ~330 fingerprints with coverage metadata)
+3. **Wire quote_graph (549K) + mention_graph (3.8M)** into `src/propagation/typed_graph.py` — ~20 lines
+4. **Re-propagate + re-export + deploy** — fresh graph with all edge types
+5. **Fingerprint → confidence** — use fingerprints at task-head layer (not inside solver)
+
+## Session 11 Summary
+
+### Built
+- **TypedGraph** — 5 edge types as separate sparse matrices (follow, reply, like, RT, cofollowed)
+- **Fingerprint rollup** — simulacrum + posture + theme + domain + cadence + coverage metadata for 61 accounts
+- **Multi-scale tweet fetching** — Top + Recent + Latest + 3-month-old window, 30-day TTL
+- **Archive-first loading** — check archive tweets before API (saves $0.10-0.15/account)
+- **Reply fetching** — tweet/replies API, cached, selective (>= 3 replies)
+- **Co-followed context** — "shares audience with" in labeling prompt
+- **Modular context budget** — `--context all|minimal|bio,graph_signal,...` CLI flag
+- **Sub-community facets** — 10 AI-Safety, 5 Contemplative, 4 LLM-Whisperers in glossary
+- **Evidence summary** — frontend component showing per-community neighbor counts below card
+- **Cache everything** — thread tweets, reply tweets, archive tweets all go into enriched_tweets
+- **About page** — honest data story (330 archive contributors, not 26K)
+
+### Key Experiments (see docs/EXPERIMENT_LOG.md)
+- EXP-005: NMF vs tweets agree 42% — they capture different dimensions
+- EXP-006: Phase 1 audit substrate ready
+- EXP-007: Archive-only labeling confirmed ($0 API cost)
 
 ### Data State
-- **799,521 follow edges**, 297,402 nodes
-- **355 seeds** (317 NMF + 38 LLM ensemble) across 16 communities
-- **50 accounts** with bits rollup (tweet-level evidence)
-- **9,364 profiles** in `user_profile_cache` (8,913 with bio, 6,693 with location)
-- **331 user_about** profiles with verified locations
-- **15,182 bio embeddings** in `bio_embeddings` table (384-dim, all-MiniLM-L6-v2)
-- **17,634 accounts** in latest export (338 exemplar, 4,831 specialist, 1,974 bridge, 1,097 frontier, 9,394 faint)
+- 359 seeds (317 NMF + 42 LLM)
+- 61 accounts with fingerprints (growing to ~330 after bulk labeling)
+- 881K edges in TypedGraph (follow 804K + reply 12K + like 24K + RT 7K + cofollowed 33K)
+- 549K quote edges + 3.8M mention edges NOT YET WIRED
+- 9,367 profiles, 15,182 bio embeddings
+- 19,892 tweet tags, 1,985 label sets
 
-### Noise Analysis (Session 11 Key Finding)
-No graph-internal signal cleanly separates "famous tech accounts" from "TPOT members." Tried:
-- Concentration (seed_neighbors / inbound): fooled by low-degree nodes
-- Spread (entropy of seed-neighbor vector): TPOT communities overlap too much, everything is high-spread
-- Score × neighbors composite: Elon (0.35) overlaps with TPOT P25 (0.27)
+### Key Design Decisions
+- **Don't change the propagation solver.** Keep independent harmonic solve. Use fingerprints at the confidence/task-head layer, not inside the solver.
+- **Keep bits/fingerprints separate from graph propagation.** Fingerprints are posterior evidence. Graph is structural. Combine at decision time.
+- **Source rule for propagation:** only Core + stable Enriched can propagate outward. Graph-only accounts should never become sources.
+- **Hypothesis-driven API spending:** rich core calibrates, graph frontier generates hypotheses, API validates specific accounts.
 
-**Reciprocity is the answer:** `mutual_seeds / inbound_seeds`. Famous < 0.06, TPOT > 0.17. Clean 3x gap. But requires knowing who accounts follow (only 14% of placed accounts have outbound data). `check_follow` API endpoint can spot-check ~10 seeds per account.
-
-**Decision:** Accept famous accounts as "adjacent/faint" — TPOT IS tech-adjacent. Use celebrity concentration filter (from commit f9727e4) for accounts with > 100K followers. Frontend UX fix (hide faint from community pages by default) is better than data-level filtering.
-
-### Bio Embeddings (Experiment Results)
-- **Partial separation:** TfT-Coordination, LLM-Whisperers, AI-Safety most distinct by bio content
-- **Near-identical:** Core-TPOT ↔ Internet-Intellectuals (0.86 cosine) — bios sound the same
-- **Intra-community coherence:** 0.38-0.53 (moderate clustering)
-- **Verdict:** Useful as secondary signal for cold-start accounts. Not a replacement for graph structure.
-
-### New DB Tables
-- `user_profile_cache`: followers, following, bio, location, raw_json (from batch_info_by_ids)
-- `user_about_cache`: account_based_in, affiliate_label, username_changes (from user_about)
-- `bio_embeddings`: 384-dim sentence-transformer vectors per account
-
-### Commits This Session (6)
-- `ab859bd` fix(propagation): raw weights for seed-neighbor counting
-- `bec6b64` docs(about): Path C rewrite in essay voice
-- `8eedd9c` docs: HANDOVER + API endpoint docs updated
-- `d6bb27d` docs: Schema Guesser anti-pattern + README rewrite
-- `f735430` docs(vancouver): 23 new leads + 7 stale locations corrected
-
-### Running / Pending
-- **Propagation with 355 seeds** — running at session end (~15 min)
-- **KV storage fix** — other agent migrating to Vercel Blob or purging gallery
-- **@bayeslord** — no tweets available from API, may need Chrome or archive
+### Commits (session 11)
+See `git log --oneline` — ~25 commits across TypedGraph, fingerprints, labeling enrichment, frontend, caching, architecture docs.
 
 ---
-*Handover by Claude Opus 4.6 (session 11, ~45% context)*
+*Handover by Claude Opus 4.6 (session 11 final, ~95% context)*
