@@ -1,7 +1,12 @@
 """Tests for the active learning orchestrator."""
 import sqlite3
 import pytest
-from scripts.active_learning import select_accounts, triage_results, log_model_agreement
+from scripts.active_learning import (
+    select_accounts,
+    triage_results,
+    log_model_agreement,
+    run_round_1,
+)
 from scripts.active_learning_schema import create_tables
 
 
@@ -191,3 +196,119 @@ def test_log_model_agreement_empty(capsys):
     log_model_agreement([])
     captured = capsys.readouterr()
     assert "no tweets labeled" in captured.out
+
+
+def test_run_round_1_archive_only_ignores_budget_cap(tmp_path, monkeypatch):
+    conn = _setup_orchestrator_db(tmp_path)
+    conn.execute("INSERT INTO profiles VALUES ('a1','user1','bio')")
+    conn.execute(
+        "CREATE TABLE tweet_tags (tweet_id TEXT, tag TEXT, category TEXT, added_by TEXT DEFAULT 'human', created_at TEXT, PRIMARY KEY (tweet_id, tag))"
+    )
+    conn.execute(
+        "INSERT INTO enrichment_log (account_id, username, round, action, estimated_cost, created_at) "
+        "VALUES ('spent','spent',1,'test',5.50,'')"
+    )
+    conn.commit()
+
+    def fake_fetch_multi_scale(api_key, username, account_id, conn, round_num, budget_limit, archive_only, archive_limit):
+        assert api_key is None
+        assert archive_only is True
+        assert archive_limit == 20
+        return [], 0
+
+    monkeypatch.setattr("scripts.active_learning.fetch_multi_scale", fake_fetch_multi_scale)
+    monkeypatch.setattr(
+        "scripts.active_learning.assemble_account_context",
+        lambda conn, account_id, username, bio, **kwargs: {
+            "username": username,
+            "bio": bio,
+            "graph_signal": "",
+            "community_descriptions": {},
+            "community_short_names": [],
+        },
+    )
+
+    results = run_round_1(
+        conn,
+        twitter_key=None,
+        openrouter_key="dummy",
+        accounts=[{
+            "account_id": "a1",
+            "info_value": 1.0,
+            "top_community": "c1",
+            "username": "user1",
+        }],
+        budget=0.0,
+        archive_only=True,
+        archive_limit=20,
+    )
+
+    assert results["errors"] == []
+    assert len(results["no_signal"]) == 1
+
+
+def test_run_round_1_archive_only_disables_paid_context_enrichment(tmp_path, monkeypatch):
+    conn = _setup_orchestrator_db(tmp_path)
+    conn.execute("INSERT INTO profiles VALUES ('a1','user1','bio')")
+    conn.execute(
+        "CREATE TABLE tweet_tags (tweet_id TEXT, tag TEXT, category TEXT, added_by TEXT DEFAULT 'human', created_at TEXT, PRIMARY KEY (tweet_id, tag))"
+    )
+    conn.execute(
+        """INSERT INTO enriched_tweets (
+            tweet_id, account_id, username, text, reply_count, is_reply, fetch_source, fetched_at
+        ) VALUES ('t1','a1','user1','@someone hello',4,1,'archive','')"""
+    )
+    conn.commit()
+
+    monkeypatch.setattr(
+        "scripts.active_learning.fetch_multi_scale",
+        lambda *args, **kwargs: (
+            [{
+                "tweet_id": "t1",
+                "account_id": "a1",
+                "username": "user1",
+                "text": "@someone hello",
+                "reply_count": 4,
+                "is_reply": 1,
+                "mentions_json": "[]",
+                "context_json": "[]",
+            }],
+            0,
+        ),
+    )
+    monkeypatch.setattr(
+        "scripts.active_learning.assemble_account_context",
+        lambda conn, account_id, username, bio, **kwargs: {
+            "username": username,
+            "bio": bio,
+            "graph_signal": "",
+            "community_descriptions": {},
+            "community_short_names": [],
+        },
+    )
+
+    captured = {}
+
+    def fake_label_single_tweet(conn, openrouter_key, tweet, account_ctx, current_prior="", allow_paid_api=True):
+        captured["allow_paid_api"] = allow_paid_api
+        return []
+
+    monkeypatch.setattr("scripts.active_learning._label_single_tweet", fake_label_single_tweet)
+
+    results = run_round_1(
+        conn,
+        twitter_key=None,
+        openrouter_key="dummy",
+        accounts=[{
+            "account_id": "a1",
+            "info_value": 1.0,
+            "top_community": "c1",
+            "username": "user1",
+        }],
+        budget=0.0,
+        archive_only=True,
+        archive_limit=20,
+    )
+
+    assert results["errors"] == []
+    assert captured["allow_paid_api"] is False

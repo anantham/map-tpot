@@ -418,6 +418,7 @@ def _label_single_tweet(
     tweet: dict,
     account_ctx: dict,
     current_prior: str = "",
+    allow_paid_api: bool = True,
 ) -> list[dict]:
     """Label a single tweet with all models, store consensus.
 
@@ -445,7 +446,11 @@ def _label_single_tweet(
     if tweet.get("is_reply") and tweet.get("tweet_id"):
         try:
             from src.config import DEFAULT_ARCHIVE_DB
-            thread = get_thread_context(tweet["tweet_id"], DEFAULT_ARCHIVE_DB)
+            thread = get_thread_context(
+                tweet["tweet_id"],
+                DEFAULT_ARCHIVE_DB,
+                allow_api=allow_paid_api,
+            )
             if thread and len(thread) > 1:
                 thread_text = format_thread_for_prompt(thread, tweet["tweet_id"])
                 tweet_text = f"[Thread context]\n{thread_text}\n[End thread]"
@@ -494,7 +499,7 @@ def _label_single_tweet(
     # Fetch replies for tweets with enough engagement (reply_count >= 3)
     reply_communities = ""
     reply_count = tweet.get("reply_count", 0)
-    if reply_count and reply_count >= 3:
+    if allow_paid_api and reply_count and reply_count >= 3:
         try:
             import os
             twitter_key = os.getenv("TWITTERAPI_IO_API_KEY") or os.getenv("TWITTERAPI_API_KEY") or os.getenv("API_KEY")
@@ -522,6 +527,7 @@ def _label_single_tweet(
         mention_communities=mention_communities,
         rt_source=rt_source,
         reply_communities=reply_communities,
+        cofollowed=account_ctx.get("cofollowed", ""),
     )
 
     # Split prompt into system + user at the --- delimiter
@@ -557,10 +563,13 @@ def _label_single_tweet(
 
 def run_round_1(
     conn: sqlite3.Connection,
-    twitter_key: str,
+    twitter_key: str | None,
     openrouter_key: str,
     accounts: list[dict],
     budget: float,
+    archive_only: bool = False,
+    archive_limit: int = 20,
+    enabled_signals: set | None = None,
 ) -> dict:
     """Execute round 1: fetch tweets, label with ensemble, triage.
 
@@ -589,8 +598,9 @@ def run_round_1(
         username = acct["username"]
 
         try:
-            # 1. Budget check
-            check_budget(conn, limit=budget, raise_on_exceed=True)
+            # 1. Budget check only applies when Twitter API calls are allowed.
+            if not archive_only:
+                check_budget(conn, limit=budget, raise_on_exceed=True)
 
             # 2. Holdout guard
             assert_not_holdout(conn, account_id)
@@ -600,6 +610,8 @@ def run_round_1(
             parsed, total_new = fetch_multi_scale(
                 twitter_key, username, account_id, conn,
                 round_num=1, budget_limit=budget,
+                archive_only=archive_only,
+                archive_limit=archive_limit,
             )
 
             # Dedup across all sources
@@ -622,6 +634,7 @@ def run_round_1(
                 account_id=account_id,
                 username=username,
                 bio=_resolve_bio(conn, account_id),
+                enabled_signals=enabled_signals,
             )
 
             # Tag retweets — still label them but with context that it's an RT
@@ -657,6 +670,7 @@ def run_round_1(
                     per_model = _label_single_tweet(
                         conn, openrouter_key, tweet, account_ctx,
                         current_prior=current_prior,
+                        allow_paid_api=not archive_only,
                     )
                     all_agreement_labels.append(per_model)
 
@@ -892,6 +906,22 @@ def main():
         help="Ego username for proximity boosting (e.g., adityaarpitha). "
              "Accounts closer to ego in follow graph get prioritized.",
     )
+    parser.add_argument(
+        "--archive-only", action="store_true",
+        help="Use only archive tweets for selected accounts. Do not spend Twitter API credits.",
+    )
+    parser.add_argument(
+        "--archive-limit", type=int, default=20,
+        help="When --archive-only is set, label only the top-N archive tweets by engagement (default: 20).",
+    )
+    parser.add_argument(
+        "--context", type=str, default=None,
+        help="Comma-separated context signals to enable (default: all defaults). "
+             "Options: bio,graph_signal,following_overlap,content_profile,"
+             "engagement_partners,cofollowed,mention_communities,rt_source,"
+             "reply_communities. Use 'all' for everything, 'minimal' for "
+             "bio+graph_signal only.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -978,17 +1008,33 @@ def main():
         return
 
     # Resolve API keys
-    from scripts.fetch_tweets_for_account import get_api_key
-
-    twitter_key = get_api_key()
+    twitter_key = None
+    if not args.archive_only:
+        from scripts.fetch_tweets_for_account import get_api_key
+        twitter_key = get_api_key()
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
     if not openrouter_key:
         logger.error("OPENROUTER_API_KEY not set")
         sys.exit(1)
 
+    # Parse context signals
+    enabled_signals = None
+    if args.context:
+        from scripts.assemble_context import CONTEXT_SIGNALS
+        if args.context == "all":
+            enabled_signals = set(CONTEXT_SIGNALS.keys())
+        elif args.context == "minimal":
+            enabled_signals = {"bio", "graph_signal"}
+        else:
+            enabled_signals = set(args.context.split(","))
+        logger.info("Context signals enabled: %s", enabled_signals)
+
     if round_num == 1:
         results = run_round_1(
-            conn, twitter_key, openrouter_key, accounts, args.budget
+            conn, twitter_key, openrouter_key, accounts, args.budget,
+            archive_only=args.archive_only,
+            archive_limit=args.archive_limit,
+            enabled_signals=enabled_signals,
         )
         print(f"\nRound 1 complete:")
         print(f"  High confidence: {len(results['high'])} accounts")
@@ -997,9 +1043,11 @@ def main():
         print(f"  Errors:          {len(results['errors'])} accounts")
     elif round_num == 2:
         # Round 2: targeted search for ambiguous accounts
-        # For now, same flow as round 1 but could use advanced_search
         results = run_round_1(
-            conn, twitter_key, openrouter_key, accounts, args.budget
+            conn, twitter_key, openrouter_key, accounts, args.budget,
+            archive_only=args.archive_only,
+            archive_limit=args.archive_limit,
+            enabled_signals=enabled_signals,
         )
         print(f"\nRound 2 complete:")
         print(f"  High confidence: {len(results['high'])} accounts")
