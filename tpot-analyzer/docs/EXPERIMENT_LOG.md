@@ -244,6 +244,53 @@ Reverse analysis: tweet clusters are also NMF-diverse. At k=16, cluster_1 (n=43)
 
 ---
 
+## EXP-009: View agreement as confidence signal for holdout detection
+
+**Date:** 2026-03-30
+**Question:** Does graph-semantic agreement predict TPOT membership better than graph confidence alone? Should we boost confidence when views agree and penalize when they disagree?
+
+**Hypothesis:** Accounts where graph-view and semantic-view agree on community assignment are more reliably classifiable. Agreement = higher confidence, disagreement = lower confidence or bridge account.
+
+**Method:**
+1. Used 238 seed accounts with both views (graph NMF weights + k=8 tweet cluster histograms) as training set
+2. Trained separate KNN classifiers (k=5, cosine) on graph-only and semantic-only views
+3. For 71 holdout TPOT members with both views, computed: graph community prediction, semantic community prediction, and whether they agree
+4. Measured detection rate under different confidence strategies
+5. Tested combined scoring: graph_conf * agreement_factor
+
+**Result:** **HYPOTHESIS REJECTED — view disagreement is the signal, not agreement.**
+
+82% of holdout TPOT members have views that DISAGREE (graph community ≠ semantic community). Only 18% agree.
+
+Detection rates:
+- Graph KNN conf > 0.3: 100% (all 71 detected)
+- Propagation score > 0.05: 62% (44/71)
+- Views AGREE + graph conf > 0.3: only 18% (13/71)
+- Views DISAGREE: 82% (58/71)
+
+The combined scoring (boosting agreement, penalizing disagreement) HURTS — it pushes real TPOT members down the ranking because they're bridges.
+
+Bridge examples from holdout (all confirmed TPOT):
+- @visakanv: graph=Internet-Intellectuals, semantic=Contemplative
+- @repligate: graph=LLM-Whisperers, semantic=Core-TPOT
+- @RomeoStevens76: graph=Contemplative, semantic=AI-Creativity
+- @patio11: graph=Tech-Intellectuals, semantic=Collective-Intelligence
+- @adityaarpitha: graph=AI-Safety, semantic=Quiet-Creatives
+
+**Lesson:** TPOT is definitionally a cross-cutting meta-community. Its members follow one social tribe but intellectually range across several. View disagreement is a *feature* of TPOT membership, not noise. A "pure" account (follows and tweets about the same thing) is less likely to be TPOT — they'd be in a single-topic community instead.
+
+This reframes the multi-view architecture:
+- **Graph view's job**: detect proximity to TPOT seeds (works at 100% recall)
+- **Semantic view's job**: characterize *what kind* of TPOT member (intellectual profile), NOT whether they're TPOT
+- **View disagreement's job**: identify bridge accounts and multi-community members (the most interesting TPOT members)
+- **Confidence**: should NOT penalize disagreement. Instead: graph confidence for TPOT membership, view disagreement for richness/bridge detection.
+
+**Data stored:** Analysis run in-memory on `data/archive_tweets.db` + `data/embed_experiment.db`. No new tables created.
+
+**Next step:** Revise ADR 017 to reflect that views serve different purposes (detection vs characterization vs bridge detection), not a single ensemble vote. The semantic view enriches the account description rather than replacing the graph-based community assignment.
+
+---
+
 ## Template for future experiments
 
 ```markdown
