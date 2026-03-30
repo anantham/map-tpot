@@ -330,9 +330,116 @@ body {
   line-height: 1.5;
 }
 
-.evidence-line:last-child {
+.evidence-line--desc {
+  color: #777;
+  font-style: italic;
+}
+
+.evidence-line--meta {
   color: #666;
   font-size: 0.75rem;
+}
+
+.evidence-line--improve {
+  color: #f1c40f;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.evidence-section {
+  margin: 0.6rem 0;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.evidence-section-title {
+  margin: 0 0 0.3rem;
+  color: #aaa;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.evidence-neighbor-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.evidence-neighbor-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.7rem;
+  color: #bbb;
+  white-space: nowrap;
+}
+
+.evidence-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.evidence-account-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.evidence-community-label {
+  color: #999;
+  font-weight: 500;
+}
+
+.evidence-handle {
+  color: #7ec8e3;
+  text-decoration: none;
+  font-size: 0.72rem;
+}
+
+.evidence-handle:hover {
+  text-decoration: underline;
+  color: #a8dcf0;
+}
+
+.evidence-tweets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.evidence-tweet {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 4px 4px 0;
+  font-size: 0.72rem;
+  color: #999;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.card-gen-error {
+  max-width: 400px;
+  margin: 0.5rem auto;
+  padding: 0.5rem 0.75rem;
+  background: rgba(241, 196, 15, 0.08);
+  border: 1px solid rgba(241, 196, 15, 0.15);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: #cca800;
+  text-align: center;
+  line-height: 1.4;
 }
 
 /* ── Community Card ── */

@@ -47,7 +47,16 @@ function ResultArea({ result, communityMap, links, onCommunityClick }) {
           communityMap={communityMap}
           followers={result.followers}
           seedNeighbors={result.seedNeighbors || 0}
+          evidence={result.evidence}
+          sampleTweets={result.sampleTweets}
+          onHandleClick={(h) => { window.history.pushState({}, '', `/?handle=${h}`); window.location.reload() }}
         />
+        {status === 'error' && (
+          <p className="card-gen-error">AI card generation unavailable right now. The data above is your real profile.</p>
+        )}
+        {status === 'exhausted' && (
+          <p className="card-gen-error">Daily card generation budget reached. Try again tomorrow for an AI-generated card.</p>
+        )}
         {status === 'generated' && (
           <button
             className="regenerate-btn"
@@ -215,10 +224,11 @@ export default function App() {
           displayName: account.display_name,
           bio: account.bio,
           memberships: account.memberships,
-          sampleTweets: account.sample_tweets || [],
+          sampleTweets: account.sample_tweets || searchResult.sample_tweets || [],
           confidence,
           followers: account.followers,
           seedNeighbors: searchResult.seed_neighbors || 0,
+          evidence: account.evidence || searchResult.evidence || null,
         })
       } else {
         setResult({
@@ -228,10 +238,11 @@ export default function App() {
           displayName: searchResult.display_name || null,
           bio: searchResult.bio || null,
           memberships: searchResult.memberships || [],
-          sampleTweets: [],
+          sampleTweets: searchResult.sample_tweets || [],
           confidence,
           followers: searchResult.followers || null,
           seedNeighbors: searchResult.seed_neighbors || 0,
+          evidence: searchResult.evidence || null,
         })
       }
     } else {

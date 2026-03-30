@@ -597,6 +597,104 @@ def get_sample_tweets(
         conn.close()
 
 
+def get_evidence(
+    db_path: Path,
+    account_id: str,
+    community_names_map: dict[str, str],
+    npz_snc_row: np.ndarray | None = None,
+    npz_comm_names: list[str] | None = None,
+) -> dict[str, Any]:
+    """Build interpretable evidence for a single account.
+
+    Returns dict with:
+      - seed_neighbors_by_community: {community_name: count} (non-zero only)
+      - notable_follows: [{handle, community}] — classified accounts this person follows
+      - notable_followers: [{handle, community}] — classified accounts who follow this person
+    """
+    evidence: dict[str, Any] = {}
+
+    # 1. Seed neighbors by community name (from propagation NPZ)
+    if npz_snc_row is not None and npz_comm_names is not None:
+        snc_dict = {}
+        for i, name in enumerate(npz_comm_names):
+            if i < len(npz_snc_row) and int(npz_snc_row[i]) > 0:
+                snc_dict[name] = int(npz_snc_row[i])
+        if snc_dict:
+            # Sort by count descending, top 5
+            evidence["seed_neighbors_by_community"] = dict(
+                sorted(snc_dict.items(), key=lambda x: -x[1])[:5]
+            )
+
+    # 2. Notable follows (classified accounts this person follows)
+    conn = sqlite3.connect(str(db_path))
+    try:
+        rows = conn.execute("""
+            SELECT af.following_account_id,
+                   COALESCE(p.username, ra.username) as uname,
+                   ca.community_id, ca.weight
+            FROM account_following af
+            LEFT JOIN profiles p ON p.account_id = af.following_account_id
+            LEFT JOIN resolved_accounts ra ON ra.account_id = af.following_account_id
+            JOIN community_account ca ON ca.account_id = af.following_account_id AND ca.weight >= 0.2
+            WHERE af.account_id = ?
+            AND (p.username IS NOT NULL OR ra.username IS NOT NULL)
+            ORDER BY ca.weight DESC
+            LIMIT 30
+        """, (account_id,)).fetchall()
+
+        # Deduplicate by account (pick highest-weight community)
+        seen = set()
+        notable = []
+        for _fid, uname, cid, _w in rows:
+            if uname and uname not in seen:
+                seen.add(uname)
+                cname = community_names_map.get(cid, "")
+                if cname:
+                    notable.append({"handle": uname, "community": cname})
+            if len(notable) >= 8:
+                break
+        if notable:
+            evidence["notable_follows"] = notable
+
+        # 3. Notable followers (classified accounts who follow this person)
+        try:
+            frows = conn.execute("""
+                SELECT af.follower_account_id,
+                       COALESCE(p.username, ra.username) as uname,
+                       ca.community_id, ca.weight
+                FROM account_followers af
+                LEFT JOIN profiles p ON p.account_id = af.follower_account_id
+                LEFT JOIN resolved_accounts ra ON ra.account_id = af.follower_account_id
+                JOIN community_account ca ON ca.account_id = af.follower_account_id AND ca.weight >= 0.2
+                WHERE af.account_id = ?
+                AND (p.username IS NOT NULL OR ra.username IS NOT NULL)
+                ORDER BY ca.weight DESC
+                LIMIT 30
+            """, (account_id,)).fetchall()
+
+            seen2 = set()
+            notable_followers = []
+            for _fid, uname, cid, _w in frows:
+                if uname and uname not in seen2:
+                    seen2.add(uname)
+                    cname = community_names_map.get(cid, "")
+                    if cname:
+                        notable_followers.append({"handle": uname, "community": cname})
+                if len(notable_followers) >= 8:
+                    break
+            if notable_followers:
+                evidence["notable_followers"] = notable_followers
+        except sqlite3.OperationalError:
+            pass  # account_followers table may not exist
+
+    except sqlite3.OperationalError:
+        pass
+    finally:
+        conn.close()
+
+    return evidence
+
+
 def _safe_followers(val: Any) -> int | None:
     """Convert num_followers (float64, may be NaN) to int or None."""
     if val is None:
@@ -829,6 +927,41 @@ def run_export(
             acct["followers"] = None
         acct["sample_tweets"] = get_sample_tweets(db_path, acct["id"])
 
+    # --- Evidence enrichment (interpretable card data) ---
+    # Build community_id → short_name map
+    _evidence_conn = sqlite3.connect(str(db_path))
+    _comm_name_map = {}
+    for _r in _evidence_conn.execute("SELECT id, short_name FROM community WHERE short_name IS NOT NULL"):
+        _comm_name_map[_r[0]] = _r[1]
+    _evidence_conn.close()
+
+    # Load seed_neighbor_counts from NPZ
+    _npz_snc_map: dict[str, np.ndarray] = {}
+    _npz_comm_names: list[str] = []
+    if npz_path.exists():
+        _npz_data = np.load(str(npz_path), allow_pickle=False)
+        if "seed_neighbor_counts" in _npz_data:
+            _snc = _npz_data["seed_neighbor_counts"]
+            _nids = _npz_data["node_ids"]
+            _npz_comm_names = list(_npz_data["community_names"])
+            for i in range(len(_nids)):
+                _npz_snc_map[str(_nids[i])] = _snc[i]
+
+    logger.info("Enriching %d accounts with evidence data...", len(all_accounts))
+    _evidence_count = 0
+    for acct in all_accounts:
+        aid = acct["id"]
+        snc_row = _npz_snc_map.get(aid)
+        ev = get_evidence(
+            db_path, aid, _comm_name_map,
+            npz_snc_row=snc_row,
+            npz_comm_names=_npz_comm_names,
+        )
+        if ev:
+            acct["evidence"] = ev
+            _evidence_count += 1
+    logger.info("Evidence added for %d accounts", _evidence_count)
+
     # --- Confidence adjustment using true concentration ---
     # true_concentration = max_seed_neighbors / total_followers
     # Accounts with huge audiences have inflated graph signal — many seed
@@ -951,7 +1084,7 @@ def run_export(
             for m in acct.get("memberships", [])
             if isinstance(m, dict)
         )
-        search_index[handle.lower()] = {
+        entry = {
             "tier": acct["tier"],
             "memberships": acct["memberships"],
             "confidence": acct.get("confidence", 0),
@@ -959,7 +1092,11 @@ def run_export(
             "display_name": acct.get("display_name"),
             "followers": acct.get("followers"),
             "seed_neighbors": total_seed_neighbors,
+            "sample_tweets": acct.get("sample_tweets", []),
         }
+        if acct.get("evidence"):
+            entry["evidence"] = acct["evidence"]
+        search_index[handle.lower()] = entry
 
     # --- Assemble output ---
     output_dir = Path(output_dir)
