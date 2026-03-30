@@ -81,11 +81,15 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
 # ── Embedding ───────────────────────────────────────────────────────────
 
 def get_embedding_dim() -> int:
-    """Query the model for its embedding dimension."""
+    """Query the model for its embedding dimension.
+
+    Uses a long timeout because LM Studio may need to load the model into VRAM.
+    """
+    logger.info("Probing embedding model (may take a minute if loading into VRAM)...")
     resp = requests.post(
         LMSTUDIO_URL,
         json={"model": EMBEDDING_MODEL, "input": ["test"]},
-        timeout=30,
+        timeout=300,
     )
     resp.raise_for_status()
     return len(resp.json()["data"][0]["embedding"])
