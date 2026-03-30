@@ -170,15 +170,18 @@ export default function About({ meta, onNavigate }) {
           <section className="about-section">
             <h2>How It Works (Short Version)</h2>
             <p>
-              We look at who follows whom. Following a meditation teacher tells us more than
-              following Elon Musk. An algorithm finds clusters of accounts with similar
-              follow patterns. A human curator reviews and names each cluster.
+              We look at who follows whom, who quotes whom, who replies to whom&mdash;eight
+              types of connection, each carrying different meaning. Following a meditation
+              teacher tells us more than following Elon Musk. An algorithm finds clusters of
+              accounts with similar connection patterns. A human curator reviews and names
+              each cluster.
             </p>
             <p>
-              For accounts not in the core dataset, we infer placement from their position
-              in the network&mdash;if most of your connections are Builders, you&rsquo;re
-              probably Builder-adjacent. Inferred placements get a grayscale card instead
-              of a colorful one, signaling lower confidence.
+              Then we read tweets. Your social tribe (who you follow) and your intellectual
+              interests (what you write about) often point in different directions&mdash;that&rsquo;s
+              not a bug, it&rsquo;s what makes this network interesting. For accounts not in
+              the core dataset, we infer placement from their position in the network. Inferred
+              placements get a grayscale card instead of a colorful one, signaling lower confidence.
             </p>
           </section>
         </>
@@ -216,9 +219,16 @@ export default function About({ meta, onNavigate }) {
               To fill in the picture, we selectively fetch data for the most connected shadow accounts
               via the Twitter API&mdash;who they follow, their recent tweets, their bios. This is
               targeted, not exhaustive. We prioritize accounts that many archived people follow, or
-              that sit at the intersection of multiple communities. The result is a graph of about
-              800,000 follow relationships across 300,000 accounts&mdash;sparse, incomplete, but rich
-              enough to find structure in.
+              that sit at the intersection of multiple communities.
+            </p>
+            <p>
+              The result is a graph of 2.7 million connections across 300,000 accounts, with eight
+              types of relationships: follows (who you chose to listen to), quotes (who you publicly
+              engaged with), mentions (who you addressed), replies (who you conversed with), likes
+              (what you endorsed), retweets (what you amplified), co-followed (who shares your
+              audience), and follower relationships (who chose to listen to you). Each type carries
+              a different meaning. A follow is architectural. A quote is intellectual. A like is
+              reflexive. We keep them separate rather than collapsing them into one number.
             </p>
           </section>
 
@@ -242,17 +252,25 @@ export default function About({ meta, onNavigate }) {
             <p>
               Then there are patterns that emerge from the whole network at once. If 200
               people all follow both you and the same niche consciousness researcher, that&rsquo;s
-              not coincidence&mdash;that&rsquo;s structure. We also run topic models over the
-              millions of liked tweets to build an entirely different picture: not who you listen
-              to, but what you read about.
+              not coincidence&mdash;that&rsquo;s structure. We also embed tweet text into a
+              shared semantic space and cluster at multiple scales&mdash;not who you listen
+              to, but what you actually write and think about.
             </p>
             <p>
-              The interesting cases are where these signals disagree. @repligate&rsquo;s follow
-              list says &ldquo;Qualia Research&rdquo;&mdash;they follow consciousness researchers.
-              But their liked content says &ldquo;LLM Whisperers&rdquo;&mdash;AI agents,
-              prompt engineering, recursive self-improvement. That disagreement is the most
-              informative thing in the data. It means @repligate orbits one community but
-              intellectually lives in another. You need both signals to see that.
+              Here&rsquo;s the finding that changed the project: <strong>these two signals are
+              nearly independent.</strong> We measured the statistical agreement between
+              follow-graph communities and tweet-content clusters. The score was 0.08 out of
+              1.0&mdash;barely above random. Who you follow and what you write about measure
+              genuinely different things. The follow graph captures social tribes. Tweet content
+              captures intellectual interests. They&rsquo;re orthogonal dimensions.
+            </p>
+            <p>
+              @repligate&rsquo;s follow list says &ldquo;Qualia Research&rdquo;&mdash;they follow
+              consciousness researchers. But their tweet content says &ldquo;LLM
+              Whisperers&rdquo;&mdash;AI agents, prompt engineering, recursive self-improvement.
+              That disagreement isn&rsquo;t noise. It&rsquo;s the most informative thing in the
+              data. @repligate orbits one community socially but intellectually lives in another.
+              You need both signals to see that.
             </p>
           </section>
 
@@ -290,7 +308,9 @@ export default function About({ meta, onNavigate }) {
               We tested 12, 14, and 16 communities on the same data. At 16, 14 of the communities
               matched the 14-factor run (91% overlap), plus two clean splits where tech-intellectuals
               and creatives each resolved into finer subcommunities. We use 16 because those splits
-              are meaningful and the structure is the most stable across random restarts.
+              are meaningful and the structure is the most stable across random restarts. These are
+              social tribes&mdash;defined by follow patterns. What people <em>write</em> about is a
+              separate question, answered by the tweet analysis in the next stage.
             </p>
             <p>
               The {numCommunities} factors come out as anonymous math&mdash;&ldquo;Factor
@@ -312,12 +332,12 @@ export default function About({ meta, onNavigate }) {
             <h2>
               <span className="about-stage-num">4</span>
               Correcting the Map
-              <span className="about-badge-status about-badge-status--experimental">EXPERIMENTAL</span>
             </h2>
 
             <p>
-              The follow graph tells you who someone listens to. It doesn&rsquo;t tell you what
-              they actually think, write, or care about. For that, you have to read their tweets.
+              The follow graph tells you which social tribe someone belongs to. It doesn&rsquo;t
+              tell you what they actually think, write, or care about. For that, you have to read
+              their tweets.
             </p>
             <p>
               Three AI models independently read each tweet and tag it: what community would
@@ -328,11 +348,12 @@ export default function About({ meta, onNavigate }) {
             </p>
             <p>
               AI misses things humans see. A tweet that&rsquo;s just a link gives it nothing
-              to work with. An image-heavy thread carries meaning it can&rsquo;t read. So a
-              human opens each labeled tweet, checks the full context&mdash;images, quoted tweets,
-              who&rsquo;s replying&mdash;and corrects mistakes. Of 57 tweets checked this way,
-              33 needed corrections. The most common error: the AI guessed based on who the
-              person <em>is</em>, not what the tweet <em>says</em>.
+              to work with. An image-heavy thread carries meaning it can&rsquo;t read. In early
+              spot-checks, about 30% of AI labels needed correction. The most common error: the
+              AI guessed based on who the person <em>is</em>, not what the tweet <em>says</em>.
+              To scale this, we run labeling on archive tweets at zero API cost&mdash;the data is
+              already in the archive, so we just point three AI models at it. 125 accounts have
+              been labeled this way so far, accumulating over 21,000 evidence tags.
             </p>
             <p>
               Not all tweets carry equal weight. A sincere statement of belief reveals
@@ -396,9 +417,12 @@ export default function About({ meta, onNavigate }) {
               the other ~200,000 accounts in the network?
             </p>
             <p>
-              Community labels spread outward through follow connections. If you follow 10
-              people and 8 of them are Builders, you&rsquo;re probably Builder-adjacent.
-              The intuition is simple: you are the company you keep.
+              Community labels spread outward through the typed connection graph. Not just follows,
+              but quotes, replies, mentions, likes, retweets&mdash;all weighted differently. If you
+              follow 10 people and 8 of them are Builders, you&rsquo;re probably Builder-adjacent.
+              If you also quote-tweet three Contemplative accounts, that signal carries weight too.
+              The intuition is simple: you are the company you keep, and especially the company
+              you engage with.
             </p>
             <p>
               Each community spreads independently. Your connection to Qualia Research has
@@ -424,7 +448,40 @@ export default function About({ meta, onNavigate }) {
             </p>
           </section>
 
-          {/* Stage 5.5: Honest Uncertainties */}
+          {/* Stage 5.5: The Bridge Discovery */}
+          <section className="about-section">
+            <h2>
+              <span className="about-stage-num">&#x2194;</span>
+              Most TPOT Members Are Bridges
+            </h2>
+
+            <p>
+              Here&rsquo;s the most surprising finding from the analysis. We checked: for people
+              independently confirmed as TPOT members, does their social tribe (who they follow)
+              match their intellectual profile (what they tweet about)?
+            </p>
+            <p>
+              <strong>For 82% of them, it doesn&rsquo;t.</strong> Their follow-graph community and
+              their tweet-content community point in different directions. @visakanv follows
+              Internet Intellectuals but writes about contemplative practice. @patio11 follows
+              Tech Intellectuals but engages with collective intelligence ideas. @RomeoStevens76
+              follows Contemplative Practitioners but tweets about AI creativity.
+            </p>
+            <p>
+              This isn&rsquo;t a flaw in the analysis. It&rsquo;s what TPOT <em>is</em>. A person
+              who follows meditation teachers and only writes about meditation isn&rsquo;t TPOT.
+              They&rsquo;re in a meditation community. TPOT people follow one tribe and intellectually
+              range across several. The cross-cutting is the defining feature.
+            </p>
+            <p>
+              That&rsquo;s why {(byBand.bridge || 0).toLocaleString()} accounts show up as
+              bridges&mdash;not because the algorithm is confused, but because the people genuinely
+              straddle multiple worlds. When your card blends aesthetics from two or three communities,
+              that&rsquo;s the map showing you something real about how you move through this network.
+            </p>
+          </section>
+
+          {/* Stage 5.5b: Honest Uncertainties */}
           <section className="about-section">
             <h2>
               <span className="about-stage-num">&#x26A0;</span>
@@ -516,10 +573,18 @@ export default function About({ meta, onNavigate }) {
               3 are confirmed by two&mdash;real communities, but with weaker independent evidence.
             </p>
             <p>
-              We also re-ran the entire analysis on a graph with 85% more data (815K edges
-              vs 441K). The same communities emerged. 11 of 16 matched strongly; the other 5
-              showed minor boundary shifts. If the communities were an artifact of sparse data,
-              doubling the data would have destroyed them. It didn&rsquo;t.
+              We also re-ran the analysis as data grew from 441K to 815K to 2.7M edges. The
+              same communities emerged each time. 11 of 16 matched strongly across runs; the
+              other 5 showed minor boundary shifts. If the communities were an artifact of
+              sparse data, tripling the data would have destroyed them. It didn&rsquo;t.
+            </p>
+            <p>
+              Separately, we embedded 24,000 tweets into a semantic space and clustered them at
+              multiple scales (2, 4, 8, 16, 32, 64 clusters). The tweet clusters have clean
+              hierarchical structure up to 8 groups (84% nesting purity), meaning there are real
+              macro-topics in what people write about. These content clusters are nearly independent
+              of the follow-graph communities (agreement score 0.08 out of 1.0)&mdash;confirming
+              that social structure and intellectual structure are genuinely different dimensions.
             </p>
 
             <h3>Testing against known lists</h3>
