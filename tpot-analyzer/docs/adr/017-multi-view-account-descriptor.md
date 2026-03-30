@@ -1,7 +1,7 @@
 # ADR 017: Multi-View Account Descriptor
 
-**Status:** Proposed (session 12, 2026-03-29)
-**Context:** EXP-008 showed follow-graph NMF and tweet-content clusters are nearly independent (AMI=0.08). A single-view prior (NMF alone) misses half the picture. ADR 016 called for "task-specific heads over multiple views" — this ADR specifies what those views are and how they combine.
+**Status:** Revised (session 12, 2026-03-30)
+**Context:** EXP-008 showed follow-graph NMF and tweet-content clusters are nearly independent (AMI=0.08). EXP-009 showed that view *disagreement* is a feature of TPOT membership, not noise — 82% of holdout TPOT members are bridges (graph community ≠ semantic community). ADR 016 called for "task-specific heads over multiple views" — this ADR specifies what those views are and their distinct roles.
 
 ---
 
@@ -19,18 +19,31 @@ Each account is represented as a **multi-view descriptor** — a collection of i
 | **Interaction** | Typed graph features (reciprocity, engagement partners, quote/reply patterns) | ~10 features | 298K (from TypedGraph) |
 | **Profile** | Bio embedding | 768 | 15K (already computed) |
 
-### Combination Strategy
+### View Roles (revised after EXP-009)
 
-**Per-view soft voting** (not concatenation + MLP):
-- Each view independently predicts a community distribution
-- A simple learned weight per view combines them
-- ~4 weights per community = ~64 parameters total
-- Calibratable with 330 gold labels without overfitting
+Views do NOT all answer the same question. Each view has a distinct job:
 
-Why not concatenation:
-- 330 training examples, 800+ dimensions → severe overfitting
-- Per-view voting is interpretable: "graph says X, content says Y"
-- Graceful degradation: if a view is missing (graph-only accounts have no semantic view), remaining views still work
+| View | Question it answers | Mechanism |
+|------|-------------------|-----------|
+| **Graph** | "Is this account near TPOT?" | KNN on NMF weights — 100% recall at threshold 0.3 |
+| **Semantic** | "What kind of TPOT member?" | Tweet cluster histogram — intellectual profile |
+| **Taste** | "What do they endorse?" | Like cluster histogram (future) |
+| **Interaction** | "How do they engage?" | Typed graph features — reciprocity, quote/reply patterns |
+| **Profile** | "How do they describe themselves?" | Bio embedding |
+
+**Critical finding (EXP-009):** View disagreement is NOT low confidence. 82% of holdout TPOT members have their graph community disagree with their semantic community. TPOT is a *cross-cutting meta-community* — its members follow one social tribe but intellectually range across several. Penalizing disagreement hurts detection.
+
+### Combination Strategy (revised)
+
+**NOT per-view voting for community assignment.** Instead:
+
+1. **Detection** (is this account TPOT?): Graph view alone. Propagation from seeds through TypedGraph. This works — 100% recall on holdout at threshold 0.3.
+
+2. **Characterization** (what kind of TPOT?): Semantic + taste + interaction views. These describe the account's intellectual profile, not their tribe. An account can be graph=AI-Safety but semantic=Contemplative — that's a real description, not an error.
+
+3. **Bridge detection** (multi-community members): View disagreement. When graph ≠ semantic, the account spans communities. This is the most interesting signal for the TPOT map — bridges are the people who connect tribes.
+
+4. **Confidence calibration**: Graph confidence (how many seeds nearby) × evidence depth (how many views available). NOT view agreement.
 
 ### Account Rings and View Availability
 
@@ -41,46 +54,40 @@ Why not concatenation:
 | Profiled (9K) | Propagated | No | No | Some | Yes |
 | Graph-only (298K) | Propagated | No | No | Minimal | No |
 
-The ensemble prior naturally degrades: core accounts get 4+ views, graph-only accounts get 1 view. Confidence reflects this — more views = higher confidence.
+The representation naturally degrades: core accounts get a rich multi-view profile, graph-only accounts get a hypothesis. Confidence reflects evidence depth, not view agreement.
 
 ## Rationale
 
-### Evidence (EXP-008)
+### Evidence
 
-Follow graph and tweet content are orthogonal (AMI=0.08):
-- Quiet-Creatives: content-coherent (purity 0.96 at k=2)
-- Core-TPOT, highbies: content-diverse (scatter across all clusters)
-- AI-Safety (by follows) members who tweet about contemplative practice = bridges invisible to single-view
+**EXP-008:** Follow graph and tweet content are orthogonal (AMI=0.08). Quiet-Creatives are content-coherent (purity 0.96 at k=2). Core-TPOT, highbies are content-diverse. They capture different dimensions.
+
+**EXP-009:** 82% of holdout TPOT members are bridges (graph community ≠ semantic community). View disagreement is a feature of TPOT membership. Boosting agreement and penalizing disagreement HURTS detection — it pushes real TPOT members down the ranking. Examples: @visakanv (graph=Internet-Intellectuals, semantic=Contemplative), @repligate (graph=LLM-Whisperers, semantic=Core-TPOT), @patio11 (graph=Tech-Intellectuals, semantic=Collective-Intelligence).
 
 ### The NMF question
 
-With 330+ labeled seeds approaching, NMF's role shifts from "discovers communities" to "one structural view among several." The ensemble prior subsumes NMF — it uses NMF as the graph view while adding content, taste, and interaction views.
-
-NMF is retained because:
-- It covers all 298K accounts (content views only cover ~300)
-- It's fast to recompute
-- Graph structure IS informative — just not sufficient alone
+NMF remains the primary detection mechanism — it covers all 298K accounts and graph proximity to seeds works at 100% recall. But NMF's community *label* is incomplete for most TPOT members. The semantic view enriches the label, not replaces it. An account is not "AI-Safety" — they are "AI-Safety by social position, Contemplative by intellectual interest, with bridge connections to Qualia-Research."
 
 ## Consequences
 
 ### Near-term (implementable now)
 - Build `account_descriptor` as a JIT-computed view, not a stored table
-- Graph view: query `community_account` weights
-- Semantic view: query `account_cluster_histogram` at chosen k
-- Interaction view: query TypedGraph for reciprocity, typed_degree, engagement partners
-- Profile view: query bio embedding from `bio_embeddings` table
-- Simple voting combiner: calibrated on 330 core accounts
+- Graph view: query `community_account` weights → detection + primary community
+- Semantic view: query `account_cluster_histogram` at k=8 → intellectual profile
+- Bridge flag: graph_community ≠ semantic_community → multi-community member
+- Interaction view: query TypedGraph for reciprocity, typed_degree → engagement style
 
 ### Medium-term
-- Taste view: embed liked tweets in same basis as authored tweets, compute histograms
-- Active learning head: predict value of buying more data using current descriptor confidence
-- Confidence = number of views available + agreement across views
+- Taste view: embed liked tweets in same basis as authored tweets
+- Richer cards: show "AI-Safety by social position, Contemplative by intellectual interest"
+- Active learning: prioritize accounts where we have graph signal but no semantic view (cheap upgrade: fetch tweets → embed → characterize)
 
 ### What changes in the pipeline
-- Seed insertion: weight = graph_view_weight * semantic_agreement_factor
-- Propagation: still uses combined TypedGraph adjacency (unchanged)
-- Export: confidence reflects multi-view agreement, not just graph position
-- Active learning: prioritizes accounts where views disagree (high information value)
+- Seed insertion: unchanged (graph-based, works at 100% recall)
+- Propagation: unchanged (TypedGraph adjacency)
+- Export: cards gain multi-dimensional description (social tribe + intellectual profile + bridge status)
+- Confidence: graph confidence × evidence depth, NOT view agreement
+- Active learning: prioritizes accounts where semantic view would add characterization value
 
 ### What doesn't change
 - Harmonic propagation solver
@@ -89,12 +96,14 @@ NMF is retained because:
 - Public site frontend
 
 ## Assumptions
-- 309 accounts with semantic view is enough to validate the approach
-- Per-view voting won't overfit with 330 training examples
-- Tweet cluster stability across re-runs (need to verify)
+- Graph proximity to seeds is the correct detection mechanism for TPOT membership
+- Semantic view adds characterization value even if it doesn't improve detection
+- Bridge detection (view disagreement) is genuinely interesting, not just noise
+- Tweet cluster stability across re-runs (need to verify — EXP-010 candidate)
 
 ## Related
 - ADR 016 — four-part epistemic architecture (this ADR implements the "task heads" layer)
-- EXP-005 — NMF vs tweet labeling (42% agreement, first hint)
-- EXP-008 — multi-scale clustering (AMI=0.08, formal confirmation)
+- EXP-005 — NMF vs tweet labeling (42% agreement, first hint of orthogonality)
+- EXP-008 — multi-scale clustering (AMI=0.08, confirmed orthogonality)
+- EXP-009 — view agreement test (82% of TPOT are bridges, disagreement is the signal)
 - EXP-001 — higher-k NMF can't find sub-communities (content clustering can)
