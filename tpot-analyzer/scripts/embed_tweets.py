@@ -442,6 +442,8 @@ def analyze_cross_scale(conn: sqlite3.Connection) -> None:
 # ── Main ────────────────────────────────────────────────────────────────
 
 def main():
+    global LMSTUDIO_URL, EMBEDDING_MODEL, BATCH_SIZE
+
     parser = argparse.ArgumentParser(
         description="Embed tweets and cluster at multiple scales"
     )
@@ -459,7 +461,6 @@ def main():
     parser.add_argument("--model", type=str, default=EMBEDDING_MODEL)
     args = parser.parse_args()
 
-    global LMSTUDIO_URL, EMBEDDING_MODEL, BATCH_SIZE
     LMSTUDIO_URL = args.lmstudio_url
     EMBEDDING_MODEL = args.model
     BATCH_SIZE = args.batch_size
