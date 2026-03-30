@@ -120,12 +120,28 @@ def get_already_embedded(conn: sqlite3.Connection) -> set[str]:
     return {r[0] for r in rows}
 
 
+def load_tweets_from_csv(csv_path: Path) -> list[tuple[str, str, str]]:
+    """Load tweets from CSV (tweet_id, account_id, full_text)."""
+    import csv
+    tweets = []
+    with open(csv_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row.get("full_text"):
+                tweets.append((row["tweet_id"], row["account_id"], row["full_text"]))
+    return tweets
+
+
 def run_embedding(
     conn: sqlite3.Connection,
     sample: int | None = None,
     resume: bool = False,
+    csv_path: Path | None = None,
 ) -> int:
-    """Embed authored tweets from the tweets table.
+    """Embed tweets and store in DB.
+
+    Reads from CSV if csv_path is provided, otherwise from tweets table.
+    When using CSV, also creates a lightweight tweets table for rollup joins.
 
     Returns count of newly embedded tweets.
     """
@@ -136,7 +152,25 @@ def run_embedding(
     logger.info("Embedding model: %s, dimension: %d", EMBEDDING_MODEL, dim)
 
     # Get tweets to embed
-    if sample:
+    if csv_path:
+        logger.info("Loading tweets from CSV: %s", csv_path)
+        csv_rows = load_tweets_from_csv(csv_path)
+        # Create a lightweight tweets table for rollup joins
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tweets (
+                tweet_id TEXT PRIMARY KEY,
+                account_id TEXT NOT NULL,
+                full_text TEXT
+            )
+        """)
+        conn.executemany(
+            "INSERT OR IGNORE INTO tweets (tweet_id, account_id, full_text) VALUES (?, ?, ?)",
+            csv_rows,
+        )
+        conn.commit()
+        tweets = [(tid, text) for tid, _, text in csv_rows]
+        logger.info("Loaded %d tweets from CSV", len(tweets))
+    elif sample:
         tweets = conn.execute(
             "SELECT tweet_id, full_text FROM tweets "
             "WHERE full_text IS NOT NULL AND full_text != '' "
@@ -411,7 +445,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Embed tweets and cluster at multiple scales"
     )
-    parser.add_argument("--db", type=Path, required=True, help="Path to archive_tweets.db")
+    parser.add_argument("--db", type=Path, required=True, help="Path to DB (archive_tweets.db or new output DB)")
+    parser.add_argument("--csv", type=Path, help="Load tweets from CSV instead of DB tweets table")
     parser.add_argument("--sample", type=int, help="Embed only N random tweets (for testing)")
     parser.add_argument("--resume", action="store_true", help="Skip already-embedded tweets")
     parser.add_argument("--cluster-only", action="store_true", help="Skip embedding, just cluster")
@@ -445,7 +480,7 @@ def main():
         return
 
     if not args.cluster_only:
-        run_embedding(conn, sample=args.sample, resume=args.resume)
+        run_embedding(conn, sample=args.sample, resume=args.resume, csv_path=args.csv)
 
     run_clustering(conn, scales=scales)
     rollup_account_histograms(conn)
