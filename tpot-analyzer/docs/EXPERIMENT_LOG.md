@@ -137,6 +137,113 @@ The combination is the truth. An account that follows Qualia researchers but twe
 
 ---
 
+## EXP-006: Can the local DB support a Phase 1 community-correctness audit without new fetches?
+
+**Date:** 2026-03-26
+**Question:** Can we build the first external-audit + human-review benchmark from the current local `archive_tweets.db`, or do we need another fetch pass first?
+
+**Hypothesis:** Core and boundary TPOT accounts should mostly have enough local context already, but famous-adjacent hard negatives will often only exist as `profiles` rows without local tweet text.
+
+**Method:** Queried `profiles`, `tweets`, `enriched_tweets`, `community_account`, and `account_community_gold_*` while assembling the Phase 1 pilot slate. Checked core candidates, boundary candidates, and famous-adjacent hard negatives for local text availability and current community assignments.
+
+**Result:** **PARTIAL.** The local DB is sufficient to ship the pilot substrate now:
+- core and boundary items generally have strong local tweet coverage
+- current ontology / target-community IDs are all available locally
+- `account_community_gold_*` tables already exist and can accept Phase 1 imports
+
+But most hard negatives only have bios and profiles locally:
+- `karpathy`, `pmarca`, `lexfridman`, `naval`, `hubermanlab`, `dwarkesh_sp`, and similar accounts are present in `profiles`
+- most have `0` local `tweets` and `0` `enriched_tweets`
+
+**Lesson:** The benchmark can start now, but the runner must degrade gracefully for hard negatives. Grok can still be used as an external auditor on bio-only rows, but those rows should be explicitly flagged as `missing_local_posts` so reviewers know the evidence basis is thinner.
+
+**Data stored:** `data/evals/phase1_membership_audit_accounts.json`, `data/evals/phase1_membership_audit_review_sheet.csv`
+
+**Next step:** Run the pilot with the current mixed-context slate, then decide whether Phase 1.1 needs a focused fetch pass for hard negatives before scaling the benchmark.
+
+---
+
+## EXP-007: Can archive-only active learning label what archive accounts talk about without spending Twitter API credits?
+
+**Date:** 2026-03-26
+**Question:** Can the active-learning pipeline use local archive tweets plus LLM labeling to infer content identity, while avoiding any new twitterapi.io spend for archive-backed accounts?
+
+**Hypothesis:** Yes, if archive loading adapts to the real `tweets` schema and archive-only mode gates every paid context path, then locally archived tweets can drive LLM labeling with zero new Twitter API spend.
+
+**Method:** Started with the archive-safe handle pool (`/tmp/tpot_archive_active_learning_handles.txt`) and ran `python -m scripts.active_learning --round 1 --archive-only`. First run failed on a schema mismatch (`like_count` assumed, real DB has `favorite_count`). Patched `load_archive_tweets()` to inspect `PRAGMA table_info(tweets)` and normalize real/archive-test schemas. A second smoke run exposed a second leak: reply tweets still called `thread_context` through twitterapi.io. Patched `src/archive/thread_fetcher.get_thread_context(... allow_api=False)` and threaded `allow_paid_api=not archive_only` through `scripts.active_learning.py`. Verified with smoke runs, then ran the only true archive-backed frontier tranche: `uh_cess`, `vyakart`, `vorathep112` with `--archive-only --archive-limit 5`.
+
+**Result:** **Confirmed, with two hidden-paid-path fixes required.**
+- `spent` stayed flat at `5.05`
+- `reply_fetch_rows` stayed `0`
+- `thread_context_cache` stayed flat at `310` after the final fixed runs
+- `archive_enriched_rows` grew from `0` to `30`
+- `archive_enriched_accounts` grew from `0` to `6`
+- `label_sets_active_learning` grew from `1510` to `1527`
+- `tweet_tags` LLM bits grew from `4005` to `4045`
+- Frontier tranche outcome:
+  - `uh_cess` → ambiguous (`LLM-Whisperers`, `highbies`, `Collective-Intelligence`)
+  - `vyakart` → ambiguous (`Tech-Intellectuals`, `Collective-Intelligence`, `Core-TPOT`)
+  - `vorathep112` → ambiguous (`highbies`, `Quiet-Creatives`, `Relational-Explorers`)
+
+**Lesson:** "Archive-only" was not a single switch; it required closing three separate paid paths: timeline/search fetches, reply-community fetches, and thread-context fetches. Once those were all gated, the pipeline started using tweet content as intended. Also, only 3 not-yet-enriched archive accounts are currently in `frontier_ranking`, so a much larger archive sweep would be a bulk labeling job, not active learning.
+
+**Data stored:** Results persisted in `data/archive_tweets.db` tables `enriched_tweets`, `tweet_label_set`, and `tweet_tags`. Smoke/probe account outcomes include `0xosprey`, `33asr`, `5matthewdub`; active-learning frontier tranche includes `uh_cess`, `vyakart`, `vorathep112`.
+
+**Next step:** Decide whether to (a) keep using uncertainty-ranked archive tranches only, or (b) build a separate bulk archive-labeling queue for the remaining archive-backed accounts that are outside `frontier_ranking`. Also persist per-model label rows so `verify_active_learning` can report real agreement coverage.
+
+---
+
+## EXP-008: Multi-scale tweet clustering vs NMF communities
+
+**Date:** 2026-03-29
+**Question:** Does clustering tweet content at multiple scales discover structure that follow-graph NMF misses? Are NMF communities content-coherent, or purely social?
+
+**Hypothesis:** NMF communities are defined by follow patterns (social tribes). Tweet content should capture a different dimension (intellectual interests). If so, AMI between the two should be low, and some NMF communities should scatter across many content clusters.
+
+**Method:**
+1. Exported 50K random authored tweets as CSV from archive
+2. Embedded with `text-embedding-embeddinggemma-300m` (dim=768) on RTX 3080 via LM Studio
+3. 23,808 tweets successfully embedded (model crashed twice at ~12K, used `--resume`)
+4. K-means clustering at k=2,4,8,16,32,64 on L2-normalized embeddings
+5. Rolled up tweet cluster memberships to 309 accounts
+6. Cross-referenced against NMF primary community assignments
+7. Computed cross-scale nesting purity and AMI/ARI
+
+**Result:** **CONFIRMED — NMF and tweet content are nearly independent signals.**
+
+Cross-scale nesting purity (tweet clusters):
+- k=2→4: 0.928 (strong hierarchical structure)
+- k=4→8: 0.841 (real sub-clusters)
+- k=8→16: 0.666 (moderate)
+- k=16→32: 0.518 (dissolving)
+- k=32→64: 0.521 (noise)
+
+NMF→tweet purity (does NMF community map to a tweet cluster?):
+- At k=2: avg 0.61 — some signal. Quiet-Creatives 0.96, TfT 0.86.
+- At k=8: avg 0.42 — most NMF communities scatter across content clusters.
+- At k=16: avg 0.29 — near random. Core-TPOT, highbies, Internet-Intellectuals have no content coherence.
+
+Adjusted Mutual Information (NMF vs tweet clusters):
+- Peak AMI at k=16: **0.080** (0=independent, 1=identical)
+- Peak ARI at k=16: **0.040**
+- Both barely above random — these are genuinely orthogonal dimensions.
+
+Communities with HIGH content coherence (social tribe ≈ intellectual tribe):
+- Quiet-Creatives (0.96 at k=2), Queer-TPOT (0.45 at k=16), AI-Safety (0.47 at k=32)
+
+Communities with LOW content coherence (social tribe ≠ intellectual tribe):
+- Core-TPOT, highbies, Internet-Intellectuals — scatter everywhere. Defined by social position, not content.
+
+Reverse analysis: tweet clusters are also NMF-diverse. At k=16, cluster_1 (n=43) mixes AI-Creativity, AI-Safety, and Qualia-Research — they write about similar things but are socially distinct.
+
+**Lesson:** Follow graph and tweet content measure orthogonal dimensions of community structure. An account in AI-Safety (by follows) who tweets about contemplative practice is a bridge that only a multi-view system can detect. NMF alone would call them AI-Safety. Content alone would call them Contemplative. The truth is both. This validates the multi-view ensemble prior architecture from ADR 016.
+
+**Data stored:** `data/embed_experiment.db` — tables: tweet_embedding (23,808 rows), tweet_cluster (6 scales), account_cluster_histogram (309 accounts × 6 scales), cluster_run (6 entries). Also tweets table with account_id for rollup joins.
+
+**Next step:** Build multi-view account descriptor combining graph view (NMF/propagation), semantic view (tweet cluster histograms), taste view (like cluster histograms), and interaction view (quote/reply patterns). Fit ensemble prior on gold labels. This becomes the replacement for NMF-as-sole-prior.
+
+---
+
 ## Template for future experiments
 
 ```markdown
