@@ -439,7 +439,7 @@ def analyze_cross_scale(conn: sqlite3.Connection) -> None:
             purities.append(dominant / total)
 
         avg_purity = np.mean(purities) if purities else 0
-        print(f"  k={k_parent}→{k_child}: avg purity={avg_purity:.3f} "
+        print(f"  k={k_parent}->{k_child}: avg purity={avg_purity:.3f} "
               f"(1.0 = perfect nesting, {len(purities)} child clusters)")
 
 
