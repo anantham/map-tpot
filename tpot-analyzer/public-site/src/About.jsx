@@ -65,14 +65,13 @@ export default function About({ meta, onNavigate }) {
             <h2>The Illegibility Is the Point</h2>
 
             <p>
-              You understand TPOT&rsquo;s language. You&rsquo;re in because you recognize it.
-              The shared references, the nested irony, the way people hold ideas here&mdash;it&rsquo;s
-              a membrane. People who know, know. People who don&rsquo;t, can&rsquo;t
-              participate until they do.
+              You understand TPOT&rsquo;s language. Recognizing the language grants entry.
+              Shared references, nested irony, and the way people hold ideas form a membrane.
+              The uninformed cannot participate.
             </p>
             <p>
-              That illegibility protects the culture. But it has a cost: <strong>coordination is
-              trapped in individual heads.</strong>
+              Illegibility protects the culture. However, coordination remains trapped in
+              individual heads.
             </p>
           </section>
 
@@ -87,42 +86,41 @@ export default function About({ meta, onNavigate }) {
               like me?&rdquo;
             </p>
             <p>
-              I know the answers. Richard Ngo is in agent foundations. @repligate is in cyborgism.
-              I know specific people at specific niche corners of AI safety, meditation, and
-              everything in between. But it&rsquo;s trapped in my head. Not legible.
-              Doesn&rsquo;t scale.
+              I know that Richard Ngo works on agent foundations and @repligate explores cyborgism.
+              I can navigate the niches of AI safety and meditation. But trapping this knowledge in
+              my head prevents it from scaling.
             </p>
             <p>
-              People need this map to find each other&mdash;to collaborate, to build projects,
-              to start communities around shared interests.
+              People need this map to find each other to collaborate, build projects, and start
+              communities around shared interests.
             </p>
           </section>
 
           <section className="about-section">
             <h2>Make the Structure Visible</h2>
             <p>
-              Rather than let an algorithm decide whose tweets you see, this site makes the
-              community structure visible. It&rsquo;s one version of the map. Not <em>the</em> map.
+              This site makes the community structure visible instead of letting an algorithm
+              decide whose tweets you see. It presents one version of the map.
             </p>
             <p>
               The whole thing is open source. Fork the repo, feed in your own follow data,
-              label tweets by your own aesthetics, carve out your own ontology&mdash;and
-              discover others you can work with.
+              label tweets by your own aesthetics, carve out your own ontology, and discover
+              others you can work with.
             </p>
           </section>
 
           <section className="about-section about-origin">
             <h2>My Story</h2>
             <p>
-              I followed around 2,000 people on Twitter. My feed was a firehose&mdash;brilliant
-              posts buried under noise from people I&rsquo;d followed in a different season
-              of my life. Lists were too manual. Follow/unfollow felt like a false dichotomy.
+              I followed around 2,000 people on Twitter. My feed was a firehose. Brilliant
+              posts lay buried under noise from people I followed in a different season
+              of my life. Lists required too much manual effort, and follow/unfollow
+              presented a false dichotomy.
             </p>
             <p>
-              The real problem: TPOT isn&rsquo;t one thing. It&rsquo;s{' '}
-              {numCommunities} overlapping subcultures, each with its own references, aesthetics,
-              and epistemic norms. Some I&rsquo;m deeply embedded in. Others I just orbit.
-              I wanted to see the map.
+              TPOT contains {numCommunities} overlapping subcultures. Each maintains its
+              own references, aesthetics, and epistemic norms. I am deeply embedded in
+              some and merely orbit others. I built this site to see the map.
             </p>
             <p>
               This site is that map, made public so you can find your place in it too.
@@ -140,15 +138,13 @@ export default function About({ meta, onNavigate }) {
             <h2>There&rsquo;s a Loose Network on Twitter</h2>
 
             <p>
-              Not a hashtag. Not a list. Not an organization. It&rsquo;s tens of thousands
-              of accounts that share references, aesthetics, and ways of thinking. People
-              call it TPOT&mdash;&ldquo;this part of Twitter.&rdquo;
+              Tens of thousands of accounts share references, aesthetics, and ways of thinking.
+              People call this network TPOT&mdash;&ldquo;this part of Twitter.&rdquo;
             </p>
             <p>
-              You&rsquo;re &ldquo;in&rdquo; if you understand the language. That sounds circular,
-              and it is. The nested irony, the philosophical shitposts, the way people hold
-              ideas loosely while caring deeply&mdash;that&rsquo;s the boundary. It&rsquo;s
-              hard to see from outside because it&rsquo;s not trying to be seen.
+              Understanding the language grants entry. The nested irony, philosophical shitposts,
+              and holding ideas loosely while caring deeply form the boundary. The network remains
+              hidden from the outside because it avoids visibility.
             </p>
           </section>
 
@@ -156,9 +152,10 @@ export default function About({ meta, onNavigate }) {
             <h2>It&rsquo;s Actually {numCommunities} Communities</h2>
 
             <p>
-              Builders, contemplatives, poets, AI safety researchers, identity experimentalists,
-              institution designers, embodiment practitioners, psychonauts, governance
-              designers&mdash;overlapping but distinct.
+              The network includes builders, contemplatives, poets, AI safety researchers,
+              identity experimentalists, institution designers, embodiment practitioners,
+              psychonauts, and governance designers. These groups overlap while remaining
+              distinct.
             </p>
             <p>
               This site maps those subcommunities. Search your handle and see where you land.
@@ -170,18 +167,17 @@ export default function About({ meta, onNavigate }) {
           <section className="about-section">
             <h2>How It Works (Short Version)</h2>
             <p>
-              We look at who follows whom, who quotes whom, who replies to whom&mdash;eight
-              types of connection, each carrying different meaning. Following a meditation
+              We analyze eight types of connections: who follows whom, who quotes whom, and who
+              replies to whom. Each connection type carries different meaning. Following a meditation
               teacher tells us more than following Elon Musk. An algorithm finds clusters of
               accounts with similar connection patterns. A human curator reviews and names
               each cluster.
             </p>
             <p>
-              Then we read tweets. Your social tribe (who you follow) and your intellectual
-              interests (what you write about) often point in different directions&mdash;that&rsquo;s
-              not a bug, it&rsquo;s what makes this network interesting. For accounts not in
-              the core dataset, we infer placement from their position in the network. Inferred
-              placements get a grayscale card instead of a colorful one, signaling lower confidence.
+              Then we read tweets. Your social tribe and intellectual interests often point in
+              different directions. This divergence makes the network interesting. We infer
+              placement for accounts outside the core dataset based on their position in the
+              network. Grayscale cards signal lower confidence for these inferred placements.
             </p>
           </section>
         </>
@@ -204,31 +200,30 @@ export default function About({ meta, onNavigate }) {
               <a href="https://www.community-archive.org/" target="_blank" rel="noopener noreferrer">
                 Community Archive
               </a>{' '}
-              is a project where Twitter users voluntarily share their data&mdash;their tweets,
-              who they follow, what they like. Around 330 people have done this so far. That&rsquo;s
-              millions of tweets and millions of likes, but more importantly, it&rsquo;s a detailed
-              record of who these people chose to listen to.
+              is a project where Twitter users voluntarily share their tweets, follows,
+              and likes. Around 330 people have done this so far. This archive contains millions
+              of tweets and likes. It provides a detailed record of who these people chose
+              to listen to.
             </p>
             <p>
-              Each archived account follows hundreds or thousands of people. Trace those outward and
-              you reach roughly 270,000 accounts&mdash;the shadow network. For the 330 we see
-              everything. For the 270,000 we initially know only that <em>someone</em> chose to follow
-              them. They&rsquo;re silhouettes: present in the graph but faceless.
+              Each archived account follows hundreds or thousands of people. Tracing these
+              connections outward reveals roughly 270,000 accounts in the shadow network.
+              We see everything for the 330 archived accounts. For the 270,000 others, we
+              only know that someone chose to follow them. They exist as faceless silhouettes
+              in the graph.
             </p>
             <p>
-              To fill in the picture, we selectively fetch data for the most connected shadow accounts
-              via the Twitter API&mdash;who they follow, their recent tweets, their bios. This is
-              targeted, not exhaustive. We prioritize accounts that many archived people follow, or
-              that sit at the intersection of multiple communities.
+              We selectively fetch data for the most connected shadow accounts via the Twitter API
+              to fill in the picture. We retrieve their follows, recent tweets, and bios. We prioritize
+              accounts that many archived people follow, or that sit at the intersection of multiple
+              communities.
             </p>
             <p>
-              The result is a graph of 2.7 million connections across 300,000 accounts, with eight
-              types of relationships: follows (who you chose to listen to), quotes (who you publicly
-              engaged with), mentions (who you addressed), replies (who you conversed with), likes
-              (what you endorsed), retweets (what you amplified), co-followed (who shares your
-              audience), and follower relationships (who chose to listen to you). Each type carries
-              a different meaning. A follow is architectural. A quote is intellectual. A like is
-              reflexive. We keep them separate rather than collapsing them into one number.
+              The result is a graph of 2.7 million connections across 300,000 accounts spanning eight
+              relationship types. Follows indicate who you listen to. Quotes show who you publicly
+              engage with. Mentions reveal who you address. Replies capture conversations. Likes
+              reflect endorsements. Retweets show amplification. Co-follows highlight shared audiences.
+              Follower relationships indicate who listens to you.
             </p>
           </section>
 
@@ -239,38 +234,31 @@ export default function About({ meta, onNavigate }) {
               Reading the Signals
             </h2>
             <p>
-              Who you follow is the strongest signal. It&rsquo;s deliberate, stable, and reveals
-              what you chose to listen to. But a person is more than their follow list.
+              Follows provide the strongest signal. They are deliberate and stable indicators of who
+              you listen to. However, a person extends beyond their follow list.
             </p>
             <p>
-              For the archived accounts, we also see what they retweet (what they amplify), what
-              they like (what catches their eye), and who replies to their posts. Follows are
-              architectural. Retweets are behavioral. Likes are reflexive. Replies are relational.
-              For enriched shadow accounts, we fetch their recent tweets and bios&mdash;what
-              they actually write and how they describe themselves.
+              For the archived accounts, we also see what they retweet, what they like, and who
+              replies to their posts. For enriched shadow accounts, we fetch their recent tweets
+              and bios to see what they write and how they describe themselves.
             </p>
             <p>
-              Then there are patterns that emerge from the whole network at once. If 200
-              people all follow both you and the same niche consciousness researcher, that&rsquo;s
-              not coincidence&mdash;that&rsquo;s structure. We also embed tweet text into a
-              shared semantic space and cluster at multiple scales&mdash;not who you listen
-              to, but what you actually write and think about.
+              Two hundred people following both you and a niche consciousness researcher reveals
+              structure, not coincidence. We also embed tweet text into a shared semantic space
+              and cluster at multiple scales to map what you write and think about.
             </p>
             <p>
-              Here&rsquo;s the finding that changed the project: <strong>these two signals are
-              nearly independent.</strong> We measured the statistical agreement between
-              follow-graph communities and tweet-content clusters. The score was 0.08 out of
-              1.0&mdash;barely above random. Who you follow and what you write about measure
-              genuinely different things. The follow graph captures social tribes. Tweet content
-              captures intellectual interests. They&rsquo;re orthogonal dimensions.
+              Follow-graph communities and tweet-content clusters are nearly independent. Their
+              statistical agreement is 0.08 out of 1.0. Who you follow and what you write about
+              measure different dimensions. The follow graph captures social tribes. Tweet content
+              captures intellectual interests.<sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/docs/adr/017-multi-view-account-descriptor.md#L63" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[5]</a></sup>
             </p>
             <p>
-              @repligate&rsquo;s follow list says &ldquo;Qualia Research&rdquo;&mdash;they follow
-              consciousness researchers. But their tweet content says &ldquo;LLM
-              Whisperers&rdquo;&mdash;AI agents, prompt engineering, recursive self-improvement.
-              That disagreement isn&rsquo;t noise. It&rsquo;s the most informative thing in the
-              data. @repligate orbits one community socially but intellectually lives in another.
-              You need both signals to see that.
+              @repligate&rsquo;s follow list points to Qualia Research, as they follow consciousness
+              researchers. Their tweet content points to LLM Whisperers, focusing on AI agents, prompt
+              engineering, and recursive self-improvement. This divergence provides the most informative
+              signal in the data. @repligate orbits one community socially while intellectually living
+              in another.
             </p>
           </section>
 
@@ -283,47 +271,41 @@ export default function About({ meta, onNavigate }) {
 
             <p>
               Not all follows are equal. Following a niche consciousness researcher separates
-              communities. Following Elon Musk doesn&rsquo;t. So rare, specific follows
-              dominate the picture. Follows are primary. Retweets count at 0.6&times;. Likes
-              at 0.4&times;.
+              communities. Following Elon Musk doesn&rsquo;t. Rare, specific follows dominate the
+              picture. Follows are primary. Retweets count at 0.6&times;. Likes at 0.4&times;.<sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/scripts/cluster_soft.py#L335-L336" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[1]</a></sup>
             </p>
             <p>
               The core technique is matrix factorization. You have a giant sparse matrix of
               who-follows-whom. The algorithm decomposes it into two smaller matrices:
             </p>
             <p className="about-formula">
-              <em>A</em> &asymp; <em>W</em> &middot; <em>H</em>
+              <em>A</em> &asymp; <em>W</em> &middot; <em>H</em><sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/scripts/cluster_soft.py#L390-L392" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[2]</a></sup>
             </p>
             <p>
               <em>W</em> tells you each account&rsquo;s community mixture. <em>H</em> tells you what
-              defines each community&mdash;which follow targets, which retweet targets. That
-              second matrix is crucial: you can look at a cluster and see <em>why</em> it
-              exists, which is what makes human naming possible.
+              defines each community by exposing follow targets and retweet targets. You can look at
+              a cluster and see <em>why</em> it exists, which makes human naming possible.
             </p>
             <p>
-              Crucially, these memberships don&rsquo;t sum to one. You can be 80% Builders
-              and 60% Contemplative at the same time. Real people belong to multiple scenes.
+              These memberships don&rsquo;t sum to one. You can be 80% Builders and 60%
+              Contemplative at the same time. Real people belong to multiple scenes.
             </p>
             <p>
               We tested 12, 14, and 16 communities on the same data. At 16, 14 of the communities
               matched the 14-factor run (91% overlap), plus two clean splits where tech-intellectuals
               and creatives each resolved into finer subcommunities. We use 16 because those splits
               are meaningful and the structure is the most stable across random restarts. These are
-              social tribes&mdash;defined by follow patterns. What people <em>write</em> about is a
-              separate question, answered by the tweet analysis in the next stage.
+              social tribes defined by follow patterns. What people write about is a separate question.
             </p>
             <p>
-              The {numCommunities} factors come out as anonymous math&mdash;&ldquo;Factor
-              7&rdquo; means nothing. A curator reviews the top accounts and top follow targets
-              in each factor and names them: &ldquo;these people all follow the same meditation
-              teachers and consciousness researchers&rdquo; becomes Contemplative Practitioners.
+              The {numCommunities} factors emerge as anonymous math. A curator reviews the top
+              accounts and follow targets in each factor and names them. A factor where members
+              follow the same meditation teachers becomes Contemplative Practitioners.
             </p>
             <p>
-              For @repligate, the result: <strong>52% LLM Whisperers, 16% AI
-              Creatives, 15% Queer TPOT.</strong> A follow-only analysis had said 100% Qualia
-              Research. Adding likes and retweets revealed the LLM tinkering identity that
-              follows alone couldn&rsquo;t see. This is the starting picture. Tweet labeling
-              refines it further.
+              @repligate scores 52% LLM Whisperers, 16% AI Creatives, and 15% Queer TPOT. A
+              follow-only analysis categorized them as 100% Qualia Research. Adding likes and
+              retweets revealed the LLM tinkering identity. Tweet labeling refines this starting picture.
             </p>
           </section>
 
@@ -340,27 +322,24 @@ export default function About({ meta, onNavigate }) {
               their tweets.
             </p>
             <p>
-              Three AI models independently read each tweet and tag it: what community would
-              claim this? We only keep tags where at least two agree. Each agreement becomes
-              a small piece of evidence. One tweet about meditation is a nudge. Fifty tweets
-              is a shove. The evidence accumulates, and it can be reversed if later tweets point
-              elsewhere.
+              Three AI models independently read each tweet and tag it. We only keep tags where at
+              least two agree. Each agreement becomes a small piece of evidence. One tweet about
+              meditation is a nudge. Fifty tweets is a shove. The evidence accumulates, and it can
+              be reversed if later tweets point elsewhere.
             </p>
             <p>
-              AI misses things humans see. A tweet that&rsquo;s just a link gives it nothing
-              to work with. An image-heavy thread carries meaning it can&rsquo;t read. In early
-              spot-checks, about 30% of AI labels needed correction. The most common error: the
-              AI guessed based on who the person <em>is</em>, not what the tweet <em>says</em>.
-              To scale this, we run labeling on archive tweets at zero API cost&mdash;the data is
-              already in the archive, so we just point three AI models at it. 125 accounts have
-              been labeled this way so far, accumulating over 21,000 evidence tags.
+              AI misses things humans see. A tweet containing only a link gives it nothing to work
+              with. An image-heavy thread carries meaning it can&rsquo;t read. In early spot-checks,
+              about 30% of AI labels needed correction. The AI often guessed based on who the person
+              is, not what the tweet says. We run labeling on archive tweets at zero API cost by
+              pointing three AI models at the existing data. 125 accounts have been labeled this way
+              so far, accumulating over 21,000 evidence tags.
             </p>
             <p>
-              Not all tweets carry equal weight. A sincere statement of belief reveals
-              intellectual commitments. A strategic argument reveals what someone promotes.
-              But the strongest community signal comes from performative tweets&mdash;in-group
-              memes, shared references, the specific jokes only your people would get. These
-              count double, because they&rsquo;re the purest expression of belonging.
+              Not all tweets carry equal weight. A sincere statement of belief reveals intellectual
+              commitments. A strategic argument reveals what someone promotes. The strongest community
+              signal comes from performative tweets like in-group memes and shared references. These
+              count double because they represent pure expressions of belonging.
             </p>
             <p>
               After labeling 51 of @repligate&rsquo;s tweets, the picture shifts:
@@ -399,9 +378,9 @@ export default function About({ meta, onNavigate }) {
               </div>
             </div>
             <p>
-              The tweets didn&rsquo;t throw out the graph&mdash;they refined it. @repligate
-              genuinely orbits Qualia Research (their follows prove it), but their active
-              intellectual work lives in LLM Whisperers. The correction preserves both truths.
+              The tweets refined the graph rather than replacing it. @repligate genuinely orbits
+              Qualia Research, but their active intellectual work lives in LLM Whisperers. The
+              correction preserves both truths.
             </p>
           </section>
 
@@ -413,38 +392,33 @@ export default function About({ meta, onNavigate }) {
             </h2>
 
             <p>
-              The {classifiedStr} seed accounts are well-classified. But what about
-              the other ~200,000 accounts in the network?
+              The {classifiedStr} seed accounts are well-classified. We must also classify the
+              other ~200,000 accounts in the network.
             </p>
             <p>
-              Community labels spread outward through the typed connection graph. Not just follows,
-              but quotes, replies, mentions, likes, retweets&mdash;all weighted differently. If you
-              follow 10 people and 8 of them are Builders, you&rsquo;re probably Builder-adjacent.
-              If you also quote-tweet three Contemplative accounts, that signal carries weight too.
-              The intuition is simple: you are the company you keep, and especially the company
-              you engage with.
+              Community labels spread outward through the typed connection graph. We weight follows,
+              quotes, replies, mentions, likes, and retweets differently. If you follow 10 people and
+              8 of them are Builders, you are likely Builder-adjacent. If you also quote-tweet three
+              Contemplative accounts, that signal carries weight too. You are the company you keep,
+              and especially the company you engage with.
             </p>
             <p>
               Each community spreads independently. Your connection to Qualia Research has
-              nothing to do with your connection to LLM Whisperers. This matters because
-              real people belong to multiple scenes. Someone followed by 12 Qualia researchers
-              and 8 LLM tinkerers scores high in both&mdash;they&rsquo;re a bridge, not a
-              classification failure.
+              nothing to do with your connection to LLM Whisperers. An account followed by 12 Qualia
+              researchers and 8 LLM tinkerers scores high in both. They operate as a bridge rather
+              than representing a classification failure.
             </p>
             <p>
-              To separate real connections from noise, we count: how many classified accounts
-              actually follow you, per community? An account followed by people from two
-              different communities is a genuine bridge. An account with one random connection
-              is noise&mdash;@googlecalendar doesn&rsquo;t show up even though it&rsquo;s
-              technically in the network.
+              To separate real connections from noise, we count how many classified accounts actually
+              follow you, per community. An account followed by people from two different communities
+              is a genuine bridge. An account with a single random connection is noise. For example,
+              @googlecalendar remains hidden despite existing in the network.
             </p>
             <p>
               Not everyone gets a confident placement. Accounts close to many classified
-              accounts get strong colors. Accounts far from anyone classified stay
-              gray&mdash;we&rsquo;d rather say &ldquo;we&rsquo;re not sure&rdquo; than
-              guess wrong. <strong>That restraint is why grayscale cards exist.</strong> The
-              map currently shows {(byBand.bridge || 0).toLocaleString()} bridge accounts
-              connecting different scenes.
+              accounts get strong colors. Accounts far from classified members stay gray to indicate
+              uncertainty. The map currently shows {(byBand.bridge || 0).toLocaleString()} bridge
+              accounts connecting different scenes.
             </p>
           </section>
 
@@ -456,28 +430,25 @@ export default function About({ meta, onNavigate }) {
             </h2>
 
             <p>
-              Here&rsquo;s the most surprising finding from the analysis. We checked: for people
-              independently confirmed as TPOT members, does their social tribe (who they follow)
-              match their intellectual profile (what they tweet about)?
+              We checked if the social tribe matches the intellectual profile for people
+              independently confirmed as TPOT members.
             </p>
             <p>
-              <strong>For 82% of them, it doesn&rsquo;t.</strong> Their follow-graph community and
+              For 82% of them, the profiles do not match. Their follow-graph community and
               their tweet-content community point in different directions. @visakanv follows
               Internet Intellectuals but writes about contemplative practice. @patio11 follows
               Tech Intellectuals but engages with collective intelligence ideas. @RomeoStevens76
               follows Contemplative Practitioners but tweets about AI creativity.
             </p>
             <p>
-              This isn&rsquo;t a flaw in the analysis. It&rsquo;s what TPOT <em>is</em>. A person
-              who follows meditation teachers and only writes about meditation isn&rsquo;t TPOT.
-              They&rsquo;re in a meditation community. TPOT people follow one tribe and intellectually
-              range across several. The cross-cutting is the defining feature.
+              TPOT members inherently follow one tribe while intellectually ranging across several.
+              A person who exclusively follows and writes about meditation belongs to a meditation
+              community, not TPOT.
             </p>
             <p>
-              That&rsquo;s why {(byBand.bridge || 0).toLocaleString()} accounts show up as
-              bridges&mdash;not because the algorithm is confused, but because the people genuinely
-              straddle multiple worlds. When your card blends aesthetics from two or three communities,
-              that&rsquo;s the map showing you something real about how you move through this network.
+              {(byBand.bridge || 0).toLocaleString()} accounts show up as bridges because these
+              people genuinely straddle multiple worlds. Blended aesthetics on your card reflect
+              how you move through the network.
             </p>
           </section>
 
@@ -494,28 +465,26 @@ export default function About({ meta, onNavigate }) {
 
             <h3>Archive bias</h3>
             <p>
-              The seed accounts are people who voluntarily uploaded their Twitter data. That&rsquo;s
-              not random&mdash;it skews toward people who are technically literate, EA-adjacent,
-              and comfortable sharing data publicly. Communities where people value privacy
-              (somatic practitioners, some queer scenes) are underrepresented. The map sees
+              The seed accounts are people who voluntarily uploaded their Twitter data. This group
+              skews toward technically literate, EA-adjacent individuals comfortable sharing data
+              publicly. Communities where people value privacy are underrepresented. The map sees
               what the seeds can reach.
             </p>
 
             <h3>Temporal freeze</h3>
             <p>
               Follow patterns change. Someone who followed AI safety accounts in 2023 might
-              have pivoted to contemplative practice by 2026. The archive is a snapshot, not a
-              stream. Reading recent tweets partially compensates, but the underlying graph
-              structure is largely frozen.
+              have pivoted to contemplative practice by 2026. The archive captures a snapshot
+              rather than a continuous stream. Reading recent tweets partially compensates, but
+              the underlying graph structure remains largely frozen.
             </p>
 
             <h3>This is Aditya&rsquo;s map, not <em>the</em> map</h3>
             <p>
-              These {numCommunities} communities are one person&rsquo;s reading of the
-              landscape. Where I see &ldquo;Jhana Practitioners&rdquo; and &ldquo;Contemplative
-              Practitioners&rdquo; as distinct, you might see one community. Where I
-              see one &ldquo;Core TPOT,&rdquo; you might see three. The algorithm finds
-              clusters; the naming and boundary-drawing is editorial&mdash;mine.
+              These {numCommunities} communities reflect my reading of the landscape. You might see
+              one community where I see &ldquo;Jhana Practitioners&rdquo; and &ldquo;Contemplative
+              Practitioners&rdquo; as distinct. The algorithm finds clusters. I apply the naming
+              and boundary-drawing editorially.
             </p>
             <p>
               If this doesn&rsquo;t match your experience, that&rsquo;s not a bug. The{' '}
@@ -523,8 +492,7 @@ export default function About({ meta, onNavigate }) {
                 entire pipeline is open source
               </a>
               . Fork it, bring your own follow data, label tweets by your own aesthetics,
-              and you&rsquo;ll get a different map. Different seeds, different communities,
-              different blind spots.
+              and you&rsquo;ll get a different map.
             </p>
 
             <h3>Confidence decays with distance</h3>
@@ -532,9 +500,8 @@ export default function About({ meta, onNavigate }) {
               The further you are from a classified account in the network, the weaker
               the signal. One connection away is strong. Two is useful. Three or more is
               mostly noise. With {classifiedStr} classified accounts in a 200K-node network,
-              most accounts are far from anyone classified. Their placements are faint not
-              because they&rsquo;re not TPOT, but because the network is too sparse to carry
-              signal that far.
+              most accounts are far from anyone classified. Their placements appear faint
+              because the network is too sparse to carry signal that far.
             </p>
 
             <h3>AI labeling makes mistakes</h3>
@@ -548,10 +515,10 @@ export default function About({ meta, onNavigate }) {
 
             <h3>What we&rsquo;re doing about it</h3>
             <p>
-              The system continuously improves: find accounts we&rsquo;re uncertain about,
-              read their tweets, classify them, check the results, update the map,
-              measure how much better we got. Each round adds more classified accounts
-              and corrects prior mistakes. The numbers on this page update with each round.
+              The system continuously improves by finding uncertain accounts, reading their
+              tweets, classifying them, checking results, updating the map, and measuring
+              progress. Each round adds more classified accounts and corrects prior mistakes.
+              The numbers on this page update with each round.
             </p>
           </section>
 
@@ -566,33 +533,28 @@ export default function About({ meta, onNavigate }) {
               confirmed by three independent methods is real.
             </p>
             <p>
-              We check each community against three signals that have nothing to do with each
-              other: the follow graph (who follows whom), topic models (what people like
-              reading), and co-followed structure (who gets followed by the same people).{' '}
-              <strong>12 of 15 communities</strong> are confirmed by all three. The remaining
-              3 are confirmed by two&mdash;real communities, but with weaker independent evidence.
+              We verify communities against three independent signals: the follow graph, topic
+              models, and co-followed structure. All three signals confirm 12 of 15 communities.
+              Two signals confirm the remaining 3 communities.
             </p>
             <p>
               We also re-ran the analysis as data grew from 441K to 815K to 2.7M edges. The
               same communities emerged each time. 11 of 16 matched strongly across runs; the
               other 5 showed minor boundary shifts. If the communities were an artifact of
-              sparse data, tripling the data would have destroyed them. It didn&rsquo;t.
+              sparse data, tripling the data would have destroyed them.
             </p>
             <p>
               Separately, we embedded 24,000 tweets into a semantic space and clustered them at
-              multiple scales (2, 4, 8, 16, 32, 64 clusters). The tweet clusters have clean
-              hierarchical structure up to 8 groups (84% nesting purity), meaning there are real
-              macro-topics in what people write about. These content clusters are nearly independent
-              of the follow-graph communities (agreement score 0.08 out of 1.0)&mdash;confirming
-              that social structure and intellectual structure are genuinely different dimensions.
+              multiple scales. The tweet clusters have clean hierarchical structure up to 8 groups,
+              meaning there are real macro-topics in what people write about. These content clusters
+              are nearly independent of the follow-graph communities. The 0.08 agreement score
+              confirms that social structure and intellectual structure operate as different dimensions.<sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/docs/adr/017-multi-view-account-descriptor.md#L63" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[3]</a></sup>
             </p>
 
             <h3>Testing against known lists</h3>
             <p>
-              We test against 1,822 accounts from four independent lists of known TPOT
-              accounts&mdash;none of which were used to build the map. The honest question:
-              of accounts that are known TPOT and reachable in our network, how many does
-              the map find?
+              We tested against 1,822 accounts from four independent lists of known TPOT accounts.
+              We measured how many reachable TPOT accounts the map successfully finds.
             </p>
 
             <div className="about-recall-table">
@@ -649,14 +611,12 @@ export default function About({ meta, onNavigate }) {
             <p>
               The more curated the source, the higher the recall. Accounts confirmed
               by 3+ independent sources are found 65% of the time. Aditya&rsquo;s raw
-              follow list has low recall because most follows are mainstream accounts that
-              aren&rsquo;t TPOT&mdash;the denominator is inflated.
+              follow list has low recall because mainstream accounts inflate the denominator.
             </p>
             <p>
-              Two bottlenecks limit recall: <strong>graph coverage</strong> (39% of Orange
-              directory accounts aren&rsquo;t reachable in our network yet) and{' '}
-              <strong>classified density</strong> ({classifiedStr} classified accounts in
-              a 200K-node graph means each seed covers ~600 nodes). Each round of improvement
+              Graph coverage and classified density limit recall. Currently, 39% of Orange
+              directory accounts remain unreachable. The {classifiedStr} classified accounts
+              must each cover ~600 nodes in the 200K-node graph. Each round of improvement
               adds more classified accounts and pushes recall up.
             </p>
 
@@ -690,8 +650,7 @@ export default function About({ meta, onNavigate }) {
             </div>
 
             <p>
-              These numbers are a snapshot. The point isn&rsquo;t perfection&mdash;it&rsquo;s
-              honest measurement so we know what works and what doesn&rsquo;t.
+              We prioritize honest measurement over perfection to understand system performance.
             </p>
           </section>
 
@@ -703,73 +662,113 @@ export default function About({ meta, onNavigate }) {
             </h2>
 
             <p>
-              The hardest question about any map isn&rsquo;t &ldquo;does it look right?&rdquo;
-              It&rsquo;s: <strong>would it still find the territory if you hid the landmarks?</strong>
+              We must ask if the map can find the territory when we hide the landmarks.
             </p>
             <p>
-              So we ran the experiment. Take a known TPOT account. Remove them from the seed
-              set. Propagate the entire network without them. Then ask: does the system rediscover
-              them from the structure alone?
+              To test the map, we removed known TPOT accounts from the seed set and propagated
+              the network without them. The system rediscovered them from the structure alone.
             </p>
             <p>
-              The answer is yes&mdash;with near-perfect accuracy. Across five cross-validation
-              folds, the seed-neighbor signal (how many classified accounts follow you) recovers
-              held-out TPOT accounts with an AUC of 0.999. That&rsquo;s not a typo. The system
-              finds hidden TPOT accounts 100% of the time at a 5% false positive rate. A held-out
-              TPOT member has a median of 65 seed neighbors; a random non-TPOT account has 1.
+              Across five cross-validation folds, the seed-neighbor signal recovers held-out
+              TPOT accounts with an AUC of 0.999. The system finds hidden TPOT accounts 100%
+              of the time at a 5% false positive rate. A held-out TPOT member has a median of
+              65 seed neighbors. A random non-TPOT account has 1.<sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/scripts/verify_veil_cv.py#L428" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[4]</a></sup>
             </p>
             <p>
-              Raw propagation scores, by contrast, are useless&mdash;AUC 0.225, worse than a coin
-              flip. TPOT accounts actually score <em>lower</em> than random noise because hub
-              nodes near many communities inherit diffuse signal. The math works, but only if you
-              measure the right thing: not &ldquo;how much signal reached you,&rdquo; but
-              &ldquo;how many community members specifically follow you.&rdquo;
+              Raw propagation scores yield an AUC of 0.225. TPOT accounts score lower than random
+              noise because hub nodes near many communities inherit diffuse signal. The math
+              requires measuring how many community members specifically follow you, rather than
+              how much total signal reaches you.
             </p>
 
             <h3>The 17 skeleton keys</h3>
             <p>
-              Here&rsquo;s where it gets interesting. We sorted all {classifiedStr} seeds by
-              connectivity&mdash;how many other seeds are their neighbors&mdash;and asked: how
-              few accounts do you need to find most of TPOT?
+              We sorted all {classifiedStr} seeds by connectivity to determine the minimum
+              accounts needed to locate TPOT.
             </p>
             <p>
-              <strong>17 accounts.</strong> The top 5% of seeds, by neighbor count, are sufficient
-              to locate 81% of every independently-verified TPOT account in the network. Adding
-              the other 95% of seeds only pushes recall from 81% to 87%. The network has a
-              backbone, and it&rsquo;s remarkably small.
+              The top 17 accounts, representing 5% of seeds by neighbor count, locate 81%
+              of verified TPOT accounts. Adding the other 95% of seeds only pushes recall
+              from 81% to 87%. The network has a backbone, and it&rsquo;s remarkably small.
             </p>
             <p>
-              Those 17 accounts span most communities: contemplative practitioners, highbies,
-              internet essayists, AI safety, builders, creatives. They&rsquo;re the people who
-              bridge scenes&mdash;not specialists, but connectors. If you wanted to reconstruct
-              TPOT from scratch, you&rsquo;d start with them.
+              Those 17 accounts span contemplative practitioners, highbies, internet essayists,
+              AI safety, builders, and creatives. These connectors bridge multiple scenes. If you
+              wanted to reconstruct TPOT from scratch, you&rsquo;d start with them.
             </p>
 
             <h3>Communities survive deletion</h3>
             <p>
-              The strongest test: remove an <em>entire community</em>. Delete every seed labeled
-              Jhana Practitioners&mdash;all 67 of them. Propagate from the remaining 14 communities.
-              Can seeds from other communities still find the Jhana people?
+              To test resilience, we deleted all 67 seeds labeled Jhana Practitioners and
+              propagated from the remaining 14 communities.
             </p>
             <p>
-              <strong>Yes. Every single one.</strong> 100% recall, from communities that share no
-              labels with them. Contemplative Practitioners and Highbies&mdash;the connective
-              tissue of TPOT&mdash;reach into Jhana&rsquo;s neighborhood because the follow
-              patterns overlap enough.
+              The system achieved 100% recall from communities sharing no labels. Contemplative
+              Practitioners and Highbies reach into Jhana&rsquo;s neighborhood through overlapping
+              follow patterns.
             </p>
             <p>
-              Every community survives full deletion. The weakest is TfT-Coordination at 86%&mdash;the
-              most insular group, with the fewest cross-community connections. The three most
-              resilient communities&mdash;Contemplative Practitioners, Highbies, and Core
-              TPOT&mdash;act as universal connectors. They appear in the top-3 recovery sources
-              for every other community. They are, in a structural sense, the fabric that holds
-              TPOT together.
+              Every community survives full deletion. The most insular group, TfT-Coordination,
+              recovers at 86%. Contemplative Practitioners, Highbies, and Core TPOT act as
+              universal connectors. They appear in the top-3 recovery sources for every other
+              community.
             </p>
             <p>
-              This isn&rsquo;t circular. The communities weren&rsquo;t drawn to survive this test.
-              They were drawn to match follow patterns. The fact that they <em>also</em> survive
-              deletion means the structure is real. The graph knows about these communities
-              independently of our labeling. We named what was already there.
+              We drew the communities to match follow patterns, not to survive this test. Surviving
+              deletion confirms the structure exists independently of our labeling. We simply
+              named the clusters we found.
+            </p>
+          </section>
+
+          {/* Stage 8: The Active Learning Engine */}
+          <section className="about-section">
+            <h2>
+              <span className="about-stage-num">8</span>
+              The Active Learning Engine
+            </h2>
+
+            <p>
+              The system actively drives its own expansion instead of passively waiting for
+              data. It uses an Active Learning loop to maximize the return on investment for
+              every Twitter API call.
+            </p>
+            <p>
+              The pipeline ranks frontier accounts based on information theory. It calculates
+              which uncertain accounts, if fetched and labeled, would resolve the most
+              uncertainty across the entire graph. The algorithm prioritizes accounts positioned
+              at structural bottlenecks where communities collide.
+            </p>
+            <p>
+              We fetch the highly ranked accounts, read their tweets, and feed the new labels
+              back into the network. This process collapses uncertainty cascades. A single
+              strategic API call can solidify the placements of dozens of surrounding shadow
+              accounts. The map builds itself outward by seeking the highest-leverage information.
+            </p>
+          </section>
+
+          {/* Stage 9: Behavioral Fingerprinting */}
+          <section className="about-section">
+            <h2>
+              <span className="about-stage-num">9</span>
+              Behavioral Fingerprinting
+            </h2>
+
+            <p>
+              Topic modeling captures what people write about. The pipeline also builds
+              Behavioral Fingerprints to capture how people act.
+            </p>
+            <p>
+              We compile Cadence, Posture, and Simulacrum profiles for every classified account.
+              The system mathematically models behavioral rhythms like <code>reply_ratio</code> and
+              <code>tweets_per_week</code>. The AI also classifies the stance of each tweet to detect
+              if an account relies on a <code>playful-exploration</code> or <code>personal-testimony</code> posture.
+            </p>
+            <p>
+              These behavioral dimensions operate independently from topical interests. Two
+              accounts might both discuss artificial intelligence. The system distinguishes the
+              founder shipping product announcements from the tinkerer anthropomorphizing
+              the model late at night. The map groups people by their shared epistemic approach,
+              not just their shared vocabulary.
             </p>
           </section>
         </>
@@ -787,18 +786,18 @@ export default function About({ meta, onNavigate }) {
             <h2>What Your Card Means</h2>
 
             <p>
-              Your card doesn&rsquo;t label your communities&mdash;it embodies them. Each
-              community has a signature mascot, palette, and elemental vibe. Your primary
-              community dominates the composition. Secondary communities appear as accents.
-              The result is a card you can <em>feel</em> without decoding.
+              Your card embodies your communities. Each community has a signature mascot,
+              palette, and elemental vibe. Your primary community dominates the composition.
+              Secondary communities appear as accents. The result is a card you can <em>feel</em> without
+              decoding.
             </p>
 
             <div className="about-tier">
               <span className="about-badge about-badge--color">Exemplar</span>
               <p>
-                <strong>{classifiedStr} seed accounts.</strong> Full archive data&mdash;follows,
-                retweets, liked content. Rich tarot-style cards with community iconography
-                woven into the art.
+                <strong>{classifiedStr} seed accounts.</strong> These accounts possess full archive
+                data including follows, retweets, and liked content. They receive rich tarot-style
+                cards with community iconography woven into the art.
               </p>
             </div>
 
@@ -813,17 +812,16 @@ export default function About({ meta, onNavigate }) {
             <div className="about-tier">
               <span className="about-badge about-badge--bridge">Bridge</span>
               <p>
-                Straddles 2&ndash;3 communities. These accounts connect subcommunities&mdash;their
-                cards blend multiple aesthetics. Being a bridge is not a classification failure.
-                It&rsquo;s a social reality.
+                Bridge accounts straddle 2&ndash;3 communities. Their cards blend multiple aesthetics
+                to reflect social reality rather than classification failure.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--gray">Frontier</span>
               <p>
-                Uncertain placement&mdash;too far from seeds, or pulled by many communities
-                at once. Grayscale card. Candidates for exploration.
+                Frontier accounts have uncertain placement due to distance from seeds or conflicting
+                community pulls. Grayscale card. Candidates for exploration.
               </p>
             </div>
 
@@ -831,7 +829,7 @@ export default function About({ meta, onNavigate }) {
               <span className="about-badge about-badge--gray">Faint</span>
               <p>
                 Barely visible in the network. Present in the graph but below the confidence
-                threshold. Searchable, but the card is dim&mdash;a whisper, not a statement.
+                threshold. These accounts remain searchable, but receive dim cards.
               </p>
             </div>
 
@@ -855,30 +853,27 @@ export default function About({ meta, onNavigate }) {
             <h2>This Is One Map, Not <em>The</em> Map</h2>
 
             <p>
-              This map starts from <strong>my perspective</strong>&mdash;the ~1,400 accounts I follow,
-              the {classifiedStr} seeds I&rsquo;ve helped classify, the boundaries I drew. It&rsquo;s
-              Aditya&rsquo;s TPOT.
+              This map starts from my perspective. It relies on the ~1,400 accounts I follow,
+              the {classifiedStr} seeds I classified, and the boundaries I drew.
             </p>
             <p>
-              Someone following different people would see different communities. A contemplative
-              practitioner would draw the meditation scene at higher resolution&mdash;splitting
-              &ldquo;Jhana Practitioners&rdquo; into jhana technicians, somatic healers, and nondual
-              teachers. A builder would see more granularity in the infrastructure scene. The map
-              reflects the mapper.
+              A contemplative practitioner would draw the meditation scene at higher resolution.
+              They might split &ldquo;Jhana Practitioners&rdquo; into jhana technicians, somatic
+              healers, and nondual teachers. A builder would see more granularity in the
+              infrastructure scene. The map reflects the mapper.
             </p>
             <p>
               Not every account in the{' '}
               <a href="https://www.community-archive.org/" target="_blank" rel="noopener noreferrer">
                 community archive
               </a>{' '}
-              is TPOT. Uploading your data is a generous act of transparency, not a membership card.
-              The pipeline filters for this: accounts whose follow patterns don&rsquo;t concentrate
-              in any community propagate with lower confidence.
+              is TPOT. Uploading data represents an act of transparency rather than a membership
+              card. The pipeline filters for this: accounts whose follow patterns don&rsquo;t
+              concentrate in any community propagate with lower confidence.
             </p>
             <p>
-              If you see something wrong&mdash;someone in the wrong community, a community that
-              should be split, a whole scene that&rsquo;s missing&mdash;that&rsquo;s signal.
-              The map improves when you tell us.
+              Identifying someone in the wrong community, a community that requires splitting,
+              or a missing scene provides valuable signal. The map improves when you tell us.
             </p>
           </section>
 
@@ -887,18 +882,16 @@ export default function About({ meta, onNavigate }) {
             <h2>The Visual Language</h2>
 
             <p>
-              Each community has a visual identity&mdash;not as decoration, but as encoding.
-              Jhana Practitioners get lotus serpents and deep violet, still water and inner
-              radiance. LLM Whisperers get recursive wyrms in toxic green, digital fog and
-              glitch. Vibecamp Highbies get laughing bodhisattvas in burning gold. NYC Builders
-              get concrete and crimson. Queer TPOT gets a kaleidoscopic chimera, holographic
-              and shifting.
+              Each community has an encoded visual identity. Jhana Practitioners get lotus
+              serpents and deep violet, still water and inner radiance. LLM Whisperers get
+              recursive wyrms in toxic green, digital fog and glitch. Vibecamp Highbies get
+              laughing bodhisattvas in burning gold. NYC Builders get concrete and crimson.
+              Queer TPOT gets a kaleidoscopic chimera, holographic and shifting.
             </p>
             <p>
-              When you see lotus borders and moonlight pools on a card, that&rsquo;s not
-              random&mdash;it means the contemplative scene. Circuit patterns mean LLM Whisperers.
-              Fractal blooms mean AI Creatives. The card is a portrait of where someone lives
-              in the network, rendered as mythology.
+              Lotus borders and moonlight pools represent the contemplative scene. Circuit patterns
+              mean LLM Whisperers. Fractal blooms mean AI Creatives. The card is a portrait of
+              where someone lives in the network, rendered as mythology.
             </p>
             <p>
               An account that&rsquo;s 45% Jhana, 30% Core TPOT, 15% LLM Whisperers gets a
@@ -915,8 +908,8 @@ export default function About({ meta, onNavigate }) {
           <section className="about-section about-cta">
             <h2>Build Your Own Map</h2>
             <p>
-              The entire pipeline is open source&mdash;from graph construction to this site.
-              The pipeline is general. The seeds are specific.
+              The entire pipeline is open source. The pipeline operates generally while the
+              seeds remain specific.
             </p>
             <p>
               Clone the repo, bring your own follow data, choose your own seeds, and build

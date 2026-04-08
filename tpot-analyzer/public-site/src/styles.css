@@ -1462,7 +1462,17 @@ body {
   margin-top: 1.25rem;
   font-weight: 600;
 }
-.about-origin {
+.about-footnote-link {
+  color: #39FF14;
+  text-decoration: none;
+  font-size: 0.8em;
+  margin-left: 2px;
+}
+.about-footnote-link:hover {
+  text-decoration: underline;
+}
+
+.about-origin p {
   font-size: 1.05rem;
   line-height: 1.8;
 }

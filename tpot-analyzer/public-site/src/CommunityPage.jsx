@@ -116,7 +116,7 @@ export default function CommunityPage({
         <div className="cp-hero-dot" style={{ background: color }} />
         <div className="cp-hero-content">
           <h1 className="cp-hero-name">{community.name}</h1>
-          <p className="cp-hero-desc">{community.description}</p>
+          <p className="cp-hero-desc" dangerouslySetInnerHTML={{ __html: community.description }} />
           <div className="cp-hero-meta">
             <span>{browseableCount} members</span>
             <span>·</span>
