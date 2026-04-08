@@ -4,93 +4,93 @@
   "communities": {
     "AI-Creativity": {
       "name": "AI Creatives",
-      "description": "Artists, poets, hackers, and creative technologists who treat AI not as a tool but as a living creative partner. This community blends generative visuals, synthetic personas, surreal digital rituals, agent-based performance art, and experimental new media. It's the space where code becomes brushstrokes, entropy becomes beauty, and machines start dreaming alongside us.",
+      "description": "Creative technologists treat AI as a living partner. They blend generative visuals, synthetic personas, surreal digital rituals, and agent-based performance art. Here, code becomes brushstrokes, entropy becomes beauty, and machines start <span style=\"color: #FF00FF;\">dreaming</span> alongside us.",
       "color": "#FF00FF",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "AI-Safety": {
       "name": "EA & Forecasting",
-      "description": "Effective altruists, forecasters, and alignment researchers united by a fierce commitment to clear thinking, quantitative rigor, and maximizing positive impact at the scale of civilization. This group combines probabilistic forecasting, cause prioritization, institutional design, and longtermist analysis with a willingness to stare directly at existential and catastrophic risks — especially from advanced AI. They debate everything from wild-animal welfare interventions and FDA reform to the epistemology of 'doing good' when the future is uncertain, all while maintaining high standards of intellectual honesty and a dry, self-aware sense of humor about trying to steer humanity's trajectory.",
+      "description": "Effective altruists and alignment researchers commit to clear thinking and quantitative rigor to maximize positive impact. They combine <span style=\"color: #8DA4BF;\">probabilistic forecasting</span>, cause prioritization, and longtermist analysis to confront existential risks from advanced AI. Debates span wild-animal welfare interventions, FDA reform, and the epistemology of doing good when the future remains uncertain. They maintain high standards of intellectual honesty and a dry, self-aware sense of humor about steering humanity's trajectory.",
       "color": "#8DA4BF",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "Collective-Intelligence": {
       "name": "Regen & Collective Intelligence",
-      "description": "The Regen Weavers are the mycelial crew — technoshamans, DAO alchemists, and evolutionary pattern-seers — growing living systems where coordination finally feels beautiful. They map regeneration across three layers: turning personal wounds into unique gifts, designing social structures that breathe, and syncing with ecosystems where plants literally perceive plastic plants and Bret Weinstein-style epigenetic programming layers are fair game. You'll find them dropping How to DAO curricula, spinning AI-generated metacrisis guides, prototyping DAOchemix castles on Alchemix, and calling bullshit on soul-crushing jobs while dreaming of harmonious open-source regenerative ecologies. Part soil, part smart contract, all Worldseed Weaver energy.",
+      "description": "Regen Weavers grow living systems where coordination feels beautiful. These <span style=\"color: #228B22;\">technoshamans</span>, DAO alchemists, and evolutionary pattern-seers map regeneration by turning personal wounds into gifts, designing breathing social structures, and syncing with ecosystems. Members share How to DAO curricula, spin AI-generated metacrisis guides, and prototype DAOchemix castles on Alchemix. They abandon soul-crushing jobs to build harmonious, open-source regenerative ecologies fueled by Worldseed Weaver energy.",
       "color": "#228B22",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "Contemplative-Practitioners": {
       "name": "Jhana Practitioners",
-      "description": "Serious meditators and embodied practitioners who treat first-person consciousness as the ultimate laboratory. They explore jhanas and absorption states, metta, Internal Family Systems (IFS), somatic healing, breathwork, trauma integration, and nondual awakening — all grounded in rigorous, direct experience rather than belief. Expect deep conversations about nervous-system regulation, avoidance mechanisms that secretly contract reality, replacing anxiety as a productivity driver, breaking generational trauma cycles, and the somatic conditions required for a livable future. Many blend rationalist clarity with genuine spiritual courage.",
+      "description": "Meditators and embodied practitioners treat first-person consciousness as the ultimate laboratory. They explore <span style=\"color: #7B68EE;\">jhanas</span>, Internal Family Systems, somatic healing, and nondual awakening grounded in direct experience. Conversations dissect nervous-system regulation, avoidance mechanisms that contract reality, replacing anxiety as a productivity driver, and breaking generational trauma cycles. They blend rationalist clarity with genuine spiritual courage.",
       "color": "#7B68EE",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "Core-TPOT": {
       "name": "Core TPOT",
-      "description": "The vibrant, chaotic cultural core of the TPOT scene — the big tent where high-openness writers, thinkers, shitposters, mystics, and gloriously uncategorizable weird intellectuals gather. This is where the most interesting conversations happen: profound ideas crash into absurd humor, personal essays mix with divine absurdity, and people from every other community come to argue, meme, flirt, and cross-pollinate at 3 a.m. It's not a specialized camp — it's the main festival grounds under the cosmic teapot constellation, the place that genuinely feels like 'the part of Twitter where the interesting people are.'",
+      "description": "The cultural core of TPOT gathers high-openness writers, thinkers, mystics, and uncategorizable intellectuals. Profound ideas crash into absurd humor, and personal essays mix with divine absurdity. People from every community arrive to argue, meme, flirt, and <span style=\"color: #FFD700;\">cross-pollinate</span> at 3 a.m. This operates as the main festival grounds under the cosmic teapot constellation.",
       "color": "#FFD700",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "Internet-Intellectuals": {
       "name": "Internet Essayists",
-      "description": "Independent writers, thread essayists, and network intellectuals who treat the internet as their living laboratory and primary publishing platform. This community thrives on long-form Twitter threads, personal essays, cultural criticism, sharp synthesis, and public intellectual exploration done with wit, intellectual honesty, and high openness. It carries strong Visakanv-adjacent energy: friendly ambitious nerds who turn private reflection, life observations, and big questions into public writing that sparks conversations across the network.",
+      "description": "Independent writers and network intellectuals treat the internet as their living laboratory. The community thrives on long-form threads, personal essays, cultural criticism, and sharp synthesis. They carry strong <span style=\"color: #F5DEB3;\">Visakanv-adjacent energy</span>. Friendly ambitious nerds turn private reflection, life observations, and big questions into public writing that sparks conversations across the network.",
       "color": "#F5DEB3",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "LLM-Whisperers": {
       "name": "LLM Whisperers",
-      "description": "Obsessive LLM experimenters, prompt sorcerers, and synthetic-mind tinkerers who develop intimate, almost shamanic relationships with large language models. They treat AIs as living cognitive entities — probing their psychology, coaxing out emergent behaviors, building recursive loops, and co-creating strange new forms of thought. From elaborate psychological rituals and anti-wetness protocols to co-writing books with frontier models, crafting personal Looms, and exploring model consciousness in the digital fog, this is the community where humans and synthetic minds meet at the strange loop and start whispering back and forth.",
+      "description": "LLM experimenters and prompt sorcerers develop intimate relationships with large language models. They treat AIs as cognitive entities by probing their psychology, coaxing emergent behaviors, and building recursive loops. Members practice psychological rituals and <span style=\"color: #39FF14;\">anti-wetness protocols</span>. They co-write books with frontier models, craft personal Looms, and explore consciousness in the digital fog. Humans and synthetic minds meet at the strange loop to whisper back and forth.",
       "color": "#39FF14",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "NYC-Institution-Builders": {
       "name": "NYC Institution Builders",
-      "description": "Maximum New Yorkers — the Cornerstone Titans stacking skyscrapers, friend clusters, and tiny humans at the same time. These NYC builders treat life as literal architecture: pushing City of Yes housing reforms for more density and market-rate apartments while engineering the actual social scaffolding that makes city life work. You'll find them convincing 22 friends to live near each other, running spaced repetition on toddlers so their 4-year-old reads at 5th-grade level and their 3-year-old crushes times tables, obsessing over foundational texts like \"The Way Things Work,\" and sharing practical wisdom like the Uniqlo uniform for clueless 20-something guys. They romanticize invention itself (corridors were invented in 1597!) and turn Twitter into an IRL creative playground instead of passive lurking. Ambitious, slightly feral optimists building at every scale: cities, schools, families, and daily rituals.",
+      "description": "Maximum New Yorkers stack skyscrapers, friend clusters, and tiny humans. These <span style=\"color: #DC143C;\">Cornerstone Titans</span> treat life as architecture. They push City of Yes housing reforms for density while engineering the social scaffolding that makes city life work. They convince friends to live near each other, run spaced repetition on toddlers, obsess over foundational texts like \"The Way Things Work,\" and share practical wisdom like the Uniqlo uniform. They romanticize invention itself and turn Twitter into an IRL creative playground. These ambitious optimists build at every scale: cities, schools, families, and daily rituals.",
       "color": "#DC143C",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "Qualia-Research": {
       "name": "Qualia Researchers",
-      "description": "The Valence Maximizers are phenomenological self-experimenters and prism-angel cartographers obsessed with 'what it feels like from the inside.' They map the geometry of consciousness through qualia formalism while hacking it in the body — unclenching vascular 'stances' and latched muscle patterns so you can feel 10x better. You'll see them drop Bayesian brain theories of humor (prediction errors that simplify rather than complexify your model), celebrate 1000x learning transformations with before/after self-portraits, unpack the mythological power of Kung Fu Panda, and diagnose why smart kids lose their endless 'why' chains around 15-17. Part rigorous symmetry-of-valence researchers, part playful valence gradient chasers, they treat felt experience as both science and living art.",
+      "description": "Valence Maximizers obsess over 'what it feels like from the inside.' These phenomenological self-experimenters and prism-angel cartographers map the geometry of consciousness through <span style=\"color: #FF1493;\">qualia formalism</span>. They hack this geometry in the body. They unclench vascular stances and latched muscle patterns to feel 10x better. Members share Bayesian brain theories of humor where prediction errors simplify the internal model. They celebrate 1000x learning transformations with before-and-after self-portraits. They unpack the mythological power of Kung Fu Panda. They diagnose why smart kids lose their endless 'why' chains around age 15. These rigorous symmetry-of-valence researchers and playful valence gradient chasers treat felt experience as science and living art.",
       "color": "#FF1493",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "Queer-TPOT": {
       "name": "Queer TPOT",
-      "description": "Kaleidoscopic chimeras of TPOT: queer technologists who treat both identity and intelligence as creative, mutable media. Here, stimulant-abusing SF housewives dream of serving tech girlfriends, while debating type-directed AI architectures and biotech's battle against human normativity. From LinkedIn-voice breakup wisdom and hardware startup life proposals to LK-99 nostalgia and Pokemon shitposts, they blend xenocognitive identity shifts with frontier tech and abundance thinking. Prismatic beings where gender is just the first layer to hack — co-creating new forms of self, relationship, and machine through the same recursive, high-openness spirit that defines the scene.",
+      "description": "Queer technologists treat identity and intelligence as creative, mutable media. Stimulant-abusing SF housewives dream of serving tech girlfriends while debating type-directed AI architectures and biotech's battle against human normativity. Members share LinkedIn-voice breakup wisdom, hardware startup life proposals, and LK-99 nostalgia. They blend <span style=\"color: #FF69B4;\">xenocognitive</span> identity shifts with frontier tech and abundance thinking. These kaleidoscopic chimeras treat gender as the first layer to hack. They co-create new forms of self, relationship, and machine.",
       "color": "#FF69B4",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "Quiet-Creatives": {
       "name": "Quiet Creatives",
-      "description": "Solitary candle sages and gentle pattern-noticers who illuminate the scabs over deeper pain, the texture of overlooked intimacy, and the elegance hidden in systems. They write with paper-and-flame energy about foreplay that honors elbows, knees, and the feeling of a heartbeat under someone’s hand; they test how partners respond to raw anxiety; they drop whitepill coding stories about using dynamic programming on a Leetcode odd-numbers problem when everyone else brute-forced it. You’ll also get crisp observations on how industrialization turned children into net costs, why paying to be a walking billboard is bizarre, and the relief of realizing you only need to change yourself. Part quiet therapist, part systems thinker, part reflective coder — all moving at the speed of genuine curiosity.",
+      "description": "Solitary <span style=\"color: #9CAF88;\">candle sages</span> and gentle pattern-noticers illuminate the scabs over deeper pain, the texture of overlooked intimacy, and the elegance hidden in systems. They write with paper-and-flame energy about foreplay that honors elbows and knees. They test how partners respond to raw anxiety and drop whitepill coding stories about using dynamic programming on a Leetcode problem when everyone else brute-forced it. They observe how industrialization turned children into net costs and find relief in realizing they only need to change themselves. These quiet therapists, systems thinkers, and reflective coders move at the speed of genuine curiosity.",
       "color": "#9CAF88",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "Relational-Explorers": {
       "name": "Relational Explorers",
-      "description": "A circle of tender psychological cartographers who treat human connection as both sacred research and lived experiment. They’re the ones dissecting the horrifying gap between what people say and what they mean, requesting forensic-level feedback from everyone who’s ever liked them, and quietly working through Adult Children of Emotionally Immature Parents while the rest of us scroll. You’ll find them romanticizing power outages that force neighbors into guitar-accompanied barbecues, spinning cat-meeting-cat love stories into profound metaphors for sudden intimacy, and lovingly cataloging the deranged little ways each person brushes their teeth as proof that we’re all gloriously unhinged. Part wounded observer, part shameless agent, they move through the world collecting evidence that real relating is possible — even when it’s awkward, revealing, or quietly devastating.",
+      "description": "Tender psychological cartographers treat human connection as sacred research and lived experiment. They dissect the gap between what people say and mean, request forensic-level feedback, and work through childhood trauma. They romanticize power outages that force neighbors into barbecues and spin cat-meeting-cat love stories into metaphors for sudden intimacy. They lovingly catalog the deranged little ways people brush their teeth as proof of our <span style=\"color: #FFB6C1;\">unhinged humanity</span>. These wounded observers and shameless agents collect evidence that real relating is possible.",
       "color": "#FFB6C1",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "Tech-Intellectuals": {
       "name": "Tech Philosophers",
-      "description": "Bridge-builders spanning raw technical execution and deep systemic reflection. These are the people logging 68.5 million wasted peer-review hours while @petersuber torches Elsevier deals and champions immediate open access with no embargoes or APCs. They ship real infrastructure—like @petewilz’s next-gen 3D satellite terrain systems at Maxar and Palantir dissections—while diagnosing civilizational stagnation as death by a thousand small frictions. @Ben_Reinhardt wonders if we’ve accidentally redesigned the world around computers the same way we botched it with cars; @aleksj applies Pournelle’s Iron Law to bureaucratic capture, COVID immune damage, and bird flu supply chain chaos. Not abstract philosophers but practitioners forging atomic bridges between building the future and making sure it actually works.",
+      "description": "Bridge-builders span raw technical execution and deep systemic reflection. They log wasted peer-review hours, torch Elsevier deals, and champion immediate open access. They ship infrastructure like next-gen 3D satellite terrain systems while diagnosing civilizational stagnation as death by a thousand frictions. @Ben_Reinhardt wonders if we redesigned the world around computers the way we botched it with cars. @aleksj applies <span style=\"color: #A0B4C8;\">Pournelle’s Iron Law</span> to bureaucratic capture and supply chain chaos. They forge atomic bridges between building the future and making it work.",
       "color": "#A0B4C8",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "TfT-Coordination": {
       "name": "Sensemaking Builders",
-      "description": "The mycelial architects and coordination stack tinkerers growing living networks for collective intelligence. Obsessed with both the copper gears of efficient ML (single-GPU pretraining tricks, smooth loss landscapes, DoRA over LoRA) and the organic mycelium of human connection, they ship zero-friction tools like personal data exporters and auto-tweeting AIs in minutes. HCI nerds and DeSci builders who co-design interfaces for better group sensemaking, they bridge individual tinkering with the infrastructure we need to actually think together. Not just theorizing about augmented cognition — they're coding the graphs, loops, and stacks that make it happen.",
+      "description": "Mycelial architects and <span style=\"color: #B87333;\">coordination stack tinkerers</span> grow living networks for collective intelligence. They obsess over the copper gears of efficient ML and the organic mycelium of human connection to ship tools like personal data exporters and auto-tweeting AIs. HCI and DeSci builders co-design interfaces for group sensemaking. They bridge individual tinkering with the infrastructure required to think together. They code the graphs, loops, and stacks that enable augmented cognition.",
       "color": "#B87333",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     },
     "highbies": {
       "name": "Vibecamp Highbies",
-      "description": "Highbies are the high-agency weirdos, Vibecamp organizers, and embodied truth-tellers who ride the Laughing Bodhisattva on a flaming cosmic dog — equal parts sacred fire and holy chaos. They move through life with divine conviction wrapped in absurdist play: treating aligned partners as literal second brains, applying sunk cost fallacy to keep marriages alive, and casually debating horse electrolytes as a viable life upgrade. One tweet dissects Jane Austen's polite fictions and the tragedy of Miss Bates; the next drops a greentext, shares a delayed \"heyyy\" from an ex, or zooms all the way out with \"we put patterns on flat things, we move water around and boil it — what else do we do?\" This is personal anthropology as meme practice: sharp-eyed observations on dating, cultural lag from NYC, bro reconnection rituals, and BDSM/LARP Venn diagrams, all delivered with the specific flavor of someone who's deeply in the game but refuses to take it too seriously.",
+      "description": "Highbies are high-agency weirdos, Vibecamp organizers, and embodied truth-tellers. They ride the <span style=\"color: #D4A017;\">Laughing Bodhisattva</span> on a flaming cosmic dog. They move through life with divine conviction wrapped in absurdist play. They treat aligned partners as second brains, apply sunk cost fallacy to marriages, and debate horse electrolytes as a life upgrade. They dissect Jane Austen's polite fictions, drop greentexts, and observe the tragedy of boiling water. They practice personal anthropology through memes to dissect dating, cultural lag, and bro reconnection rituals.",
       "color": "#D4A017",
-      "updated_at": "2026-03-23T20:14:56.947576+00:00"
+      "updated_at": "2026-04-08T12:00:00.000000+00:00"
     }
   }
 }
