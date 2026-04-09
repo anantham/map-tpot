@@ -451,27 +451,28 @@ export default function About({ meta, onNavigate }) {
               other ~200,000 accounts in the network.
             </p>
             <p>
-              Community labels spread outward through the typed connection graph. We weight follows,
-              quotes, replies, mentions, likes, and retweets differently. If you follow 10 people and
-              8 of them are Builders, you are likely Builder-adjacent. If you also quote-tweet three
-              Contemplative accounts, that signal carries weight too. You are the company you keep,
-              and especially the company you engage with.
+              Community labels spread outward using Directed Personalized PageRank (PPR). We simulate a
+              random walk across the graph starting exclusively from a community's seed accounts.
+              The algorithm respects edge directionality: attention flows from the followers backward
+              to the authorities they listen to.
             </p>
             <p>
-              Each community spreads independently. Your connection to Qualia Research has
-              nothing to do with your connection to LLM Whisperers. An account followed by 12 Qualia
-              researchers and 8 LLM tinkerers scores high in both. They operate as a bridge rather
-              than representing a classification failure.
+              Raw propagation scores naturally inflate mega-accounts. A node with 10,000 followers
+              will absorb probability mass from any random walk simply due to its size. To solve this
+              hub penalty, we normalize the community-specific PPR against a Null Model—the
+              Global PageRank of the entire network.
+            </p>
+            <p className="about-formula">
+              <em>Network Lift</em> &asymp; <em>Community PPR</em> &divide; <em>Global PageRank</em><sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/src/propagation/engine.py#L327" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[6]</a></sup>
             </p>
             <p>
-              To separate real connections from noise, we count how many classified accounts actually
-              follow you, per community. An account followed by people from two different communities
-              is a genuine bridge. An account with a single random connection is noise. For example,
-              @googlecalendar remains hidden despite existing in the network.
+              This calculation isolates specific community affinity from general popularity. A score
+              of 5.0x means an account is five times more likely to be reached by the
+              community than by random chance.
             </p>
             <p>
-              Not everyone gets a confident placement. Accounts close to many classified
-              accounts get strong colors. Accounts far from classified members stay gray to indicate
+              Not everyone gets a confident placement. Accounts with a Lift score greater than 5.0x
+              receive vibrant specialist cards. Accounts with a Lift below 1.5x stay gray to indicate
               uncertainty. The map currently shows {(byBand.bridge || 0).toLocaleString()} bridge
               accounts connecting different scenes.
             </p>

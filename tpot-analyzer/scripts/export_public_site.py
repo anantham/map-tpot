@@ -695,6 +695,95 @@ def get_evidence(
     return evidence
 
 
+def compute_recommendations(
+    db_path: Path,
+    all_accounts: list[dict[str, Any]],
+    community_names_map: dict[str, str],
+    max_per_community: int = 3,
+    max_communities: int = 3,
+) -> dict[str, list[dict]]:
+    """Compute 'you might want to follow' recommendations for all accounts.
+
+    For each account, finds high-weight classified accounts in their top
+    communities that they don't already follow.
+
+    Returns {account_id: [{"handle": ..., "community": ..., "weight": ...}, ...]}.
+    """
+    conn = sqlite3.connect(str(db_path))
+    try:
+        # 1. Load all follow edges (source → set of targets)
+        logger.info("Loading follow graph for recommendations...")
+        follow_sets: dict[str, set[str]] = {}
+        for src, tgt in conn.execute("SELECT account_id, following_account_id FROM account_following"):
+            if src not in follow_sets:
+                follow_sets[src] = set()
+            follow_sets[src].add(tgt)
+
+        # 2. Load community members with usernames (the recommendation pool)
+        # Only accounts with weight >= 0.3 (strong members)
+        logger.info("Loading community member pool...")
+        community_members: dict[str, list[tuple[str, str, float]]] = {}  # cid -> [(account_id, username, weight)]
+        rows = conn.execute("""
+            SELECT ca.community_id, ca.account_id,
+                   COALESCE(p.username, ra.username) as uname, ca.weight
+            FROM community_account ca
+            LEFT JOIN profiles p ON p.account_id = ca.account_id
+            LEFT JOIN resolved_accounts ra ON ra.account_id = ca.account_id
+            WHERE ca.weight >= 0.3
+            AND (p.username IS NOT NULL OR ra.username IS NOT NULL)
+            ORDER BY ca.community_id, ca.weight DESC
+        """).fetchall()
+        for cid, aid, uname, w in rows:
+            if cid not in community_members:
+                community_members[cid] = []
+            community_members[cid].append((aid, uname, w))
+
+        # 3. For each account, compute recommendations
+        logger.info("Computing recommendations for %d accounts...", len(all_accounts))
+        results: dict[str, list[dict]] = {}
+
+        for acct in all_accounts:
+            aid = acct["id"]
+            memberships = acct.get("memberships", [])
+            if not memberships:
+                continue
+
+            following = follow_sets.get(aid, set())
+
+            # Sort memberships by weight, take top communities
+            sorted_m = sorted(memberships, key=lambda m: m.get("weight", 0), reverse=True)
+            recs = []
+
+            for m in sorted_m[:max_communities]:
+                cid = m.get("community_id", "")
+                cname = community_names_map.get(cid, "")
+                if not cname:
+                    continue
+                members = community_members.get(cid, [])
+
+                count = 0
+                for member_aid, member_uname, member_w in members:
+                    if member_aid == aid:
+                        continue
+                    if member_aid in following:
+                        continue
+                    recs.append({
+                        "handle": member_uname,
+                        "community": cname,
+                    })
+                    count += 1
+                    if count >= max_per_community:
+                        break
+
+            if recs:
+                results[aid] = recs
+
+        return results
+
+    finally:
+        conn.close()
+
+
 def _safe_followers(val: Any) -> int | None:
     """Convert num_followers (float64, may be NaN) to int or None."""
     if val is None:

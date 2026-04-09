@@ -967,3 +967,21 @@
         - Cleaned stray local Vercel state, restored `amiingroup.vercel.app` to the healthy `find-my-ingroup` deployment, and deleted accidental `dist` / `output` Vercel projects.
         - Blob data is live and current.
         - App code for Blob-backed routes is ready locally, but not yet deployed because Vercel CLI keeps re-applying `tpot-analyzer/public-site` during deploy resolution.
+
+- [2026-04-09 15:44 UTC] **Card-generation timeout/logging hardening (Codex GPT-5)**
+    - **Assumptions**
+        - The `500 generation_timeout` failure now comes from our own `AbortController` cutoff, not from missing credentials or a missing route.
+        - OpenRouter image generation latency is variable enough that the previous fixed `8000ms` limit is too aggressive.
+    - **Predicted outcome**
+        - Raising the app-level timeout and setting Vercel `maxDuration` for the function should reduce false timeouts.
+        - Request-stage logs should make it obvious whether a failing request reached OpenRouter, how long the upstream call took, and whether the failure happened before or after upstream response parsing.
+    - **Confidence**
+        - `0.94`
+    - **Fallback plan**
+        - If longer synchronous timeouts still fail in production, move card generation to an async job/poll flow instead of stretching a single request further.
+    - **Changes (files + why)**
+        - `tpot-analyzer/public-site/api/generate-card.js:73-170,272-304`: replace the hardcoded `8000ms` timeout with configurable `CARD_GENERATION_TIMEOUT_MS` (default `45000ms`) and add structured logs for request receipt, cache hit, prompt assembly, OpenRouter request start/finish, payload parse, Blob upload, success, timeout, and unexpected errors.
+        - `tpot-analyzer/public-site/vercel.json:2-6`: set `functions.api/generate-card.js.maxDuration = 60` so Vercel’s function ceiling matches the longer synchronous generation window.
+    - **Verification**
+        - `cd tpot-analyzer/public-site && node -e "require('./api/generate-card.js'); console.log('generate-card-loaded')"` → module loads successfully.
+        - `cd tpot-analyzer/public-site && npm run build` → successful Vite production build after adding `functions.maxDuration`.

@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/generate-card.js": {
+      "maxDuration": 60
+    }
+  },
   "rewrites": [
     { "source": "/((?!api/|data\\.json|search\\.json|assets/).*)", "destination": "/index.html" }
   ],
