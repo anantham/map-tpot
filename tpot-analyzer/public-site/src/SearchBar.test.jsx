@@ -13,6 +13,9 @@ const SEARCH_DATA = {
 beforeEach(() => {
   global.fetch = vi.fn(() =>
     Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
       json: () => Promise.resolve(SEARCH_DATA),
     })
   )
@@ -165,7 +168,12 @@ describe('SearchBar', () => {
         manyAccounts[`test${i}`] = { tier: 'faint', memberships: [] }
       }
       global.fetch = vi.fn(() =>
-        Promise.resolve({ json: () => Promise.resolve(manyAccounts) })
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: () => Promise.resolve(manyAccounts),
+        })
       )
 
       render(<SearchBar onResult={vi.fn()} />)

@@ -113,6 +113,10 @@ These items were built but not tracked in the original Phase 4-8 roadmap below. 
 - Replace internal-state assertions in
   `tpot-analyzer/tests/test_parse_compact_count.py` with behavior-level tests
   that exercise the public Selenium worker parsing path.
+- Expand the Phase 1 community-correctness audit from the 36-item pilot to
+  full 15-community coverage once the first human-review import cycle lands.
+- Add a richer local-context path for Phase 1 hard negatives (API fetch or
+  cached external post samples) so famous-adjacent reviews are not bio-only.
 
 ---
 
@@ -328,6 +332,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   implemented 2026-02-17).
 - Add active-learning queueing (uncertainty sampling) so users can label
   highest-entropy accounts first and improve TPOT boundary quality over time.
+- Add an archive-first active-learning selector that intersects
+  `frontier_ranking` with locally archived `tweets` so the LLM can label
+  "what they talk about" before any paid fetch path is considered.
 - Add embedding jobs for extension-captured tweet text and feed-exposure
   recency weighting so TPOT membership scores can use content semantics with
   ranking-bias normalization.
@@ -367,6 +374,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Standardize third-party relationship audit wiring (`twitterapi.io`): document
   canonical env var names, pagination/identifier parameters, and JSON shape
   adapters so subset-verification scripts remain stable across provider changes.
+- Persist per-model active-learning outputs alongside `llm_ensemble`
+  consensus rows so `scripts.verify_active_learning` can measure real
+  3-model coverage instead of reporting a false `0/N` gap.
 - Migrate account tagging from local SQLite (`account_tags.db`) to shared
   workspace-backed storage with actor/source provenance and conflict policy.
 - Ship Chrome extension labeling integration against canonical backend tag
@@ -385,6 +395,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   (implemented 2026-02-09).
 - [x] Add `make` targets to standardize test and verification entrypoints
   (`Makefile`, implemented 2026-02-21).
+- Decompose `docs/WORKLOG.md` and `docs/ROADMAP.md` into archived session
+  slices or sub-docs; both are now >300 LOC and violate the repo's own
+  working-set guidance for agents.
 - Decompose `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterView.jsx` and `tpot-analyzer/graph-explorer/src/data.js` into focused modules/hooks (<300 LOC each); current files exceed 1100 LOC and 700 LOC.
@@ -394,6 +407,7 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Decompose `tpot-analyzer/src/data/shadow_store.py` (1252 LOC) into focused store modules by table domain (<300 LOC each); currently mixes multi-table CRUD with business logic.
 - Decompose `tpot-analyzer/src/graph/hierarchy/expansion_strategy.py` (1013 LOC) into scoring, strategy selection, and memoization modules (<300 LOC each).
 - Add ADR documenting testability refactor decisions (fixtures, helper extraction, verification scripts).
+- Add a one-command public-site deploy flow that respects Vercel `rootDirectory=tpot-analyzer/public-site` without CLI path recursion; current Blob-backed data fix is ready locally, but deployment still requires Git integration or project-setting surgery.
 
 ## Infrastructure / Observability
 
