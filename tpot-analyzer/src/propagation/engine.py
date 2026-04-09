@@ -1,20 +1,28 @@
-"""Core propagation solver — harmonic label propagation via conjugate gradient.
+"""Core propagation solver — Directed Personalized PageRank (PPR) + Lift.
 
 Mathematical formulation:
-  For each class c in {community_1, ..., community_K, none}:
-    f_U^c = -(L_UU + reg*I)^{-1} * (L_UL * f_L^c - reg * prior)
-
-  where L is the graph Laplacian (D - W), U = unlabeled indices,
-  L = labeled indices, f_L^c = boundary conditions for class c.
+  Instead of solving the symmetric Laplacian, we compute Directed PPR on the 
+  weighted adjacency matrix. 
+  
+  PPR_c = (1 - alpha) * P^T * PPR_c + alpha * f_L^c
+  
+  where P is the row-stochastic transition matrix (D_out^-1 * A).
+  
+  To solve the "hub penalty" (where mega-accounts absorb all probability mass),
+  we normalize against a Null Model (Global PageRank):
+  
+  Lift_c = PPR_c / Global_PR
+  
+  This isolates the *specific* community affinity from the *general* popularity.
 """
 from __future__ import annotations
 
 import sqlite3
 import time
+import warnings
 
 import numpy as np
 import scipy.sparse as sp
-from scipy.sparse.linalg import cg
 
 from src.config import DEFAULT_ARCHIVE_DB
 from src.propagation.types import PropagationConfig, PropagationResult
@@ -24,17 +32,79 @@ def multiclass_entropy(memberships: np.ndarray) -> np.ndarray:
     """Shannon entropy of each row, normalized to [0, 1] by log2(n_classes)."""
     n_classes = memberships.shape[1]
     p = np.clip(memberships, 1e-10, 1.0)
+    # Normalize rows to sum to 1 for entropy calculation
+    row_sums = p.sum(axis=1, keepdims=True)
+    row_sums = np.where(row_sums > 0, row_sums, 1.0)
+    p = p / row_sums
+    
     raw_entropy = -np.sum(p * np.log2(p), axis=1)
     max_entropy = np.log2(n_classes)
     return raw_entropy / max_entropy if max_entropy > 0 else raw_entropy
 
 
-class _IterationCounter:
-    """Callback for scipy CG solver to count iterations."""
-    def __init__(self) -> None:
-        self.count = 0
-    def __call__(self, _xk: np.ndarray) -> None:
-        self.count += 1
+def compute_ppr(
+    adj: sp.csr_matrix,
+    teleport_vector: np.ndarray | None = None,
+    alpha: float = 0.15,
+    max_iter: int = 200,
+    tol: float = 1e-6
+) -> tuple[np.ndarray, int, bool]:
+    """Compute Directed Personalized PageRank via Power Iteration.
+    
+    Args:
+        adj: Sparse adjacency matrix (n_nodes x n_nodes).
+        teleport_vector: Vector of restart probabilities. If None, uniform (Global PR).
+        alpha: Teleport probability.
+    
+    Returns:
+        (ppr_vector, iterations, converged)
+    """
+    n = adj.shape[0]
+    
+    # We walk backwards to find people who *follow* the community.
+    # A_ij means i follows j. We want probability to flow from j to i.
+    # So we use adj.T as the transition structure.
+    adj_T = adj.T.tocsr()
+    
+    # Compute out-degrees
+    out_degrees = np.array(adj_T.sum(axis=1)).flatten()
+    
+    # Handle sink nodes (nodes with 0 out-degree in the reversed graph, i.e., no followers)
+    # They will artificially drain probability mass. We add a small epsilon or self-loop.
+    out_degrees[out_degrees == 0] = 1.0
+    
+    # Transition matrix P (row stochastic)
+    inv_D = sp.diags(1.0 / out_degrees)
+    P = inv_D @ adj_T
+    
+    # Transpose for power iteration: x_{k+1} = (1-alpha) P^T x_k + alpha * v
+    PT = P.T.tocsr()
+    
+    if teleport_vector is None:
+        v = np.ones(n, dtype=np.float64) / n
+    else:
+        v = teleport_vector.astype(np.float64).copy()
+        v_sum = v.sum()
+        if v_sum > 0:
+            v /= v_sum
+        else:
+            v = np.ones(n, dtype=np.float64) / n
+            
+    x = v.copy()
+    
+    converged = False
+    iters = 0
+    for i in range(max_iter):
+        x_next = (1 - alpha) * (PT @ x) + alpha * v
+            
+        diff = np.linalg.norm(x_next - x, ord=1)
+        x = x_next
+        iters += 1
+        if diff < tol:
+            converged = True
+            break
+            
+    return x, iters, converged
 
 
 def load_community_labels(
@@ -44,31 +114,7 @@ def load_community_labels(
     holdout_seed: int = 42,
     seed_eligibility: bool = True,
     db_path=None,
-) -> tuple[np.ndarray, np.ndarray, list[str], list[str], list[str], dict | None]:
-    """Load community assignments from DB and build boundary condition matrix.
-
-    The boundary matrix has K+1 columns: one per community + one "none" column.
-    Each labeled node gets its NMF-derived weights (0-1 per community), optionally
-    class-balanced. The "none" column is the residual (1 - sum of community weights).
-
-    Args:
-        node_ids: Array of node IDs matching graph matrix rows.
-        config: Propagation config.
-        holdout_fraction: Fraction of labeled accounts to hold out per community
-            for threshold calibration (0 = no holdout, use all seeds).
-        holdout_seed: Random seed for reproducible holdout split.
-        seed_eligibility: Whether to weight seeds by concentration.
-        db_path: Path to archive_tweets.db. Defaults to DEFAULT_ARCHIVE_DB.
-
-    Returns:
-        boundary_matrix: (n_labeled, K+1) soft membership boundary conditions
-        labeled_indices: (n_labeled,) indices into node_ids array
-        community_ids, community_names, community_colors: metadata lists
-        holdout_info: dict with holdout account IDs and their community assignments
-            (None if holdout_fraction == 0)
-        raw_seed_weights: (n_labeled, K) unbalanced community weights from DB
-            (used for seed-neighbor counting, unaffected by class balancing)
-    """
+) -> tuple[np.ndarray, np.ndarray, list[str], list[str], list[str], dict | None, np.ndarray]:
     if db_path is None:
         db_path = DEFAULT_ARCHIVE_DB
 
@@ -76,7 +122,6 @@ def load_community_labels(
 
     conn = sqlite3.connect(str(db_path))
     try:
-        # Communities ordered by member count (descending) for consistent column order
         communities = conn.execute(
             """SELECT c.id, c.name, c.color, COUNT(ca.account_id) as cnt
                FROM community c
@@ -91,39 +136,33 @@ def load_community_labels(
         cid_to_col = {cid: i for i, cid in enumerate(community_ids)}
         K = len(community_ids)
 
-        # All account-community assignments (includes multi-community memberships)
         rows = conn.execute(
             "SELECT community_id, account_id, weight FROM community_account"
         ).fetchall()
     finally:
         conn.close()
 
-    # Build per-account weight vectors (accounts can be in multiple communities)
     account_weights: dict[str, np.ndarray] = {}
     for cid, aid, weight in rows:
         if aid not in id_to_idx:
-            continue  # account not in graph snapshot
+            continue
         if aid not in account_weights:
             account_weights[aid] = np.zeros(K, dtype=np.float64)
         col = cid_to_col[cid]
-        # Take max weight if multiple entries for same (account, community)
         account_weights[aid][col] = max(account_weights[aid][col], weight)
 
-    # --- Holdout split (stratified by dominant community) ---
     holdout_info = None
     if holdout_fraction > 0:
         rng = np.random.RandomState(holdout_seed)
-        # Group accounts by their dominant community
         community_groups: dict[int, list[str]] = {i: [] for i in range(K)}
         for aid, weights in account_weights.items():
             dominant = int(np.argmax(weights))
             community_groups[dominant].append(aid)
 
         holdout_accounts: set[str] = set()
-        holdout_assignments: dict[str, dict] = {}  # aid -> {community_id, community_name, weights}
+        holdout_assignments: dict[str, dict] = {}
         for col_idx, members in community_groups.items():
             n_holdout = max(1, int(len(members) * holdout_fraction))
-            # Don't hold out more than half — keep at least some train seeds per community
             n_holdout = min(n_holdout, len(members) // 2)
             if n_holdout > 0:
                 rng.shuffle(members)
@@ -135,7 +174,6 @@ def load_community_labels(
                         "weights": account_weights[aid].tolist(),
                     }
 
-        # Remove holdout accounts from the training set
         for aid in holdout_accounts:
             del account_weights[aid]
 
@@ -146,44 +184,31 @@ def load_community_labels(
             "n_train": len(account_weights),
             "accounts": holdout_assignments,
         }
-        print(f"Holdout split: {len(holdout_accounts)} holdout, {len(account_weights)} train "
-              f"(fraction={holdout_fraction}, seed={holdout_seed})")
-        for col_idx in range(K):
-            n_in_holdout = sum(
-                1 for a in holdout_assignments.values()
-                if a["dominant_community_name"] == community_names[col_idx]
-            )
-            n_in_train = len(community_groups[col_idx]) - n_in_holdout
-            print(f"  {community_names[col_idx]:30s}: {n_in_train} train, {n_in_holdout} holdout")
 
-    # Class balancing: inverse-sqrt of community size.
     balance_weights = np.ones(K, dtype=np.float64)
     if config.class_balance:
         for i, size in enumerate(community_sizes):
             if size > 0:
                 balance_weights[i] = 1.0 / np.sqrt(size)
-        balance_weights /= balance_weights.max()  # normalize so max = 1
+        balance_weights /= balance_weights.max()
 
-    # Build boundary matrix: K community columns + 1 "none" column
-    # Also preserve raw (unbalanced) weights for seed-neighbor counting
     labeled_accounts = sorted(account_weights.keys())
     labeled_indices = np.array([id_to_idx[aid] for aid in labeled_accounts], dtype=np.int64)
     n_labeled = len(labeled_indices)
 
     boundary = np.zeros((n_labeled, K + 1), dtype=np.float64)
     raw_seed_weights = np.zeros((n_labeled, K), dtype=np.float64)
+    
     for i, aid in enumerate(labeled_accounts):
         raw = account_weights[aid]
         raw_seed_weights[i] = raw
         balanced = raw * balance_weights
-        # Cap total community weight at 1.0 (can exceed due to multi-membership)
         total = balanced.sum()
         if total > 1.0:
             balanced /= total
         boundary[i, :K] = balanced
         boundary[i, K] = max(0.0, 1.0 - balanced.sum())
 
-    # Seed eligibility: weight boundary conditions by concentration
     if seed_eligibility:
         try:
             conn2 = sqlite3.connect(str(db_path))
@@ -192,18 +217,12 @@ def load_community_labels(
             ).fetchall())
             conn2.close()
 
-            weighted = 0
             for i, aid in enumerate(labeled_accounts):
                 conc = eligibility.get(aid, 1.0)
                 boundary[i, :K] *= conc
                 boundary[i, K] = max(0.0, 1.0 - boundary[i, :K].sum())
-                if conc < 1.0:
-                    weighted += 1
-
-            if weighted > 0:
-                print(f"Seed eligibility: {weighted} seeds weighted by concentration")
-        except Exception as e:
-            print(f"Seed eligibility table not found, using uniform weighting: {e}")
+        except Exception:
+            pass
 
     return boundary, labeled_indices, community_ids, community_names, community_colors, holdout_info, raw_seed_weights
 
@@ -217,23 +236,9 @@ def propagate(
     seed_eligibility: bool = True,
     db_path=None,
 ) -> tuple[PropagationResult, dict | None]:
-    """Run multi-class harmonic label propagation.
-
-    Args:
-        adjacency: Sparse adjacency matrix (n_nodes x n_nodes).
-        node_ids: Array of account IDs matching adjacency rows.
-        config: Propagation parameters.
-        holdout_fraction: Fraction of seeds to hold out for calibration.
-        holdout_seed: Random seed for holdout.
-        seed_eligibility: Whether to weight seeds by concentration.
-        db_path: Path to archive_tweets.db. Defaults to DEFAULT_ARCHIVE_DB.
-
-    Returns:
-        (PropagationResult, holdout_info_or_None)
-    """
+    """Run Directed PPR + Lift label propagation."""
     n_nodes = adjacency.shape[0]
 
-    # Load boundary conditions from community database
     boundary, labeled_idx, community_ids, community_names, community_colors, holdout_info, raw_seed_weights = (
         load_community_labels(
             node_ids, config,
@@ -251,147 +256,103 @@ def propagate(
     print(f"Communities: {K}")
     print(f"Classes (incl. none): {n_classes}")
 
-    # Symmetrize: max(A, A^T) treats "I follow you" = "you follow me".
-    sym = adjacency.maximum(adjacency.T).tocsr()
-    sym.setdiag(0.0)
-    sym.eliminate_zeros()
-
-    degrees = np.asarray(sym.sum(axis=1)).flatten()
-
-    # Graph Laplacian: L = D - W
-    laplacian = sp.diags(degrees, format="csr") - sym
-
-    # Partition into labeled / unlabeled
     labeled_mask = np.zeros(n_nodes, dtype=bool)
     labeled_mask[labeled_idx] = True
-    unlabeled_idx = np.flatnonzero(~labeled_mask)
-    n_unlabeled = len(unlabeled_idx)
 
-    print(f"Unlabeled: {n_unlabeled:,}")
-
-    # Low-degree nodes: will be overridden to "none" after solve.
+    # High-degree filtering: using both out-degree and in-degree
+    out_deg = np.asarray(adjacency.sum(axis=1)).flatten()
+    in_deg = np.asarray(adjacency.sum(axis=0)).flatten()
+    degrees = out_deg + in_deg
     low_degree_unlabeled = (degrees < config.min_degree_for_assignment) & ~labeled_mask
-    n_low_degree = low_degree_unlabeled.sum()
-    print(f"Low-degree (< {config.min_degree_for_assignment}) auto-none: {n_low_degree:,}")
 
-    # Initialize membership matrix
-    memberships = np.full((n_nodes, n_classes), config.prior / n_classes, dtype=np.float64)
-    memberships[labeled_idx] = boundary
-
-    # Extract Laplacian sub-matrices for the harmonic solve
-    print("Building Laplacian sub-matrices...")
+    print("\nComputing Global PageRank (Null Model)...")
     t0 = time.perf_counter()
-    l_uu = laplacian[np.ix_(unlabeled_idx, unlabeled_idx)].tocsr()
-    l_ul = laplacian[np.ix_(unlabeled_idx, labeled_idx)].tocsr()
+    global_pr, g_iters, g_conv = compute_ppr(adjacency, teleport_vector=None, alpha=0.15)
+    print(f"Global PR: {g_iters} iters, {time.perf_counter() - t0:.2f}s")
+    
+    # Avoid division by zero when calculating Lift
+    global_pr = np.clip(global_pr, 1e-12, None)
 
-    # Tikhonov regularization: makes L_UU positive definite (required for CG)
-    if config.regularization > 0:
-        l_uu = l_uu + config.regularization * sp.eye(n_unlabeled, format="csr")
-
-    t_setup = time.perf_counter() - t0
-    print(f"Sub-matrix setup: {t_setup:.2f}s")
-    print(f"L_UU: shape={l_uu.shape}, nnz={l_uu.nnz:,}")
-
-    # Solve for each class independently.
+    memberships = np.zeros((n_nodes, n_classes), dtype=np.float64)
     converged_list = []
     iterations_list = []
 
+    print("\nComputing Directed PPR per community...")
     t_solve_start = time.perf_counter()
+    
     for c in range(n_classes):
         class_name = community_names[c] if c < K else "__none__"
+        
+        teleport = np.zeros(n_nodes, dtype=np.float64)
+        teleport[labeled_idx] = boundary[:, c]
+        
+        if teleport.sum() == 0:
+            warnings.warn(f"Community {class_name} has 0 boundary weight! Skipping.")
+            memberships[:, c] = 0.0
+            converged_list.append(True)
+            iterations_list.append(0)
+            continue
 
-        # RHS = -(L_UL * f_L^c) + reg * prior
-        rhs = -(l_ul @ boundary[:, c])
-        if config.regularization > 0:
-            rhs += config.regularization * (config.prior / n_classes)
-
-        counter = _IterationCounter()
-        solution, info = cg(
-            l_uu, rhs,
-            tol=config.tolerance,
-            maxiter=config.max_iter,
-            callback=counter,
-        )
-        conv = info == 0
+        ppr_c, iters, conv = compute_ppr(adjacency, teleport_vector=teleport, alpha=0.15)
+        
+        # Lift = PPR_c / Global_PR
+        lift_c = ppr_c / global_pr
+        
+        memberships[:, c] = lift_c
         converged_list.append(conv)
-        iterations_list.append(counter.count)
-        memberships[unlabeled_idx, c] = solution
+        iterations_list.append(iters)
 
-        status = "ok" if conv else f"NOT converged (info={info})"
-        print(f"  Class {c:2d} ({class_name:25s}): {counter.count:4d} iters, {status}")
+        status = "ok" if conv else "NOT converged"
+        print(f"  Class {c:2d} ({class_name:25s}): {iters:4d} iters, max lift = {lift_c.max():.1f}x")
 
     t_solve = time.perf_counter() - t_solve_start
     print(f"Total solve time: {t_solve:.2f}s")
 
-    # Post-processing: clip, scale, normalize
-    memberships = np.clip(memberships, 0.0, None)
-
     seed_neighbor_counts = None
-
     if config.mode == "independent":
-        # ═══ INDEPENDENT MODE (Approach C + E) ═══
-        print("  Post-processing: independent mode (raw scores + seed-neighbor counts)")
-
+        print("  Post-processing: independent mode (Lift scores + seed-neighbor counts)")
+        
         seed_neighbor_counts = np.zeros((n_nodes, K), dtype=np.int32)
+        # Using undirected adjacency for seed neighbors to maintain compatibility
+        sym = adjacency.maximum(adjacency.T).tocsr()
+        sym.setdiag(0.0)
+        sym.eliminate_zeros()
+        
         for li_pos, li in enumerate(labeled_idx):
             neighbors = sym[li].nonzero()[1]
             for c in range(K):
                 if raw_seed_weights[li_pos, c] > 0:
                     seed_neighbor_counts[neighbors, c] += 1
 
-        print(f"  Seed-neighbor counts computed for {len(labeled_idx)} seeds")
-
-        memberships[labeled_idx] = boundary
-
         memberships[low_degree_unlabeled, :] = 0.0
         seed_neighbor_counts[low_degree_unlabeled, :] = 0
 
-        degree_uncertainty = 1.0 / np.sqrt(degrees + 1.0)
-        degree_uncertainty /= degree_uncertainty.max()
-        uncertainty = np.clip(degree_uncertainty, 0.0, 1.0)
-        uncertainty[labeled_idx] = 0.0
-
-        raw_row_sums = memberships.sum(axis=1, keepdims=True)
-        raw_row_sums = np.where(raw_row_sums > 0, raw_row_sums, 1.0)
-        entropy = multiclass_entropy(memberships / raw_row_sums)
+        uncertainty = np.zeros(n_nodes)  # Lift naturally handles uncertainty
+        entropy = multiclass_entropy(memberships)
 
         max_raw_score = memberships[:, :K].max(axis=1)
         max_seed_neighbors = seed_neighbor_counts.max(axis=1)
+        # For now, default abstain logic. We will tune this via veil CV.
         abstain_mask = (
-            (max_raw_score < 1e-6)
+            (max_raw_score < 1.0)
             | (max_seed_neighbors < 1)
         ) & ~labeled_mask
 
     else:
-        # ═══ CLASSIC MODE ═══
-        if config.temperature != 1.0:
-            scaled = memberships ** (1.0 / config.temperature)
-            row_sums = scaled.sum(axis=1, keepdims=True)
-            row_sums = np.where(row_sums > 0, row_sums, 1.0)
-            memberships = scaled / row_sums
-        else:
-            row_sums = memberships.sum(axis=1, keepdims=True)
-            row_sums = np.where(row_sums > 0, row_sums, 1.0)
-            memberships = memberships / row_sums
+        # Classic mode (Scale to 1.0)
+        row_sums = memberships.sum(axis=1, keepdims=True)
+        row_sums = np.where(row_sums > 0, row_sums, 1.0)
+        memberships = memberships / row_sums
 
         memberships[labeled_idx] = boundary
-
         memberships[low_degree_unlabeled, :K] = 0.0
         memberships[low_degree_unlabeled, K] = 1.0
 
         entropy = multiclass_entropy(memberships)
-        degree_uncertainty = 1.0 / np.sqrt(degrees + 1.0)
-        degree_uncertainty /= degree_uncertainty.max()
-
-        uncertainty = 0.7 * entropy + 0.3 * degree_uncertainty
-        uncertainty = np.clip(uncertainty, 0.0, 1.0)
-        uncertainty[labeled_idx] = 0.0
+        uncertainty = np.zeros(n_nodes)
 
         max_community_weight = memberships[:, :K].max(axis=1)
-        abstain_mask = (
-            (max_community_weight < config.abstain_max_threshold)
-            | (uncertainty > config.abstain_uncertainty_threshold)
-        ) & ~labeled_mask
+        abstain_mask = (max_community_weight < 0.15) & ~labeled_mask
 
     result = PropagationResult(
         memberships=memberships,
