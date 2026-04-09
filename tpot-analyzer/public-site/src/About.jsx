@@ -8,8 +8,8 @@ export default function About({ meta, onNavigate }) {
 
   const numCommunities = counts.communities || 'many'
   const byBand = counts.by_band || {}
-  const totalStr = counts.total_accounts?.toLocaleString() || '18,000+'
-  const classifiedStr = byBand.exemplar?.toLocaleString() || '317'
+  const totalStr = counts.total_accounts?.toLocaleString() || '11,600+'
+  const classifiedStr = byBand.exemplar?.toLocaleString() || '361'
   const showArchivePara = links.curator_dm && links.community_archive
 
   return (
@@ -201,14 +201,14 @@ export default function About({ meta, onNavigate }) {
                 Community Archive
               </a>{' '}
               is a project where Twitter users voluntarily share their tweets, follows,
-              and likes. Around 330 people have done this so far. This archive contains millions
+              and likes. Around 327 people have done this so far. This archive contains millions
               of tweets and likes. It provides a detailed record of who these people chose
               to listen to.
             </p>
             <p>
               Each archived account follows hundreds or thousands of people. Tracing these
-              connections outward reveals roughly 270,000 accounts in the shadow network.
-              We see everything for the 330 archived accounts. For the 270,000 others, we
+              connections outward reveals roughly 298,000 accounts in the shadow network.
+              We see everything for the 327 archived accounts. For the others, we
               only know that someone chose to follow them. They exist as faceless silhouettes
               in the graph.
             </p>
@@ -219,7 +219,7 @@ export default function About({ meta, onNavigate }) {
               communities.
             </p>
             <p>
-              The result is a combined graph of 2.7 million weighted connections across 298,000 accounts spanning eight
+              The result is a combined graph of 2.7 million weighted connections across the searchable network spanning eight
               relationship types.
             </p>
             <div className="about-recall-table">
@@ -234,7 +234,7 @@ export default function About({ meta, onNavigate }) {
                 <tbody>
                   <tr>
                     <td>Mention</td>
-                    <td>1,882,155</td>
+                    <td>3,822,341</td>
                     <td>Who you address</td>
                   </tr>
                   <tr>
@@ -244,37 +244,37 @@ export default function About({ meta, onNavigate }) {
                   </tr>
                   <tr>
                     <td>Follower</td>
-                    <td>533,749</td>
+                    <td>1,647,325</td>
                     <td>Who listens to you</td>
                   </tr>
                   <tr>
                     <td>Quote</td>
-                    <td>343,886</td>
+                    <td>549,285</td>
                     <td>Who you publicly comment on</td>
                   </tr>
                   <tr>
                     <td>Co-followed</td>
-                    <td>33,402</td>
+                    <td>16,701</td>
                     <td>Accounts sharing an audience</td>
                   </tr>
                   <tr>
                     <td>Like</td>
-                    <td>24,501</td>
+                    <td>17,501,243</td>
                     <td>Endorsements</td>
                   </tr>
                   <tr>
                     <td>Reply</td>
-                    <td>12,021</td>
+                    <td>17,362</td>
                     <td>Direct conversations</td>
                   </tr>
                   <tr>
                     <td>Retweet</td>
-                    <td>6,989</td>
+                    <td>774,266</td>
                     <td>Audience amplification</td>
                   </tr>
                   <tr>
                     <td><strong>Total raw edges</strong></td>
-                    <td><strong>3,640,701</strong></td>
+                    <td><strong>25,132,521</strong></td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -391,7 +391,7 @@ export default function About({ meta, onNavigate }) {
               so far, accumulating over 21,000 evidence tags.
             </p>
             <p>
-              Not all tweets carry equal weight. A sincere statement of belief reveals intellectual
+              Not all tweets carry equal weight. A <a href="https://www.lesswrong.com/tag/simulacrum-levels" target="_blank" rel="noopener noreferrer">sincere statement of belief</a> reveals intellectual
               commitments. A strategic argument reveals what someone promotes. The strongest community
               signal comes from performative tweets like in-group memes and shared references. These
               count double because they represent pure expressions of belonging.
@@ -728,10 +728,10 @@ export default function About({ meta, onNavigate }) {
               Across five cross-validation folds, the seed-neighbor signal recovers held-out
               TPOT accounts with an AUC of 0.999. The system finds hidden TPOT accounts 100%
               of the time at a 5% false positive rate. A held-out TPOT member has a median of
-              65 seed neighbors. A random non-TPOT account has 1.<sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/scripts/verify_veil_cv.py#L428" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[4]</a></sup>
+              64 seed neighbors. A random non-TPOT account has 1.<sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/scripts/verify_veil_cv.py#L428" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[4]</a></sup>
             </p>
             <p>
-              Raw propagation scores yield an AUC of 0.225. TPOT accounts score lower than random
+              Raw propagation scores yield an AUC of 0.178. TPOT accounts score lower than random
               noise because hub nodes near many communities inherit diffuse signal. The math
               requires measuring how many community members specifically follow you, rather than
               how much total signal reaches you.
