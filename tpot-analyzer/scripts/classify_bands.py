@@ -49,14 +49,13 @@ BRIDGE_MIN_COMMUNITIES = 2
 BRIDGE_MAX_NONE = 0.40
 FRONTIER_MIN_WEIGHT = 0.08
 
-# Independent mode (raw scores, much smaller — calibrated to produce similar
-# band sizes as classic mode on the same graph)
-INDEPENDENT_SPECIALIST_MIN_WEIGHT = 0.06
+# Independent mode (PPR Lift scores, no upper bound)
+INDEPENDENT_SPECIALIST_MIN_WEIGHT = 5.0
 INDEPENDENT_SPECIALIST_MAX_ENTROPY = 0.70
-INDEPENDENT_BRIDGE_MIN_WEIGHT = 0.02
+INDEPENDENT_BRIDGE_MIN_WEIGHT = 2.5
 INDEPENDENT_BRIDGE_MIN_COMMUNITIES = 2
-INDEPENDENT_BRIDGE_MAX_NONE = 0.90  # none is large in independent mode
-INDEPENDENT_FRONTIER_MIN_WEIGHT = 0.02
+INDEPENDENT_BRIDGE_MAX_NONE = 999.0  # None is just another community's lift
+INDEPENDENT_FRONTIER_MIN_WEIGHT = 1.5
 
 
 # ── Schema ───────────────────────────────────────────────────────────────────
