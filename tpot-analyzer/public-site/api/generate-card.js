@@ -70,7 +70,13 @@ try {
 
 const MODEL = "google/gemini-2.5-flash-image";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const ABORT_TIMEOUT_MS = 8000; // 8s abort (Vercel Hobby ceiling = 10s)
+const DEFAULT_ABORT_TIMEOUT_MS = 45000;
+
+function resolveAbortTimeoutMs() {
+  const raw = parseInt(process.env.CARD_GENERATION_TIMEOUT_MS || "", 10);
+  if (Number.isFinite(raw) && raw >= 5000) return raw;
+  return DEFAULT_ABORT_TIMEOUT_MS;
+}
 
 module.exports = async function handler(req, res) {
   // Only accept POST
@@ -96,12 +102,30 @@ module.exports = async function handler(req, res) {
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const budgetKey = `budget:${today}`;
   const dailyLimit = parseFloat(process.env.CARD_DAILY_BUDGET || "5.00");
+  const abortTimeoutMs = resolveAbortTimeoutMs();
+  const requestStartedAt = Date.now();
+  const requestId = `card-${handle.toLowerCase()}-${requestStartedAt}`;
+
+  console.log("[generate-card] Request received", {
+    requestId,
+    handle: handle.toLowerCase(),
+    communitiesCount: communities.length,
+    tweetsCount: Array.isArray(tweets) ? tweets.length : 0,
+    force: Boolean(force),
+    abortTimeoutMs,
+    hasKv: Boolean(kv),
+    hasBlobPut: Boolean(blobPut),
+  });
 
   // --- 2. Check cache (skip if force=true for regeneration) ---
   if (kv && !force) {
     try {
       const cached = await kv.get(cacheKey);
       if (cached && cached !== "pending") {
+        console.log("[generate-card] Cache hit", {
+          requestId,
+          handle: handle.toLowerCase(),
+        });
         return res.status(200).json({ imageUrl: cached, cached: true, model: MODEL });
       }
       if (cached === "pending") {
@@ -144,10 +168,23 @@ module.exports = async function handler(req, res) {
 
   // --- 5. Build prompt ---
   const prompt = buildPrompt({ handle, bio, communities, tweets });
+  console.log("[generate-card] Prompt assembled", {
+    requestId,
+    handle: handle.toLowerCase(),
+    promptChars: prompt.length,
+    model: MODEL,
+  });
 
   // --- 6. Call OpenRouter ---
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ABORT_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), abortTimeoutMs);
+  const upstreamStartedAt = Date.now();
+  console.log("[generate-card] OpenRouter request starting", {
+    requestId,
+    handle: handle.toLowerCase(),
+    model: MODEL,
+    upstreamUrl: OPENROUTER_URL,
+  });
 
   try {
     const orResponse = await fetch(OPENROUTER_URL, {
@@ -168,6 +205,13 @@ module.exports = async function handler(req, res) {
     });
 
     clearTimeout(timeout);
+    console.log("[generate-card] OpenRouter response received", {
+      requestId,
+      handle: handle.toLowerCase(),
+      status: orResponse.status,
+      ok: orResponse.ok,
+      elapsedMs: Date.now() - upstreamStartedAt,
+    });
 
     if (!orResponse.ok) {
       const errBody = await orResponse.text();
@@ -184,6 +228,12 @@ module.exports = async function handler(req, res) {
     }
 
     const data = await orResponse.json();
+    console.log("[generate-card] OpenRouter payload parsed", {
+      requestId,
+      handle: handle.toLowerCase(),
+      choices: Array.isArray(data.choices) ? data.choices.length : 0,
+      completionTokens: data.usage?.completion_tokens || 0,
+    });
 
     // --- 7. Parse image ---
     const images = data.choices?.[0]?.message?.images;
@@ -229,7 +279,12 @@ module.exports = async function handler(req, res) {
             { access: "public", contentType: `image/${mimeType}` },
           );
           permanentUrl = blob.url;
-          console.log("[generate-card] Uploaded to Blob:", permanentUrl, `(${(buffer.length / 1024).toFixed(0)}KB)`);
+          console.log("[generate-card] Uploaded to Blob", {
+            requestId,
+            handle: handle.toLowerCase(),
+            permanentUrl,
+            approxKb: Math.round(buffer.length / 1024),
+          });
         }
       } catch (blobErr) {
         console.warn("[generate-card] Blob upload failed, using data URI:", blobErr.message);
@@ -270,6 +325,12 @@ module.exports = async function handler(req, res) {
     }
 
     // --- 9. Return result ---
+    console.log("[generate-card] Request succeeded", {
+      requestId,
+      handle: handle.toLowerCase(),
+      cached: false,
+      totalElapsedMs: Date.now() - requestStartedAt,
+    });
     return res.status(200).json({
       imageUrl: permanentUrl,
       cached: false,
@@ -284,14 +345,27 @@ module.exports = async function handler(req, res) {
     }
 
     if (err.name === "AbortError") {
-      console.error("[generate-card] Request aborted (timeout)");
+      console.error("[generate-card] Request aborted (timeout)", {
+        requestId,
+        handle: handle.toLowerCase(),
+        abortTimeoutMs,
+        totalElapsedMs: Date.now() - requestStartedAt,
+        upstreamElapsedMs: Date.now() - upstreamStartedAt,
+      });
       return res.status(500).json({
-        error: "Image generation timed out (8s limit)",
+        error: `Image generation timed out (${Math.round(abortTimeoutMs / 1000)}s limit)`,
         code: "generation_timeout",
       });
     }
 
-    console.error("[generate-card] Unexpected error:", err);
+    console.error("[generate-card] Unexpected error", {
+      requestId,
+      handle: handle.toLowerCase(),
+      totalElapsedMs: Date.now() - requestStartedAt,
+      errorName: err?.name,
+      errorMessage: err?.message,
+      stack: err?.stack,
+    });
     return res.status(500).json({
       error: "Internal server error",
       code: "internal_error",

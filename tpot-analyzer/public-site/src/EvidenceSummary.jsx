@@ -118,7 +118,7 @@ export default function EvidenceSummary({
       {/* Seed neighbors by community */}
       {Object.keys(sncMap).length > 0 && (
         <div className="evidence-section">
-          <p className="evidence-section-title">Classified accounts who follow this person:</p>
+          <p className="evidence-section-title">Community members who follow this person:</p>
           <div className="evidence-neighbor-list">
             {Object.entries(sncMap).map(([comm, count]) => (
               <span key={comm} className="evidence-neighbor-chip">
@@ -132,7 +132,7 @@ export default function EvidenceSummary({
       {/* Notable follows */}
       {notableFollows.length > 0 && (
         <div className="evidence-section">
-          <p className="evidence-section-title">Follows these classified accounts:</p>
+          <p className="evidence-section-title">Follows these community members:</p>
           <div className="evidence-account-list">
             {Object.entries(followsByCommunity).slice(0, 4).map(([comm, handles]) => (
               <div key={comm} className="evidence-account-group">
