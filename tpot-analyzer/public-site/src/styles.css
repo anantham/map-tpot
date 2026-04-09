@@ -340,6 +340,12 @@ body {
   font-size: 0.75rem;
 }
 
+.evidence-bridge-label {
+  color: #D4A017;
+  font-weight: 600;
+  text-shadow: 0 0 8px rgba(212, 160, 23, 0.4);
+}
+
 .evidence-line--improve {
   color: #f1c40f;
   font-size: 0.75rem;

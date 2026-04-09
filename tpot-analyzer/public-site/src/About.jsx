@@ -928,6 +928,18 @@ export default function About({ meta, onNavigate }) {
               concentrate in any community propagate with lower confidence.
             </p>
             <p>
+              TPOT is a meta-community. It is not one single thing, but a collection of
+              roughly 16 overlapping social tribes. A &ldquo;Bridge Account&rdquo; is someone
+              who straddles three or more of these scenes—a connector who prevents the network
+              from fragmenting into isolated silos.
+            </p>
+            <p>
+              In our validation tests, 82% of confirmed TPOT members were actually bridges. They
+              might follow the AI Safety scene but write for the Highbies, or live in the NYC
+              building scene while practicing Jhana. Disagreement between social scene and intellectual
+              identity is not a classification error; it is the defining signature of a cross-pollinator.
+            </p>
+            <p>
               Identifying someone in the wrong community, a community that requires splitting,
               or a missing scene provides valuable signal. The map improves when you tell us.
             </p>
