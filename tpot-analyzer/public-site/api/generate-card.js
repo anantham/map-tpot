@@ -52,6 +52,10 @@ try {
         try { await rawRedis.connect(); } catch {}
         return rawRedis.hset(key, field, value);
       },
+      async hget(key, field) {
+        try { await rawRedis.connect(); } catch {}
+        return rawRedis.hget(key, field);
+      },
       async hgetall(key) {
         try { await rawRedis.connect(); } catch {}
         return rawRedis.hgetall(key);
@@ -120,14 +124,16 @@ module.exports = async function handler(req, res) {
   // --- 2. Check cache (skip if force=true for regeneration) ---
   if (kv && !force) {
     try {
+      // Primary cache: short-lived key (24h)
       const cached = await kv.get(cacheKey);
       if (cached && cached !== "pending") {
-        console.log("[generate-card] Cache hit", {
+        console.log("[generate-card] Cache hit (primary)", {
           requestId,
           handle: handle.toLowerCase(),
         });
         return res.status(200).json({ imageUrl: cached, cached: true, model: MODEL });
       }
+
       if (cached === "pending") {
         // Another request is in-flight for this handle
         return res.status(202).json({
@@ -135,6 +141,24 @@ module.exports = async function handler(req, res) {
           code: "in_progress",
           retryAfter: 5,
         });
+      }
+
+      // Secondary cache: permanent gallery hash
+      const galleryKey = handle.toLowerCase();
+      const existing = await kv.hget("gallery", galleryKey);
+      if (existing) {
+        const parsed = JSON.parse(existing);
+        const versions = Array.isArray(parsed) ? parsed : [parsed];
+        const latest = versions[versions.length - 1];
+        if (latest && latest.url) {
+          console.log("[generate-card] Cache hit (gallery fallback)", {
+            requestId,
+            handle: handle.toLowerCase(),
+          });
+          // Back-fill the primary cache for faster subsequent checks
+          await kv.set(cacheKey, latest.url, { ex: 86400 });
+          return res.status(200).json({ imageUrl: latest.url, cached: true, model: MODEL });
+        }
       }
     } catch (kvErr) {
       console.warn("[generate-card] KV cache read failed, proceeding without cache:", kvErr.message);
