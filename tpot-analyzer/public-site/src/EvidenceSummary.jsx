@@ -32,9 +32,12 @@ export default function EvidenceSummary({
         weight: m.weight,
         pct: Math.round(m.weight * 100),
         neighbors: m.seed_neighbors || 0,
+        ci: m.ci, // [low, high]
       }
     })
     .sort((a, b) => b.weight - a.weight)
+
+  const formatBound = (val) => val != null ? `${Math.round(val * 100)}%` : '?'
 
   const topBar = bars[0]
   const totalNeighbors = seedNeighbors || bars.reduce((s, b) => s + b.neighbors, 0)
@@ -130,9 +133,14 @@ export default function EvidenceSummary({
         <div className="evidence-section">
           <p className="evidence-section-title">Community members who follow this person:</p>
           <div className="evidence-neighbor-list">
-            {Object.entries(sncMap).map(([comm, count]) => (
-              <span key={comm} className="evidence-neighbor-chip">
-                {count} {comm}
+            {bars.filter(b => b.neighbors > 0).map((bar) => (
+              <span key={bar.name} className="evidence-neighbor-chip">
+                {bar.neighbors} {bar.name}
+                {bar.ci && (
+                  <span className="evidence-ci-tag" title="95% Confidence Interval">
+                    &nbsp;[{formatBound(bar.ci[0])} - {formatBound(bar.ci[1])}]
+                  </span>
+                )}
               </span>
             ))}
           </div>

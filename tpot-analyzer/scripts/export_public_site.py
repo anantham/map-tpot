@@ -260,6 +260,13 @@ def _load_npz_memberships(
     # Detect mode from saved arrays
     has_snc = "seed_neighbor_counts" in data
     snc = data["seed_neighbor_counts"] if has_snc else None
+    
+    # Optional bootstrap stats
+    has_stability = "stability" in data
+    stability_arr = data["stability"] if has_stability else None
+    has_ci = "confidence_intervals" in data
+    ci_arr = data["confidence_intervals"] if has_ci else None
+
     # If seed_neighbor_counts present, this is independent mode
     is_independent = has_snc
 
@@ -275,21 +282,27 @@ def _load_npz_memberships(
             w = float(community_weights[j])
             if w < min_weight:
                 continue
+            
+            m_entry = {
+                "community_id": str(community_ids[j]),
+                "weight": round(w, 4),
+            }
+            
+            # Add bootstrap stats if available
+            if has_stability and stability_arr is not None:
+                m_entry["stability"] = round(float(stability_arr[i, j]), 3)
+            if has_ci and ci_arr is not None:
+                # Store as [low, high]
+                m_entry["ci"] = [round(float(ci_arr[i, j, 0]), 4), round(float(ci_arr[i, j, 1]), 4)]
+
             # In independent mode, filter by seed neighbors (noise gate)
             if is_independent and snc is not None:
                 neighbors = int(snc[i, j])
                 if neighbors < 1:
                     continue  # no classified neighbors = noise
-                entry_memberships.append({
-                    "community_id": str(community_ids[j]),
-                    "weight": round(w, 4),
-                    "seed_neighbors": neighbors,
-                })
-            else:
-                entry_memberships.append({
-                    "community_id": str(community_ids[j]),
-                    "weight": round(w, 4),
-                })
+                m_entry["seed_neighbors"] = neighbors
+
+            entry_memberships.append(m_entry)
 
         if entry_memberships:
             result[node_id] = sorted(

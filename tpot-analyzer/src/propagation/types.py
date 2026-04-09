@@ -69,3 +69,5 @@ class PropagationResult:
     config: PropagationConfig
     solve_time_seconds: float
     seed_neighbor_counts: np.ndarray | None = None  # (n_nodes, K) int — only in independent mode
+    stability: np.ndarray | None = None             # (n_nodes, K) float [0, 1] — bootstrap stability
+    confidence_intervals: np.ndarray | None = None  # (n_nodes, K, 2) float — [low, high] bounds

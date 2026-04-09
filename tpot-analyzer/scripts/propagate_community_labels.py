@@ -116,6 +116,8 @@ def main():
                         help="Disable concentration-based seed weighting")
     parser.add_argument("--mode", choices=["classic", "independent"], default="classic",
                         help="Propagation mode: classic (zero-sum) or independent (multi-label)")
+    parser.add_argument("--bootstrap", type=int, default=0,
+                        help="Number of bootstrap iterations for stability (default: 0)")
     args = parser.parse_args()
 
     if args.use_spectral_graph:
@@ -165,6 +167,7 @@ def main():
         holdout_fraction=args.holdout_fraction,
         holdout_seed=args.holdout_seed,
         seed_eligibility=not args.no_seed_eligibility,
+        n_bootstrap=args.bootstrap,
     )
 
     # Diagnostics
