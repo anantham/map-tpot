@@ -46,7 +46,7 @@ export function getCachedVersions(handle) {
   return cached?.versions || [];
 }
 
-function cacheCard(handle, imageUrl) {
+export function cacheCard(handle, imageUrl) {
   try {
     const cache = getCardCache();
     const key = handle.toLowerCase();

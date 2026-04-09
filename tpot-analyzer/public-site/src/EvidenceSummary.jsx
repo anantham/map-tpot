@@ -115,6 +115,13 @@ export default function EvidenceSummary({
         </p>
       )}
 
+      {/* Signal Strength / Confidence Meta */}
+      <p className="evidence-line evidence-line--meta">
+        Confidence: {Math.round((confidence || 0.99) * 100)}%.
+        {totalNeighbors > 0 && ` Derived from ${totalNeighbors.toLocaleString()} classified neighbors.`}
+        {tier === 'exemplar' || tier === 'classified' ? ' (Full archive analyzed)' : ''}
+      </p>
+
       {/* Seed neighbors by community */}
       {Object.keys(sncMap).length > 0 && (
         <div className="evidence-section">

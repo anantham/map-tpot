@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getAllCachedCards } from './GenerateCard'
+import { getAllCachedCards, cacheCard } from './GenerateCard'
 import './card-gallery.css'
 
 function GalleryCardImage({ src, alt, onClick }) {
@@ -69,6 +69,8 @@ export default function CardGallery({ onMemberClick, onBack, galleryMode = 'all'
           for (const sc of data.cards) {
             if (!localMap.has(sc.handle)) {
               localMap.set(sc.handle, sc)
+              // Seed local cache so clicking it shows instantly
+              cacheCard(sc.handle, sc.url)
             }
           }
           const merged = [...localMap.values()].sort((a, b) => (b.cachedAt || b.generatedAt || 0) - (a.cachedAt || a.generatedAt || 0))
