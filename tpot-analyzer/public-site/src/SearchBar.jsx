@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { SEARCH_JSON_ENDPOINT, fetchJson } from './dataEndpoints'
 
 export default function SearchBar({ onResult }) {
   const [query, setQuery] = useState('')
@@ -14,8 +15,7 @@ export default function SearchBar({ onResult }) {
     if (searchCache.current) return searchCache.current
     if (loadPromise.current) return loadPromise.current
 
-    loadPromise.current = fetch('/search.json')
-      .then(res => res.json())
+    loadPromise.current = fetchJson(SEARCH_JSON_ENDPOINT)
       .then(data => {
         searchCache.current = data
         return data

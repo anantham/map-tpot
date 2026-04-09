@@ -10,6 +10,7 @@ import CommunityPage from './CommunityPage'
 import CardGallery from './CardGallery'
 import EvidenceSummary from './EvidenceSummary'
 import useRouting from './useRouting'
+import { DATA_JSON_ENDPOINT, SEARCH_JSON_ENDPOINT, fetchJson } from './dataEndpoints'
 
 /**
  * ResultArea — always mounts when a classified/propagated result exists,
@@ -142,10 +143,19 @@ function ShareButton({ handle, memberships, communityMap }) {
 
 export default function App() {
   const [data, setData] = useState(null)
+  const [dataError, setDataError] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
-    fetch('/data.json').then(r => r.json()).then(setData)
+    fetchJson(DATA_JSON_ENDPOINT)
+      .then(payload => {
+        setData(payload)
+        setDataError(null)
+      })
+      .catch(error => {
+        console.error('Failed to load site data:', error)
+        setDataError(error.message)
+      })
   }, [])
 
   // Build lookup maps from data.json
@@ -187,8 +197,7 @@ export default function App() {
     if (pendingCommunity) return  // community takes precedence
 
     // Load search.json and look up the handle
-    fetch('/search.json')
-      .then(r => r.json())
+    fetchJson(SEARCH_JSON_ENDPOINT)
       .then(searchData => {
         const entry = searchData[pendingHandle]
         if (entry) {
@@ -266,6 +275,15 @@ export default function App() {
         galleryMode={galleryMode}
         onModeChange={setGalleryMode}
       />
+    )
+  }
+
+  if (dataError) {
+    return (
+      <div className="not-found">
+        <p>Failed to load site data.</p>
+        <p>{dataError}</p>
+      </div>
     )
   }
 

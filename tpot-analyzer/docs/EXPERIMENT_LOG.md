@@ -289,6 +289,56 @@ This reframes the multi-view architecture:
 
 **Next step:** Revise ADR 017 to reflect that views serve different purposes (detection vs characterization vs bridge detection), not a single ensemble vote. The semantic view enriches the account description rather than replacing the graph-based community assignment.
 
+## EXP-010: Can Blob-backed site data bypass gitignored public exports without fighting Vercel deploy limits?
+
+**Date:** 2026-04-09
+**Question:** Can we serve fresh `data.json` / `search.json` to the public site by uploading them to Vercel Blob and proxying them through site-owned API routes, instead of relying on gitignored files being present in each deployment?
+
+**Hypothesis:** Uploading the two generated JSON files to fixed public Blob pathnames (`public-site/data.json`, `public-site/search.json`) will solve the stale-data problem cleanly. The only remaining risk is whether Vercel deployment of the new proxy routes is blocked by the project's `rootDirectory` behavior.
+
+**Method:**
+1. Inspected the frontend fetch path and confirmed it hardcoded `/data.json` and `/search.json`.
+2. Added local code for:
+   - shared frontend endpoint constants,
+   - `GET /api/data` and `GET /api/search` Blob proxy routes,
+   - a `node scripts/upload-public-site-data.mjs` uploader,
+   - a human-readable verification script `scripts/verify_public_site_blob.py`.
+3. Ran targeted frontend tests, the public-site build, and the Python export test suite.
+4. Uploaded local `public/data.json` and `public/search.json` to Vercel Blob with stable pathnames and overwrite enabled.
+5. Probed the direct Blob URLs and the public `amiingroup.vercel.app/api/data` and `/api/search` routes.
+6. Tried three deployment paths for the new code: direct deploy from `public-site`, deploy from repo root, and local prebuild + prebuilt deploy.
+
+**Result:** **PARTIALLY CONFIRMED.**
+
+What worked:
+- Blob upload succeeded.
+- Direct Blob URLs serve the current export:
+  - `data.json` = `25,637,670` bytes
+  - `search.json` = `16,492,299` bytes
+- Local code is sound:
+  - frontend targeted tests: `43 passed`
+  - `npm run build`: passed
+  - `pytest tests/test_export_public_site.py -q`: `40 passed`
+
+What failed:
+- Public routes are still `404` because the new code is not yet deployed.
+- Vercel CLI deploy attempts continue to recurse the configured project root:
+  - from `tpot-analyzer/public-site`: path becomes `.../tpot-analyzer/public-site/tpot-analyzer/public-site`
+  - from repo root: CLI ignores the existing link and tries to infer a new project from the workspace folder name
+  - `vercel build --prod` only worked after locally nulling the ignored `.vercel/project.json.settings.rootDirectory`, but `vercel deploy --prebuilt --prod` still failed against the remote root-directory setting
+
+**Lesson:** Blob is a valid fix for runtime data delivery; the remaining blocker is Vercel deployment mechanics, not the Blob approach or the app code. The project has a deploy-path mismatch between Git-integrated `rootDirectory=tpot-analyzer/public-site` and the Vercel CLI's local deploy resolution.
+
+**Data stored:**
+- Blob URLs:
+  - `https://afob6mgxltjpsd5j.public.blob.vercel-storage.com/public-site/data.json`
+  - `https://afob6mgxltjpsd5j.public.blob.vercel-storage.com/public-site/search.json`
+- Verification output:
+  - local `tpot-analyzer/scripts/verify_public_site_blob.py`
+  - public URL probes against `https://amiingroup.vercel.app`
+
+**Next step:** Ship the new code through the Git-integrated deployment path or reconfigure project-level deploy settings so the proxy routes can go live; once that deploy lands, `/api/data` and `/api/search` should immediately serve the already-uploaded Blob data.
+
 ---
 
 ## Template for future experiments

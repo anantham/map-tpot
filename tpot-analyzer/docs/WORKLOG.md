@@ -881,3 +881,89 @@
         - `cd tpot-analyzer && .venv/bin/python -m scripts.verify_docs_hygiene` → `9/9` checks passing.
         - `tmpdir=$(mktemp -d /tmp/tpot-req-smoke.XXXXXX) && cd "$tmpdir" && python3 -m venv .venv && .venv/bin/pip install -r /Users/aditya/Documents/Ongoing\ Local/Project\ 2\ -\ Map\ TPOT/tpot-analyzer/requirements.txt` → base requirements install completed successfully (no NetworKit compile failure).
         - `cd tpot-analyzer && .venv/bin/python -m scripts.refresh_graph_snapshot --output-dir /tmp/tpot-onboard-check-data --frontend-output /tmp/tpot-onboard-check-analysis.json` → snapshot refresh completed and emitted expected artifacts.
+
+- [2026-03-26 23:56 PDT] **Archive-only active learning: local tweet content without paid Twitter fetches (Codex GPT-5)**
+    - **Hypothesis**
+        - Archive-backed accounts should be labelable from local tweet text alone, with the LLM capturing what they talk about while `--archive-only` prevents all twitterapi.io fetch paths.
+    - **Investigation loop**
+        - Attempt 1/3:
+            - hypothesis: the new archive-only path is ready for the full 240-account archive-safe handle set.
+            - test: `cd tpot-analyzer && .venv/bin/python3 -m scripts.active_learning --round 1 --archive-only --archive-limit 20 --accounts-file /tmp/tpot_archive_active_learning_handles.txt`
+            - result: rejected — every account failed on `sqlite3.OperationalError: no such column: like_count`; real `tweets` schema uses `favorite_count` and lacks `reply_count`.
+        - Attempt 2/3:
+            - refined_hypothesis: adapting `load_archive_tweets()` to the real archive schema is sufficient.
+            - test: smoke run on `0xosprey` + `33asr` with `--archive-only --archive-limit 5`.
+            - result: partially confirmed — archive rows loaded and LLM labeling started, but reply tweets still leaked one paid `thread_context` API call before archive-only finished.
+        - Attempt 3/3:
+            - final_hypothesis: archive-only must gate both tweet fetches and reply/thread enrichment; after that, frontier-ranked archive accounts can be labeled with zero additional twitterapi.io spend.
+            - test: probe run on `5matthewdub`, then full active-learning tranche on `uh_cess`, `vyakart`, `vorathep112` via `--archive-only --archive-limit 5`.
+            - result: confirmed — no new `enrichment_log` spend, `reply_fetch_rows` stayed `0`, `thread_context_cache` stayed `310`, and the three frontier accounts all completed with LLM-derived content labels.
+    - **Changes (line numbers + why)**
+        - `tpot-analyzer/scripts/fetch_tweets_for_account.py:274-387`: make `load_archive_tweets()` adapt to real archive schemas (`favorite_count` vs `like_count`, optional `reply_to_username`) and preserve archive-only insertion into `enriched_tweets`.
+        - `tpot-analyzer/scripts/active_learning.py:415-559`: gate reply-thread context with `allow_paid_api`; archive-only now uses cached thread context only and skips API fetch on cache miss.
+        - `tpot-analyzer/scripts/active_learning.py:563-715`: preserve archive-only contract through `run_round_1()` by skipping budget enforcement and passing `allow_paid_api=False` into tweet labeling.
+        - `tpot-analyzer/src/archive/thread_fetcher.py:51-81`: add `allow_api` parameter so cache misses can degrade gracefully instead of silently calling twitterapi.io.
+        - `tpot-analyzer/tests/test_fetch_tweets.py:124-217`: add regression coverage for both synthetic and real archive `tweets` schemas and confirm archive-only mode skips paid tweet fetches.
+        - `tpot-analyzer/tests/test_active_learning.py:201-314`: add coverage for archive-only budget bypass and archive-only disabling of paid context enrichment during `run_round_1()`.
+    - **Runtime outcome**
+        - Full active-learning frontier intersected with locally archived accounts yielded only 3 not-yet-enriched accounts (`uh_cess`, `vyakart`, `vorathep112`). The larger 240-handle archive-safe set is a bulk archive sweep, not an uncertainty-ranked tranche.
+        - `uh_cess` triaged ambiguous from content (`LLM-Whisperers`, `highbies`, `Collective-Intelligence` split).
+        - `vyakart` triaged ambiguous from content (`Tech-Intellectuals`, `Collective-Intelligence`, `Core-TPOT` split).
+        - `vorathep112` triaged ambiguous from content (`highbies`, `Quiet-Creatives`, `Relational-Explorers` split).
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/python3 -m pytest tests/test_fetch_tweets.py tests/test_active_learning.py -q` → `35 passed`.
+        - Baseline metrics before fixes: `spent=5.05`, `reply_fetch_rows=0`, `archive_enriched_rows=0`, `thread_cache_rows=310`.
+        - Post-fix probe (`5matthewdub`): completed with `triage=high`, no `Fetching thread context` log lines, and no change to `spent` or `thread_cache_rows`.
+        - Post-frontier run metrics: `spent=5.05`, `reply_fetch_rows=0`, `thread_cache_rows=310`, `archive_enriched_rows=30`, `archive_enriched_accounts=6`, `label_sets_active_learning=1527`, `tweet_tags_llm_bits=4045`.
+        - `cd tpot-analyzer && .venv/bin/python3 -m scripts.verify_active_learning` → enrichment/labeling checks pass; existing verifier still reports budget over prior cap (`$5.05 > $5.00`) and false `0/1527` model coverage because only `llm_ensemble` consensus rows are persisted.
+
+- [2026-04-09 15:13 UTC] **Public-site Blob data delivery + Vercel recovery attempt (Codex GPT-5)**
+    - **Assumptions**
+        - `find-my-ingroup` remains the canonical Vercel project and should serve `amiingroup.vercel.app`.
+        - The frontend should read generated export JSON through stable site-owned routes instead of relying on gitignored static assets being present in every deployment.
+        - The least risky implementation is: upload `data.json` and `search.json` to fixed Blob pathnames, then proxy them through lightweight serverless routes.
+    - **Predicted outcome**
+        - Blob-backed `/api/data` and `/api/search` should let the frontend load current exports even when `public/data.json` and `public/search.json` are gitignored.
+        - Local build and tests should pass without touching the large export pipeline logic.
+        - Vercel deployment should succeed once the root-directory recursion is neutralized; if not, the blocker is project-level deploy behavior rather than app code.
+    - **Confidence**
+        - `0.82`
+    - **Fallback plan**
+        - If Vercel CLI continues to recurse `tpot-analyzer/public-site`, ship the code through the Git integration path and keep Blob upload as a separate post-export step.
+        - If the API proxy approach proves fragile, fall back to build-time public blob URLs and resolve them from config instead of proxy routes.
+    - **Changes (files + why)**
+        - `tpot-analyzer/public-site/src/dataEndpoints.js:1-10`: add a single source of truth for `DATA_JSON_ENDPOINT`, `SEARCH_JSON_ENDPOINT`, and strict JSON fetch error handling.
+        - `tpot-analyzer/public-site/src/App.jsx:13,145-159,199-211,281-288`: switch homepage and handle-lookup loading from `/data.json` + `/search.json` to `/api/data` + `/api/search`, and surface a visible data-load failure instead of silent blank loading.
+        - `tpot-analyzer/public-site/src/SearchBar.jsx:1-30`: route search-index loading through the new shared endpoint helper so the search box reads Blob-backed data the same way as the main app.
+        - `tpot-analyzer/public-site/api/_blobSiteData.js:1-79`: add shared Blob read/proxy logic with descriptive config/not-found/runtime errors for `data` and `search`.
+        - `tpot-analyzer/public-site/api/data.js:1-5` and `tpot-analyzer/public-site/api/search.js:1-5`: expose stable site-owned JSON routes that proxy the fixed Blob pathnames.
+        - `tpot-analyzer/public-site/scripts/upload-public-site-data.mjs:1-64`: add a repeatable uploader that reads `BLOB_READ_WRITE_TOKEN` from `.env.local` when necessary and overwrites `public-site/data.json` + `public-site/search.json` in Blob.
+        - `tpot-analyzer/scripts/verify_public_site_blob.py:1-154`: add the required human-friendly verification script with ✓/✗ output, byte counts, local/remote parity checks, and next-step guidance.
+        - `tpot-analyzer/public-site/src/dataEndpoints.test.js:1-35` and `tpot-analyzer/public-site/src/SearchBar.test.jsx:13-21,162-169`: add/repair frontend tests so fetch mocks match real `Response` semantics and cover the new endpoint helper.
+    - **Investigation summary**
+        - Attempt 1/3:
+            - hypothesis: `amiingroup.vercel.app` was still pointed at a stale or missing deployment.
+            - test: re-point alias to healthy deployment `dpl_6x1WqhjQCf6Ysx6fHLEvTzrZK8zH` and probe `/api/generate-card`.
+            - result: confirmed — alias recovered and backend returned the expected `400 validation_error`.
+        - Attempt 2/3:
+            - refined_hypothesis: missing runtime data, not missing API credentials, is what still blocks the frontend.
+            - test: probe `amiingroup.vercel.app/data.json` and `amiingroup.vercel.app/search.json`; inspect app fetch code.
+            - result: confirmed — both endpoints were `404` and the frontend hardcoded those paths.
+        - Attempt 3/3:
+            - final_hypothesis: Blob upload plus proxy routes will solve data delivery, but Vercel CLI deploy may still be blocked by project root-directory recursion.
+            - test: upload both JSON files to Blob, build locally, try direct deploy, root deploy, and prebuilt deploy.
+            - result: partially confirmed — Blob uploads succeeded, local build/tests succeeded, but CLI deploy paths still failed on project root-directory recursion.
+    - **Verification**
+        - `cd tpot-analyzer/public-site && npm test -- --run src/dataEndpoints.test.js src/SearchBar.test.jsx src/App.test.jsx` → `43 passed`.
+        - `cd tpot-analyzer/public-site && npm run build` → successful Vite production build.
+        - `cd tpot-analyzer && .venv/bin/python -m pytest tests/test_export_public_site.py -q` → `40 passed`.
+        - `cd tpot-analyzer/public-site && node scripts/upload-public-site-data.mjs` → uploaded:
+          `https://afob6mgxltjpsd5j.public.blob.vercel-storage.com/public-site/data.json`
+          and
+          `https://afob6mgxltjpsd5j.public.blob.vercel-storage.com/public-site/search.json`
+        - `curl -sI https://afob6mgxltjpsd5j.public.blob.vercel-storage.com/public-site/data.json` and `.../search.json` → both `HTTP/2 200`.
+        - `cd /Users/aditya/Documents/Ongoing\ Local/Project\ 2\ -\ Map\ TPOT && tpot-analyzer/.venv/bin/python tpot-analyzer/scripts/verify_public_site_blob.py --base-url https://amiingroup.vercel.app` → local checks pass; remote `/api/data` and `/api/search` still `404`, correctly identifying deploy as the remaining blocker.
+    - **Operational outcome**
+        - Cleaned stray local Vercel state, restored `amiingroup.vercel.app` to the healthy `find-my-ingroup` deployment, and deleted accidental `dist` / `output` Vercel projects.
+        - Blob data is live and current.
+        - App code for Blob-backed routes is ready locally, but not yet deployed because Vercel CLI keeps re-applying `tpot-analyzer/public-site` during deploy resolution.
