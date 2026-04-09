@@ -70,6 +70,7 @@ export default function CommunityCard({
         color: community?.color || '#666',
         weight: m.weight,
         pct: Math.round(m.weight * 100),
+        ci: m.ci,
       }
     })
     .sort((a, b) => b.weight - a.weight)
@@ -199,22 +200,32 @@ export default function CommunityCard({
       )}
 
       <div className="card-bars">
-        {bars.map((bar, i) => (
-          <div className="bar-row" key={i}>
-            <span className="bar-label">{bar.name}</span>
-            <div className="bar-track">
-              <div
-                className="bar-fill"
-                style={{
-                  width: `${bar.pct}%`,
-                  backgroundColor: useColor ? bar.color : '#555',
-                  opacity: ciOpacity,
-                }}
-              />
+        {bars.map((bar, i) => {
+          const formatBound = (val) => val != null ? `${Math.round(val * 100)}%` : '?'
+          return (
+            <div className="bar-row" key={i}>
+              <span className="bar-label">{bar.name}</span>
+              <div className="bar-track">
+                <div
+                  className="bar-fill"
+                  style={{
+                    width: `${bar.pct}%`,
+                    backgroundColor: useColor ? bar.color : '#555',
+                    opacity: ciOpacity,
+                  }}
+                />
+              </div>
+              <div className="bar-value-group">
+                <span className="bar-pct">{bar.pct}%</span>
+                {bar.ci && (
+                  <span className="bar-ci-range">
+                    [{formatBound(bar.ci[0])}-{formatBound(bar.ci[1])}]
+                  </span>
+                )}
+              </div>
             </div>
-            <span className="bar-pct">{bar.pct}%</span>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {!isClassified && confidence < 0.5 && (

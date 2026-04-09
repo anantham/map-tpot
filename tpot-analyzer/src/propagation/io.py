@@ -40,6 +40,10 @@ def save_results(result: PropagationResult, output_dir: Path) -> Path:
     )
     if result.seed_neighbor_counts is not None:
         save_arrays["seed_neighbor_counts"] = result.seed_neighbor_counts.astype(np.int16)
+    if result.stability is not None:
+        save_arrays["stability"] = result.stability.astype(np.float32)
+    if result.confidence_intervals is not None:
+        save_arrays["confidence_intervals"] = result.confidence_intervals.astype(np.float32)
 
     np.savez_compressed(str(archive_path), **save_arrays)
     np.savez_compressed(str(active_path), **save_arrays)

@@ -235,8 +235,96 @@ def propagate(
     holdout_seed: int = 42,
     seed_eligibility: bool = True,
     db_path=None,
+    n_bootstrap: int = 0,
 ) -> tuple[PropagationResult, dict | None]:
-    """Run Directed PPR + Lift label propagation."""
+    """Run Directed PPR + Lift label propagation.
+    
+    If n_bootstrap > 0, performs multiple runs with different seed subsets
+    to estimate stability and confidence intervals.
+    """
+    n_nodes = adjacency.shape[0]
+
+    # First pass: Get basic metadata (community names etc)
+    _, _, community_ids, community_names, community_colors, holdout_info, _ = (
+        load_community_labels(
+            node_ids, config,
+            holdout_fraction=holdout_fraction,
+            holdout_seed=holdout_seed,
+            seed_eligibility=seed_eligibility,
+            db_path=db_path,
+        )
+    )
+    K = len(community_ids)
+
+    if n_bootstrap > 0:
+        print(f"\n--- Running Bootstrap ({n_bootstrap} iterations, 20% holdout) ---")
+        bootstrap_scores = [] # list of (n, K) arrays
+        
+        # We perform bootstrap only for communities (not "none")
+        for i in range(n_bootstrap):
+            print(f"  Bootstrap Iteration {i+1}/{n_bootstrap}...")
+            # Use 20% holdout for bootstrap stability even if global holdout is different
+            res, _ = _propagate_once(
+                adjacency, node_ids, config,
+                holdout_fraction=0.2, # Constant for stability check
+                holdout_seed=holdout_seed + i,
+                seed_eligibility=seed_eligibility,
+                db_path=db_path
+            )
+            # Store only the community memberships (first K columns)
+            bootstrap_scores.append(res.memberships[:, :K])
+            
+        bootstrap_scores = np.array(bootstrap_scores) # (n_bootstrap, n, K)
+        
+        # Calculate stats
+        mean_memberships = np.mean(bootstrap_scores, axis=0)
+        stds = np.std(bootstrap_scores, axis=0)
+        ci_low = np.percentile(bootstrap_scores, 2.5, axis=0)
+        ci_high = np.percentile(bootstrap_scores, 97.5, axis=0)
+        
+        # Stability = 1 - (std / mean)
+        # Avoid division by zero
+        safe_mean = np.where(mean_memberships > 1e-6, mean_memberships, 1.0)
+        stability = (1.0 - (stds / safe_mean)).clip(0.0, 1.0)
+        
+        # Run one final "clean" propagation for the "none" column and definitive masks
+        print("\n  Finalizing definitive propagation...")
+        final_result, final_holdout = _propagate_once(
+            adjacency, node_ids, config,
+            holdout_fraction=holdout_fraction,
+            holdout_seed=holdout_seed,
+            seed_eligibility=seed_eligibility,
+            db_path=db_path
+        )
+        
+        # Merge bootstrap stats into final result
+        # We replace the community columns with the mean from bootstrap
+        final_result.memberships[:, :K] = mean_memberships
+        final_result.stability = stability
+        # confidence_intervals shape (n, K, 2)
+        final_result.confidence_intervals = np.stack([ci_low, ci_high], axis=-1)
+        
+        return final_result, final_holdout
+    else:
+        return _propagate_once(
+            adjacency, node_ids, config,
+            holdout_fraction=holdout_fraction,
+            holdout_seed=holdout_seed,
+            seed_eligibility=seed_eligibility,
+            db_path=db_path
+        )
+
+
+def _propagate_once(
+    adjacency: sp.csr_matrix,
+    node_ids: np.ndarray,
+    config: PropagationConfig,
+    holdout_fraction: float = 0.0,
+    holdout_seed: int = 42,
+    seed_eligibility: bool = True,
+    db_path=None,
+) -> tuple[PropagationResult, dict | None]:
+    """Single-run core logic."""
     n_nodes = adjacency.shape[0]
 
     boundary, labeled_idx, community_ids, community_names, community_colors, holdout_info, raw_seed_weights = (
