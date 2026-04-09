@@ -111,6 +111,9 @@ export default function EvidenceSummary({
       {topBar && (
         <p className="evidence-line">
           Community: {topBar.name} ({topBar.pct}%).
+          {bars.filter(b => b.pct >= 5).length >= 3 ? (
+            <span className="evidence-bridge-label"> (TPOT Bridge Account)</span>
+          ) : null}
           {bars.length > 1 && ` Connected to ${bars.filter(b => b.pct >= 5).length} communities.`}
         </p>
       )}
