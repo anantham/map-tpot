@@ -219,12 +219,67 @@ export default function About({ meta, onNavigate }) {
               communities.
             </p>
             <p>
-              The result is a graph of 2.7 million connections across 300,000 accounts spanning eight
-              relationship types. Follows indicate who you listen to. Quotes show who you publicly
-              engage with. Mentions reveal who you address. Replies capture conversations. Likes
-              reflect endorsements. Retweets show amplification. Co-follows highlight shared audiences.
-              Follower relationships indicate who listens to you.
+              The result is a combined graph of 2.7 million weighted connections across 298,000 accounts spanning eight
+              relationship types.
             </p>
+            <div className="about-recall-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Edge Type</th>
+                    <th>Count</th>
+                    <th>Meaning</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Mention</td>
+                    <td>1,882,155</td>
+                    <td>Who you address</td>
+                  </tr>
+                  <tr>
+                    <td>Follow</td>
+                    <td>803,998</td>
+                    <td>Who you listen to</td>
+                  </tr>
+                  <tr>
+                    <td>Follower</td>
+                    <td>533,749</td>
+                    <td>Who listens to you</td>
+                  </tr>
+                  <tr>
+                    <td>Quote</td>
+                    <td>343,886</td>
+                    <td>Who you publicly comment on</td>
+                  </tr>
+                  <tr>
+                    <td>Co-followed</td>
+                    <td>33,402</td>
+                    <td>Accounts sharing an audience</td>
+                  </tr>
+                  <tr>
+                    <td>Like</td>
+                    <td>24,501</td>
+                    <td>Endorsements</td>
+                  </tr>
+                  <tr>
+                    <td>Reply</td>
+                    <td>12,021</td>
+                    <td>Direct conversations</td>
+                  </tr>
+                  <tr>
+                    <td>Retweet</td>
+                    <td>6,989</td>
+                    <td>Audience amplification</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Total raw edges</strong></td>
+                    <td><strong>3,640,701</strong></td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </section>
 
           {/* Stage 2: Reading the Signals */}
