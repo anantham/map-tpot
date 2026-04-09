@@ -4,7 +4,7 @@ import CommunityCard from './CommunityCard'
 import ContributePrompt from './ContributePrompt'
 import CardDownload from './CardDownload'
 import Settings, { SettingsIcon } from './Settings'
-import { useCardGeneration } from './GenerateCard'
+import { useCardGeneration, getAllCachedCards, cacheCard } from './GenerateCard'
 import About from './About'
 import CommunityPage from './CommunityPage'
 import CardGallery from './CardGallery'
@@ -156,6 +156,22 @@ export default function App() {
         console.error('Failed to load site data:', error)
         setDataError(error.message)
       })
+
+    // Seed card cache from server gallery on load
+    fetch('/api/gallery')
+      .then(r => r.json())
+      .then(data => {
+        if (data.cards && data.cards.length > 0) {
+          const localCards = getAllCachedCards()
+          const localMap = new Map(localCards.map(c => [c.handle, c]))
+          for (const sc of data.cards) {
+            if (!localMap.has(sc.handle)) {
+              cacheCard(sc.handle, sc.url)
+            }
+          }
+        }
+      })
+      .catch(() => {})
   }, [])
 
   // Build lookup maps from data.json

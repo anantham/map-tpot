@@ -241,7 +241,7 @@ async function generateServerless(cardRequest, signal, retryCount = 0, force = f
   }
 
   const data = await response.json();
-  return data.imageUrl;
+  return { imageUrl: data.imageUrl, cached: data.cached };
 }
 
 /**
@@ -319,13 +319,16 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
       });
 
       let url;
+      let isCached = false;
       if (byokKey) {
         // Direct call with user's key
         const prompt = buildPromptText(cardRequest);
         url = await generateDirect(byokKey, prompt, controller.signal);
       } else {
         // Serverless path — force=true when regenerating to bust server cache
-        url = await generateServerless(cardRequest, controller.signal, 0, isForceRegen);
+        const res = await generateServerless(cardRequest, controller.signal, 0, isForceRegen);
+        url = res.imageUrl;
+        isCached = res.cached;
       }
 
       // Only update state if this is still the current request
@@ -347,8 +350,8 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
             }),
           }).catch(() => {}); // fire-and-forget
         }
-        // Increment per-user generation count (only for serverless path)
-        if (!byokKey) {
+        // Increment per-user generation count (only for serverless path and if not cached)
+        if (!byokKey && !isCached) {
           const newCount = incrementGenCount();
           setRemaining(Math.max(0, MAX_FREE_GENS - newCount));
         }
