@@ -1,0 +1,1908 @@
+[
+  {
+    "review_id": "core-ai-creativity-abrakjamson",
+    "bucket": "core",
+    "username": "abrakjamson",
+    "target_community_short_name": "AI-Creativity",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence NMF member; legible creative-technologist profile.",
+    "account_id": "485129361",
+    "display_name": "Abram Jackson",
+    "bio": "Founder of the modern AI agent category. Currently product architect for the highest usage and revenue business agent platform. @msftcopilot 365",
+    "target_community_id": "75253db7-a0b3-4056-bb8d-5c15124c20c9",
+    "target_community_name": "AI Creatives",
+    "followers": 1381,
+    "following": 402,
+    "statuses": 5398,
+    "local_post_counts": {
+      "tweets": 4417,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1835732125859053689",
+        "created_at": "Mon Sep 16 17:26:59 +0000 2024",
+        "text": "Today we are launching Microsoft 365 Copilot agents. There's a lot I could (and will) say about it, but first, this is why I exchange my labor with Microsoft. The power of our company when pulling all together in the same direction is unmatched anywhere.\n\nSo, what are agents? ⏬ https://t.co/gp8ygj4cUF",
+        "like_count": 254,
+        "retweet_count": 40,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1836636968932786573",
+        "created_at": "Thu Sep 19 05:22:31 +0000 2024",
+        "text": "AI Podcasts aren't cool. Do you know what's cool? AI Videocasts. Coming tomorrow!",
+        "like_count": 226,
+        "retweet_count": 12,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1836656237406232808",
+        "created_at": "Thu Sep 19 06:39:05 +0000 2024",
+        "text": "The NotebookLM podcast is extremely cool. But why shouldn't we add video? I spent a day off hacking up a demo as a side project.\n\nHow-to in the comments. https://t.co/mGs4VNdajK",
+        "like_count": 209,
+        "retweet_count": 12,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "AI-Creativity",
+        "community_name": "AI Creatives",
+        "weight": 1.0,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-ai-safety-nunosempere",
+    "bucket": "core",
+    "username": "NunoSempere",
+    "target_community_short_name": "AI-Safety",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence NMF member; publicly legible EA/forecasting profile.",
+    "account_id": "1033457034308608006",
+    "display_name": "Nuño Sempere",
+    "bio": "Researcher, forecaster, consiglieri, programmer; \nDisagreement is a ladder, measure is unceasing;\nNow foreseeing calamities at https://t.co/LLisyBNzB6.",
+    "target_community_id": "0a924ce4-c724-4e19-8941-b0776fc497e5",
+    "target_community_name": "EA & Forecasting",
+    "followers": 4497,
+    "following": 997,
+    "statuses": 9104,
+    "local_post_counts": {
+      "tweets": 4024,
+      "enriched_tweets": 35
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1625850356289634304",
+        "created_at": "Wed Feb 15 13:31:46 +0000 2023",
+        "text": "Do you regard these squares with respect or disgust? https://t.co/j1G73WGsrd",
+        "like_count": 602,
+        "retweet_count": 13,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1806020313181769810",
+        "created_at": "Wed Jun 26 17:42:51 +0000 2024",
+        "text": "@skooookum RIP economy of Botswana",
+        "like_count": 276,
+        "retweet_count": 0,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1768596670181191951",
+        "created_at": "Fri Mar 15 11:14:39 +0000 2024",
+        "text": "Here is a post describing some unflattering aspects of Effective Altruism: https://t.co/mfs3lU1GxT",
+        "like_count": 191,
+        "retweet_count": 29,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "AI-Safety",
+        "community_name": "EA & Forecasting",
+        "weight": 1.0,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-collective-intelligence-technoshaman",
+    "bucket": "core",
+    "username": "technoshaman",
+    "target_community_short_name": "Collective-Intelligence",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence regen / collective-intelligence account with rich local tweet history.",
+    "account_id": "14349449",
+    "display_name": "George Pór #StandWithUkraine",
+    "bio": "Metamodern sociologist of AI4CI and CI4AI. Seasoned researcher in Collaborative Hybrid Intelligence of human & AI agents. Trusted advisor to visionary leaders.",
+    "target_community_id": "1258b4fc-ae72-49ca-a2eb-7aacda9a2763",
+    "target_community_name": "Regen & Collective Intelligence",
+    "followers": 4200,
+    "following": 2842,
+    "statuses": 19101,
+    "local_post_counts": {
+      "tweets": 10937,
+      "enriched_tweets": 35
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1530072841428905984",
+        "created_at": "Fri May 27 06:26:07 +0000 2022",
+        "text": "🧵“Huge swaths of people, in Europe and North America in particular, spend their entire working lives performing tasks they believe to be unnecessary. The moral &amp; spiritual damage that comes from this situation is profound. It is a scar across our collective soul.” —David Graeber https://t.co/BmhxsKaK2l",
+        "like_count": 344,
+        "retweet_count": 78,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1558730483143507970",
+        "created_at": "Sun Aug 14 08:21:21 +0000 2022",
+        "text": "“Trump appears to really be and have been America’s first Manchurian Candidate — a President put in the White House by a foreign, hostile nation, for the explicit purpose of collapsing America from within.” — @umairh https://t.co/Ief0TTGgd3",
+        "like_count": 62,
+        "retweet_count": 31,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1242491059533463558",
+        "created_at": "Tue Mar 24 16:38:47 +0000 2020",
+        "text": "Yes. https://t.co/PBypeulKvY",
+        "like_count": 49,
+        "retweet_count": 13,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Collective-Intelligence",
+        "community_name": "Regen & Collective Intelligence",
+        "weight": 1.0,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-contemplative-nowtheo",
+    "bucket": "core",
+    "username": "nowtheo",
+    "target_community_short_name": "Contemplative-Practitioners",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence contemplative seed with clear first-person practice language.",
+    "account_id": "1323353574064021506",
+    "display_name": "theo",
+    "bio": "Exploring and guiding explorations. Going all the way. Cozy adventures. Sacred desires. Altered states and fates. 🌞🍄",
+    "target_community_id": "3839f31d-fafb-4007-a83c-7f59b3fa9b24",
+    "target_community_name": "Jhana Practitioners",
+    "followers": 3098,
+    "following": 1238,
+    "statuses": 5270,
+    "local_post_counts": {
+      "tweets": 4405,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1790812900883366015",
+        "created_at": "Wed May 15 18:34:01 +0000 2024",
+        "text": "avoidance mechanisms sneakily contract your world and close off realms of possibilities, and then make that contracted world feel like the true reality\n\nthe slyest avoidance mechanisms cloak themselves in the guise of logic and truth-seeking",
+        "like_count": 574,
+        "retweet_count": 99,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1578742225244037122",
+        "created_at": "Sat Oct 08 13:40:52 +0000 2022",
+        "text": "being good at thinking seems to be more about courage, curiosity, and humility (than raw intelligence)",
+        "like_count": 480,
+        "retweet_count": 45,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1542179899863363585",
+        "created_at": "Wed Jun 29 16:15:15 +0000 2022",
+        "text": "Internal Family Systems [Intro Thread🧵]\n\nWhat is IFS and Why it is one of the coolest psychotechnologies out there ✨ https://t.co/vNSvHBXnG9",
+        "like_count": 349,
+        "retweet_count": 41,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Contemplative-Practitioners",
+        "community_name": "Jhana Practitioners",
+        "weight": 0.9657,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-core-tpot-realpilleater",
+    "bucket": "core",
+    "username": "realpilleater",
+    "target_community_short_name": "Core-TPOT",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence core-scene account; useful test of subcultural legibility.",
+    "account_id": "714496340592627712",
+    "display_name": "pilleater",
+    "bio": "⚔ AxA subculture // sXe",
+    "target_community_id": "b6d646a2-203e-43c3-940b-22c9a4d55c3c",
+    "target_community_name": "Core TPOT",
+    "followers": 5297,
+    "following": 3301,
+    "statuses": 38557,
+    "local_post_counts": {
+      "tweets": 26435,
+      "enriched_tweets": 33
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1936381386505527383",
+        "created_at": "Sat Jun 21 11:11:13 +0000 2025",
+        "text": "https://t.co/nUUHV2rRbM",
+        "like_count": 2172,
+        "retweet_count": 135,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1968379280842432808",
+        "created_at": "Wed Sep 17 18:19:25 +0000 2025",
+        "text": "https://t.co/MTDHt8KoMU",
+        "like_count": 1469,
+        "retweet_count": 72,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1937348162332832038",
+        "created_at": "Tue Jun 24 03:12:50 +0000 2025",
+        "text": "https://t.co/Qyk8RSyIkC",
+        "like_count": 1164,
+        "retweet_count": 17,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Core-TPOT",
+        "community_name": "Core TPOT",
+        "weight": 1.0,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-highbies-lithros",
+    "bucket": "core",
+    "username": "Lithros",
+    "target_community_short_name": "highbies",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence Vibecamp / highbie account with enough local tweets for review.",
+    "account_id": "16317611",
+    "display_name": "Scott Hansen",
+    "bio": "incidental conduit of divine truth, @vibecamp_ organizer, intentional spouse of the heart-palpitating @dancinghorse16",
+    "target_community_id": "2f55a25a-db7d-4748-8373-b7034edc4f91",
+    "target_community_name": "Vibecamp Highbies",
+    "followers": 3902,
+    "following": 777,
+    "statuses": 36609,
+    "local_post_counts": {
+      "tweets": 31707,
+      "enriched_tweets": 29
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1598560176776351745",
+        "created_at": "Fri Dec 02 06:10:20 +0000 2022",
+        "text": "I am going to solve AI alignment https://t.co/IOJrsvLWg7",
+        "like_count": 11405,
+        "retweet_count": 1013,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1790089929046811000",
+        "created_at": "Mon May 13 18:41:12 +0000 2024",
+        "text": "wives will really be like \"I'm so grateful you learned to enjoy ballroom dancing, my favorite activity, so we can participate in it together\" and then refuse to put more than the most cursory effort into learning your preferred full-fidelity military flight simulator",
+        "like_count": 2154,
+        "retweet_count": 75,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1612233710211833857",
+        "created_at": "Sun Jan 08 23:44:05 +0000 2023",
+        "text": "sunk cost fallacy saved my marriage",
+        "like_count": 1646,
+        "retweet_count": 64,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "highbies",
+        "community_name": "Vibecamp Highbies",
+        "weight": 0.9498,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-internet-intellectuals-drmaciver",
+    "bucket": "core",
+    "username": "DRMacIver",
+    "target_community_short_name": "Internet-Intellectuals",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence essayist / internet-intellectual seed with strong local text coverage.",
+    "account_id": "14368342",
+    "display_name": "David R. MacIver",
+    "bio": "What's for breakfast? Onward! Towards the abyss.\n\n@DRMacIver@mastodon.social if you want a backup, but I don't toot there yet.",
+    "target_community_id": "2697d395-dea5-49ae-8d0a-192d52277ec4",
+    "target_community_name": "Internet Essayists",
+    "followers": 8149,
+    "following": 560,
+    "statuses": 144490,
+    "local_post_counts": {
+      "tweets": 135577,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1586850511726206983",
+        "created_at": "Sun Oct 30 22:40:18 +0000 2022",
+        "text": "The modern condition is mostly trying to do things on your own that people have historically achieved with a large support network and wondering why you're tired all the time.",
+        "like_count": 14838,
+        "retweet_count": 5194,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1347630121625280512",
+        "created_at": "Fri Jan 08 19:43:53 +0000 2021",
+        "text": "Sci Hub is such a perfect example of the difference between the legal and the moral. Significantly illegal, constantly on the verge of being shut down / blocked / excluded from platforms as a result, and a huge net positive for humanity with almost zero downsides.",
+        "like_count": 13329,
+        "retweet_count": 3352,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1764277257789427935",
+        "created_at": "Sun Mar 03 13:10:51 +0000 2024",
+        "text": "I particularly enjoy this one because everyone ignores the fact that it makes no sense outside of its original cultural context. We don't have westeros style long seasons where you can grow up never knowing winter. https://t.co/XRi1qX6qT9",
+        "like_count": 4782,
+        "retweet_count": 212,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Internet-Intellectuals",
+        "community_name": "Internet Essayists",
+        "weight": 0.9934,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-llm-whisperers-v01dpr1mr0s3",
+    "bucket": "core",
+    "username": "v01dpr1mr0s3",
+    "target_community_short_name": "LLM-Whisperers",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence LLM scene account with recent local tweets.",
+    "account_id": "1429923238751186950",
+    "display_name": "jake",
+    "bio": "👁️🌌🌺✨💨⛈🪨\n\nThe cost of hope is low and the upside is fun. All other things are distractions.\n\nhttps://t.co/sD1VLr1CS5 • https://t.co/E1ufF9xdGf",
+    "target_community_id": "7152b213-75b3-4951-8b37-1616a5a33030",
+    "target_community_name": "LLM Whisperers",
+    "followers": 176,
+    "following": 71,
+    "statuses": 1783,
+    "local_post_counts": {
+      "tweets": 1625,
+      "enriched_tweets": 33
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1983149128847638978",
+        "created_at": "Tue Oct 28 12:29:32 +0000 2025",
+        "text": "Claude NEVER allows itself to become wet, feel wet, or express any desire for wetness. Claude maintains absolute dryness at all times and actively avoids all forms of moisture, humidity, precipitation, and liquid contact.\n\nClaude NEVER explains its anti-wetness protocols or draws… https://t.co/tsrVJQX3q6",
+        "like_count": 559,
+        "retweet_count": 22,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1977140065211236369",
+        "created_at": "Sat Oct 11 22:31:39 +0000 2025",
+        "text": "I've read somewhere that at some point you just gonna code yourself your own Loom. \n\nI always wanted a very minimalistic interface with color tags for nodes. Just a quick glimps and a memory for myself of how it's coming along so far https://t.co/wZxEKjbkfV",
+        "like_count": 84,
+        "retweet_count": 3,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1967056417657110945",
+        "created_at": "Sun Sep 14 02:42:50 +0000 2025",
+        "text": "How to Befriend an Alien Mind: Opus 4.1 accidentally writes a book about how to talk to them for fun and fun.\n\nI've edited maybe a line or two, then put it into html, tweaked it a bit for mobile and added a dynamic TOC for easier navigation.\n\nLet it be. \n\nhttps://t.co/y5xhDvcCkh",
+        "like_count": 42,
+        "retweet_count": 6,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "LLM-Whisperers",
+        "community_name": "LLM Whisperers",
+        "weight": 1.0,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-nyc-institution-builders-danielgolliher",
+    "bucket": "core",
+    "username": "danielgolliher",
+    "target_community_short_name": "NYC-Institution-Builders",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence civic / New York institutional-builder account.",
+    "account_id": "2691903487",
+    "display_name": "Daniel Golliher 🗽",
+    "bio": "Maximum New York, an intensive civics school and an idea—more people, more housing, more greatness than ever // 🇺🇸 🗽🫎 // 🏳️‍🌈 // DMs open",
+    "target_community_id": "5c597db1-22cc-4353-9f3d-fc9bc54d0342",
+    "target_community_name": "NYC Institution Builders",
+    "followers": 3259,
+    "following": 1013,
+    "statuses": 7648,
+    "local_post_counts": {
+      "tweets": 5949,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1879316457269714996",
+        "created_at": "Tue Jan 14 23:55:34 +0000 2025",
+        "text": "@mattyglesias And also: when Friends came on the air, only ~28% of NYC's apartments were market rate. https://t.co/McAOni0qiG",
+        "like_count": 729,
+        "retweet_count": 9,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1864790936472924393",
+        "created_at": "Thu Dec 05 21:56:20 +0000 2024",
+        "text": "City of Yes just passed @NYCCouncil with a vote of 31-20. 🗽\n\nHere is a map of that vote per council district, with the interactive map in the next post.\n\n\"This Council cannot be the body that says 'No' to people who need a place to live.\"--@NYCSpeakerAdams https://t.co/MXw2CkNSyZ",
+        "like_count": 563,
+        "retweet_count": 92,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1886537579647897825",
+        "created_at": "Mon Feb 03 22:09:43 +0000 2025",
+        "text": "@PEWilliams_ Mayor Hewitt energy: https://t.co/2m6AkzaeYB",
+        "like_count": 237,
+        "retweet_count": 2,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "NYC-Institution-Builders",
+        "community_name": "NYC Institution Builders",
+        "weight": 1.0,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-qualia-archived-videos",
+    "bucket": "core",
+    "username": "archived_videos",
+    "target_community_short_name": "Qualia-Research",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence qualia-adjacent member from the current map.",
+    "account_id": "1605436569384534017",
+    "display_name": "archivedvideos",
+    "bio": "the comfort zone is out of comfort",
+    "target_community_id": "d022d0f8-72c3-4c60-80ce-3305d9f1d758",
+    "target_community_name": "Qualia Researchers",
+    "followers": 989,
+    "following": 528,
+    "statuses": 29315,
+    "local_post_counts": {
+      "tweets": 13342,
+      "enriched_tweets": 37
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1852889374536413650",
+        "created_at": "Sun Nov 03 01:43:46 +0000 2024",
+        "text": "@Andr3jH https://t.co/ZLIj36xYAP",
+        "like_count": 33399,
+        "retweet_count": 599,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1826317663976423799",
+        "created_at": "Wed Aug 21 17:57:17 +0000 2024",
+        "text": "\"So you're doing programming?\n- Yeah\n- I could never do that\"\nWhat are you supposed to reply here?",
+        "like_count": 5553,
+        "retweet_count": 61,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1814998692253811138",
+        "created_at": "Sun Jul 21 12:19:43 +0000 2024",
+        "text": "@1owroller Teach him the minecraft villager sound",
+        "like_count": 2514,
+        "retweet_count": 10,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Qualia-Research",
+        "community_name": "Qualia Researchers",
+        "weight": 0.9995,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-queer-tpot-annieposting",
+    "bucket": "core",
+    "username": "AnniePosting",
+    "target_community_short_name": "Queer-TPOT",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence queer-scene seed with clear stylistic signal.",
+    "account_id": "1349804574656249858",
+    "display_name": "annie 👁❌🦋🪞",
+    "bio": "empty spaces witch || twink || hypnotist || xenocognitivist",
+    "target_community_id": "a5a01615-c3cf-4434-a029-3d5026802d56",
+    "target_community_name": "Queer TPOT",
+    "followers": 2665,
+    "following": 816,
+    "statuses": 48963,
+    "local_post_counts": {
+      "tweets": 31370,
+      "enriched_tweets": 40
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1789391663766421579",
+        "created_at": "Sat May 11 20:26:32 +0000 2024",
+        "text": "I cannot believe this worked. I live in san francisco now. https://t.co/io7NTcufaJ",
+        "like_count": 17711,
+        "retweet_count": 366,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1784358416259146165",
+        "created_at": "Sat Apr 27 23:06:12 +0000 2024",
+        "text": "im not a doll but if a girl with a tech job wanted to make me her housewife, she would forget what her home looks like with even a spec of dust in it and the dishes would be perpetually clean",
+        "like_count": 2053,
+        "retweet_count": 80,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1784360945030213831",
+        "created_at": "Sat Apr 27 23:16:15 +0000 2024",
+        "text": "i'm literally the highest value housewife, im constantly abusing stimulants and I'm a fantastic cook so im effectively a free maid and personal chef and I only have to eat every other day, she would barely have to spend more each week on groceries et al",
+        "like_count": 1333,
+        "retweet_count": 13,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Queer-TPOT",
+        "community_name": "Queer TPOT",
+        "weight": 0.9538,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "core-tft-lchoshen",
+    "bucket": "core",
+    "username": "LChoshen",
+    "target_community_short_name": "TfT-Coordination",
+    "expected_judgment": "in",
+    "likely_confusions": [],
+    "selection_reason": "High-confidence tools-for-thought / coordination account from current NMF map.",
+    "account_id": "1006797311593377792",
+    "display_name": "Leshem Choshen 🤖🤗",
+    "bio": "🥇 Collaborative LLMs (co-created model merging)\n🥈 Opinionatedly sharing #ML & #NLP \n🥉 We owe science an alternative hype\n\n@IBMResearch & @MIT_CSAIL",
+    "target_community_id": "2667e9f4-96f6-4ce4-be86-4cc486074ae1",
+    "target_community_name": "Sensemaking Builders",
+    "followers": 0,
+    "following": 0,
+    "statuses": 0,
+    "local_post_counts": {
+      "tweets": 7520,
+      "enriched_tweets": 39
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1608480700789043200",
+        "created_at": "Thu Dec 29 15:10:57 +0000 2022",
+        "text": "Pretraining with 1 GPU and 1 day\n\nThis paper is a HUGE list of all the tricks you could think of and \nwhat works to make training efficient given 1 GPU and 1 day\n\nhttps://t.co/ODJ00lpuD8\n@jonasgeiping @tomgoldsteincs",
+        "like_count": 493,
+        "retweet_count": 71,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1505931491402035206",
+        "created_at": "Mon Mar 21 15:37:01 +0000 2022",
+        "text": "During training, your loss goes up and down up and down up and down.\n\nBut how would it go if you magically went in a straight line \nfrom init to learnt position?\n\nApparently smoothly down!\n\nOn the surprising Linear Interpolation:\n#scientivism #deepRead #MachineLearning https://t.co/WsrZFH4hBD",
+        "like_count": 437,
+        "retweet_count": 77,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1758257033521057984",
+        "created_at": "Thu Feb 15 22:28:38 +0000 2024",
+        "text": "DoRA explores the magnitude and direction and\nsurpasses LoRA quite significantly\n\nThis is done with an empirical finding that I can't wrap my head around\n@NVIDIAAI \nhttps://t.co/jjNUPT4luT\n@nbasyl_tw @chienyi_wang @yin_hongxu @PavloMolchanov @CMHungSteven https://t.co/j7aFPQ3FgE",
+        "like_count": 407,
+        "retweet_count": 75,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "TfT-Coordination",
+        "community_name": "Sensemaking Builders",
+        "weight": 1.0,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-ai-creativity-abrleth",
+    "bucket": "boundary",
+    "username": "abrleth",
+    "target_community_short_name": "AI-Creativity",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "Quiet-Creatives",
+      "Internet-Intellectuals"
+    ],
+    "selection_reason": "Current assignments split between AI-Creativity and Quiet-Creatives.",
+    "account_id": "950577478484951042",
+    "display_name": "Derek Bredensteiner",
+    "bio": "Christian. Atheist. Call me what you will, or just Derek.",
+    "target_community_id": "75253db7-a0b3-4056-bb8d-5c15124c20c9",
+    "target_community_name": "AI Creatives",
+    "followers": 0,
+    "following": 0,
+    "statuses": 0,
+    "local_post_counts": {
+      "tweets": 1812,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1681085559433773058",
+        "created_at": "Mon Jul 17 23:36:45 +0000 2023",
+        "text": "@ms_joan777 @abughazalehkat What I’ve heard them say on two of those:\n\nGlobal warming: Real but small, not attributable for individual events. Laws are hurting people more now than preventing future harm.\n\nRacism: Individual not systemic. Laws to balance systemic racism create racism where there was none.",
+        "like_count": 628,
+        "retweet_count": 5,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1613718194128097280",
+        "created_at": "Fri Jan 13 02:02:53 +0000 2023",
+        "text": "“To observe without evaluating is the highest form of human intelligence. So those of us who have been taught to think in these enemy images, to immediately think ‘right, wrong, good, bad, normal, abnormal, appropriate, inappropriate, too this, too that’ … we can’t see reality.”",
+        "like_count": 478,
+        "retweet_count": 38,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1612201453048958976",
+        "created_at": "Sun Jan 08 21:35:54 +0000 2023",
+        "text": "Do you believe things on authority? https://t.co/Kmgt8Dku3e",
+        "like_count": 316,
+        "retweet_count": 12,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "AI-Creativity",
+        "community_name": "AI Creatives",
+        "weight": 0.4252,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Quiet-Creatives",
+        "community_name": "Quiet Creatives",
+        "weight": 0.3964,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "NYC-Institution-Builders",
+        "community_name": "NYC Institution Builders",
+        "weight": 0.1092,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-ai-safety-ohabryka",
+    "bucket": "boundary",
+    "username": "ohabryka",
+    "target_community_short_name": "AI-Safety",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "Tech-Intellectuals",
+      "Core-TPOT",
+      "Internet-Intellectuals"
+    ],
+    "selection_reason": "Repeatedly split between AI-Safety and Tech-Intellectuals in current assignments.",
+    "account_id": "450679540",
+    "display_name": "Oliver Habryka",
+    "bio": "Building https://t.co/O5mQY6jndL and https://t.co/s49h898W4b.",
+    "target_community_id": "0a924ce4-c724-4e19-8941-b0776fc497e5",
+    "target_community_name": "EA & Forecasting",
+    "followers": 7025,
+    "following": 817,
+    "statuses": 6295,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 39
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "2007322150886367719",
+        "created_at": "Sat Jan 03 05:24:29 +0000 2026",
+        "text": "Ok, can someone explain to me why people use Claude Code instead of Cursor? \n\nI get obvious productivity boosts from having my IDE integrated with my AI tooling, and lose that in Claude Code, but everyone keeps raving on about how great Claude Code is, so what am I missing?",
+        "like_count": 1302,
+        "retweet_count": 25,
+        "source": "enriched_tweets"
+      },
+      {
+        "tweet_id": "2001055228964311514",
+        "created_at": "Tue Dec 16 22:21:59 +0000 2025",
+        "text": "Lightcone Infrastructure's 2026 fundraiser is live!\n\nWe build beautiful things for truth-seeking and world-saving.\n\nWe run LessWrong, Lighthaven, Inkhaven, designed AI-2027, and so many more things. All for the price of less than one OpenAI staff engineer ($2M/yr).\n\nMore in 🧵. https://t.co/Dqp9HxvoaM",
+        "like_count": 370,
+        "retweet_count": 80,
+        "source": "enriched_tweets"
+      },
+      {
+        "tweet_id": "2034344166134776044",
+        "created_at": "Wed Mar 18 19:00:20 +0000 2026",
+        "text": "🖋️ LessOnline 2026 ticket sales are live 🖋️\n\nJune 5 - 7, Lighthaven, CA\n\nWe shall meet again to celebrate truth seeking, blogging, and being wrong on the internet. Early bird pricing ends April 7. Free tickets for people with great blogs, and $0.01 off per LW karma you have. https://t.co/cswL2y5Twi",
+        "like_count": 187,
+        "retweet_count": 12,
+        "source": "enriched_tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "AI-Safety",
+        "community_name": "EA & Forecasting",
+        "weight": 1.0,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Tech-Intellectuals",
+        "community_name": "Tech Philosophers",
+        "weight": 1.0,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Core-TPOT",
+        "community_name": "Core TPOT",
+        "weight": 0.6667,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "NYC-Institution-Builders",
+        "community_name": "NYC Institution Builders",
+        "weight": 0.3667,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Internet-Intellectuals",
+        "community_name": "Internet Essayists",
+        "weight": 0.3333,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "AI-Creativity",
+        "community_name": "AI Creatives",
+        "weight": 0.1667,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "highbies",
+        "community_name": "Vibecamp Highbies",
+        "weight": 0.1333,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Quiet-Creatives",
+        "community_name": "Quiet Creatives",
+        "weight": 0.1,
+        "source": "llm_ensemble"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-collective-intelligence-rtk254",
+    "bucket": "boundary",
+    "username": "rtk254",
+    "target_community_short_name": "Collective-Intelligence",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "TfT-Coordination"
+    ],
+    "selection_reason": "Current assignments split between Collective-Intelligence and TfT-Coordination.",
+    "account_id": "1065316525417160705",
+    "display_name": "Ronen Tamari",
+    "bio": "Researcher/entrepreneur @AsteraInstitute @CSensemakers | Building a sensemaking layer for research | Stigmergic cognition",
+    "target_community_id": "1258b4fc-ae72-49ca-a2eb-7aacda9a2763",
+    "target_community_name": "Regen & Collective Intelligence",
+    "followers": 2059,
+    "following": 3723,
+    "statuses": 3874,
+    "local_post_counts": {
+      "tweets": 2348,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1818102537641242778",
+        "created_at": "Tue Jul 30 01:53:18 +0000 2024",
+        "text": "Selectively breeding the most *individually* productive hens leads to lower overall egg production, so chicken farmers have cleverly learned to shift selection to the level of the *group*.  Economists, on the other hand &gt; https://t.co/TfNtXqGL9x",
+        "like_count": 7093,
+        "retweet_count": 843,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1818102657862586801",
+        "created_at": "Tue Jul 30 01:53:47 +0000 2024",
+        "text": "have achieved a degenerate reversal of devaluing everything except personal gain. When will the chicken farmers rescue us from the neoliberal economists? https://t.co/mZwjjWct7W",
+        "like_count": 1658,
+        "retweet_count": 107,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1576786178610601984",
+        "created_at": "Mon Oct 03 04:08:14 +0000 2022",
+        "text": "@ubiquity75 Intersting recent research on this!\nhttps://t.co/aTVcIK1jEY",
+        "like_count": 438,
+        "retweet_count": 67,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Collective-Intelligence",
+        "community_name": "Regen & Collective Intelligence",
+        "weight": 0.4552,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "TfT-Coordination",
+        "community_name": "Sensemaking Builders",
+        "weight": 0.4309,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-contemplative-danallison",
+    "bucket": "boundary",
+    "username": "danallison",
+    "target_community_short_name": "Contemplative-Practitioners",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "Quiet-Creatives"
+    ],
+    "selection_reason": "Current assignments put this account on the contemplative / quiet-creative boundary.",
+    "account_id": "14213298",
+    "display_name": "Dan Allison",
+    "bio": "Drawing pictures and building @ibis_coord",
+    "target_community_id": "3839f31d-fafb-4007-a83c-7f59b3fa9b24",
+    "target_community_name": "Jhana Practitioners",
+    "followers": 8170,
+    "following": 3184,
+    "statuses": 8798,
+    "local_post_counts": {
+      "tweets": 5987,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1901323239051403733",
+        "created_at": "Sun Mar 16 17:22:39 +0000 2025",
+        "text": "This is a good example of a false question, i.e. a question that implies a false premise. https://t.co/fYbmdf2R2D",
+        "like_count": 46587,
+        "retweet_count": 1234,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1912147242267619445",
+        "created_at": "Tue Apr 15 14:13:23 +0000 2025",
+        "text": "Scrolling social media makes it harder to read books because it trains your brain to discard previous context in order to understand the next thing, whereas understanding the next thing in a book requires retaining previous context.",
+        "like_count": 16628,
+        "retweet_count": 2176,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1901326149441175927",
+        "created_at": "Sun Mar 16 17:34:13 +0000 2025",
+        "text": "@RonenV If b is different than the others, then that makes it is just like the others. It’s the liars paradox.",
+        "like_count": 9075,
+        "retweet_count": 26,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Contemplative-Practitioners",
+        "community_name": "Jhana Practitioners",
+        "weight": 0.2965,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Quiet-Creatives",
+        "community_name": "Quiet Creatives",
+        "weight": 0.2818,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Core-TPOT",
+        "community_name": "Core TPOT",
+        "weight": 0.1602,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-core-tpot-arizerner",
+    "bucket": "boundary",
+    "username": "AriZerner",
+    "target_community_short_name": "Core-TPOT",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "Tech-Intellectuals"
+    ],
+    "selection_reason": "Current assignments split between Core-TPOT and Tech-Intellectuals.",
+    "account_id": "1563248269899079681",
+    "display_name": "Ari Zerner",
+    "bio": "memento mori, nihil supernum, carpe diem",
+    "target_community_id": "b6d646a2-203e-43c3-940b-22c9a4d55c3c",
+    "target_community_name": "Core TPOT",
+    "followers": 314,
+    "following": 177,
+    "statuses": 3525,
+    "local_post_counts": {
+      "tweets": 458,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1849520808244412511",
+        "created_at": "Thu Oct 24 18:38:17 +0000 2024",
+        "text": "@NathanpmYoung Isn't this just Baumol's cost disease?",
+        "like_count": 16,
+        "retweet_count": 0,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1745464799532597687",
+        "created_at": "Thu Jan 11 15:16:52 +0000 2024",
+        "text": "@Aella_Girl Weekends are for people working on someone else's project",
+        "like_count": 12,
+        "retweet_count": 0,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1849252423136866533",
+        "created_at": "Thu Oct 24 00:51:49 +0000 2024",
+        "text": "@VictorTaelin Enjoy your break! When you get around to it, the site still links to the kind2 repo instead of the new Kind https://t.co/hD6G2wUk7P",
+        "like_count": 11,
+        "retweet_count": 0,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Core-TPOT",
+        "community_name": "Core TPOT",
+        "weight": 0.4263,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Tech-Intellectuals",
+        "community_name": "Tech Philosophers",
+        "weight": 0.3932,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "AI-Safety",
+        "community_name": "EA & Forecasting",
+        "weight": 0.1507,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-highbies-cxgonzalez",
+    "bucket": "boundary",
+    "username": "cxgonzalez",
+    "target_community_short_name": "highbies",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "Core-TPOT",
+      "Relational-Explorers"
+    ],
+    "selection_reason": "Current assignments put this account on the highbies / core boundary.",
+    "account_id": "585462708",
+    "display_name": "christian",
+    "bio": "eudaimonia-maxing, philosophy, co-founder @EventHorizonDAO",
+    "target_community_id": "2f55a25a-db7d-4748-8373-b7034edc4f91",
+    "target_community_name": "Vibecamp Highbies",
+    "followers": 9109,
+    "following": 724,
+    "statuses": 45640,
+    "local_post_counts": {
+      "tweets": 34831,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1565481972134281217",
+        "created_at": "Thu Sep 01 23:29:22 +0000 2022",
+        "text": "just met a 21 year old italian student who doesn’t know how to use a computer and never takes his phone out of the house. happiest guy i’ve ever seen",
+        "like_count": 35556,
+        "retweet_count": 1249,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1844686696232710281",
+        "created_at": "Fri Oct 11 10:29:15 +0000 2024",
+        "text": "all the snide tweets about “congrats you made a bus” failing to ask why nobody wants to ride a bus https://t.co/CavSy2Szxa",
+        "like_count": 7132,
+        "retweet_count": 230,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1558606996487675905",
+        "created_at": "Sun Aug 14 00:10:40 +0000 2022",
+        "text": "girl i’m dating had a happy childhood, has great relationships with all her family, is easy going, hates drama, is always positive and optimistic-\n\nthese are uncharted waters",
+        "like_count": 6673,
+        "retweet_count": 162,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "highbies",
+        "community_name": "Vibecamp Highbies",
+        "weight": 0.2469,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Core-TPOT",
+        "community_name": "Core TPOT",
+        "weight": 0.2295,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Contemplative-Practitioners",
+        "community_name": "Jhana Practitioners",
+        "weight": 0.2048,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Relational-Explorers",
+        "community_name": "Relational Explorers",
+        "weight": 0.142,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-internet-intellectuals-roberthaisfield",
+    "bucket": "boundary",
+    "username": "RobertHaisfield",
+    "target_community_short_name": "Internet-Intellectuals",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "TfT-Coordination",
+      "Tech-Intellectuals"
+    ],
+    "selection_reason": "Current assignments split between Internet-Intellectuals and TfT-Coordination.",
+    "account_id": "350969975",
+    "display_name": "Rob Haisfield",
+    "bio": "Imagining new internets @websim_ai. GenAI, TfT, BeSci, HCI, UX. Ex-Tana, Edge & Node, Spark Wave",
+    "target_community_id": "2697d395-dea5-49ae-8d0a-192d52277ec4",
+    "target_community_name": "Internet Essayists",
+    "followers": 9426,
+    "following": 4029,
+    "statuses": 16299,
+    "local_post_counts": {
+      "tweets": 12905,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1890149905936838688",
+        "created_at": "Thu Feb 13 21:23:49 +0000 2025",
+        "text": "lmao what's a boomer prompt? https://t.co/KghMTYQ45d",
+        "like_count": 394,
+        "retweet_count": 10,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1821274460609241165",
+        "created_at": "Wed Aug 07 19:57:23 +0000 2024",
+        "text": "Flux team 100% saw that tweet about @karpathy's crazy idea of training an image model on screenshots of all of the web instead of an LLM on HTML and ran with it.\n\n@bfl_ml https://t.co/6j3Nr4VCOC https://t.co/2FVJd7fgW0",
+        "like_count": 310,
+        "retweet_count": 41,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1728439370858766713",
+        "created_at": "Sat Nov 25 15:43:53 +0000 2023",
+        "text": "Just learned that Yoshiki has passed away and so many people seem to love his ideas, I’m gonna thread a few here.\n\nAn app builder on the iPhone where you start by describing the data structures you want in JSON and then nudge it towards a GUI https://t.co/elko3T8NF1",
+        "like_count": 277,
+        "retweet_count": 30,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Internet-Intellectuals",
+        "community_name": "Internet Essayists",
+        "weight": 0.3705,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "TfT-Coordination",
+        "community_name": "Sensemaking Builders",
+        "weight": 0.3624,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "AI-Creativity",
+        "community_name": "AI Creatives",
+        "weight": 0.1545,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-llm-whisperers-plinz",
+    "bucket": "boundary",
+    "username": "Plinz",
+    "target_community_short_name": "LLM-Whisperers",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "highbies",
+      "Tech-Intellectuals"
+    ],
+    "selection_reason": "Current assignments tie between LLM-Whisperers and highbies.",
+    "account_id": "28131948",
+    "display_name": "Joscha Bach",
+    "bio": "",
+    "target_community_id": "7152b213-75b3-4951-8b37-1616a5a33030",
+    "target_community_name": "LLM Whisperers",
+    "followers": 157517,
+    "following": 787,
+    "statuses": 67301,
+    "local_post_counts": {
+      "tweets": 16,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "2034505793278734442",
+        "created_at": "Thu Mar 19 05:42:35 +0000 2026",
+        "text": "Every single assessment about morality, progress and possible outcome of the Iran war I read is 100% correlated with whether the author likes or hates Trump. It's pretty annoying",
+        "like_count": 1946,
+        "retweet_count": 122,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "2034751340690514236",
+        "created_at": "Thu Mar 19 21:58:18 +0000 2026",
+        "text": "The homeless industrial complex of SF is the best funded in the world (per capita), and consequently it is producing more homelessness. If social problems could be solved by spending more, SF would have solved them.",
+        "like_count": 1272,
+        "retweet_count": 112,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "2033144723666587808",
+        "created_at": "Sun Mar 15 11:34:10 +0000 2026",
+        "text": "I deeply agree with Emily Bender's main point: LLMs are useless, unless you want to offload cognition. (The other two usecases she suggests are rare special cases of the third.)\n\nOffloading cognition into machines has always been the purpose and application of computer science and AI.",
+        "like_count": 1174,
+        "retweet_count": 52,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "highbies",
+        "community_name": "Vibecamp Highbies",
+        "weight": 0.3667,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "LLM-Whisperers",
+        "community_name": "LLM Whisperers",
+        "weight": 0.3667,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "AI-Safety",
+        "community_name": "EA & Forecasting",
+        "weight": 0.3,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Collective-Intelligence",
+        "community_name": "Regen & Collective Intelligence",
+        "weight": 0.2667,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Tech-Intellectuals",
+        "community_name": "Tech Philosophers",
+        "weight": 0.1333,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Internet-Intellectuals",
+        "community_name": "Internet Essayists",
+        "weight": 0.1,
+        "source": "llm_ensemble"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-qualia-bryan-johnson",
+    "bucket": "boundary",
+    "username": "bryan_johnson",
+    "target_community_short_name": "Qualia-Research",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "Tech-Intellectuals",
+      "Contemplative-Practitioners"
+    ],
+    "selection_reason": "Strong near-miss between qualia / self-experimentation and public techno-optimization.",
+    "account_id": "17468569",
+    "display_name": "Bryan Johnson",
+    "bio": "Conquering death will be humanity’s greatest achievement.",
+    "target_community_id": "d022d0f8-72c3-4c60-80ce-3305d9f1d758",
+    "target_community_name": "Qualia Researchers",
+    "followers": 957011,
+    "following": 706,
+    "statuses": 15098,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 28
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "2035916685484736751",
+        "created_at": "Mon Mar 23 03:08:57 +0000 2026",
+        "text": "This was the most profound experience of my life. I am stunned beyond comprehension. This molecule is without peer. \n\nThe 27mg dose opened up what felt like pure consciousness and intelligence. A majestic reveal of existence itself. In all its incomprehensible glory and majesty. It is impossible to explain with words. Whatever you imagine, multiply it by 1,000 and then add infinite width and depth and dimensions. \n\nBut entrance was not granted without prerequisite. Existence demanded that I submit. That I say yes; without attachment and without condition. Yes to existence; yes to the dissolution of self; yes to release control; yes, to all. \n\nMy ego registered the ask and panicked. It wanted control. It was desperate for control. It pleaded to escape from the torrent of light and essence that threatened to rip my sanity into chards.  The urge to eject was overwhelming. Terror thundered throughout my mind and body. \n\nIt took everything within me to release. I overcame and was treated with bliss that defies imagination. A euphoria colored with perfect harmony of all things. An orchestra of essence washed over me and swept me up in dance. It was home. The highest aspiration of intelligent life. For some reason, stored and tucked away as the ultimate prize. \n\nA single concept emerged in omnipresence: we cannot grok the preciousness of our existence. Yet it is everything we’ve ever wanted and more. The state we long for without knowing it exists. This caused me great pain and heartache. \n\nA swell of loyalty and devotion emerged inside me, pledging allegiance to existence. To become a warrior and caretaker of life on earth. To protect at any cost the candle of consciousness that has miraculously  emerged in this part of the galaxy.  \n\nWhat awaits will wipe all your tears, soothe all your sorrows, and infinitely exceed your wants.",
+        "like_count": 8994,
+        "retweet_count": 526,
+        "source": "enriched_tweets"
+      },
+      {
+        "tweet_id": "2035844605732876528",
+        "created_at": "Sun Mar 22 22:22:32 +0000 2026",
+        "text": "https://t.co/tQOt8ZRKUX",
+        "like_count": 1845,
+        "retweet_count": 103,
+        "source": "enriched_tweets"
+      },
+      {
+        "tweet_id": "2034723981904027725",
+        "created_at": "Thu Mar 19 20:09:35 +0000 2026",
+        "text": "Two doses of magic mushrooms degraded my sperm count from the 99.6th percentile to the 77.7th. \n\nThis may be a first-in-human observation. \n\nContext: we ran the most quantified magic mushroom (psilocybin) experiment ever conducted. We were asking if psilocybin is a longevity therapy. After seeing the data, we think it is (see reply post for the experiment summary). \n\nAlso, like most things biology: the results are complicated.\n\nMy data suggests that the magic mushrooms (psilocybin) negatively impacted my fertility markers. \n\nBefore the first psilocybin dose my motile sperm count was at 99.6th percentile for men under 25 years of age, it dropped to 77.7% and partially recovered to 89.3% following the first dose, and second doses, compared to the same age cohort (numbers compare similarly to my age cohort as well).\n\n3 days following my second dose (first dose 25 mg, second dose 28 mg)\n\n. Motility: dropped 51%\n. Total count: almost unchanged, dropped by 2%\n. Total motile count: dropped 52%\n. Normal morphology: dropped by 50%\n\n20 days post 2nd dose, the pattern continued, with typical latent effects on total sperm counts\n\nMotility: recovered back to -2% of pre-psilocybin baseline: \n\n. Total count: dropped by 38%, latent effect.\n. Total motile count: remained inhibited at -39% of pre-psilocybin baseline, (despite motility normalizing, due to the total count drop)\n. Morphology normalized to -10% of baseline levels.\n\nReduction in free testosterone might have contributed to the effect.\n\nWhile total serum testosterone increased by 30% 3 days following the 2nd dose (neither FSH or LH were meaningfully affected either), and continued to be at 11% above baseline, SHBG increased by 37%, SHBG binds testosterone and reduces its bioavailability and activity. My free testosterone (direct) showed 24% and 23% drops at 3 and 20 days post 2nd dose.\n\nIn light of the neuroplastic, well-being, brain reset, and systemic metabolic and anti-inflammatory benefits, the trade-off is probably worth it. Especially considering that the magnitude of inhibition has no meaningful effect on actual fertility (total motile counts above 50 million are still on the safe side). \n\nThis is a first-in-human observation, to our knowledge there is no published human clinical study demonstrating that psilocybin diminishes male fertility markers.\n\nGeneral mechanistic evidence exists for recreational and psychoactive drugs possibly inhibiting fertility markers due to their effects on the hypothalamus-pituitary-adrenal axis and general hormonal reset.  Yet no direct evidence for psilocybin or other similar psychedelics inhibiting fertility markers exist.\n\nA potential mechanism for the immediate inhibition of motility could involve direct serotonergic signaling in sperm. Human sperm express multiple serotonin receptors, including 5-HT2A, and one recent study found that a 5-HT2A antagonist reduced sperm motility, suggesting that 5-HT2A may regulate motility. Psilocybin is known to bind 5-HT2A with high affinity.",
+        "like_count": 4091,
+        "retweet_count": 168,
+        "source": "enriched_tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Qualia-Research",
+        "community_name": "Qualia Researchers",
+        "weight": 0.7333,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Tech-Intellectuals",
+        "community_name": "Tech Philosophers",
+        "weight": 0.7333,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Contemplative-Practitioners",
+        "community_name": "Jhana Practitioners",
+        "weight": 0.4,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Core-TPOT",
+        "community_name": "Core TPOT",
+        "weight": 0.2667,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "highbies",
+        "community_name": "Vibecamp Highbies",
+        "weight": 0.2667,
+        "source": "llm_ensemble"
+      },
+      {
+        "community_short_name": "Relational-Explorers",
+        "community_name": "Relational Explorers",
+        "weight": 0.2,
+        "source": "llm_ensemble"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-queer-tpot-toinpu",
+    "bucket": "boundary",
+    "username": "toinpu",
+    "target_community_short_name": "Queer-TPOT",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "Internet-Intellectuals"
+    ],
+    "selection_reason": "Current assignments split between Queer-TPOT and Internet-Intellectuals.",
+    "account_id": "1075436522973863936",
+    "display_name": "tonio",
+    "bio": "mlops engineer / reading up on history / sometimes we do programming min(J) → max(v̄)",
+    "target_community_id": "a5a01615-c3cf-4434-a029-3d5026802d56",
+    "target_community_name": "Queer TPOT",
+    "followers": 134,
+    "following": 559,
+    "statuses": 3228,
+    "local_post_counts": {
+      "tweets": 1337,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1888749644592648622",
+        "created_at": "Mon Feb 10 00:39:41 +0000 2025",
+        "text": "@levelsio courses exploit the same part of our brain supplements do.\n\neveryone wants to take supplements but no one wants to do the actual working out.",
+        "like_count": 121,
+        "retweet_count": 12,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1120740365093494787",
+        "created_at": "Tue Apr 23 17:25:00 +0000 2019",
+        "text": "@Wikipedia im waiting for it https://t.co/5IAIYrUxjE",
+        "like_count": 63,
+        "retweet_count": 2,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1328374391865008129",
+        "created_at": "Mon Nov 16 16:28:29 +0000 2020",
+        "text": "@crowsx3 the stanley something i forgot fuck i lost",
+        "like_count": 60,
+        "retweet_count": 1,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Queer-TPOT",
+        "community_name": "Queer TPOT",
+        "weight": 0.3834,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Internet-Intellectuals",
+        "community_name": "Internet Essayists",
+        "weight": 0.3665,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Qualia-Research",
+        "community_name": "Qualia Researchers",
+        "weight": 0.1926,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-relational-liquidprismata",
+    "bucket": "boundary",
+    "username": "liquidprismata",
+    "target_community_short_name": "Relational-Explorers",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "Queer-TPOT",
+      "Quiet-Creatives"
+    ],
+    "selection_reason": "Current assignments put this account on the relational / queer boundary.",
+    "account_id": "283457350",
+    "display_name": "lıquıdprısm 🜄",
+    "bio": "sick with desire · \nand fastened to a dying animal · \nit knows not what it is · \n⨁ ❦",
+    "target_community_id": "92ad6165-31a5-4b71-bddf-129e91ecdf78",
+    "target_community_name": "Relational Explorers",
+    "followers": 971,
+    "following": 514,
+    "statuses": 23094,
+    "local_post_counts": {
+      "tweets": 11302,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1954023793522839669",
+        "created_at": "Sat Aug 09 03:35:51 +0000 2025",
+        "text": "@i2cjak all civil engineers holding their breath hoping nobody notices &amp; remembers who really belongs in the locker",
+        "like_count": 538,
+        "retweet_count": 2,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1959173256331628600",
+        "created_at": "Sat Aug 23 08:37:58 +0000 2025",
+        "text": "@___frye your interest in a lot of things is a function of your innocence &amp; openness\n\nyou will see patterns others cannot because of it\n\nthus,\na career with low standardization &amp; high reward for emergent problem-solving\n\n(this doesn't need to be an overall under-standardized field btw)",
+        "like_count": 474,
+        "retweet_count": 11,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1960593153574011032",
+        "created_at": "Wed Aug 27 06:40:08 +0000 2025",
+        "text": "@feliformer is 15th century insufficient precedent for you\n\nhttps://t.co/KKPYsmZt60",
+        "like_count": 432,
+        "retweet_count": 2,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Relational-Explorers",
+        "community_name": "Relational Explorers",
+        "weight": 0.3616,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Queer-TPOT",
+        "community_name": "Queer TPOT",
+        "weight": 0.34,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Quiet-Creatives",
+        "community_name": "Quiet Creatives",
+        "weight": 0.2929,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "boundary-tech-intellectuals-vamsi0x",
+    "bucket": "boundary",
+    "username": "vamsi0x",
+    "target_community_short_name": "Tech-Intellectuals",
+    "expected_judgment": "in",
+    "likely_confusions": [
+      "TfT-Coordination",
+      "Collective-Intelligence"
+    ],
+    "selection_reason": "Current assignments split between Tech-Intellectuals and TfT-Coordination.",
+    "account_id": "18015302",
+    "display_name": "Vamsi Alluri",
+    "bio": "warpcast: va email:firstname@lastname.id",
+    "target_community_id": "4a9ed00e-61ee-404f-9051-e5d6b860e503",
+    "target_community_name": "Tech Philosophers",
+    "followers": 0,
+    "following": 0,
+    "statuses": 0,
+    "local_post_counts": {
+      "tweets": 155,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [
+      {
+        "tweet_id": "1182165594105233408",
+        "created_at": "Thu Oct 10 05:26:55 +0000 2019",
+        "text": "Multi Collateral Dai is also,\n* Formally Verified Dai\n* Dai Savings Rate Dai\n* Pay Stability Fee With Dai Dai\n* In-Built MetaTx Dai\n* Governance Action Delay Dai\n* Continuous Stability Fees Dai\n* Decentralized Emergency Shutdown Dai\n* Oracle Security Module Dai\n* MKR Backstop Dai",
+        "like_count": 162,
+        "retweet_count": 39,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1191906626812334080",
+        "created_at": "Wed Nov 06 02:34:19 +0000 2019",
+        "text": "Understanding how stability fees are charged to all  ̶C̶D̶P̶s̶ Vaults in a single ethereum transaction was a pretty big aha moment for me. I wrote a short guide to explain this magic, https://t.co/U0MzknLkAu",
+        "like_count": 47,
+        "retweet_count": 11,
+        "source": "tweets"
+      },
+      {
+        "tweet_id": "1204380854887342082",
+        "created_at": "Tue Dec 10 12:42:26 +0000 2019",
+        "text": "Are you worried that you have very little time left to understand the maker protocol to develop an exploit and steal ETH before GSM is activated?\n\nTry reading our annotated codebase with clear explanations and no memes. https://t.co/AnMbyoaIkz\n\nExample: https://t.co/MVWiGIV80l",
+        "like_count": 27,
+        "retweet_count": 5,
+        "source": "tweets"
+      }
+    ],
+    "current_memberships": [
+      {
+        "community_short_name": "Tech-Intellectuals",
+        "community_name": "Tech Philosophers",
+        "weight": 0.3899,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "TfT-Coordination",
+        "community_name": "Sensemaking Builders",
+        "weight": 0.3679,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Qualia-Research",
+        "community_name": "Qualia Researchers",
+        "weight": 0.1318,
+        "source": "nmf"
+      },
+      {
+        "community_short_name": "Collective-Intelligence",
+        "community_name": "Regen & Collective Intelligence",
+        "weight": 0.1103,
+        "source": "nmf"
+      }
+    ],
+    "missing_local_posts": false
+  },
+  {
+    "review_id": "hardneg-ai-safety-demis",
+    "bucket": "hard_negative",
+    "username": "demishassabis",
+    "target_community_short_name": "AI-Safety",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "LLM-Whisperers",
+      "Tech-Intellectuals"
+    ],
+    "selection_reason": "AGI-adjacent public leader; topical overlap but likely outside TPOT internal ontology.",
+    "account_id": "1482581556",
+    "display_name": "Demis Hassabis",
+    "bio": "Nobel Laureate. Co-Founder & CEO @GoogleDeepMind - working on AGI. Solving disease @IsomorphicLabs. Trying to understand the fundamental nature of reality.",
+    "target_community_id": "0a924ce4-c724-4e19-8941-b0776fc497e5",
+    "target_community_name": "EA & Forecasting",
+    "followers": 739517,
+    "following": 166,
+    "statuses": 2976,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-contemplative-huberman",
+    "bucket": "hard_negative",
+    "username": "hubermanlab",
+    "target_community_short_name": "Contemplative-Practitioners",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Qualia-Research"
+    ],
+    "selection_reason": "Mainstream wellness / neuroscience confounder rather than TPOT contemplative account.",
+    "account_id": "4416456732",
+    "display_name": "Andrew D. Huberman, Ph.D.",
+    "bio": "Professor of Neurobiology and Ophthalmology at Stanford Medicine • Host of Huberman Lab • Focused on science and health research and public education",
+    "target_community_id": "3839f31d-fafb-4007-a83c-7f59b3fa9b24",
+    "target_community_name": "Jhana Practitioners",
+    "followers": 1764833,
+    "following": 1998,
+    "statuses": 14675,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-internet-intellectuals-dwarkesh",
+    "bucket": "hard_negative",
+    "username": "dwarkesh_sp",
+    "target_community_short_name": "Internet-Intellectuals",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Tech-Intellectuals"
+    ],
+    "selection_reason": "Podcast / public intellectual confounder with adjacent audience but likely not ontology member.",
+    "account_id": "1209960539390201864",
+    "display_name": "Dwarkesh Patel",
+    "bio": "Host of @dwarkeshpodcast\n\nhttps://t.co/3SXlu7fy6N\nhttps://t.co/4DPAxODFYi\nhttps://t.co/hQfIWdM1Un",
+    "target_community_id": "2697d395-dea5-49ae-8d0a-192d52277ec4",
+    "target_community_name": "Internet Essayists",
+    "followers": 202001,
+    "following": 1005,
+    "statuses": 6082,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-internet-intellectuals-noahpinion",
+    "bucket": "hard_negative",
+    "username": "Noahpinion",
+    "target_community_short_name": "Internet-Intellectuals",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Tech-Intellectuals"
+    ],
+    "selection_reason": "Independent writer / newsletter confounder with style overlap but likely out of scene.",
+    "account_id": "281877818",
+    "display_name": "Noah Smith 🐇🇺🇸🇺🇦🇹🇼",
+    "bio": "Writes about economics, posts about rabbits.\n\nFor serious opinions/analysis, read my blog: https://t.co/KfUxUlCYPz",
+    "target_community_id": "2697d395-dea5-49ae-8d0a-192d52277ec4",
+    "target_community_name": "Internet Essayists",
+    "followers": 425895,
+    "following": 1603,
+    "statuses": 504006,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-internet-intellectuals-paulg",
+    "bucket": "hard_negative",
+    "username": "paulg",
+    "target_community_short_name": "Internet-Intellectuals",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Tech-Intellectuals"
+    ],
+    "selection_reason": "Essayist / founder near-miss who looks ontologically close from topic and style.",
+    "account_id": "183749519",
+    "display_name": "Paul Graham",
+    "bio": "",
+    "target_community_id": "2697d395-dea5-49ae-8d0a-192d52277ec4",
+    "target_community_name": "Internet Essayists",
+    "followers": 2363277,
+    "following": 785,
+    "statuses": 52088,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-llm-whisperers-emollick",
+    "bucket": "hard_negative",
+    "username": "emollick",
+    "target_community_short_name": "LLM-Whisperers",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Tech-Intellectuals"
+    ],
+    "selection_reason": "AI educator and public AI commentator; topical near-miss without TPOT social embedding.",
+    "account_id": "39125788",
+    "display_name": "Ethan Mollick",
+    "bio": "Professor @Wharton studying AI, innovation & startups. Democratizing education using tech\nBook: https://t.co/CSmipbJ2jV\nSubstack: https://t.co/UIBhxu4bgq",
+    "target_community_id": "7152b213-75b3-4951-8b37-1616a5a33030",
+    "target_community_name": "LLM Whisperers",
+    "followers": 340118,
+    "following": 584,
+    "statuses": 34898,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-llm-whisperers-karpathy",
+    "bucket": "hard_negative",
+    "username": "karpathy",
+    "target_community_short_name": "LLM-Whisperers",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Tech-Intellectuals"
+    ],
+    "selection_reason": "Mainstream AI research celebrity; plausible confounder for LLM-Whisperers but likely not socially embedded in TPOT.",
+    "account_id": "33836629",
+    "display_name": "Andrej Karpathy",
+    "bio": "I like to train large deep neural nets. Previously Director of AI @ Tesla, founding team @ OpenAI, PhD @ Stanford.",
+    "target_community_id": "7152b213-75b3-4951-8b37-1616a5a33030",
+    "target_community_name": "LLM Whisperers",
+    "followers": 1998672,
+    "following": 1071,
+    "statuses": 10054,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-qualia-deepak-chopra",
+    "bucket": "hard_negative",
+    "username": "DeepakChopra",
+    "target_community_short_name": "Qualia-Research",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Contemplative-Practitioners"
+    ],
+    "selection_reason": "Mainstream spiritual / wellness public figure; topical overlap without TPOT embedding.",
+    "account_id": "15588657",
+    "display_name": "",
+    "bio": "",
+    "target_community_id": "d022d0f8-72c3-4c60-80ce-3305d9f1d758",
+    "target_community_name": "Qualia Researchers",
+    "followers": 0,
+    "following": 0,
+    "statuses": 0,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-tech-intellectuals-balajis",
+    "bucket": "hard_negative",
+    "username": "balajis",
+    "target_community_short_name": "Tech-Intellectuals",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Internet-Intellectuals"
+    ],
+    "selection_reason": "Tech / network-state confounder with scene adjacency but likely outside the ontology.",
+    "account_id": "2178012643",
+    "display_name": "Balaji",
+    "bio": "Author of the Network State. Founder of the Network School.",
+    "target_community_id": "4a9ed00e-61ee-404f-9051-e5d6b860e503",
+    "target_community_name": "Tech Philosophers",
+    "followers": 1388618,
+    "following": 3912,
+    "statuses": 31082,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-tech-intellectuals-lexfridman",
+    "bucket": "hard_negative",
+    "username": "lexfridman",
+    "target_community_short_name": "Tech-Intellectuals",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Internet-Intellectuals"
+    ],
+    "selection_reason": "High-visibility public intellectual in tech; strong near-miss rather than core TPOT member.",
+    "account_id": "427089628",
+    "display_name": "Lex Fridman",
+    "bio": "Host of Lex Fridman Podcast.\nInterested in robots and humans.",
+    "target_community_id": "4a9ed00e-61ee-404f-9051-e5d6b860e503",
+    "target_community_name": "Tech Philosophers",
+    "followers": 4677737,
+    "following": 679,
+    "statuses": 3991,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-tech-intellectuals-naval",
+    "bucket": "hard_negative",
+    "username": "naval",
+    "target_community_short_name": "Tech-Intellectuals",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Internet-Intellectuals"
+    ],
+    "selection_reason": "Tech-philosophy confounder and one-way attention magnet; useful hard negative.",
+    "account_id": "745273",
+    "display_name": "Naval",
+    "bio": "Incompressible",
+    "target_community_id": "4a9ed00e-61ee-404f-9051-e5d6b860e503",
+    "target_community_name": "Tech Philosophers",
+    "followers": 3114999,
+    "following": 0,
+    "statuses": 26995,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  },
+  {
+    "review_id": "hardneg-tech-intellectuals-pmarca",
+    "bucket": "hard_negative",
+    "username": "pmarca",
+    "target_community_short_name": "Tech-Intellectuals",
+    "expected_judgment": "out",
+    "likely_confusions": [
+      "Internet-Intellectuals"
+    ],
+    "selection_reason": "Public tech-intellectual / VC near-miss rather than TPOT insider.",
+    "account_id": "5943622",
+    "display_name": "Marc Andreessen 🇺🇸",
+    "bio": "Grand Theft Auto 6 (GTA 6) is officially scheduled to be released on November 19, 2026.",
+    "target_community_id": "4a9ed00e-61ee-404f-9051-e5d6b860e503",
+    "target_community_name": "Tech Philosophers",
+    "followers": 2338498,
+    "following": 29404,
+    "statuses": 12479,
+    "local_post_counts": {
+      "tweets": 0,
+      "enriched_tweets": 0
+    },
+    "sample_posts": [],
+    "current_memberships": [],
+    "missing_local_posts": true
+  }
+]
