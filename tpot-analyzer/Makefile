@@ -5,7 +5,7 @@ PYTEST ?= $(VENV_PY) -m pytest
 
 .DEFAULT_GOAL := help
 
-.PHONY: help ensure-venv verify-louvain-contract test-smoke test verify-docs
+.PHONY: help ensure-venv verify-louvain-contract test-smoke test verify-docs deploy-public-site
 
 help:
 	@echo "Available targets:"
@@ -13,6 +13,7 @@ help:
 	@echo "  make test-smoke               # run fast backend smoke tests"
 	@echo "  make test                     # run full backend test suite"
 	@echo "  make verify-docs              # run docs hygiene verification"
+	@echo "  make deploy-public-site       # [DANGER] Run bootstrap prop + export + blob upload"
 
 ensure-venv:
 	@test -x "$(VENV_PY)" || (echo "Missing $(VENV_PY). Run: python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt" && exit 1)
@@ -28,3 +29,12 @@ test: ensure-venv
 
 verify-docs:
 	@python3 -m scripts.verify_docs_hygiene
+
+deploy-public-site: ensure-venv
+	@echo "--- 1/3: Running Bootstrap Propagation (5 iters) ---"
+	@$(VENV_PY) -m scripts.propagate_community_labels --save --bootstrap 5 --mode independent
+	@echo "--- 2/3: Exporting Data for Public Site ---"
+	@$(VENV_PY) -m scripts.export_public_site
+	@echo "--- 3/3: Uploading to Vercel Blob ---"
+	@cd public-site && node scripts/upload-public-site-data.mjs
+	@echo "Deployment complete."
