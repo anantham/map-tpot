@@ -341,6 +341,25 @@ What failed:
 
 ---
 
+## EXP-011: Parameterizing Directed Personalized PageRank for Subfield Resolution
+
+**Date:** 2026-04-15
+**Question:** If we parameterize the teleport probability (`alpha`) in Directed Personalized PageRank (instead of a globally hardcoded 0.15), can we force the math engine to isolate hyper-specific intellectual subfields inside dense macro-communities?
+**Hypothesis:** Higher teleport probabilities force random walks to be shorter and more highly localized to the immediate seed neighborhoods, reducing the "washing out" smoothing effect across large macro hubs, solving our Subfield mapping boundary problem.
+**Method:** 
+1. Expose `alpha` parameter in `src/propagation/types.py` through to `compute_ppr`.
+2. Ran `scripts.propagate_community_labels` at `alpha=0.15` (baseline wide), `alpha=0.45` (tight), and `alpha=0.85` (hyper-local).
+3. Compared shadow-node assignments, "Seeds Absorbed Ratio", unassigned abstain count, and maximum Lift scaling.
+**Result:** **HYPOTHESIS CONFIRMED.** Higher alpha creates extreme subfield localization:
+- At `alpha=0.15`: 91.4% abstained. Max Lift for "LLM Whisperers" was 68.8x. Walk wandered deeply into generic graph.
+- At `alpha=0.45`: 85.7% abstained. Max Lift for "LLM Whisperers" scaled to 388.5x. Tight clustered assignments.
+- At `alpha=0.85`: 83.1% abstained. Max Lift for "LLM Whisperers" exploded to 5361.6x. Solved in 6 iterations instead of 55. We isolated purely the mathematically closest connections.
+**Lesson:** The teleport probability `alpha` behaves directly like focal length for our clustering lens. By setting `alpha=0.15` for the global graph (identifying macro hubs) and then rerunning at `alpha=0.45` or higher solely inside the filtered subsets (e.g. `AI-Safety` only), we trivially slice granular subfields apart without Goodhart-ing or over-smoothing.
+**Data stored:** Output logged to `docs/diagnostics/alpha_0.15.txt`, `_0.45.txt`, and `_0.85.txt`.
+**Next step:** Integrate hierarchical propagation into the ingestion pipeline, ensuring AI-Safety / mechanistic interpretability seeds acquired via the topic search API are given high `alpha` localized propagation spaces.
+
+---
+
 ## Template for future experiments
 
 ```markdown

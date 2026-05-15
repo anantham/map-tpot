@@ -17,6 +17,11 @@ class PropagationConfig:
     # <1 sharpens it. T=2 is conservative; T=1 is raw propagation output.
     temperature: float = 2.0
 
+    # Teleport probability for Directed Personalized PageRank.
+    # Higher = shorter walks (local niches). Lower = longer walks (macro-clusters).
+    alpha: float = 0.15
+
+
     # Propagation mode: "classic" = zero-sum (memberships sum to 1),
     # "independent" = each community propagated independently (no sum constraint).
     # Independent mode enables bridge detection — accounts can score high
