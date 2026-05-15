@@ -74,6 +74,21 @@ tpot-analyzer/public-site/dist/
 /package.json
 /package-lock.json
 
+# Root-level external data dumps (not part of the project)
+/Orange TPOT Directory*.csv
+/Rapid Grant Application*.pdf
+/substack directory.zip
+/core_tpot_accounts.txt
+
+# Stray SQLite databases at repo root (subdir DBs covered by tpot-analyzer/.gitignore)
+/*.db
+/*.db-shm
+/*.db-wal
+
+# Regenerable working files / draft artifacts
+tpot-analyzer/data/tier1_fetch_queue.txt
+tpot-analyzer/public-site/public/images/communities/flash-drafts/
+
 # Local experiments (not ready for git yet)
 tpot-analyzer/data/holdout_clusters.json
 tpot-analyzer/docs/HOLDOUT_VALIDATION_PLAN.md
