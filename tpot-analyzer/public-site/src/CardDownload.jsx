@@ -134,7 +134,7 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
     ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
     ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif'
     ctx.textAlign = 'right'
-    ctx.fillText('findmyingroup.com', AI_CARD_W - CARD_PAD, AI_CARD_H - 16)
+    ctx.fillText('maptpot.vercel.app', AI_CARD_W - CARD_PAD, AI_CARD_H - 16)
     ctx.textAlign = 'left'
 
     // Download
@@ -250,7 +250,7 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
     ctx.fillStyle = '#444'
     ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif'
     ctx.textAlign = 'right'
-    ctx.fillText('findmyingroup.com', CARD_W - CARD_PAD, y + 14)
+    ctx.fillText('maptpot.vercel.app', CARD_W - CARD_PAD, y + 14)
     ctx.textAlign = 'left'
 
     // Download

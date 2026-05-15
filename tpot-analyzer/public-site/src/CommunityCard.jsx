@@ -130,7 +130,7 @@ export default function CommunityCard({
                 </div>
               ))}
             </div>
-            <div className="card-ai-footer">findmyingroup.com</div>
+            <div className="card-ai-footer">maptpot.vercel.app</div>
           </div>
         </div>
         {fullscreen && (
@@ -240,7 +240,7 @@ export default function CommunityCard({
         </p>
       )}
 
-      <div className="card-footer">findmyingroup.com</div>
+      <div className="card-footer">maptpot.vercel.app</div>
     </div>
   )
 }

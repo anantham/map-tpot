@@ -209,7 +209,7 @@ export default function CommunityPage({
             </a>
           ))}
         </div>
-        <div className="cp-footer-text">Find My Ingroup · amiingroup.vercel.app</div>
+        <div className="cp-footer-text">Find My Ingroup · maptpot.vercel.app</div>
       </div>
     </div>
   )

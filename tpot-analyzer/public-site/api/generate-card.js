@@ -216,7 +216,7 @@ module.exports = async function handler(req, res) {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://findmyingroup.com",
+        "HTTP-Referer": "https://maptpot.vercel.app",
         "X-Title": "TPOT Collectible Cards",
       },
       body: JSON.stringify({

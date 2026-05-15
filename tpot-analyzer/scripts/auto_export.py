@@ -222,7 +222,7 @@ def git_commit_and_push(reason: str) -> bool:
     return True
 
 
-SITE_URL = "https://amiingroup.vercel.app"
+SITE_URL = "https://maptpot.vercel.app"
 
 
 def pre_generate_cards(db_path: Path, site_url: str = SITE_URL) -> None:
