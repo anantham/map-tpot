@@ -115,7 +115,8 @@ def select_accounts(
 
     Excludes:
       - holdout accounts (in_holdout=1 OR in tpot_directory_holdout)
-      - already enriched (any tweets in enriched_tweets)
+      - already enriched via the normal account fetch path
+        (topic-seed search hits do NOT count as account enrichment)
       - accounts with no resolvable username (profiles OR resolved_accounts)
 
     If ego_account_id is provided, boosts accounts by proximity:
@@ -140,8 +141,11 @@ def select_accounts(
             SELECT account_id FROM tpot_directory_holdout
             WHERE account_id IS NOT NULL
         )
-        AND fr.account_id NOT IN (
-            SELECT DISTINCT account_id FROM enriched_tweets
+        AND NOT EXISTS (
+            SELECT 1
+            FROM enriched_tweets et
+            WHERE et.account_id = fr.account_id
+            AND COALESCE(et.fetch_source, '') != 'topic_seed'
         )
         ORDER BY fr.info_value DESC
         LIMIT ?

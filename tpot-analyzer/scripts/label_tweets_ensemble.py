@@ -314,6 +314,22 @@ def _get_glossary() -> dict | None:
     return _GLOSSARY_CACHE
 
 
+def _build_subcommunity_facet_block(glossary: dict | None) -> str:
+    """Render glossary-backed sub-community facets for the system prompt."""
+    if not glossary:
+        return ""
+
+    sub_communities = glossary.get("sub_communities", {})
+    lines: list[str] = []
+    for community_name, facets in sub_communities.items():
+        if str(community_name).startswith("_") or not isinstance(facets, dict):
+            continue
+        facet_names = ", ".join(sorted(facets.keys()))
+        if facet_names:
+            lines.append(f"  Within {community_name}: {facet_names}")
+    return "\n".join(lines)
+
+
 def build_prompt(
     username: str,
     bio: str,
@@ -369,7 +385,7 @@ def build_prompt(
         themes_data = glossary.get("themes", {})
         established_themes = themes_data.get("established", [])
         new_themes = themes_data.get("new_from_audit", [])
-        theme_list = ", ".join(established_themes[:15] + new_themes[:10])
+        theme_list = ", ".join(established_themes + new_themes)
 
         # Anti-patterns
         anti = glossary.get("anti_patterns", {})
@@ -400,6 +416,8 @@ def build_prompt(
         theme_list = ""
         anti_block = ""
         dedup_block = ""
+
+    subcommunity_block = _build_subcommunity_facet_block(glossary)
 
     # Select top 6 emerging clusters (not all 13)
     top_emerging = []
@@ -443,11 +461,13 @@ CRITICAL RULES:
 ADJACENT ECOSYSTEMS (assign bits:None:+2 or +3):
   Mainstream-AI-Twitter (benchmark results, corporate AI announcements), Crypto-Finance, Political-Commentary, Generic-Self-Help, Hustle-Culture, News-Media.
 
+{"CANONICAL THEMES (prefer these exact theme tags when applicable):" + chr(10) + "  " + theme_list if theme_list else ""}
+{"THEME DEDUP RULES:" + chr(10) + dedup_block if dedup_block else ""}
+
 SUB-COMMUNITY FACETS (tag as theme:facet-name when you see them):
-  Within AI-Safety: alignment-theory, mech-interp, agent-foundations, ai-governance, pause-ai, e-acc, d-acc, s-risk, forecasting, field-building
-  Within Contemplative: jhana-practice, somatic-healing, nondual, psychedelic-integration, contemplative-science
-  Within LLM-Whisperers: model-interiority, prompt-sorcery, open-source-ai, ai-art
+{subcommunity_block if subcommunity_block else "  Within AI-Safety: alignment-theory, mech-interp, agent-foundations, ai-governance, pause-ai, e-acc, d-acc, s-risk, forecasting, field-building"}
   These are THEMES, not separate communities. Tag them alongside community bits to capture fine-grained signals.
+{"ANTI-PATTERNS TO AVOID:" + chr(10) + anti_block if anti_block else ""}
 
 FEW-SHOT EXAMPLES:
 

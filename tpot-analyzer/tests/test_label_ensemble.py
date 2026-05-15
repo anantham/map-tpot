@@ -153,6 +153,43 @@ def test_build_prompt_has_communities():
     assert "bits" in prompt.lower()
 
 
+def test_build_prompt_surfaces_glossary_subcommunity_facets():
+    prompt = build_prompt(
+        username="test",
+        bio="a bio",
+        graph_signal="AI-Safety: 10",
+        other_tweets="",
+        tweet_text="mechanistic interpretability thread",
+        engagement="5 likes",
+        mentions="none",
+        engagement_context="none",
+        community_descriptions={"AI-Safety": "Alignment discourse"},
+        community_short_names=["AI-Safety"],
+    )
+    assert "black-box-safety" in prompt
+    assert "model-psychology" in prompt
+    assert "developmental-interpretability" in prompt
+
+
+def test_build_prompt_surfaces_new_canonical_safety_themes():
+    prompt = build_prompt(
+        username="test",
+        bio="a bio",
+        graph_signal="AI-Safety: 10",
+        other_tweets="",
+        tweet_text="corrigibility and jailbreaks",
+        engagement="5 likes",
+        mentions="none",
+        engagement_context="none",
+        community_descriptions={"AI-Safety": "Alignment discourse"},
+        community_short_names=["AI-Safety"],
+    )
+    assert "theme:black-box-safety" in prompt
+    assert "theme:model-psychology" in prompt
+    assert "theme:jailbreaks" in prompt
+    assert "theme:corrigibility" in prompt
+
+
 def test_store_labels_writes_tweet_tags(tmp_path):
     conn = sqlite3.connect(str(tmp_path / "test.db"))
     conn.execute("CREATE TABLE tweet_tags (tweet_id TEXT, tag TEXT, category TEXT, added_by TEXT DEFAULT 'human', created_at TEXT, PRIMARY KEY (tweet_id, tag))")
