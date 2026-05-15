@@ -355,7 +355,7 @@ def _propagate_once(
 
     print("\nComputing Global PageRank (Null Model)...")
     t0 = time.perf_counter()
-    global_pr, g_iters, g_conv = compute_ppr(adjacency, teleport_vector=None, alpha=0.15)
+    global_pr, g_iters, g_conv = compute_ppr(adjacency, teleport_vector=None, alpha=config.alpha)
     print(f"Global PR: {g_iters} iters, {time.perf_counter() - t0:.2f}s")
     
     # Avoid division by zero when calculating Lift
@@ -381,7 +381,7 @@ def _propagate_once(
             iterations_list.append(0)
             continue
 
-        ppr_c, iters, conv = compute_ppr(adjacency, teleport_vector=teleport, alpha=0.15)
+        ppr_c, iters, conv = compute_ppr(adjacency, teleport_vector=teleport, alpha=config.alpha)
         
         # Lift = PPR_c / Global_PR
         lift_c = ppr_c / global_pr

@@ -1,0 +1,173 @@
+=== Personalized PageRank Community Propagation ===
+Config: alpha=0.45, T=2.0, reg=0.001, min_deg=2, balance=True, max_cg_iter=2000, graph=archive
+
+Building adjacency from archive_tweets.db...
+
+Building adjacency from archive_tweets.db...
+  Loading node IDs from account_following...
+  Nodes: 298,347 (43,987 sources, 269,438 targets)
+  Loading follow edges...
+    803,998 follow edges
+  Loading signed reply edges...
+    12,021 reply edges
+  Loading engagement edges (like + RT)...
+    24,501 like edges
+    6,989 RT edges
+  Loading co-followed similarity edges...
+    33,402 co-followed edges (undirected)
+  Loading quote edges...
+    343,886 quote edges
+  Loading mention edges...
+    1,882,155 mention edges
+  Loading follower edges (inbound)...
+    533,749 follower edges (inbound)
+  TypedGraph: 298,347 nodes
+    follow      :    803,998 edges
+    reply       :     12,021 edges
+    like        :     24,501 edges
+    rt          :      6,989 edges
+    cofollowed  :     33,402 edges
+    quote       :    343,886 edges
+    mention     :  1,882,155 edges
+    follower    :    533,749 edges
+    TOTAL       :  3,640,701 edges
+
+  Combined graph: 298,347 nodes, 2,715,658 edges
+Adjacency: 298,347 nodes, 2,715,658 edges
+
+--- Running Propagation ---
+Nodes: 298,347
+Labeled (in graph): 361
+Communities: 16
+Classes (incl. none): 17
+
+Computing Global PageRank (Null Model)...
+Global PR: 18 iters, 0.18s
+
+Computing Directed PPR per community...
+  Class  0 (Core TPOT                ):   17 iters, max lift = 564.9x
+  Class  1 (Vibecamp Highbies        ):   17 iters, max lift = 828.6x
+  Class  2 (Jhana Practitioners      ):   17 iters, max lift = 106.1x
+  Class  3 (Tech Philosophers        ):   19 iters, max lift = 257.1x
+  Class  4 (Qualia Researchers       ):   19 iters, max lift = 374.5x
+  Class  5 (Internet Essayists       ):   16 iters, max lift = 355.5x
+  Class  6 (Relational Explorers     ):   17 iters, max lift = 159.6x
+  Class  7 (Quiet Creatives          ):   17 iters, max lift = 938.3x
+  Class  8 (EA & Forecasting         ):   17 iters, max lift = 436.8x
+  Class  9 (AI Creatives             ):   17 iters, max lift = 645.6x
+  Class 10 (LLM Whisperers           ):   17 iters, max lift = 388.5x
+  Class 11 (Queer TPOT               ):   18 iters, max lift = 298.8x
+  Class 12 (Regen & Collective Intelligence):   17 iters, max lift = 171.2x
+  Class 13 (NYC Institution Builders ):   17 iters, max lift = 140.2x
+  Class 14 (Sensemaking Builders     ):   17 iters, max lift = 308.8x
+  Class 16 (__none__                 ):   17 iters, max lift = 357.3x
+Total solve time: 2.32s
+
+======================================================================
+COMMUNITY PROPAGATION DIAGNOSTICS
+======================================================================
+
+--- Solver Convergence ---
+All classes converged: True
+Total solve time: 2.32s
+
+--- 'None' Class Distribution (shadow nodes only) ---
+Shadow nodes: 297,986
+Shadow with none > 0.5: 208,692 (70.0%)
+Shadow with none > 0.9: 208,692 (70.0%)
+Mean none weight: 0.712
+
+--- Per-Community Propagation ---
+Community                      Seeds Absorbed  Ratio  Flag
+------------------------------------------------------------
+Core TPOT                         75     2116  28.2x !!!
+Vibecamp Highbies                 51     1736  34.0x !!!
+Jhana Practitioners               68     1285  18.9x !!!
+Tech Philosophers                 52     5139  98.8x !!!
+Qualia Researchers                59     2300  39.0x !!!
+Internet Essayists                55     2044  37.2x !!!
+Relational Explorers              47     1585  33.7x !!!
+Quiet Creatives                   48     2276  47.4x !!!
+EA & Forecasting                  45     5131 114.0x !!!
+AI Creatives                      42     4228 100.7x !!!
+LLM Whisperers                    34     3893 114.5x !!!
+Queer TPOT                        42     2978  70.9x !!!
+Regen & Collective Intelligence    32     1740  54.4x !!!
+NYC Institution Builders          31     1609  51.9x !!!
+Sensemaking Builders              29     4364 150.5x !!!
+None (Adjacent)                    0        0   0.0x 
+
+--- Abstain Gate ---
+Abstained nodes: 255,562 (85.7% of all nodes)
+
+--- Uncertainty Distribution (shadow nodes) ---
+Mean: 0.000, Median: 0.000
+  > 0.3: 0.0%
+  > 0.5: 0.0%
+  > 0.7: 0.0%
+  > 0.9: 0.0%
+
+--- Multi-Community Overlap (non-abstain shadows) ---
+Non-abstain shadow nodes: 42,424
+In 1 community (>0.1):  13,522
+In 2+ communities (>0.1): 28,902 (68.1%)
+In 3+ communities (>0.1): 11,616
+
+--- Degree-Stratified Summary ---
+Degree band            Nodes  MeanMax  MeanUnc  NoneDom
+-------------------------------------------------------
+  leaves (0-1)        :  5,237    0.713    0.000        0
+  low (2-9)           : 27,610    0.366    0.000        3
+  mid (10-49)         :  8,014    0.324    0.000        1
+  high (50-199)       :  1,356    0.285    0.000        0
+  hubs (200+)         :    207    0.255    0.000        0
+
+--- Top 20 Most Confident Shadow Assignments ---
+  (Review these manually — do the assignments make sense?)
+  @864359202...              deg=   2 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @131165467802...           deg=   3 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @129410883040...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @610091611...              deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @164770728952...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @159189824703...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @104548744927...           deg=   3 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @paul_hunkin               deg=   2 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @171006315692...           deg=   2 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @113136169383...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @157256942210...           deg=   2 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @141289262723...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @171009180466...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @1077085362...             deg=   2 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @145881628342...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @171129606056...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @126268612414...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @128942224893...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @137851347658...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+  @171373981867...           deg=   1 unc=0.00 none=0.025 | Sensemaking Builders=0.966
+
+--- Louvain Sanity Check ---
+  (Purity = fraction of labeled nodes in dominant Louvain cluster)
+  AI Creatives                  :  22 labeled, 11 Louvain clusters, purity=0.27
+  Core TPOT                     :  33 labeled, 10 Louvain clusters, purity=0.61
+  EA & Forecasting              :  18 labeled,  4 Louvain clusters, purity=0.44
+  Internet Essayists            :  25 labeled,  8 Louvain clusters, purity=0.68
+  Jhana Practitioners           :  30 labeled,  1 Louvain clusters, purity=1.00
+  LLM Whisperers                :  10 labeled,  4 Louvain clusters, purity=0.60
+  NYC Institution Builders      :  16 labeled,  2 Louvain clusters, purity=0.88
+  Qualia Researchers            :  25 labeled,  8 Louvain clusters, purity=0.60
+  Queer TPOT                    :  25 labeled,  9 Louvain clusters, purity=0.56
+  Quiet Creatives               :  26 labeled,  3 Louvain clusters, purity=0.88
+  Regen & Collective Intelligence:  14 labeled,  4 Louvain clusters, purity=0.43
+  Relational Explorers          :  14 labeled,  1 Louvain clusters, purity=1.00
+  Sensemaking Builders          :  17 labeled,  9 Louvain clusters, purity=0.29
+  Tech Philosophers             :  22 labeled, 11 Louvain clusters, purity=0.23
+  Vibecamp Highbies             :  21 labeled,  1 Louvain clusters, purity=1.00
+
+======================================================================
+NEXT STEPS FOR HUMAN REVIEW:
+  1. Review absorption ratios — any > 3x? Those communities may be leaking
+  2. Check top 20 assignments — Google the usernames, do they fit?
+  3. Try --temperature 1.0 and --temperature 3.0 to see effect
+  4. Try --no-balance to see raw (unbalanced) propagation
+  5. If results look reasonable, run with --save to persist
+======================================================================

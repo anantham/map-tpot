@@ -10,18 +10,17 @@ The question is NOT "assign every node to a community" — it's
 our 14 communities but we haven't found them yet?"
 
 This script propagates soft community membership from the 274 labeled
-core nodes outward through the follow graph, using the harmonic function
-(Laplacian-based label propagation). Each shadow node gets a probability
-vector over 14 communities + "none". Most nodes will (correctly) end up
-as "none" — they're adjacent to TPOT but not part of any sub-community.
+core nodes outward through the follow graph, using Directed Personalized 
+PageRank (PPR). To prevent mega-hubs from absorbing all probabilities, it 
+calculates the Lift (PPR_local / Global_PageRank).
 
 === APPROACH ===
 
-Harmonic function on graphs (Zhu, Ghahramani, Lafferty 2003):
-  - Labeled nodes are "boundary conditions" with known community weights
-  - Unlabeled nodes are solved for by minimizing Dirichlet energy
-  - Solution: f_U = -L_UU^{-1} * L_UL * f_L  (sparse linear solve)
-  - Each of the K+1 classes (14 communities + "none") is solved independently
+Directed Personalized PageRank (PPR) + Lift:
+  - Labeled nodes are "teleport targets" (boundary conditions)
+  - Random walks follow reversed graph edges to find "who follows the community"
+  - Teleport probability (alpha) controls the tightness of the walk
+  - Each of the K classes (14 communities) is solved independently against a global PR baseline
 
 Key design decisions:
   1. CLASS BALANCING: Large communities (73 members) would dominate small ones
@@ -86,8 +85,10 @@ SPECTRAL_PATH = DATA_DIR / "graph_snapshot.spectral.npz"
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Multi-class community label propagation (ADR 012 Phase 0)"
+        description="Multi-class Directed Personalized PageRank propagation (ADR 012 Phase 0)"
     )
+    parser.add_argument("--alpha", type=float, default=0.15,
+                        help="Teleport probability for PPR: higher=tighter walks, lower=macro clusters (default: 0.15)")
     parser.add_argument("--temperature", type=float, default=2.0,
                         help="Softmax temperature: >1 flattens, <1 sharpens (default: 2.0)")
     parser.add_argument("--reg", type=float, default=1e-3,
@@ -131,11 +132,12 @@ def main():
         class_balance=not args.no_balance,
         max_iter=args.max_cg_iter,
         mode=args.mode,
+        alpha=args.alpha,
     )
 
-    print("=== Community Label Propagation (ADR 012 Phase 0) ===")
+    print("=== Personalized PageRank Community Propagation ===")
     graph_source = "archive" if args.use_archive_graph else "spectral"
-    print(f"Config: T={config.temperature}, reg={config.regularization}, "
+    print(f"Config: alpha={config.alpha}, T={config.temperature}, reg={config.regularization}, "
           f"min_deg={config.min_degree_for_assignment}, balance={config.class_balance}, "
           f"max_cg_iter={config.max_iter}, graph={graph_source}")
     if args.holdout_fraction > 0:
