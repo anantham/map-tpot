@@ -2,7 +2,7 @@
 
 Discovers and maps the TPOT (This Part of Twitter) community using the [Community Archive](https://community-archive.org) dataset. Combines follow graph analysis, engagement signals, and label propagation to classify ~200K accounts into 15 named communities across 4 confidence bands.
 
-**Live site:** [findmyingroup.com](https://findmyingroup.com) / [amiingroup.vercel.app](https://amiingroup.vercel.app)
+**Live site:** [maptpot.vercel.app](https://maptpot.vercel.app)
 
 The repo has three main surfaces:
 - **Public site** (`public-site/`) — Lightweight React app for searching accounts and browsing communities
@@ -42,7 +42,7 @@ Community Archive (Supabase)
                 ▼
     ┌──────────────────────────┐
     │  Public Site Export       │  React app with search, community
-    │  findmyingroup.com       │  pages, collectible cards
+    │  maptpot.vercel.app      │  pages, collectible cards
     └──────────────────────────┘
 ```
 

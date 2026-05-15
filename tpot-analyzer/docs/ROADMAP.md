@@ -48,7 +48,7 @@ These items were built but not tracked in the original Phase 4-8 roadmap below. 
 - [x] Content topics: 25 topics via TF-IDF + NMF on 17.5M liked tweets
 
 ### Public Site
-- [x] amiingroup.vercel.app — deployed, 8,429 searchable accounts
+- [x] maptpot.vercel.app — deployed, 8,429 searchable accounts
 - [x] Export: four-band system, community descriptions, iconography
 - [x] Community detail pages with spotlights + all-members sidebar
 - [x] Card generation with community iconography

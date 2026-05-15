@@ -286,7 +286,7 @@ describe('CommunityCard', () => {
         />
       )
 
-      expect(screen.getByText('findmyingroup.com')).toBeTruthy()
+      expect(screen.getByText('maptpot.vercel.app')).toBeTruthy()
     })
   })
 

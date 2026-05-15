@@ -27,7 +27,7 @@ try {
   }
 } catch {}
 
-const SITE_URL = "https://amiingroup.vercel.app";
+const SITE_URL = "https://maptpot.vercel.app";
 const SITE_NAME = "Find My Ingroup";
 
 module.exports = async function handler(req, res) {

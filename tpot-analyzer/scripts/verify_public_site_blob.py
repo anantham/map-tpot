@@ -37,7 +37,7 @@ def _load_local_json(path: Path) -> tuple[Any, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify Blob-backed public-site data delivery")
-    parser.add_argument("--base-url", default="https://amiingroup.vercel.app")
+    parser.add_argument("--base-url", default="https://maptpot.vercel.app")
     parser.add_argument(
         "--public-dir",
         type=Path,

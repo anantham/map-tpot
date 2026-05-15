@@ -72,7 +72,7 @@ Last reviewed: 2026-03-26
 | [Prior Improvement Roadmap](superpowers/specs/2026-03-22-prior-improvement-roadmap-design.md) | 2026-03-22 | Tier A+B complete, Tier C in progress |
 | [Community Detail Pages](superpowers/specs/2026-03-21-community-detail-pages-design.md) | 2026-03-21 | Shipped |
 | [JIT Collectible Cards](superpowers/specs/2026-03-19-jit-collectible-cards-design.md) | 2026-03-19 | Shipped |
-| [Find My Ingroup](superpowers/specs/2026-03-19-find-my-ingroup-design.md) | 2026-03-19 | Shipped — amiingroup.vercel.app |
+| [Find My Ingroup](superpowers/specs/2026-03-19-find-my-ingroup-design.md) | 2026-03-19 | Shipped — maptpot.vercel.app |
 
 ### ADRs
 
