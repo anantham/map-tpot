@@ -102,9 +102,9 @@ def test_log_api_call(db):
                  action="last_tweets", tweets_fetched=20)
     row = db.execute("SELECT * FROM enrichment_log").fetchone()
     assert row is not None
-    # Verify estimated_cost defaults to COST_PER_CALL (0.03)
+    # Verify estimated_cost computes dynamically to 20 * 0.00015 = 0.003
     rows = db.execute("SELECT estimated_cost FROM enrichment_log").fetchall()
-    assert rows[0][0] == 0.03
+    assert rows[0][0] == 0.003
 
 
 def test_assert_not_holdout(db):

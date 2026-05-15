@@ -27,7 +27,10 @@ load_dotenv()
 
 DB_PATH = Path(__file__).parent.parent / "data" / "archive_tweets.db"
 BASE_URL = "https://api.twitterapi.io/twitter"
-COST_PER_CALL = 0.03  # ~3000 credits/page, 2M credits/$20 = $0.01/1000 credits
+CREDITS_PER_USD = 100_000
+CREDITS_PER_FOLLOWER = 15
+COST_PER_FOLLOWER = CREDITS_PER_FOLLOWER / CREDITS_PER_USD  # 0.00015
+MIN_CALL_COST = 15 / CREDITS_PER_USD  # 0.00015
 
 # API key resolution (same candidates as shadow_subset_audit)
 KEY_ENV_CANDIDATES = (
@@ -207,8 +210,9 @@ def main():
 
     print(f"Accounts to fetch: {len(targets)}")
     total_pages_est = sum(min(50, (fwing + 19) // 20) for _, _, _, fwing in targets if fwing > 0)
+    est_total_following = sum(min(1000, fwing) for _, _, _, fwing in targets if fwing > 0)
     print(f"Estimated API pages: ~{total_pages_est:,}")
-    print(f"Estimated cost: ~${total_pages_est * COST_PER_CALL:.2f}")
+    print(f"Estimated cost: ~${est_total_following * COST_PER_FOLLOWER:.2f}")
     print(f"Budget: ${args.budget:.2f}")
     if args.dry_run:
         print("DRY RUN — no API calls")
@@ -232,8 +236,8 @@ def main():
         print(f"  [{fetched+1}/{len(targets)}] @{username} (inbound={inb}, following={total_fwing}, ~{pages}p)", end=" ", flush=True)
 
         following_ids = fetch_following(api_key, username, max_pages=pages)
-        est_pages_used = max(1, (len(following_ids) + 19) // 20)
-        total_cost += est_pages_used * COST_PER_CALL
+        actual_cost = max(len(following_ids) * COST_PER_FOLLOWER, MIN_CALL_COST)
+        total_cost += actual_cost
 
         if following_ids:
             added = store_following(conn, aid, following_ids)

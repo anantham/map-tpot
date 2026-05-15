@@ -27,7 +27,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_URL = "https://api.twitterapi.io/twitter"
-COST_PER_CALL = 0.03  # ~3000 credits/page, plan: 2M credits/$20
+CREDITS_PER_USD = 100_000
+CREDITS_PER_TWEET = 15
+COST_PER_TWEET = CREDITS_PER_TWEET / CREDITS_PER_USD  # 0.00015
+MIN_CALL_COST = 15 / CREDITS_PER_USD  # 0.00015
 
 KEY_ENV_CANDIDATES = (
     "TWITTERAPI_IO_API_KEY",
@@ -592,10 +595,14 @@ def log_api_call(
     action: str,
     tweets_fetched: int,
     query: str | None = None,
-    cost: float = COST_PER_CALL,
+    cost: float | None = None,
 ) -> None:
     """INSERT a row into enrichment_log for one API call."""
     now = datetime.now(timezone.utc).isoformat()
+    
+    if cost is None:
+        cost = max(tweets_fetched * COST_PER_TWEET, MIN_CALL_COST)
+    
     conn.execute(
         """
         INSERT INTO enrichment_log (
