@@ -153,7 +153,13 @@
       "theme:field-building",
       "theme:d/acc",
       "theme:network-state",
-      "theme:proof-of-personhood"
+      "theme:proof-of-personhood",
+      "theme:black-box-safety",
+      "theme:iterative-alignment",
+      "theme:defensive-alignment",
+      "theme:model-psychology",
+      "theme:jailbreaks",
+      "theme:corrigibility"
     ],
     "do_not_duplicate": {
       "_note": "These are the SAME theme under different names. Use ONLY the first form.",
@@ -215,15 +221,18 @@
     "_note": "Fine-grained facets WITHIN existing communities. LLMs should tag these as theme:facet-name when they see them. These do NOT replace community bits \u2014 they supplement.",
     "AI-Safety": {
       "alignment-theory": "Core alignment research \u2014 mesa-optimization, deceptive alignment, corrigibility. @ESYudkowsky, @paulfchristiano style.",
-      "mech-interp": "Mechanistic interpretability \u2014 circuits, features, SAEs, activation analysis. @NeelNanda5, @ChrisOlah lineage.",
+      "black-box-safety": "Evaluating and controlling current model behavior \u2014 iterative alignment, inoculation prompting, inference-time steering, capability removal.",
+      "model-psychology": "Character training, emergent misalignment, model psychopathology, internal representation mapping, persona steering.",
+      "data-for-alignment": "Synthetic data for alignment, data filtering, data poisoning defense, goal robustness.",
+      "mech-interp": "Mechanistic interpretability \u2014 circuits, features, SAEs, causal abstractions, feature disentanglement. @NeelNanda5, @ChrisOlah lineage.",
+      "developmental-interpretability": "Phase transitions in model training, dev-interp, learning dynamics. Singular learning theory.",
       "agent-foundations": "MIRI-style agent foundations \u2014 decision theory, logical uncertainty, embedded agency. @So8res, @jessicata_.",
       "ai-governance": "Policy, regulation, compute governance, international coordination. @DanHendrycks, @gabriel_weil, @GovAI.",
       "pause-ai": "Pause/slowdown advocacy \u2014 moratorium, treaty, safety-first. @PauseAI, @FLIxrisk.",
       "e-acc": "Effective accelerationism \u2014 techno-optimism, progress-maximizing. @BasedBeffJezos, acceleration discourse.",
       "d-acc": "Defensive acceleration \u2014 decentralized safety, d/acc. @VitalikButerin d/acc framing.",
       "s-risk": "Suffering risk, astronomical suffering, CLR. @turchin, @Lukas_Gloor.",
-      "forecasting": "Calibration, prediction markets, Metaculus, quantified reasoning. @NunoSempere, @eli_lifland.",
-      "field-building": "EA community building, career advice, cause prioritization. @80aborhours, @BenGoldhaber."
+      "forecasting": "Calibration, prediction markets, Metaculus, quantified reasoning. @NunoSempere, @eli_lifland."
     },
     "Contemplative-Practitioners": {
       "jhana-practice": "Jhana meditation, concentration states, cessation. @Jhourney_, @delabordegarrett.",

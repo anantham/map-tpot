@@ -53,6 +53,21 @@ def test_select_accounts_respects_enriched_dedup(tmp_path):
     assert len(accounts) == 0
 
 
+def test_select_accounts_allows_topic_seed_only_accounts(tmp_path):
+    """Topic-seed tweets should not block the normal round-1 account fetch."""
+    conn = _setup_orchestrator_db(tmp_path)
+    conn.execute("INSERT INTO frontier_ranking VALUES ('a1','topic_seed',99.0,'AI-Safety',1.0,1,0,'')")
+    conn.execute("INSERT INTO profiles VALUES ('a1','user1','')")
+    conn.execute(
+        "INSERT INTO enriched_tweets (tweet_id,account_id,username,text,fetch_source,fetched_at) "
+        "VALUES ('t0','a1','user1','topic tweet','topic_seed','')"
+    )
+    conn.commit()
+
+    accounts = select_accounts(conn, top_n=10, round_num=1)
+    assert [a["account_id"] for a in accounts] == ["a1"]
+
+
 def test_select_accounts_resolves_username(tmp_path):
     conn = _setup_orchestrator_db(tmp_path)
     conn.execute("INSERT INTO frontier_ranking VALUES ('a1','frontier',10.0,'c1',0.5,5,0,'')")
@@ -147,6 +162,25 @@ def test_select_accounts_skips_any_enriched(tmp_path):
     conn.commit()
     accounts = select_accounts(conn, top_n=10, round_num=1)
     assert len(accounts) == 0  # skipped — already has enriched tweets
+
+
+def test_select_accounts_skips_mixed_topic_seed_and_normal_fetch(tmp_path):
+    """Any non-topic-seed enrichment should still suppress re-selection."""
+    conn = _setup_orchestrator_db(tmp_path)
+    conn.execute("INSERT INTO frontier_ranking VALUES ('a1','topic_seed',99.0,'AI-Safety',1.0,1,0,'')")
+    conn.execute("INSERT INTO profiles VALUES ('a1','user1','')")
+    conn.execute(
+        "INSERT INTO enriched_tweets (tweet_id,account_id,username,text,fetch_source,fetched_at) "
+        "VALUES ('t0','a1','user1','topic tweet','topic_seed','')"
+    )
+    conn.execute(
+        "INSERT INTO enriched_tweets (tweet_id,account_id,username,text,fetch_source,fetched_at) "
+        "VALUES ('t1','a1','user1','timeline tweet','last_tweets','')"
+    )
+    conn.commit()
+
+    accounts = select_accounts(conn, top_n=10, round_num=1)
+    assert accounts == []
 
 
 def test_triage_single_dominant():

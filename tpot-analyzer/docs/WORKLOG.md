@@ -1,5 +1,28 @@
 # Worklog - TPOT Analyzer
 
+## Topic Seed Repair (2026-04-15)
+
+- [2026-04-15 14:35 ET] **Topic-seed ingestion + active-learning handoff repair (Codex GPT-5)**
+    - **Assumptions**
+        - The intended behavior is: `scripts/fetch_topic_seeds.py` stores topical search hits for context, stages the authors at the top of `frontier_ranking`, and leaves those authors eligible for the next account-level `scripts.active_learning --round 1` fetch.
+    - **Predicted outcome**
+        - Topic-seed runs no longer fail on helper-signature mismatch, advanced-search rows are parsed into the schema expected by `enriched_tweets`, and topic-seeded authors remain selectable until they have at least one non-`topic_seed` enrichment source.
+    - **Confidence**
+        - `0.93`
+    - **Fallback plan**
+        - If production usage shows topic-seed tweets should not live in `enriched_tweets` at all, move them into a dedicated staging table and keep only author/frontier state in the main DB. That is a larger schema change and should be reviewed before implementation.
+    - **Changes (files + why)**
+        - `tpot-analyzer/scripts/fetch_topic_seeds.py:18-159`: fix the ingestion contract by parsing raw `advanced_search` tweets with `parse_tweet`, logging search spend via the real `log_api_call(...)` signature, preserving author bios in `profiles`, and staging authors into `frontier_ranking` without relying on nonexistent raw fields.
+        - `tpot-analyzer/scripts/active_learning.py:116-149`: narrow round-1 dedup so only prior account-level enrichment blocks selection; `topic_seed` rows now act as contextual preloads rather than suppressing the very handoff they are meant to trigger.
+        - `tpot-analyzer/scripts/label_tweets_ensemble.py:317-470`: wire `config/community_glossary.json` into the actual prompt by rendering glossary-backed sub-community facets, canonical theme tags, theme dedup rules, and anti-pattern reminders so new AI-safety distinctions are exposed to the ensemble instead of sitting as dead config.
+        - `tpot-analyzer/tests/test_active_learning.py:55-188`: add regression coverage for topic-seed-only accounts remaining eligible and mixed-source accounts still being suppressed.
+        - `tpot-analyzer/tests/test_label_ensemble.py:156-192`: add prompt assertions for `black-box-safety`, `model-psychology`, `developmental-interpretability`, `theme:jailbreaks`, and `theme:corrigibility`.
+        - `tpot-analyzer/tests/test_fetch_topic_seeds.py:1-106`: add focused tests for parsed topic ingestion, frontier staging, enrichment-log writes, and malformed raw-search rows.
+        - `tpot-analyzer/scripts/verify_topic_seed_ingestion.py:1-99`: add a human-friendly verifier that prints ✓/✗ checks, counts, sample staged accounts, and next steps for the topic-seed handoff.
+    - **Verification**
+        - `cd tpot-analyzer && .venv/bin/pytest -q tests/test_active_learning.py tests/test_label_ensemble.py tests/test_fetch_topic_seeds.py` → `48 passed`.
+        - `cd tpot-analyzer && .venv/bin/python scripts/verify_topic_seed_ingestion.py --db-path tests/does-not-exist.db` → expected failure path with explicit next-step guidance (`database: not found ...`).
+
 ## Doc Audit & Remediation (2026-03-19)
 
 - [2026-03-19] **Full-codebase doc audit (expansion:doc-audit skill)**

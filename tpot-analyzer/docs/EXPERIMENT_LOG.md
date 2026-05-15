@@ -2,7 +2,29 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-03-26 (Session 11)*
+*Last updated: 2026-04-15 (Session 12)*
+
+---
+
+## EXP-006: Does topic-seed ingestion actually hand off into active learning?
+
+**Date:** 2026-04-15
+**Question:** The new `fetch_topic_seeds.py` flow claims to (1) ingest advanced-search topic tweets, (2) stage authors in `frontier_ranking`, and (3) let `scripts.active_learning --round 1` fetch those authors next. Do the current helper contracts actually support that?
+
+**Hypothesis:** The original implementation is broken at two contract boundaries: it logs API calls with the wrong function signature and stores raw `advanced_search` payloads without parsing them into the `enriched_tweets` schema. Even if corrected, the current round-1 selector will still suppress those authors because it excludes any account already present in `enriched_tweets`.
+
+**Method:** Performed static review of `scripts/fetch_topic_seeds.py`, `scripts/fetch_tweets_for_account.py`, and `scripts/active_learning.py`. Added focused regression tests that simulate raw `advanced_search` rows, then verified selection behavior for accounts with only `topic_seed` rows versus mixed `topic_seed` + normal fetch rows.
+
+**Result:** **CONFIRMED.** The initial implementation would fail on `log_api_call(...)` and fed `store_tweets(...)` the wrong data shape. After repair:
+- raw search hits are parsed through `parse_tweet(...)`,
+- search spend is logged through the real enrichment-log contract,
+- staged authors land in `frontier_ranking`,
+- accounts with only `topic_seed` rows remain eligible for round 1,
+- accounts with any non-`topic_seed` enrichment remain suppressed.
+
+**Lesson:** Topic-seed search hits are contextual preload data, not proof that an account has already gone through the account-level fetch/label loop. Dedup has to respect fetch provenance, not just table presence.
+
+**Next step:** Run `scripts/verify_topic_seed_ingestion.py` against the real `archive_tweets.db` after the next topic-search batch to confirm staged-author counts and round-1 eligibility on production data.
 
 ---
 
