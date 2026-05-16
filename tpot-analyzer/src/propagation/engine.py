@@ -437,10 +437,18 @@ def _propagate_once(
         memberships[low_degree_unlabeled, K] = 1.0
 
         entropy = multiclass_entropy(memberships)
-        uncertainty = np.zeros(n_nodes)
+        # Use entropy as the uncertainty signal for classic mode. Both are
+        # normalized to [0, 1] and measure the same thing (peakedness of the
+        # community distribution).
+        uncertainty = entropy.copy()
 
         max_community_weight = memberships[:, :K].max(axis=1)
-        abstain_mask = (max_community_weight < 0.15) & ~labeled_mask
+        # Two independent thresholds — either triggers abstain, per the
+        # contract documented in PropagationConfig and ADR 018.
+        abstain_mask = (
+            (max_community_weight < config.abstain_max_threshold)
+            | (uncertainty > config.abstain_uncertainty_threshold)
+        ) & ~labeled_mask
 
     result = PropagationResult(
         memberships=memberships,

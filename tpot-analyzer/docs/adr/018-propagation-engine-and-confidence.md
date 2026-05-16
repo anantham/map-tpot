@@ -86,8 +86,8 @@ All in `PropagationConfig` (`src/propagation/types.py:9`):
 | `tolerance` | 1e-6 | CG / power-iteration convergence threshold (L1 norm). |
 | `max_iter` | 800 | Hard cap on solver iterations. Real runs converge in <200. |
 | `min_degree_for_assignment` | 2 | Nodes with combined in+out degree below this get auto-assigned "none". Degree-1 nodes (52K+ leaves) would just copy their single neighbor's label, which isn't evidence. |
-| `abstain_max_threshold` | 0.15 | If the top community weight < this, the account abstains (no assignment). |
-| `abstain_uncertainty_threshold` | 0.6 | If combined uncertainty > this, the account abstains. |
+| `abstain_max_threshold` | 0.15 | If the top community weight < this, the account abstains. Honored in **classic mode** only — independent mode uses a hardcoded Lift baseline of 1.0 (i.e., "abstain if no community shows above-null association"), because the units differ (sum-to-1 probability vs raw Lift). |
+| `abstain_uncertainty_threshold` | 0.6 | If combined uncertainty (entropy of the community distribution, normalized to [0,1]) > this, the account abstains. Honored in **classic mode** only — independent mode uses seed-neighbor count instead. |
 | `class_balance` | True | Inverse-sqrt class balancing. Without it, a 73-member community would absorb ~18× more shadows than a 4-member one purely from boundary-surface bias. |
 
 Diagnostic snapshots at α=0.15, 0.45, 0.85 are checked in at `docs/diagnostics/alpha_*.txt` for reference when retuning.
