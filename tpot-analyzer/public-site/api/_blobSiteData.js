@@ -1,4 +1,4 @@
-const { get } = require("@vercel/blob");
+const { getBlobGet } = require("./_lib");
 
 const SITE_DATA_BLOB_PATHS = {
   data: "public-site/data.json",
@@ -9,6 +9,13 @@ async function readBlobBuffer(pathname) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) {
     const error = new Error("Missing BLOB_READ_WRITE_TOKEN for public-site blob reads");
+    error.code = "config_error";
+    throw error;
+  }
+
+  const get = getBlobGet();
+  if (!get) {
+    const error = new Error("@vercel/blob get() unavailable");
     error.code = "config_error";
     throw error;
   }

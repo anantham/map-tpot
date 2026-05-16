@@ -8,29 +8,13 @@
  * Falls back to a generic site card if no generated image exists in KV.
  */
 
-let kv = null;
-try {
-  const Redis = require("ioredis");
-  const redisUrl = process.env.KV_REDIS_URL;
-  if (redisUrl) {
-    const redis = new Redis(redisUrl, {
-      maxRetriesPerRequest: 1,
-      connectTimeout: 3000,
-      lazyConnect: true,
-    });
-    kv = {
-      async hget(key, field) {
-        try { await redis.connect(); } catch {}
-        return redis.hget(key, field);
-      },
-    };
-  }
-} catch {}
+const { getKv } = require("./_lib");
 
 const SITE_URL = "https://maptpot.vercel.app";
 const SITE_NAME = "Find My Ingroup";
 
 module.exports = async function handler(req, res) {
+  const kv = getKv();
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }

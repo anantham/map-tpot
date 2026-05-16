@@ -9,36 +9,11 @@
  * Returns: 200 OK | 400 validation error
  */
 
-let blobPut = null;
-try {
-  const { put } = require("@vercel/blob");
-  blobPut = put;
-} catch {}
-
-let kv = null;
-try {
-  const Redis = require("ioredis");
-  const redisUrl = process.env.KV_REDIS_URL;
-  if (redisUrl) {
-    const redis = new Redis(redisUrl, {
-      maxRetriesPerRequest: 1,
-      connectTimeout: 3000,
-      lazyConnect: true,
-    });
-    kv = {
-      async hset(key, field, value) {
-        try { await redis.connect(); } catch {}
-        return redis.hset(key, field, value);
-      },
-      async hget(key, field) {
-        try { await redis.connect(); } catch {}
-        return redis.hget(key, field);
-      },
-    };
-  }
-} catch {}
+const { getKv, getBlobPut } = require("./_lib");
 
 module.exports = async function handler(req, res) {
+  const kv = getKv();
+  const blobPut = getBlobPut();
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }

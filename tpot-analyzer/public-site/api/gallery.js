@@ -5,26 +5,10 @@
  * Response: { cards: [{ handle, url, generatedAt, communities }] }
  */
 
-let kv = null;
-try {
-  const Redis = require("ioredis");
-  const redisUrl = process.env.KV_REDIS_URL;
-  if (redisUrl) {
-    const redis = new Redis(redisUrl, {
-      maxRetriesPerRequest: 1,
-      connectTimeout: 3000,
-      lazyConnect: true,
-    });
-    kv = {
-      async hgetall(key) {
-        try { await redis.connect(); } catch {}
-        return redis.hgetall(key);
-      },
-    };
-  }
-} catch {}
+const { getKv } = require("./_lib");
 
 module.exports = async function handler(req, res) {
+  const kv = getKv();
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
