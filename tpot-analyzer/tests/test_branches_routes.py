@@ -16,10 +16,14 @@ from src.communities.store import (
 from src.communities.versioning import create_branch, capture_snapshot
 
 
+CURATOR_TOKEN = "test-curator-token"
+
+
 @pytest.fixture
 def branches_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask:
     db_path = tmp_path / "archive_tweets.db"
     monkeypatch.setenv("ARCHIVE_DB_PATH", str(db_path))
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
 
     with sqlite3.connect(str(db_path)) as conn:
         conn.execute("PRAGMA foreign_keys = ON")
@@ -60,7 +64,9 @@ def branches_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask:
 
 @pytest.fixture
 def client(branches_app):
-    return branches_app.test_client()
+    tc = branches_app.test_client()
+    tc.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = CURATOR_TOKEN
+    return tc
 
 
 def test_list_branches_bootstraps_main(client):

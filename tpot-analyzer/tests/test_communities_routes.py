@@ -14,11 +14,15 @@ from src.communities.store import (
 )
 
 
+CURATOR_TOKEN = "test-curator-token"
+
+
 @pytest.fixture
 def communities_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask:
     """Flask app with communities blueprint and test data."""
     db_path = tmp_path / "archive_tweets.db"
     monkeypatch.setenv("ARCHIVE_DB_PATH", str(db_path))
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
 
     with sqlite3.connect(str(db_path)) as conn:
         conn.execute("PRAGMA foreign_keys = ON")
@@ -97,7 +101,9 @@ def communities_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask:
 
 @pytest.fixture
 def client(communities_app):
-    return communities_app.test_client()
+    tc = communities_app.test_client()
+    tc.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = CURATOR_TOKEN
+    return tc
 
 
 # ── Read endpoints ───────────────────────────────────────────────────────

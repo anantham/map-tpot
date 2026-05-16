@@ -190,6 +190,8 @@ def get_raw_feed_events():
     """Return raw extension events for scoped inspection and debugging."""
     try:
         workspace_id, ego = require_scope(request)
+        policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
+        require_ingest_auth(policy, request)
         limit = parse_positive_int(request, "limit", 100, minimum=1, maximum=500)
         before_seen_at = parse_iso_optional(request, "before_seen_at")
         payload = get_feed_admin_store().list_raw_events(
@@ -200,6 +202,8 @@ def get_raw_feed_events():
         )
     except ValueError as exc:
         return error_response(str(exc))
+    except PermissionError as exc:
+        return error_response(str(exc), status=401)
     except Exception as exc:
         logger.exception("raw feed query failed workspace=%s ego=%s: %s", workspace_id, ego, exc)
         return error_response("raw feed query failed", status=500)

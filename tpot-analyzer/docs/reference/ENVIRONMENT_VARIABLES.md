@@ -29,7 +29,8 @@ All environment variables used by the TPOT Analyzer, their defaults, and where t
 
 | Variable | Default | Used In | Purpose |
 |----------|---------|---------|---------|
-| `TPOT_EXTENSION_TOKEN` | (none) | `golden.py`, `extension_utils.py` | Token for authenticating the Chrome extension and LLM interpret endpoint. When set, `/api/golden/interpret` requires this token via `X-TPOT-Extension-Token` header. |
+| `TPOT_EXTENSION_TOKEN` | (none) | `golden.py`, `extension_utils.py` | Token for authenticating the Chrome extension and LLM interpret endpoint. When set, `/api/golden/interpret` requires this token via `X-TPOT-Extension-Token` header. The default extension policy is `guarded` for new `(workspace_id, ego)` pairs, so this token must be set in production for any extension ingest or read endpoint to succeed. |
+| `TPOT_CURATOR_TOKEN` | (none) | `curator_auth.py` | **Required in production.** Token for authenticating curator-only mutating endpoints (`/api/communities/*` writes, `/api/communities/branches/*` writes, `/api/seeds POST`, `/api/graph/settings POST`). Endpoints fail closed: if this is unset, mutating routes return 503 `auth not configured`; if set but the request omits or mismatches the `X-TPOT-Curator-Token` header, they return 401. |
 | `OPENROUTER_API_KEY` | (none) | `golden.py`, `classify_tweets.py` | API key for OpenRouter LLM calls (tweet interpretation and classification) |
 | `SUPABASE_URL` | (none) | `.env` | Community Archive Supabase project URL |
 | `SUPABASE_KEY` | (none) | `.env` | Community Archive Supabase anon key (read-only, publicly safe) |
@@ -53,7 +54,6 @@ All environment variables used by the TPOT Analyzer, their defaults, and where t
 
 | Variable | Default | Used In | Purpose |
 |----------|---------|---------|---------|
-| `TEST_MODE` | `0` | `scripts/api_server.py` | Set to `1` to use deterministic test dataset instead of real data |
 | `TPOT_EXTENSION_FIREHOSE_PATH` | (none) | `extension_runtime.py` | Override path for extension firehose NDJSON file |
 
 ## Fly.io Deployment
@@ -64,6 +64,7 @@ These are set via `flyctl secrets set` or in `fly.toml`:
 # Required for production
 flyctl secrets set OPENROUTER_API_KEY=sk-or-v1-...
 flyctl secrets set TPOT_EXTENSION_TOKEN=your-secret-token
+flyctl secrets set TPOT_CURATOR_TOKEN=$(openssl rand -hex 32)
 flyctl secrets set CORS_ORIGINS=https://your-domain.com
 
 # Already in fly.toml (don't duplicate)

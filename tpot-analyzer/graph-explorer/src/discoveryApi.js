@@ -5,7 +5,7 @@
  * Each function is a thin wrapper around a single backend endpoint.
  */
 
-import { API_BASE_URL } from './config'
+import { API_BASE_URL, withCuratorAuth } from './config'
 
 /**
  * Fetch all seed collections and global model settings from the server.
@@ -28,11 +28,14 @@ export const persistSeedList = async ({ name, seeds, setActive = true }) => {
   if (Array.isArray(seeds)) {
     body.seeds = seeds
   }
-  const res = await fetch(`${API_BASE_URL}/api/seeds`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  const res = await fetch(
+    `${API_BASE_URL}/api/seeds`,
+    withCuratorAuth({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  )
   const payload = await res.json()
   if (!res.ok) {
     throw new Error(payload?.error || 'Failed to update seed list')
@@ -45,11 +48,14 @@ export const persistSeedList = async ({ name, seeds, setActive = true }) => {
  * POST /api/seeds  (with { settings: ... } body)
  */
 export const saveModelSettings = async (settings) => {
-  const res = await fetch(`${API_BASE_URL}/api/seeds`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ settings }),
-  })
+  const res = await fetch(
+    `${API_BASE_URL}/api/seeds`,
+    withCuratorAuth({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings }),
+    }),
+  )
   if (!res.ok) {
     const data = await res.json().catch(() => null)
     throw new Error(data?.error || 'Failed to save settings')

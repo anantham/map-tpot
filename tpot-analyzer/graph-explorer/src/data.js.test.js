@@ -14,6 +14,13 @@ vi.mock('./config', () => ({
   API_BASE_URL: 'http://test-api',
   API_TIMEOUT_MS: 5000,
   API_TIMEOUT_SLOW_MS: 30000,
+  withCuratorAuth: (init = {}) => ({
+    ...init,
+    headers: {
+      ...(init.headers || {}),
+      'X-TPOT-Curator-Token': 'test-curator-token',
+    },
+  }),
 }))
 
 vi.mock('./cache/IndexedDBCache', () => {
@@ -522,7 +529,10 @@ describe('data.js API client', () => {
         'http://test-api/api/seeds',
         expect.objectContaining({
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'X-TPOT-Curator-Token': 'test-curator-token',
+          }),
         }),
       )
       const body = JSON.parse(fetchWithRetry.mock.calls[0][1].body)

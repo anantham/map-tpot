@@ -5,6 +5,7 @@ import logging
 import json
 from flask import Blueprint, jsonify, request, current_app, Response
 
+from src.api.curator_auth import curator_only
 from src.graph import (
     build_graph,
     get_graph_settings,
@@ -98,6 +99,7 @@ def get_settings():
 
 
 @graph_bp.route("/graph/settings", methods=["POST"])
+@curator_only
 def update_settings():
     """Update graph settings."""
     data = request.json

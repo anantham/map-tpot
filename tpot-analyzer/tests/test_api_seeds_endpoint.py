@@ -9,6 +9,9 @@ from flask import Flask
 from src.api.routes.accounts import accounts_bp
 
 
+CURATOR_TOKEN = "test-curator-token"
+
+
 @pytest.fixture
 def seeds_app(monkeypatch, tmp_path: Path) -> Flask:
     """Flask app with /api/seeds endpoints wired against temp seed state files."""
@@ -22,6 +25,7 @@ def seeds_app(monkeypatch, tmp_path: Path) -> Flask:
 
     monkeypatch.setattr(seeds, "_DEFAULT_PRESET_FILE", preset_file, raising=False)
     monkeypatch.setattr(seeds, "_SEED_STATE_FILE", state_file, raising=False)
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
 
     # Reset cached stores between tests.
     accounts_routes._tag_store = None
@@ -33,9 +37,15 @@ def seeds_app(monkeypatch, tmp_path: Path) -> Flask:
     return app
 
 
+def _client(app):
+    tc = app.test_client()
+    tc.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = CURATOR_TOKEN
+    return tc
+
+
 @pytest.mark.unit
 def test_seeds_get_returns_state(seeds_app: Flask) -> None:
-    client = seeds_app.test_client()
+    client = _client(seeds_app)
     resp = client.get("/api/seeds")
     assert resp.status_code == 200
     payload = resp.get_json()
@@ -47,7 +57,7 @@ def test_seeds_get_returns_state(seeds_app: Flask) -> None:
 
 @pytest.mark.unit
 def test_seeds_post_updates_settings(seeds_app: Flask) -> None:
-    client = seeds_app.test_client()
+    client = _client(seeds_app)
     resp = client.post("/api/seeds", json={"settings": {"auto_include_shadow": False}})
     assert resp.status_code == 200
     payload = resp.get_json()
@@ -57,7 +67,7 @@ def test_seeds_post_updates_settings(seeds_app: Flask) -> None:
 
 @pytest.mark.unit
 def test_seeds_post_saves_and_activates_list(seeds_app: Flask) -> None:
-    client = seeds_app.test_client()
+    client = _client(seeds_app)
     resp = client.post(
         "/api/seeds",
         json={"name": "my_list", "seeds": ["bob", "@carol"], "set_active": True},

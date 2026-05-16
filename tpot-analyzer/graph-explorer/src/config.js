@@ -7,6 +7,26 @@
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001'
 
+// Curator token for mutating endpoints. Must match TPOT_CURATOR_TOKEN on the
+// server. Set in graph-explorer/.env.local for local dev. Never deploy this UI
+// publicly: the token will be in the bundle.
+export const CURATOR_TOKEN = import.meta.env.VITE_TPOT_CURATOR_TOKEN || ''
+export const CURATOR_TOKEN_HEADER = 'X-TPOT-Curator-Token'
+
+/**
+ * Build a fetch init that includes the curator token header.
+ * Use for any PUT/POST/PATCH/DELETE call against the curator API.
+ */
+export function withCuratorAuth(init = {}) {
+  return {
+    ...init,
+    headers: {
+      ...(init.headers || {}),
+      [CURATOR_TOKEN_HEADER]: CURATOR_TOKEN,
+    },
+  }
+}
+
 export const API_TIMEOUT_MS = 8000       // Default timeout for fast endpoints
 export const API_TIMEOUT_SLOW_MS = 30000 // Timeout for slow endpoints (health, clusters, seeds during init)
 

@@ -6,8 +6,12 @@ import logging
 from flask import Blueprint, jsonify, request
 
 from src.api.responses import error_response
-from src.api.routes.extension_runtime import get_feed_store
-from src.api.routes.extension_utils import parse_positive_int, require_scope
+from src.api.routes.extension_runtime import get_feed_policy_store, get_feed_store
+from src.api.routes.extension_utils import (
+    parse_positive_int,
+    require_ingest_auth,
+    require_scope,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +22,15 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
         """Return feed exposure/content summary for a single account."""
         try:
             workspace_id, ego = require_scope(request)
+            policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
+            require_ingest_auth(policy, request)
             days = parse_positive_int(request, "days", 30, minimum=1, maximum=3650)
             keyword_limit = parse_positive_int(request, "keyword_limit", 12, minimum=1, maximum=100)
             sample_limit = parse_positive_int(request, "sample_limit", 8, minimum=1, maximum=100)
         except ValueError as exc:
             return error_response(str(exc))
+        except PermissionError as exc:
+            return error_response(str(exc), status=401)
 
         try:
             summary = get_feed_store().account_summary(
@@ -51,10 +59,14 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
         """Return top exposed accounts in the feed for a scope/lookback window."""
         try:
             workspace_id, ego = require_scope(request)
+            policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
+            require_ingest_auth(policy, request)
             days = parse_positive_int(request, "days", 30, minimum=1, maximum=3650)
             limit = parse_positive_int(request, "limit", 20, minimum=1, maximum=200)
         except ValueError as exc:
             return error_response(str(exc))
+        except PermissionError as exc:
+            return error_response(str(exc), status=401)
 
         try:
             accounts = get_feed_store().top_exposed_accounts(

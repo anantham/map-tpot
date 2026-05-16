@@ -12,6 +12,7 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
+from src.api.curator_auth import curator_only
 from src.api.responses import error_response
 
 from src.communities import store
@@ -114,6 +115,7 @@ def get_account_communities_route(account_id):
 
 
 @communities_bp.route("/<community_id>/members/<account_id>", methods=["PUT"])
+@curator_only
 def assign_member_route(community_id, account_id):
     """Manually assign account to community (source='human', weight=1.0)."""
     conn = _get_db()
@@ -139,6 +141,7 @@ def assign_member_route(community_id, account_id):
 
 
 @communities_bp.route("/<community_id>/members/<account_id>", methods=["DELETE"])
+@curator_only
 def remove_member_route(community_id, account_id):
     """Remove account from community."""
     conn = _get_db()
@@ -154,6 +157,7 @@ def remove_member_route(community_id, account_id):
 
 
 @communities_bp.route("/<community_id>", methods=["PATCH"])
+@curator_only
 def update_community_route(community_id):
     """Update community name, color, or description."""
     conn = _get_db()
@@ -185,6 +189,7 @@ def update_community_route(community_id):
 
 
 @communities_bp.route("/<community_id>", methods=["DELETE"])
+@curator_only
 def delete_community_route(community_id):
     """Delete a community and all its memberships (cascade)."""
     conn = _get_db()
@@ -221,6 +226,7 @@ def get_account_preview_route(account_id):
 
 
 @communities_bp.route("/account/<account_id>/note", methods=["PUT"])
+@curator_only
 def put_account_note_route(account_id):
     """Save curator's free-form note about an account."""
     conn = _get_db()
@@ -238,6 +244,7 @@ def put_account_note_route(account_id):
 
 
 @communities_bp.route("/account/<account_id>/weights", methods=["PUT"])
+@curator_only
 def put_account_weights_route(account_id):
     """Update community weights for an account. Body: {weights: [{community_id, weight}, ...]}"""
     conn = _get_db()

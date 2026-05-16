@@ -39,6 +39,19 @@ def _make_digraph() -> nx.DiGraph:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+CURATOR_TOKEN = "test-curator-token"
+
+
+@pytest.fixture(autouse=True)
+def _set_curator_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
+
+
+def _with_curator_header(test_client):
+    test_client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = CURATOR_TOKEN
+    return test_client
+
+
 @pytest.fixture
 def graph_app() -> Flask:
     """Create a minimal Flask app with the graph blueprint registered."""
@@ -70,12 +83,12 @@ def graph_app_no_propagate() -> Flask:
 
 @pytest.fixture
 def client(graph_app: Flask):
-    return graph_app.test_client()
+    return _with_curator_header(graph_app.test_client())
 
 
 @pytest.fixture
 def error_client(graph_app_no_propagate: Flask):
-    return graph_app_no_propagate.test_client()
+    return _with_curator_header(graph_app_no_propagate.test_client())
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +211,7 @@ class TestGetGraphData:
         mock_snapshot_dir.return_value = MagicMock()
         mock_build.side_effect = RuntimeError("graph build failed")
 
-        client = graph_app_no_propagate.test_client()
+        client = _with_curator_header(graph_app_no_propagate.test_client())
         resp = client.get("/api/graph-data")
 
         assert resp.status_code == 500
@@ -223,7 +236,7 @@ class TestGraphDataCaching:
         # where include_shadow/mutual_only are Python bools (True/False, capitalized)
         graph_app.config["CACHE_MANAGER"].set_graph_response("True_False_0", cached_json)
 
-        client = graph_app.test_client()
+        client = _with_curator_header(graph_app.test_client())
         resp = client.get("/api/graph-data")
 
         assert resp.status_code == 200
@@ -244,7 +257,7 @@ class TestGraphDataCaching:
         cm = graph_app.config["CACHE_MANAGER"]
         assert cm.graph_cache_size() == 0
 
-        client = graph_app.test_client()
+        client = _with_curator_header(graph_app.test_client())
         resp = client.get("/api/graph-data")
 
         assert resp.status_code == 200
@@ -262,7 +275,7 @@ class TestGraphDataCaching:
         mock_build.return_value = _FakeGraphBuildResult(directed=_make_digraph())
 
         cm = graph_app.config["CACHE_MANAGER"]
-        client = graph_app.test_client()
+        client = _with_curator_header(graph_app.test_client())
 
         client.get("/api/graph-data?include_shadow=true&mutual_only=false&min_followers=0")
         client.get("/api/graph-data?include_shadow=false&mutual_only=true&min_followers=5")
@@ -307,7 +320,7 @@ class TestUpdateGraphSettings:
         cm.set_graph_response("some_key", '{"cached": true}')
         assert cm.graph_cache_size() == 1
 
-        client = graph_app.test_client()
+        client = _with_curator_header(graph_app.test_client())
         resp = client.post(
             "/api/graph/settings",
             json={"layout": "radial", "min_followers": 5},
