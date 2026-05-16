@@ -104,6 +104,50 @@ Human picks one for writing to files, testing is done manually and then if it is
 
 ---
 
+## TDD_CONVENTION
+
+**Default-on for some kinds of work, off for others.** TDD is a tool, not a virtue — applying it everywhere produces fake tests; applying it nowhere produces bugs that ship. CI (`.github/workflows/test.yml`) enforces that whatever tests exist pass; this convention says where to *add* tests first.
+
+### Default-on (write the failing test first)
+
+- **API endpoints** — request in, response out is the contract. Tests double as the spec. See `tests/test_curator_auth.py`, `public-site/__tests__/api/generate-card.test.js`.
+- **Pure functions** — `confidence.py` weights, ID parsers, format converters. Easy to test, easy to break silently.
+- **Bug fixes** — write the test that demonstrates the bug, then make it pass. This is the *highest-ROI* TDD use: it prevents the bug from coming back.
+- **Schema / validation logic** — anything with a clear "this input → that output" contract.
+
+### Default-off (instrument or snapshot instead)
+
+- **Scraping (`src/shadow/selenium_worker.py`)** — DOM changes shipped by Twitter make "given a profile page, the worker extracts bio X" untestable in advance. Better discipline: empirical instrumentation (see `src/shadow/silent_failures.py`) catches failures as they happen.
+- **Inference / ML (`src/propagation/`, `src/communities/confidence.py` end-to-end)** — the "correct output" of PPR over 298K nodes is the whole research question. Lock current behaviour with golden snapshots if you need regression detection, but don't pretend you're TDDing the algorithm.
+- **One-shot scripts in `scripts/`** — most are ad-hoc CLIs the human runs once or twice. Pre-writing tests adds friction without preventing real bugs. Test only if the script becomes a recurring pipeline step.
+- **Layout-only React composition** — `<div><Child /></div>`-style tests catch nothing.
+
+### Workflow when TDD applies
+
+1. **Write the test first.** It should fail for the right reason (e.g. `ModuleNotFoundError` doesn't count — make the failure be the assertion).
+2. **Make it pass with the smallest change.** Resist the urge to also refactor.
+3. **Refactor with the test as a safety net.** Only now.
+4. **Commit when green.** Conventional message — `feat(scope): X` or `fix(scope): X`. Co-Authored-By footer if an agent helped.
+
+### Workflow when TDD doesn't apply
+
+For scraping/ML/scripts: ship the change, instrument it (counters, structured logs, snapshots of representative input/output), and add a regression test only after you've seen a real failure in the wild and have a concrete repro.
+
+### How this interacts with PRIME_DIRECTIVE #2 ("Tests Are Signal")
+
+Failing tests are still never to be hacked around. The TDD convention narrows *where to add new tests by default*; it doesn't change how to react to existing failures. A failure in `test_propagation_engine.py` is still signal — investigate the root cause; the fact that the engine wasn't TDD'd doesn't make the test less valid.
+
+### CI surface
+
+`.github/workflows/test.yml` runs on every push and PR:
+- **python** — `pytest -m 'not selenium and not requires_supabase'` against `tpot-analyzer/tests/`
+- **public-site** — `vitest run` across `public-site/`
+- **graph-explorer** — `vitest run src` across `graph-explorer/` (excludes the Playwright e2e suite)
+
+If a PR adds code in a "default-on" area without tests, expect a reviewer (human or agent) to flag it.
+
+---
+
 ## TEST_DESIGN_PRINCIPLES
 
 **Core Tenet:** Test behavior through public APIs, not implementation details.

@@ -5,13 +5,16 @@ on:
   pull_request:
 
 jobs:
-  test:
+  python:
+    name: Python (pytest)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: tpot-analyzer/requirements.txt
       - name: Resolve project directory
         run: |
           if [ -f "tpot-analyzer/requirements.txt" ]; then
@@ -43,8 +46,50 @@ jobs:
         run: |
           PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_clusters.py" \
             --base-path "${PROJECT_DIR}/tests/fixtures/medium_graph/graph_snapshot" --granularity 40
-      - name: Unit tests
+      - name: Pytest (excluding selenium + supabase-dependent suites)
+        # `-m 'not selenium and not requires_supabase'` honours the markers
+        # declared in pytest.ini. Selenium tests need a real browser; the
+        # supabase tests need a network secret we don't expose in CI.
         run: |
-          PYTHONPATH="${PROJECT_DIR}" python -m pytest \
-            "${PROJECT_DIR}/tests/test_spectral.py" \
-            "${PROJECT_DIR}/tests/test_clusters.py" -q
+          PYTHONPATH="${PROJECT_DIR}" python -m pytest "${PROJECT_DIR}/tests" \
+            -m 'not selenium and not requires_supabase' \
+            -q --tb=short --maxfail=20
+
+  public-site:
+    name: public-site (vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tpot-analyzer/public-site
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: tpot-analyzer/public-site/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Vitest
+        run: npx vitest run --reporter=default
+
+  graph-explorer:
+    name: graph-explorer (vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tpot-analyzer/graph-explorer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: tpot-analyzer/graph-explorer/package-lock.json
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Vitest (unit suite only; skip e2e/playwright)
+        # graph-explorer includes Playwright e2e under ./e2e — those need
+        # a browser and run via `npx playwright test`. CI here covers the
+        # vitest unit suite under ./src.
+        run: npx vitest run src --reporter=default
