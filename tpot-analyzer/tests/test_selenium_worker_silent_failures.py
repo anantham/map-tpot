@@ -111,6 +111,49 @@ def test_extract_profile_image_tracks_stale_img():
 
 
 @pytest.mark.unit
+def test_log_summary_called_at_end_of_main_scrape_methods():
+    """Regression guard: a refactor that drops silent_failures.log_summary()
+    from fetch_list_members or _collect_user_list would silently re-create
+    the visibility gap the tracker was added to close.
+
+    Uses ast-based inspection rather than running the methods (which need
+    a real selenium driver), so this is a static check against the file's
+    parse tree — robust to whitespace/comment changes, brittle only to
+    actually removing the call.
+    """
+    import ast
+    from pathlib import Path
+
+    source_path = Path(__file__).resolve().parent.parent / "src" / "shadow" / "selenium_worker.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+
+    methods_with_summary_call: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            for sub in ast.walk(node):
+                if (
+                    isinstance(sub, ast.Call)
+                    and isinstance(sub.func, ast.Attribute)
+                    and sub.func.attr == "log_summary"
+                    and isinstance(sub.func.value, ast.Name)
+                    and sub.func.value.id == "silent_failures"
+                ):
+                    methods_with_summary_call.add(node.name)
+                    break
+
+    assert "fetch_list_members" in methods_with_summary_call, (
+        "fetch_list_members must call silent_failures.log_summary(...) at "
+        "the end of its scrape, otherwise per-list silent failure counts "
+        "are not visible in logs/api.log."
+    )
+    assert "_collect_user_list" in methods_with_summary_call, (
+        "_collect_user_list must call silent_failures.log_summary(...) at "
+        "the end so following/followers/etc. scrapes report their silent "
+        "failures per-account in logs."
+    )
+
+
+@pytest.mark.unit
 def test_tracker_aggregates_across_extractions():
     """A scrape with many stale elements should produce a coherent summary."""
     cell = MagicMock()

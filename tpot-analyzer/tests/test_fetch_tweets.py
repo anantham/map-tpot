@@ -102,9 +102,11 @@ def test_log_api_call(db):
                  action="last_tweets", tweets_fetched=20)
     row = db.execute("SELECT * FROM enrichment_log").fetchone()
     assert row is not None
-    # Verify estimated_cost computes dynamically to 20 * 0.00015 = 0.003
+    # Verify estimated_cost computes dynamically to 20 * 0.00015 = 0.003.
+    # pytest.approx handles the floating-point representation drift
+    # (0.0029999999999999996 in practice).
     rows = db.execute("SELECT estimated_cost FROM enrichment_log").fetchall()
-    assert rows[0][0] == 0.003
+    assert rows[0][0] == pytest.approx(0.003)
 
 
 def test_assert_not_holdout(db):

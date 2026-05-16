@@ -10,7 +10,11 @@ def test_feed_scope_policy_defaults_and_updates(tmp_path) -> None:
     store = FeedScopePolicyStore(tmp_path / "feed_signals.db")
 
     default_policy = store.get_policy(workspace_id="default", ego="adityaarpitha")
-    assert default_policy.ingestion_mode == "open"
+    # Default policy is "guarded" — see src/data/feed_scope_policy.py._default_policy.
+    # This was the post-Vuln-5 hardening: a fresh (workspace, ego) pair cannot
+    # ingest or read without TPOT_EXTENSION_TOKEN. Test_extension_settings_update_requires_token
+    # exercises the request-path side of this.
+    assert default_policy.ingestion_mode == "guarded"
     assert default_policy.retention_mode == "infinite"
     assert default_policy.processing_mode == "continuous"
     assert default_policy.allowlist_enabled is False
