@@ -26,6 +26,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from urllib3.exceptions import MaxRetryError, NewConnectionError
 
+from src.shadow.silent_failures import tracker as silent_failures
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -697,6 +699,8 @@ class SeleniumWorker:
             LOGGER.warning("[list_members] No members captured for list %s; saving snapshot for debugging", list_id)
             self._save_page_snapshot(f"list_{list_id}", "no-members-captured")
 
+        silent_failures.log_summary(f"fetch_list_members list_id={list_id}")
+
         return UserListCapture(
             list_type=list_type,
             entries=captured_entries,
@@ -1348,6 +1352,8 @@ class SeleniumWorker:
                 LOGGER.error("Failed during defensive retry: %s", exc, exc_info=True)
                 LOGGER.warning("Continuing with original captured entries (%d accounts)", len(captured_entries))
 
+        silent_failures.log_summary(f"_collect_user_list @{username} ({list_type})")
+
         return UserListCapture(
             list_type=list_type,
             entries=captured_entries,
@@ -1388,9 +1394,10 @@ class SeleniumWorker:
                     handle = SeleniumWorker._handle_from_href(href)
                     if handle:
                         return handle
-                except StaleElementReferenceException:
+                except StaleElementReferenceException as exc:
                     # Element became stale, skip it
                     LOGGER.debug("Stale link element encountered, skipping")
+                    silent_failures.track("extract_handle.stale_link", exc)
                     continue
             # Fallback: try to get text from cell
             try:
@@ -1398,10 +1405,12 @@ class SeleniumWorker:
                 for token in text.split():
                     if token.startswith("@"):
                         return token[1:]
-            except StaleElementReferenceException:
+            except StaleElementReferenceException as exc:
                 LOGGER.debug("Cell became stale while extracting text")
-        except StaleElementReferenceException:
+                silent_failures.track("extract_handle.stale_cell_text", exc)
+        except StaleElementReferenceException as exc:
             LOGGER.debug("Cell is stale, cannot extract handle")
+            silent_failures.track("extract_handle.stale_cell", exc)
         return None
 
     def _extract_display_name(self, cell) -> str | None:
@@ -1416,18 +1425,21 @@ class SeleniumWorker:
                     value = span.text.strip()
                     if value and not value.startswith("@") and len(value) <= 80:
                         return value
-                except StaleElementReferenceException:
+                except StaleElementReferenceException as exc:
+                    silent_failures.track("extract_display_name.stale_span", exc)
                     continue
-        except (NoSuchElementException, StaleElementReferenceException):
-            pass  # Fallback to text parsing
+        except (NoSuchElementException, StaleElementReferenceException) as exc:
+            silent_failures.track("extract_display_name.no_username_div", exc)
+            # Fallback to text parsing
 
         # Fallback: parse the text block
         try:
             text_lines = [line.strip() for line in (cell.text or "").splitlines() if line.strip()]
             if text_lines and not text_lines[0].startswith("@"):
                 return text_lines[0]
-        except StaleElementReferenceException:
+        except StaleElementReferenceException as exc:
             LOGGER.debug("Cell became stale while extracting display name")
+            silent_failures.track("extract_display_name.stale_cell_fallback", exc)
         return None
 
     @staticmethod
@@ -1496,8 +1508,9 @@ class SeleniumWorker:
             if bio_nodes and bio_nodes[0].text.strip():
                 raw_bio = bio_nodes[0].text.strip()
                 return self._clean_bio_text(raw_bio)
-        except (NoSuchElementException, StaleElementReferenceException):
-            pass  # Fallback to text parsing
+        except (NoSuchElementException, StaleElementReferenceException) as exc:
+            silent_failures.track("extract_bio.no_description_div", exc)
+            # Fallback to text parsing
 
         # Fallback: parse the text block
         try:
@@ -1515,8 +1528,9 @@ class SeleniumWorker:
             if bio_start_index != -1 and bio_start_index < len(text_lines):
                 raw_bio = " ".join(text_lines[bio_start_index:])
                 return self._clean_bio_text(raw_bio)
-        except StaleElementReferenceException:
+        except StaleElementReferenceException as exc:
             LOGGER.debug("Cell became stale while extracting bio")
+            silent_failures.track("extract_bio.stale_cell_fallback", exc)
 
         return None
 
@@ -1536,10 +1550,12 @@ class SeleniumWorker:
                     if "twitter.com" in href or href.startswith("/"):
                         continue
                     return href
-                except StaleElementReferenceException:
+                except StaleElementReferenceException as exc:
+                    silent_failures.track("extract_website.stale_anchor", exc)
                     continue
-        except StaleElementReferenceException:
+        except StaleElementReferenceException as exc:
             LOGGER.debug("Cell became stale while extracting website")
+            silent_failures.track("extract_website.stale_cell", exc)
         return None
 
     @staticmethod
@@ -1555,10 +1571,12 @@ class SeleniumWorker:
                         continue
                     if "twimg.com" in src or "profile_images" in src:
                         return src
-                except StaleElementReferenceException:
+                except StaleElementReferenceException as exc:
+                    silent_failures.track("extract_profile_image.stale_img", exc)
                     continue
-        except StaleElementReferenceException:
+        except StaleElementReferenceException as exc:
             LOGGER.debug("Cell became stale while extracting profile image")
+            silent_failures.track("extract_profile_image.stale_cell", exc)
         return None
 
     def _check_account_exists(self, username: str) -> AccountStatusInfo:
@@ -1669,44 +1687,51 @@ class SeleniumWorker:
         try:
             name_node = self._driver.find_element(By.CSS_SELECTOR, "div[data-testid='UserName'] span")
             display_name = name_node.text.strip() or None
-        except NoSuchElementException:
+        except NoSuchElementException as exc:
             LOGGER.debug("Could not find display name for @%s", username)
+            silent_failures.track("profile_overview.display_name", exc)
             display_name = None
         try:
             bio_node = self._driver.find_element(By.CSS_SELECTOR, "div[data-testid='UserDescription']")
             bio = bio_node.text.strip() or None
-        except NoSuchElementException:
+        except NoSuchElementException as exc:
             LOGGER.debug("Could not find bio for @%s using data-testid. Falling back to XPath.", username)
+            silent_failures.track("profile_overview.bio_testid", exc)
             try:
                 bio_node = self._driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[2]/main/div/div/div/div/div/div[3]/div/div/div[1]/div[1]/div[3]/div")
                 bio = bio_node.text.strip() or None
-            except NoSuchElementException:
+            except NoSuchElementException as exc2:
                 LOGGER.debug("Could not find bio for @%s using XPath fallback.", username)
+                silent_failures.track("profile_overview.bio_xpath_fallback", exc2)
                 bio = None
         try:
             location_node = self._driver.find_element(By.CSS_SELECTOR, "span[data-testid='UserLocation']")
             location = location_node.text.strip() or None
-        except NoSuchElementException:
+        except NoSuchElementException as exc:
             LOGGER.debug("Could not find location for @%s", username)
+            silent_failures.track("profile_overview.location", exc)
             location = None
         try:
             website_node = self._driver.find_element(By.CSS_SELECTOR, "a[data-testid='UserUrl']")
             website = website_node.text or website_node.get_attribute("href")
-        except NoSuchElementException:
+        except NoSuchElementException as exc:
             LOGGER.debug("Could not find website for @%s", username)
+            silent_failures.track("profile_overview.website", exc)
             website = None
         try:
             join_date_node = self._driver.find_element(By.CSS_SELECTOR, "span[data-testid='UserJoinDate']")
             joined_date = join_date_node.text.strip() or None
-        except NoSuchElementException:
+        except NoSuchElementException as exc:
             LOGGER.debug("Could not find join date for @%s", username)
+            silent_failures.track("profile_overview.joined_date", exc)
             joined_date = None
         try:
             avatar_container = self._driver.find_element(By.CSS_SELECTOR, "div[data-testid^='UserAvatar-Container']")
             image_node = avatar_container.find_element(By.TAG_NAME, "img")
             profile_image_url = image_node.get_attribute("src")
-        except NoSuchElementException:
+        except NoSuchElementException as exc:
             LOGGER.debug("Could not find profile image for @%s", username)
+            silent_failures.track("profile_overview.profile_image", exc)
             profile_image_url = None
 
         canonical_handle = self._resolve_canonical_handle(username)
