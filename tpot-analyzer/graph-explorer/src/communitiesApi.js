@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './config'
+import { API_BASE_URL, withCuratorAuth } from './config'
 
 const BASE = `${API_BASE_URL}/api/communities`
 
@@ -24,35 +24,41 @@ export async function fetchAccountCommunities(accountId) {
 }
 
 export async function assignMember(communityId, accountId) {
-  const res = await fetch(`${BASE}/${encodeURIComponent(communityId)}/members/${encodeURIComponent(accountId)}`, {
-    method: 'PUT',
-  })
+  const res = await fetch(
+    `${BASE}/${encodeURIComponent(communityId)}/members/${encodeURIComponent(accountId)}`,
+    withCuratorAuth({ method: 'PUT' }),
+  )
   if (!res.ok) throw new Error(`assign failed: ${res.status}`)
   return res.json()
 }
 
 export async function removeMember(communityId, accountId) {
-  const res = await fetch(`${BASE}/${encodeURIComponent(communityId)}/members/${encodeURIComponent(accountId)}`, {
-    method: 'DELETE',
-  })
+  const res = await fetch(
+    `${BASE}/${encodeURIComponent(communityId)}/members/${encodeURIComponent(accountId)}`,
+    withCuratorAuth({ method: 'DELETE' }),
+  )
   if (!res.ok) throw new Error(`remove failed: ${res.status}`)
   return res.json()
 }
 
 export async function updateCommunity(communityId, updates) {
-  const res = await fetch(`${BASE}/${encodeURIComponent(communityId)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-  })
+  const res = await fetch(
+    `${BASE}/${encodeURIComponent(communityId)}`,
+    withCuratorAuth({
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    }),
+  )
   if (!res.ok) throw new Error(`update failed: ${res.status}`)
   return res.json()
 }
 
 export async function deleteCommunity(communityId) {
-  const res = await fetch(`${BASE}/${encodeURIComponent(communityId)}`, {
-    method: 'DELETE',
-  })
+  const res = await fetch(
+    `${BASE}/${encodeURIComponent(communityId)}`,
+    withCuratorAuth({ method: 'DELETE' }),
+  )
   if (!res.ok) throw new Error(`delete failed: ${res.status}`)
   return res.json()
 }
@@ -67,21 +73,27 @@ export async function fetchAccountPreview(accountId, { ego } = {}) {
 }
 
 export async function saveAccountNote(accountId, note) {
-  const res = await fetch(`${BASE}/account/${encodeURIComponent(accountId)}/note`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ note }),
-  })
+  const res = await fetch(
+    `${BASE}/account/${encodeURIComponent(accountId)}/note`,
+    withCuratorAuth({
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note }),
+    }),
+  )
   if (!res.ok) throw new Error(`save note failed: ${res.status}`)
   return res.json()
 }
 
 export async function saveAccountWeights(accountId, weights) {
-  const res = await fetch(`${BASE}/account/${encodeURIComponent(accountId)}/weights`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ weights }),
-  })
+  const res = await fetch(
+    `${BASE}/account/${encodeURIComponent(accountId)}/weights`,
+    withCuratorAuth({
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weights }),
+    }),
+  )
   if (!res.ok) throw new Error(`save weights failed: ${res.status}`)
   return res.json()
 }
@@ -97,11 +109,14 @@ export async function fetchBranches() {
 }
 
 export async function createBranch(name, description) {
-  const res = await fetch(BRANCHES, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description }),
-  })
+  const res = await fetch(
+    BRANCHES,
+    withCuratorAuth({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description }),
+    }),
+  )
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `create branch failed: ${res.status}`)
@@ -110,29 +125,36 @@ export async function createBranch(name, description) {
 }
 
 export async function updateBranch(branchId, updates) {
-  const res = await fetch(`${BRANCHES}/${encodeURIComponent(branchId)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-  })
+  const res = await fetch(
+    `${BRANCHES}/${encodeURIComponent(branchId)}`,
+    withCuratorAuth({
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    }),
+  )
   if (!res.ok) throw new Error(`update branch failed: ${res.status}`)
   return res.json()
 }
 
 export async function deleteBranch(branchId) {
-  const res = await fetch(`${BRANCHES}/${encodeURIComponent(branchId)}`, {
-    method: 'DELETE',
-  })
+  const res = await fetch(
+    `${BRANCHES}/${encodeURIComponent(branchId)}`,
+    withCuratorAuth({ method: 'DELETE' }),
+  )
   if (!res.ok) throw new Error(`delete branch failed: ${res.status}`)
   return res.json()
 }
 
 export async function switchBranch(branchId, action = 'save') {
-  const res = await fetch(`${BRANCHES}/${encodeURIComponent(branchId)}/switch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action }),
-  })
+  const res = await fetch(
+    `${BRANCHES}/${encodeURIComponent(branchId)}/switch`,
+    withCuratorAuth({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    }),
+  )
   if (!res.ok) throw new Error(`switch branch failed: ${res.status}`)
   return res.json()
 }
@@ -150,11 +172,14 @@ export async function fetchSnapshots(branchId) {
 }
 
 export async function saveSnapshot(branchId, name) {
-  const res = await fetch(`${BRANCHES}/${encodeURIComponent(branchId)}/snapshots`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
-  })
+  const res = await fetch(
+    `${BRANCHES}/${encodeURIComponent(branchId)}/snapshots`,
+    withCuratorAuth({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }),
+  )
   if (!res.ok) throw new Error(`save snapshot failed: ${res.status}`)
   return res.json()
 }
@@ -162,7 +187,7 @@ export async function saveSnapshot(branchId, name) {
 export async function restoreSnapshot(branchId, snapshotId) {
   const res = await fetch(
     `${BRANCHES}/${encodeURIComponent(branchId)}/snapshots/${encodeURIComponent(snapshotId)}/restore`,
-    { method: 'POST' },
+    withCuratorAuth({ method: 'POST' }),
   )
   if (!res.ok) throw new Error(`restore snapshot failed: ${res.status}`)
   return res.json()

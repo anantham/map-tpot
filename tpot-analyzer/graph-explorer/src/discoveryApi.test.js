@@ -19,7 +19,16 @@ import {
   fetchSignalQualityReport,
 } from './discoveryApi'
 
-vi.mock('./config', () => ({ API_BASE_URL: 'http://test-api' }))
+vi.mock('./config', () => ({
+  API_BASE_URL: 'http://test-api',
+  withCuratorAuth: (init = {}) => ({
+    ...init,
+    headers: {
+      ...(init.headers || {}),
+      'X-TPOT-Curator-Token': 'test-curator-token',
+    },
+  }),
+}))
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -84,7 +93,7 @@ describe('fetchSeedState', () => {
 // ---------------------------------------------------------------------------
 
 describe('persistSeedList', () => {
-  it('POSTs to /api/seeds with correct headers', async () => {
+  it('POSTs to /api/seeds with correct headers and curator token', async () => {
     mockFetch.mockResolvedValue(mockResponse({ ok: true }))
     await persistSeedList({ name: 'my_list', seeds: ['a'] })
 
@@ -92,6 +101,7 @@ describe('persistSeedList', () => {
     expect(url).toBe('http://test-api/api/seeds')
     expect(opts.method).toBe('POST')
     expect(opts.headers['Content-Type']).toBe('application/json')
+    expect(opts.headers['X-TPOT-Curator-Token']).toBe('test-curator-token')
   })
 
   it('sends name, set_active, and seeds in the body', async () => {

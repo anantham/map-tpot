@@ -129,10 +129,14 @@ class FeedScopePolicyStore:
             )
 
     def _default_policy(self, *, workspace_id: str, ego: str) -> FeedScopePolicy:
+        # Default to "guarded" so a fresh (workspace_id, ego) pair cannot be
+        # written or read without TPOT_EXTENSION_TOKEN. Operators must
+        # explicitly opt a scope into "open" mode via the settings endpoint
+        # if they want anonymous ingestion.
         return FeedScopePolicy(
             workspace_id=workspace_id,
             ego=ego,
-            ingestion_mode="open",
+            ingestion_mode="guarded",
             retention_mode="infinite",
             processing_mode="continuous",
             allowlist_enabled=False,

@@ -47,7 +47,7 @@ def test_api():
     except requests.exceptions.ConnectionError:
         print("❌ ERROR: Could not connect to the server")
         print("Make sure the API server is running:")
-        print("  .venv/bin/python3 scripts/api_server.py")
+        print("  .venv/bin/python -m scripts.start_api_server")
     except Exception as e:
         print(f"❌ ERROR: {e}")
 

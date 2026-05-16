@@ -32,7 +32,18 @@ import {
   restoreSnapshot,
 } from './communitiesApi'
 
-vi.mock('./config', () => ({ API_BASE_URL: 'http://test-api' }))
+vi.mock('./config', () => ({
+  API_BASE_URL: 'http://test-api',
+  withCuratorAuth: (init = {}) => ({
+    ...init,
+    headers: {
+      ...(init.headers || {}),
+      'X-TPOT-Curator-Token': 'test-curator-token',
+    },
+  }),
+}))
+
+const fetchedHeaders = () => fetchedOpts().headers || {}
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -88,11 +99,12 @@ describe('community API', () => {
     expect(fetchedUrl()).toBe('http://test-api/api/communities/account/user1')
   })
 
-  it('assignMember uses PUT', async () => {
+  it('assignMember uses PUT and sends curator token', async () => {
     mockFetch.mockResolvedValue(mockResponse({ ok: true }))
     await assignMember('c1', 'user1')
     expect(fetchedOpts().method).toBe('PUT')
     expect(fetchedUrl()).toBe('http://test-api/api/communities/c1/members/user1')
+    expect(fetchedHeaders()['X-TPOT-Curator-Token']).toBe('test-curator-token')
   })
 
   it('removeMember uses DELETE', async () => {
@@ -101,12 +113,39 @@ describe('community API', () => {
     expect(fetchedOpts().method).toBe('DELETE')
   })
 
-  it('updateCommunity uses PATCH with JSON body', async () => {
+  it('updateCommunity uses PATCH with JSON body and curator token', async () => {
     mockFetch.mockResolvedValue(mockResponse({ ok: true }))
     await updateCommunity('c1', { name: 'New Name' })
     expect(fetchedOpts().method).toBe('PATCH')
     expect(fetchedOpts().headers['Content-Type']).toBe('application/json')
+    expect(fetchedOpts().headers['X-TPOT-Curator-Token']).toBe('test-curator-token')
     expect(JSON.parse(fetchedOpts().body)).toEqual({ name: 'New Name' })
+  })
+
+  it('deleteCommunity sends curator token', async () => {
+    mockFetch.mockResolvedValue(mockResponse({ ok: true }))
+    await deleteCommunity('c1')
+    expect(fetchedHeaders()['X-TPOT-Curator-Token']).toBe('test-curator-token')
+  })
+
+  it('createBranch sends curator token', async () => {
+    mockFetch.mockResolvedValue(mockResponse({ id: 'b1' }))
+    const { createBranch } = await import('./communitiesApi')
+    await createBranch('dev', 'desc')
+    expect(fetchedHeaders()['X-TPOT-Curator-Token']).toBe('test-curator-token')
+  })
+
+  it('restoreSnapshot sends curator token', async () => {
+    mockFetch.mockResolvedValue(mockResponse({ ok: true }))
+    const { restoreSnapshot } = await import('./communitiesApi')
+    await restoreSnapshot('b1', 's1')
+    expect(fetchedHeaders()['X-TPOT-Curator-Token']).toBe('test-curator-token')
+  })
+
+  it('GET endpoints do not send curator token', async () => {
+    mockFetch.mockResolvedValue(mockResponse([]))
+    await fetchCommunities()
+    expect(fetchedHeaders()['X-TPOT-Curator-Token']).toBeUndefined()
   })
 
   it('deleteCommunity uses DELETE', async () => {

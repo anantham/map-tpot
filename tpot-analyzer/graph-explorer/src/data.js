@@ -5,7 +5,7 @@
  * to fetch graph data and compute metrics dynamically.
  */
 
-import { API_BASE_URL, API_TIMEOUT_MS, API_TIMEOUT_SLOW_MS } from './config';
+import { API_BASE_URL, API_TIMEOUT_MS, API_TIMEOUT_SLOW_MS, withCuratorAuth } from './config';
 import { IndexedDBCache } from './cache/IndexedDBCache';
 import { fetchWithRetry } from './fetchClient';
 
@@ -359,11 +359,14 @@ export const saveSeedList = async ({ name, seeds = [], setActive = true } = {}) 
     payload.seeds = seeds;
   }
 
-  const response = await fetchWithRetry(`${API_BASE_URL}/api/seeds`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  const response = await fetchWithRetry(
+    `${API_BASE_URL}/api/seeds`,
+    withCuratorAuth({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+  );
 
   const data = await response.json();
   if (!response.ok) {

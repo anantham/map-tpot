@@ -11,11 +11,16 @@ from src.api.routes.extension_runtime import reset_extension_runtime
 from src.data.account_tags import AccountTagStore
 
 
+EXTENSION_TOKEN = "test-extension-token"
+EXTENSION_TOKEN_HEADER = "X-TPOT-Extension-Token"
+
+
 @pytest.fixture
 def extension_app(monkeypatch, tmp_path) -> Flask:
     snapshot_dir = tmp_path / "snapshot"
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("SNAPSHOT_DIR", str(snapshot_dir))
+    monkeypatch.setenv("TPOT_EXTENSION_TOKEN", EXTENSION_TOKEN)
     reset_extension_runtime()
     app = Flask(__name__)
     app.testing = True
@@ -23,9 +28,16 @@ def extension_app(monkeypatch, tmp_path) -> Flask:
     return app
 
 
+def _client(app):
+    """Test client with the extension token header attached by default."""
+    tc = app.test_client()
+    tc.environ_base[f"HTTP_{EXTENSION_TOKEN_HEADER.upper().replace('-', '_')}"] = EXTENSION_TOKEN
+    return tc
+
+
 @pytest.mark.unit
 def test_extension_ingest_validates_scope_and_body(extension_app) -> None:
-    client = extension_app.test_client()
+    client = _client(extension_app)
 
     missing_ego = client.post("/api/extension/feed_events", json={"events": []})
     assert missing_ego.status_code == 400
@@ -37,18 +49,33 @@ def test_extension_ingest_validates_scope_and_body(extension_app) -> None:
 
 
 @pytest.mark.integration
-def test_extension_settings_default_and_update(extension_app) -> None:
-    client = extension_app.test_client()
+def test_extension_settings_default_is_guarded(extension_app) -> None:
+    """Default policy for a fresh (workspace, ego) is guarded; reads still need the token."""
+    client = _client(extension_app)
     scope = "ego=adityaarpitha&workspace_id=default"
 
     default_resp = client.get(f"/api/extension/settings?{scope}")
     assert default_resp.status_code == 200
     defaults = default_resp.get_json()
-    assert defaults["ingestionMode"] == "open"
+    assert defaults["ingestionMode"] == "guarded"
     assert defaults["retentionMode"] == "infinite"
     assert defaults["processingMode"] == "continuous"
     assert defaults["allowlistEnabled"] is False
 
+
+@pytest.mark.integration
+def test_extension_settings_update_requires_token(extension_app) -> None:
+    """PUT /settings requires the extension token because default mode is guarded."""
+    no_token_client = extension_app.test_client()
+    scope = "ego=adityaarpitha&workspace_id=default"
+
+    rejected = no_token_client.put(
+        f"/api/extension/settings?{scope}",
+        json={"allowlistEnabled": True},
+    )
+    assert rejected.status_code == 401
+
+    client = _client(extension_app)
     update_resp = client.put(
         f"/api/extension/settings?{scope}",
         json={
@@ -67,7 +94,7 @@ def test_extension_settings_default_and_update(extension_app) -> None:
 
 @pytest.mark.integration
 def test_extension_ingest_raw_and_firehose_roundtrip(extension_app) -> None:
-    client = extension_app.test_client()
+    client = _client(extension_app)
     scope = "ego=adityaarpitha&workspace_id=default"
 
     ingest_resp = client.post(
@@ -137,8 +164,24 @@ def test_extension_ingest_raw_and_firehose_roundtrip(extension_app) -> None:
 
 
 @pytest.mark.integration
+def test_extension_read_routes_reject_unauth(extension_app) -> None:
+    """Read endpoints (raw, summary, top) must require the token in default (guarded) mode."""
+    no_token_client = extension_app.test_client()
+    scope = "ego=adityaarpitha&workspace_id=default"
+
+    raw = no_token_client.get(f"/api/extension/feed_events/raw?{scope}&limit=10")
+    assert raw.status_code == 401
+
+    summary = no_token_client.get(f"/api/extension/accounts/acct_1/summary?{scope}")
+    assert summary.status_code == 401
+
+    top = no_token_client.get(f"/api/extension/exposure/top?{scope}&limit=5")
+    assert top.status_code == 401
+
+
+@pytest.mark.integration
 def test_extension_allowlist_filters_firehose_not_storage(extension_app) -> None:
-    client = extension_app.test_client()
+    client = _client(extension_app)
     scope = "ego=adityaarpitha&workspace_id=default"
 
     settings_resp = client.put(
@@ -170,7 +213,7 @@ def test_extension_allowlist_filters_firehose_not_storage(extension_app) -> None
 
 @pytest.mark.integration
 def test_extension_purge_by_tag_scope(extension_app, tmp_path) -> None:
-    client = extension_app.test_client()
+    client = _client(extension_app)
     scope = "ego=adityaarpitha&workspace_id=default"
     snapshot_dir = tmp_path / "snapshot"
     tag_store = AccountTagStore(snapshot_dir / "account_tags.db")
@@ -217,29 +260,34 @@ def test_extension_purge_by_tag_scope(extension_app, tmp_path) -> None:
 
 @pytest.mark.integration
 def test_guarded_mode_requires_token(extension_app, monkeypatch) -> None:
-    client = extension_app.test_client()
+    """The guarded-mode auth flow: 401 without header, 401 with wrong header, 200 with right header."""
     scope = "ego=adityaarpitha&workspace_id=default"
 
-    set_guarded = client.put(
-        f"/api/extension/settings?{scope}",
-        json={"ingestionMode": "guarded"},
-    )
-    assert set_guarded.status_code == 200
+    no_token_client = extension_app.test_client()
+    no_token_resp = no_token_client.post(f"/api/extension/feed_events?{scope}", json={"events": []})
+    assert no_token_resp.status_code == 401
 
-    no_token_resp = client.post(f"/api/extension/feed_events?{scope}", json={"events": []})
-    assert no_token_resp.status_code == 503  # guarded mode misconfigured until token is set
-
-    monkeypatch.setenv("TPOT_EXTENSION_TOKEN", "local-secret")
-    bad_token = client.post(
+    bad_token = no_token_client.post(
         f"/api/extension/feed_events?{scope}",
         json={"events": []},
-        headers={"X-TPOT-Extension-Token": "wrong"},
+        headers={EXTENSION_TOKEN_HEADER: "wrong"},
     )
     assert bad_token.status_code == 401
 
-    ok = client.post(
+    ok = no_token_client.post(
         f"/api/extension/feed_events?{scope}",
         json={"events": []},
-        headers={"X-TPOT-Extension-Token": "local-secret"},
+        headers={EXTENSION_TOKEN_HEADER: EXTENSION_TOKEN},
     )
     assert ok.status_code == 200
+
+
+@pytest.mark.integration
+def test_guarded_mode_misconfigured_returns_503(extension_app, monkeypatch) -> None:
+    """If TPOT_EXTENSION_TOKEN is unset, guarded-mode endpoints fail closed with 503."""
+    monkeypatch.delenv("TPOT_EXTENSION_TOKEN", raising=False)
+    scope = "ego=adityaarpitha&workspace_id=default"
+    client = extension_app.test_client()
+
+    resp = client.post(f"/api/extension/feed_events?{scope}", json={"events": []})
+    assert resp.status_code == 503

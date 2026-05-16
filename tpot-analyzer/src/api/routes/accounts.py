@@ -8,9 +8,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Blueprint, current_app, jsonify, request
 
+from src.api.curator_auth import curator_only
 from src.api.responses import error_response
 
-from src.api.cluster import state as cluster_routes
+from src.api.cluster import state as cluster_state
 from src.config import get_snapshot_dir
 from src.data.account_tags import AccountTagStore
 from src.graph import (
@@ -55,7 +56,7 @@ def _get_tag_store() -> AccountTagStore:
 
 
 def _get_node_metadata() -> Dict[str, Dict]:
-    meta = getattr(cluster_routes, "_node_metadata", None) or {}
+    meta = getattr(cluster_state, "_node_metadata", None) or {}
     return meta
 
 
@@ -237,8 +238,8 @@ def list_tags():
 @accounts_bp.route("/accounts/<account_id>/teleport_plan", methods=["GET"])
 def get_teleport_plan(account_id: str):
     """Compute a deterministic plan to make an account visible (leaf explode) within budget."""
-    spectral = getattr(cluster_routes, "_spectral_result", None)
-    node_to_idx = getattr(cluster_routes, "_node_id_to_idx", None) or {}
+    spectral = getattr(cluster_state, "_spectral_result", None)
+    node_to_idx = getattr(cluster_state, "_node_id_to_idx", None) or {}
     if spectral is None or not node_to_idx:
         return error_response("Cluster data not loaded", status=503)
 
@@ -332,6 +333,7 @@ def get_seeds():
 
 
 @accounts_bp.route("/seeds", methods=["POST"])
+@curator_only
 def update_seeds():
     """Update seed lists and/or graph settings."""
     data = request.get_json(silent=True) or {}

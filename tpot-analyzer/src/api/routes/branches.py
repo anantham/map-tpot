@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from flask import Blueprint, jsonify, request
 
+from src.api.curator_auth import curator_only
 from src.api.responses import error_response
 
 from src.communities import store
@@ -55,6 +56,7 @@ def list_branches_route():
 
 
 @branches_bp.route("", methods=["POST"])
+@curator_only
 def create_branch_route():
     """Create a new branch forked from current state."""
     conn = _get_db()
@@ -105,6 +107,7 @@ def create_branch_route():
 
 
 @branches_bp.route("/<branch_id>", methods=["PATCH"])
+@curator_only
 def update_branch_route(branch_id):
     """Rename or update branch description."""
     conn = _get_db()
@@ -130,6 +133,7 @@ def update_branch_route(branch_id):
 
 
 @branches_bp.route("/<branch_id>", methods=["DELETE"])
+@curator_only
 def delete_branch_route(branch_id):
     """Delete a non-active branch."""
     conn = _get_db()
@@ -144,6 +148,7 @@ def delete_branch_route(branch_id):
 
 
 @branches_bp.route("/<branch_id>/switch", methods=["POST"])
+@curator_only
 def switch_branch_route(branch_id):
     """Switch to a different branch."""
     conn = _get_db()
@@ -182,6 +187,7 @@ def list_snapshots_route(branch_id):
 
 
 @branches_bp.route("/<branch_id>/snapshots", methods=["POST"])
+@curator_only
 def save_snapshot_route(branch_id):
     """Save a snapshot on the current branch."""
     conn = _get_db()
@@ -201,6 +207,7 @@ def save_snapshot_route(branch_id):
 
 
 @branches_bp.route("/<branch_id>/snapshots/<snapshot_id>/restore", methods=["POST"])
+@curator_only
 def restore_snapshot_route(branch_id, snapshot_id):
     """Restore a snapshot."""
     conn = _get_db()
