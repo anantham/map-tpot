@@ -141,8 +141,29 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+_NOW_UTC_LOCK = __import__("threading").Lock()
+_NOW_UTC_LAST_NS = 0
+
+
 def now_utc() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    """Strictly-monotonic ISO-8601 UTC timestamp.
+
+    Each call returns a value strictly greater than the previous call, even
+    when the wall clock hasn't ticked — back-to-back invocations on Windows
+    can otherwise produce identical timestamps, which breaks
+    `ORDER BY created_at` for tests and any caller that relies on insertion
+    order being recoverable from the snapshot table.
+    """
+    import time
+    global _NOW_UTC_LAST_NS
+    with _NOW_UTC_LOCK:
+        now_ns = time.time_ns()
+        if now_ns <= _NOW_UTC_LAST_NS:
+            now_ns = _NOW_UTC_LAST_NS + 1000  # advance by 1 microsecond
+        _NOW_UTC_LAST_NS = now_ns
+    seconds, nanos = divmod(now_ns, 1_000_000_000)
+    micros = nanos // 1000
+    return datetime.fromtimestamp(seconds, timezone.utc).replace(microsecond=micros).isoformat()
 
 
 # ── Layer 1: NMF runs ─────────────────────────────────────────────────────────

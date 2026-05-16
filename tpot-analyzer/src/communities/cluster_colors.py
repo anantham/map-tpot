@@ -16,11 +16,11 @@ Five quantities jointly determine cluster color:
     chroma           = sqrt(signal * confidence * coverage) * concentration
     concentration    = 1 - H_normalized(p[:K] | signal)
 
-All five are returned in CommunityInfo and forwarded by cluster_routes.py to
+All five are returned in CommunityInfo and forwarded by src/api/cluster/ to
 the frontend. ClusterCanvas uses only `chroma` and `ambiguity` for rendering;
 the rest appear in tooltips.
 
-Used by cluster_routes.py to add community fields to the API response.
+Used by src/api/cluster/ to add community fields to the API response.
 """
 from __future__ import annotations
 
