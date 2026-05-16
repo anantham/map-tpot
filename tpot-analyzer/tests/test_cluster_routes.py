@@ -19,7 +19,7 @@ from flask import Flask
 from scipy import sparse
 from scipy.cluster.hierarchy import linkage
 
-from src.api.cluster_routes import (
+from src.api.cluster import (
     ClusterCache,
     CacheEntry,
     _make_cache_key,

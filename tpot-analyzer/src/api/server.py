@@ -30,7 +30,7 @@ from src.api.routes.golden import golden_bp
 from src.api.routes.extension import extension_bp
 from src.api.routes.communities import communities_bp
 from src.api.routes.branches import branches_bp
-from src.api.cluster_routes import cluster_bp, init_cluster_routes
+from src.api.cluster import cluster_bp, init_cluster_routes
 from src.api.log_routes import log_bp
 from src.config import get_snapshot_dir
 
@@ -161,7 +161,7 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     app.register_blueprint(log_bp)
     
     # Initialize and register cluster routes (requires data loading)
-    # TODO: Refactor init_cluster_routes to not rely on globals in cluster_routes.py
+    # TODO: Refactor init_cluster_routes to not rely on globals in src/api/cluster/state.py
     snapshot_dir = get_snapshot_dir()
     init_cluster_routes(snapshot_dir)
     app.register_blueprint(cluster_bp)

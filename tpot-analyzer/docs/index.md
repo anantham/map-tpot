@@ -76,6 +76,9 @@ Last reviewed: 2026-03-26
 
 ### ADRs
 
+- [ADR 018: Propagation Engine and Confidence Scoring](adr/018-propagation-engine-and-confidence.md) (Accepted, 2026-05-17)
+- [ADR 017: Multi-View Account Descriptor](adr/017-multi-view-account-descriptor.md) (Revised, 2026-03-30)
+- [ADR 016: Four-Part Epistemic Architecture](adr/016-four-part-epistemic-architecture.md)
 - [ADR 015: Data Pipeline Architecture](adr/015-data-pipeline-architecture.md) (Accepted, 2025-09-05)
 - [ADR 014: Account-Community Gold Labels](adr/014-account-community-gold-labels-and-held-out-evaluation.md)
 - [ADR 013: Probabilistic Cluster Color Contract](adr/013-probabilistic-cluster-color-contract.md) (Accepted, 2026-03-06)
