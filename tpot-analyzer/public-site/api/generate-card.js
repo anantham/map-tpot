@@ -8,69 +8,7 @@
  * Returns: { imageUrl, cached, model } | { error, code }
  */
 
-let kv = null;
-let rawRedis = null;
-try {
-  const Redis = require("ioredis");
-  const redisUrl = process.env.KV_REDIS_URL;
-  if (redisUrl) {
-    rawRedis = new Redis(redisUrl, {
-      maxRetriesPerRequest: 1,
-      connectTimeout: 3000,
-      lazyConnect: true,
-    });
-    // ioredis API adapter — wrap to match our get/set/del/incrbyfloat/expire pattern
-    kv = {
-      async get(key) {
-        try { await rawRedis.connect(); } catch {}
-        return rawRedis.get(key);
-      },
-      async set(key, value, opts) {
-        try { await rawRedis.connect(); } catch {}
-        if (opts?.nx && opts?.ex) {
-          const result = await rawRedis.set(key, typeof value === 'object' ? JSON.stringify(value) : value, 'EX', opts.ex, 'NX');
-          return result === 'OK';
-        }
-        if (opts?.ex) {
-          return rawRedis.set(key, typeof value === 'object' ? JSON.stringify(value) : value, 'EX', opts.ex);
-        }
-        return rawRedis.set(key, typeof value === 'object' ? JSON.stringify(value) : value);
-      },
-      async del(key) {
-        try { await rawRedis.connect(); } catch {}
-        return rawRedis.del(key);
-      },
-      async incrbyfloat(key, amount) {
-        try { await rawRedis.connect(); } catch {}
-        return rawRedis.incrbyfloat(key, amount);
-      },
-      async expire(key, seconds) {
-        try { await rawRedis.connect(); } catch {}
-        return rawRedis.expire(key, seconds);
-      },
-      async hset(key, field, value) {
-        try { await rawRedis.connect(); } catch {}
-        return rawRedis.hset(key, field, value);
-      },
-      async hget(key, field) {
-        try { await rawRedis.connect(); } catch {}
-        return rawRedis.hget(key, field);
-      },
-      async hgetall(key) {
-        try { await rawRedis.connect(); } catch {}
-        return rawRedis.hgetall(key);
-      },
-    };
-  }
-} catch {
-  // Redis unavailable — graceful degradation (no cache, no budget enforcement)
-}
-
-let blobPut = null;
-try {
-  const { put } = require("@vercel/blob");
-  blobPut = put;
-} catch {}
+const { getKv, getBlobPut } = require("./_lib");
 
 const MODEL = "google/gemini-2.5-flash-image";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -83,6 +21,9 @@ function resolveAbortTimeoutMs() {
 }
 
 module.exports = async function handler(req, res) {
+  const kv = getKv();
+  const blobPut = getBlobPut();
+
   // Only accept POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed", code: "method_not_allowed" });

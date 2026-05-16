@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom'
 
-// Mock localStorage for tests
+// Some test files opt into the 'node' environment (api/* serverless handler
+// tests). Skip the browser-only setup when no window exists.
 const store = {}
 const localStorageMock = {
   getItem: vi.fn((key) => store[key] ?? null),
@@ -10,24 +11,24 @@ const localStorageMock = {
   get length() { return Object.keys(store).length },
   key: vi.fn((i) => Object.keys(store)[i] || null),
 }
-Object.defineProperty(window, 'localStorage', { value: localStorageMock })
 
-// Mock window.history for routing tests
-const historyMock = {
-  pushState: vi.fn(),
-  replaceState: vi.fn(),
-  back: vi.fn(),
-  forward: vi.fn(),
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', { value: localStorageMock })
+
+  const historyMock = {
+    pushState: vi.fn(),
+    replaceState: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }
+  Object.defineProperty(window, 'history', {
+    value: { ...window.history, ...historyMock },
+    writable: true,
+  })
+
+  window.scrollTo = vi.fn()
 }
-Object.defineProperty(window, 'history', {
-  value: { ...window.history, ...historyMock },
-  writable: true,
-})
 
-// Mock window.scrollTo
-window.scrollTo = vi.fn()
-
-// Reset mocks between tests
 beforeEach(() => {
   vi.clearAllMocks()
   localStorageMock.clear()
