@@ -139,45 +139,68 @@ def test_anonymous_can_get_seeds_state(anon_client):
 # Mutating curator endpoints REJECT anonymous callers (Vulns 1, 3, 4)
 # ─────────────────────────────────────────────────────────────────────────
 
-# Each tuple: (method, path, optional json body). Excludes paths that need
-# real graph state to even validate input — those still gate auth first.
-CURATOR_MUTATION_CASES = [
-    ("PUT",    "/api/communities/comm-int/members/acct_2", None),
-    ("DELETE", "/api/communities/comm-int/members/acct_1", None),
-    ("PATCH",  "/api/communities/comm-int", {"name": "renamed"}),
-    ("DELETE", "/api/communities/comm-int", None),
-    ("PUT",    "/api/communities/account/acct_1/note", {"note": "x"}),
-    ("PUT",    "/api/communities/account/acct_1/weights",
-        {"weights": [{"community_id": "comm-int", "weight": 0.5}]}),
-    ("POST",   "/api/communities/branches", {"name": "scratch"}),
-    ("POST",   "/api/seeds", {"settings": {"auto_include_shadow": False}}),
-    ("POST",   "/api/graph/settings", {"layout": "force"}),
-]
+# Blueprints whose mutating endpoints must require the curator token. New
+# blueprints that hold curator-owned writable resources should be added here
+# so the auto-discovery test below covers them.
+_CURATOR_BLUEPRINTS = {"communities", "branches"}
+# Standalone curator-owned mutating endpoints (single-blueprint writes that
+# don't live under a curator-prefixed blueprint).
+_EXTRA_CURATOR_ENDPOINTS = {"accounts.update_seeds", "graph.update_settings"}
 
 
-@pytest.mark.integration
-@pytest.mark.parametrize("method,path,body", CURATOR_MUTATION_CASES)
-def test_curator_mutation_rejects_anonymous(anon_client, method, path, body):
-    """Every mutating curator endpoint must require the curator token.
+def _enumerate_curator_mutations(app):
+    """Walk app.url_map and yield every (method, rule) pair that mutates
+    curator-owned state. Used by the auth audit test below.
 
-    Adding a new mutating endpoint without @curator_only will fail this test
-    (extend the CURATOR_MUTATION_CASES list).
+    A future contributor adding a new mutating endpoint to communities_bp /
+    branches_bp / accounts.update_seeds / graph.update_settings without
+    @curator_only will appear here and fail the audit — no per-endpoint
+    test maintenance needed.
     """
-    resp = anon_client.open(path, method=method, json=body)
-    assert resp.status_code == 401, (
-        f"{method} {path} returned {resp.status_code} without a curator token; "
-        "expected 401 (missing token). If you added a new endpoint, decorate it "
-        "with @curator_only and add it to CURATOR_MUTATION_CASES."
-    )
+    write_methods = {"POST", "PUT", "PATCH", "DELETE"}
+    for rule in app.url_map.iter_rules():
+        endpoint_bp = rule.endpoint.split(".")[0]
+        if not (endpoint_bp in _CURATOR_BLUEPRINTS or rule.endpoint in _EXTRA_CURATOR_ENDPOINTS):
+            continue
+        for method in rule.methods or set():
+            if method in write_methods:
+                yield method, rule.rule
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("method,path,body", CURATOR_MUTATION_CASES)
-def test_curator_mutation_rejects_wrong_token(anon_client, method, path, body):
-    resp = anon_client.open(
-        path,
-        method=method,
-        json=body,
+def test_every_curator_mutating_endpoint_rejects_anonymous(integration_app, anon_client):
+    """Auto-discovery audit. Every PUT/POST/PATCH/DELETE on a curator-owned
+    blueprint must return 401 without the curator token.
+
+    Replaces a hand-maintained parametrize list — adding a new endpoint to
+    communities_bp / branches_bp without @curator_only fails this test
+    automatically, no test edit required.
+    """
+    mutations = list(_enumerate_curator_mutations(integration_app))
+    assert mutations, "url_map enumeration found no curator mutating endpoints — sanity broken"
+    failures = []
+    for method, path in mutations:
+        # Substitute realistic IDs so Flask routes the call (the auth gate
+        # fires before any business logic, so the body doesn't matter).
+        concrete = (path
+            .replace("<community_id>", "comm-int")
+            .replace("<account_id>", "acct_1")
+            .replace("<branch_id>", "br-int")
+            .replace("<snapshot_id>", "snap-int"))
+        resp = anon_client.open(concrete, method=method, json={})
+        if resp.status_code != 401:
+            failures.append(f"{method} {concrete} -> {resp.status_code} (expected 401)")
+    assert not failures, "Unprotected curator endpoints:\n  " + "\n  ".join(failures)
+
+
+@pytest.mark.integration
+def test_curator_mutation_rejects_wrong_token(anon_client):
+    """One representative wrong-token case. The decorator runs identically on
+    every endpoint; testing all of them is redundant — see the auto-discovery
+    test above for "decorator is present" coverage."""
+    resp = anon_client.patch(
+        "/api/communities/comm-int",
+        json={"name": "x"},
         headers={"X-TPOT-Curator-Token": "wrong-token"},
     )
     assert resp.status_code == 401
@@ -185,7 +208,7 @@ def test_curator_mutation_rejects_wrong_token(anon_client, method, path, body):
 
 @pytest.mark.integration
 def test_curator_mutation_accepted_with_valid_token(curator_client):
-    """Smoke test: at least one mutating endpoint succeeds end-to-end with auth."""
+    """One representative happy path: a real mutation succeeds end-to-end."""
     resp = curator_client.patch("/api/communities/comm-int", json={"name": "Renamed via curator"})
     assert resp.status_code == 200
     assert resp.get_json()["name"] == "Renamed via curator"

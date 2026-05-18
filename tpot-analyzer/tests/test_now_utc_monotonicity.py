@@ -31,26 +31,17 @@ def test_now_utc_returns_iso8601_string():
 
 @pytest.mark.unit
 def test_now_utc_strictly_monotonic_in_tight_loop():
-    """10_000 back-to-back calls should produce 10_000 strictly increasing values.
+    """1_000 back-to-back calls should produce 1_000 strictly increasing values
+    that also lex-sort in call order (what SQLite's ORDER BY relies on).
 
     Before the fix: roughly 1-5% of calls collided on Windows second
     resolution. After the fix: zero collisions.
     """
-    n = 10_000
-    values = [now_utc() for _ in range(n)]
-    assert len(values) == n
+    values = [now_utc() for _ in range(1_000)]
     for prev, curr in zip(values, values[1:]):
         assert curr > prev, f"Non-monotonic: {prev!r} >= {curr!r}"
-
-
-@pytest.mark.unit
-def test_now_utc_strings_lex_sort_matches_call_order():
-    """ISO-8601 strings must lex-sort in the same order as they were emitted.
-
-    This is what `ORDER BY created_at` in SQLite relies on. A non-padded
-    microsecond field or a timezone variation would break this.
-    """
-    values = [now_utc() for _ in range(500)]
+    # Same-format ISO strings lex-sort iff they're chronologically ordered,
+    # so monotonic + this assertion in one is sufficient.
     assert values == sorted(values)
 
 

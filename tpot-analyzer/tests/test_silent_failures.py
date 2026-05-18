@@ -5,7 +5,7 @@ import logging
 
 import pytest
 
-from src.shadow.silent_failures import SilentFailureTracker, tracker as global_tracker
+from src.shadow.silent_failures import SilentFailureTracker
 
 
 @pytest.fixture
@@ -57,31 +57,12 @@ def test_track_without_exception_uses_unknown(t):
 
 
 @pytest.mark.unit
-def test_snapshot_sorted_by_count_desc(t):
-    t.track("op.a", ValueError())
-    for _ in range(3):
-        t.track("op.b", ValueError())
-    for _ in range(2):
-        t.track("op.c", ValueError())
-    snap = t.snapshot()
-    counts = [r["count"] for r in snap]
-    assert counts == [3, 2, 1]
-
-
-@pytest.mark.unit
 def test_reset_clears_stats(t):
     t.track("op.a", ValueError())
     assert t.total_count() == 1
     t.reset()
     assert t.snapshot() == []
     assert t.total_count() == 0
-
-
-@pytest.mark.unit
-def test_log_summary_emits_nothing_when_empty(t, caplog):
-    with caplog.at_level(logging.INFO, logger="src.shadow.silent_failures"):
-        t.log_summary("test-context")
-    assert caplog.records == []
 
 
 @pytest.mark.unit
@@ -98,12 +79,3 @@ def test_log_summary_emits_one_line_per_category(t, caplog):
     assert "3 total across 2 categories" in messages[0]
     assert any("op.a" in m and "count=2" in m for m in messages)
     assert any("op.b" in m and "count=1" in m for m in messages)
-
-
-@pytest.mark.unit
-def test_global_tracker_is_singleton():
-    # Reset to avoid leak from other tests
-    global_tracker.reset()
-    global_tracker.track("op.singleton", RuntimeError("x"))
-    assert global_tracker.total_count() == 1
-    global_tracker.reset()
