@@ -220,11 +220,17 @@ describe('ClusterView Component', () => {
 
     render(<ClusterView />)
 
-    // Should show loading indicator while fetching
-    expect(screen.getByText(/Loading/i) || screen.queryByTestId('cluster-canvas')).toBeTruthy()
+    // Post-redesign: status line either says "Loading…" or "N accounts ·
+    // M clusters shown." once data has arrived. Either way at least one
+    // "Loading" or "clusters" indicator is present.
+    const hasLoading = screen.queryAllByText(/Loading/i).length > 0
+    const hasCanvas = screen.queryByTestId('cluster-canvas') !== null
+    expect(hasLoading || hasCanvas).toBe(true)
   })
 
-  it('displays visible count and budget', async () => {
+  it('displays cluster count in the status line', async () => {
+    // Post-redesign: the "Visible N/N" chip was replaced with a friendlier
+    // status line "N accounts · M clusters shown. …".
     const { fetchClusterView } = await import('./data')
     fetchClusterView.mockResolvedValue({
       clusters: [
@@ -241,11 +247,14 @@ describe('ClusterView Component', () => {
     render(<ClusterView />)
 
     await waitFor(() => {
-      expect(screen.getByText(/Visible 2\/25/)).toBeInTheDocument()
+      expect(screen.getByText(/2 clusters shown/i)).toBeInTheDocument()
     })
   })
 
-  it('shows settings panel when Settings button clicked', async () => {
+  it('shows the Advanced settings panel when ⚙ Advanced is clicked', async () => {
+    // Post-redesign: the "Settings" button was renamed to "⚙ Advanced"
+    // because the panel now hosts power-user knobs (the casual user gets
+    // the Granularity slider in the toolbar instead).
     const { fetchClusterView } = await import('./data')
     fetchClusterView.mockResolvedValue({ clusters: [], edges: [], positions: {} })
 
@@ -253,9 +262,8 @@ describe('ClusterView Component', () => {
 
     render(<ClusterView />)
 
-    // Find and click Settings button
-    const settingsBtn = screen.getByRole('button', { name: /Settings/i })
-    fireEvent.click(settingsBtn)
+    const advancedBtn = screen.getByRole('button', { name: /Advanced/i })
+    fireEvent.click(advancedBtn)
 
     await waitFor(() => {
       expect(screen.getByText(/Base cut/i)).toBeInTheDocument()
@@ -274,19 +282,22 @@ describe('ClusterView Component', () => {
 
     const multiSelectBtn = screen.getByRole('button', { name: /Multi-select/i })
 
-    // Initially off
-    expect(multiSelectBtn).toHaveTextContent('Multi-select off')
+    // Initially off — label is plain "Multi-select"
+    expect(multiSelectBtn).toHaveTextContent(/^Multi-select$/)
 
-    // Click to toggle on
+    // Click to toggle on — label gets a checkmark prefix
     fireEvent.click(multiSelectBtn)
-    expect(multiSelectBtn).toHaveTextContent('Multi-select on')
+    expect(multiSelectBtn).toHaveTextContent(/^✓ Multi-select$/)
 
     // Click to toggle off
     fireEvent.click(multiSelectBtn)
-    expect(multiSelectBtn).toHaveTextContent('Multi-select off')
+    expect(multiSelectBtn).toHaveTextContent(/^Multi-select$/)
   })
 
-  it('updates URL when budget slider changes', async () => {
+  it('updates URL when Granularity slider changes', async () => {
+    // Post-redesign: the canonical "detail level" knob is Granularity (0-100).
+    // It internally maps to budget/visibleTarget/expandDepth via granularity.js.
+    // We verify by checking the URL gets a non-default budget after the slide.
     const { fetchClusterView } = await import('./data')
     fetchClusterView.mockResolvedValue({ clusters: [], edges: [], positions: {} })
 
@@ -294,21 +305,20 @@ describe('ClusterView Component', () => {
 
     render(<ClusterView />)
 
-    // Wait for URL parsing to complete
+    // Wait for URL parsing to complete (budget=25 default = granularity 50)
     await waitFor(() => {
       expect(window.history.replaceState).toHaveBeenCalled()
     })
 
-    // Find budget slider
-    const budgetSlider = screen.getByRole('slider', { name: '' })
-    if (budgetSlider) {
-      fireEvent.change(budgetSlider, { target: { value: '50' } })
+    // Granularity slider is the first slider in the toolbar
+    const granularitySlider = screen.getAllByRole('slider')[0]
+    fireEvent.change(granularitySlider, { target: { value: '100' } })
 
-      await waitFor(() => {
-        const calls = window.history.replaceState.mock.calls
-        const lastCall = calls[calls.length - 1]
-        expect(lastCall[2]).toContain('budget=50')
-      })
-    }
+    await waitFor(() => {
+      const calls = window.history.replaceState.mock.calls
+      const lastCall = calls[calls.length - 1]
+      // Granularity 100 → budget 200 per granularity.js
+      expect(lastCall[2]).toContain('budget=200')
+    })
   })
 })

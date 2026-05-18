@@ -533,8 +533,12 @@ describe('ClusterView Cache and Loading', () => {
     const ClusterView = (await import('./ClusterView')).default
     render(<ClusterView />)
 
+    // Post-redesign: cache hit indicator is "· Cache hit" in the status
+    // line (dot prefix separates it from the "N accounts" prefix). The
+    // regex matches with or without the prefix so the test stays robust
+    // to cosmetic changes.
     await waitFor(() => {
-      expect(screen.getByText('Cache hit')).toBeInTheDocument()
+      expect(screen.getByText(/Cache hit/)).toBeInTheDocument()
     })
   })
 
@@ -559,7 +563,7 @@ describe('ClusterView Cache and Loading', () => {
     })
 
     // Cache hit text should NOT be present
-    expect(screen.queryByText('Cache hit')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Cache hit/)).not.toBeInTheDocument()
   })
 
   it('shows loading indicator while API request is pending', async () => {
@@ -574,9 +578,12 @@ describe('ClusterView Cache and Loading', () => {
     const ClusterView = (await import('./ClusterView')).default
     render(<ClusterView />)
 
-    // Should show loading while waiting
+    // Post-redesign: status line says "Loading…" while no data has arrived
+    // yet AND a "· Loading…" pill appears alongside while fetching. Use
+    // findAllByText to accept either or both — what matters is that SOME
+    // loading affordance is visible.
     await waitFor(() => {
-      expect(screen.getByText(/Loading/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/Loading/i).length).toBeGreaterThan(0)
     })
 
     // Now resolve the API call
@@ -589,9 +596,9 @@ describe('ClusterView Cache and Loading', () => {
       })
     })
 
-    // Loading should disappear
+    // After data lands, no Loading indicator should remain
     await waitFor(() => {
-      expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument()
+      expect(screen.queryAllByText(/Loading/i).length).toBe(0)
     })
   })
 

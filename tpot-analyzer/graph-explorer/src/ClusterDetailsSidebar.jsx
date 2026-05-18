@@ -42,24 +42,15 @@ export default function ClusterDetailsSidebar({
   if (!cluster) return null
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: 0,
-      right: 0,
-      width: 360,
-      height: '100%',
-      borderLeft: '1px solid #e2e8f0',
-      padding: 16,
-      overflow: 'auto',
-      background: 'var(--panel, #fff)',
-      boxShadow: '0 0 20px rgba(0,0,0,0.08)'
-    }}>
-      <h3 style={{ margin: '0 0 12px 0' }}>Cluster details</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ fontWeight: 700 }}>{cluster.label}</div>
-        <div style={{ color: '#475569' }}>
-          Size {cluster.size} • Reps {(cluster.representativeHandles || []).join(', ')}
-        </div>
+    // Outer chrome (positioning, close button, scroll container) is owned by
+    // the Drawer wrapper in ClusterView. This component now renders body
+    // content only — keeps it composable and lets the Drawer handle Escape
+    // / pointer-events / animations uniformly across panels.
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontWeight: 700, fontSize: 15 }}>{cluster.label}</div>
+      <div style={{ color: 'var(--text-muted, #475569)', fontSize: 13 }}>
+        Size {cluster.size} • Reps {(cluster.representativeHandles || []).join(', ')}
+      </div>
 
         {/* Community breakdown */}
         {cluster.communityBreakdown?.length > 0 && (
@@ -136,87 +127,108 @@ export default function ClusterDetailsSidebar({
             Delete
           </button>
         </div>
-        <div style={{ fontWeight: 600, marginTop: 12 }}>Tag summary</div>
-        {!ego && (
-          <div style={{ color: '#94a3b8' }}>Set `ego` in Settings to compute tag summary.</div>
-        )}
-        {ego && tagSummaryLoading && <div style={{ color: '#94a3b8' }}>Loading tag summary…</div>}
-        {ego && tagSummaryError && <div style={{ color: '#b91c1c' }}>{tagSummaryError}</div>}
-        {ego && !tagSummaryLoading && !tagSummaryError && tagSummary && (
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: 'rgba(148,163,184,0.08)' }}>
-            <div style={{ color: '#475569', fontSize: 13 }}>
-              Tagged members: {tagSummary.taggedMembers}/{tagSummary.totalMembers} • Assignments: {tagSummary.tagAssignments} • Compute: {tagSummary.computeMs}ms
-            </div>
-            {tagSummary.suggestedLabel?.tag && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontWeight: 700 }}>Suggested label</div>
+        {/* Tag summary — collapsed by default so the drawer opens lightweight */}
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+            Tag summary{tagSummary?.tagCounts ? ` (${tagSummary.tagCounts.length})` : ''}
+          </summary>
+          <div style={{ marginTop: 8 }}>
+            {!ego && (
+              <div style={{ color: '#94a3b8' }}>Set `ego` in Settings to compute tag summary.</div>
+            )}
+            {ego && tagSummaryLoading && <div style={{ color: '#94a3b8' }}>Loading tag summary…</div>}
+            {ego && tagSummaryError && <div style={{ color: '#b91c1c' }}>{tagSummaryError}</div>}
+            {ego && !tagSummaryLoading && !tagSummaryError && tagSummary && (
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: 10, background: 'rgba(148,163,184,0.08)' }}>
                 <div style={{ color: '#475569', fontSize: 13 }}>
-                  {tagSummary.suggestedLabel.tag} (score {tagSummary.suggestedLabel.score})
+                  Tagged members: {tagSummary.taggedMembers}/{tagSummary.totalMembers} • Assignments: {tagSummary.tagAssignments} • Compute: {tagSummary.computeMs}ms
                 </div>
-                <button
-                  onClick={onApplySuggestedLabel}
-                  style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: '#16a34a', color: 'white', border: 'none' }}
-                >
-                  Apply suggested label
-                </button>
+                {tagSummary.suggestedLabel?.tag && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontWeight: 700 }}>Suggested label</div>
+                    <div style={{ color: '#475569', fontSize: 13 }}>
+                      {tagSummary.suggestedLabel.tag} (score {tagSummary.suggestedLabel.score})
+                    </div>
+                    <button
+                      onClick={onApplySuggestedLabel}
+                      style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, background: '#16a34a', color: 'white', border: 'none' }}
+                    >
+                      Apply suggested label
+                    </button>
+                  </div>
+                )}
+                <div style={{ marginTop: 10, fontWeight: 700 }}>Top tags</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflow: 'auto', marginTop: 6 }}>
+                  {(tagSummary.tagCounts || []).slice(0, 12).map((row) => (
+                    <div
+                      key={row.tag}
+                      style={{ display: 'flex', justifyContent: 'space-between', gap: 10, border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 8px', background: 'white' }}
+                    >
+                      <div style={{ fontWeight: 700 }}>{row.tag}</div>
+                      <div style={{ color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>
+                        IN {row.inCount} · NOT {row.notInCount} · score {row.score}
+                      </div>
+                    </div>
+                  ))}
+                  {(!tagSummary.tagCounts || tagSummary.tagCounts.length === 0) && (
+                    <div style={{ color: '#94a3b8' }}>No tags found for members in this cluster.</div>
+                  )}
+                </div>
               </div>
             )}
-            <div style={{ marginTop: 10, fontWeight: 700 }}>Top tags</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflow: 'auto', marginTop: 6 }}>
-              {(tagSummary.tagCounts || []).slice(0, 12).map((row) => (
-                <div
-                  key={row.tag}
-                  style={{ display: 'flex', justifyContent: 'space-between', gap: 10, border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 8px', background: 'white' }}
-                >
-                  <div style={{ fontWeight: 700 }}>{row.tag}</div>
-                  <div style={{ color: '#475569', fontSize: 12, whiteSpace: 'nowrap' }}>
-                    IN {row.inCount} · NOT {row.notInCount} · score {row.score}
-                  </div>
-                </div>
-              ))}
-              {(!tagSummary.tagCounts || tagSummary.tagCounts.length === 0) && (
-                <div style={{ color: '#94a3b8' }}>No tags found for members in this cluster.</div>
-              )}
-            </div>
           </div>
-        )}
-        <div style={{ fontWeight: 600, marginTop: 12 }}>Members ({membersTotal})</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflow: 'auto' }}>
-          {members.map(m => (
-            <div
-              key={m.id}
-              onClick={() => onMemberSelect({ accountId: m.id, parentId: cluster.id, username: m.username, displayName: m.displayName })}
-              style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 8, cursor: 'pointer' }}
-              title="Select account to tag"
-            >
-              <div style={{ fontWeight: 600 }}>{m.username || m.id}</div>
-              <div style={{ color: '#475569', fontSize: 13 }}>Followers: {m.numFollowers ?? '–'}</div>
-            </div>
-          ))}
-          {!members.length && <div style={{ color: '#94a3b8' }}>No members loaded</div>}
-        </div>
-        <div style={{ fontWeight: 700, marginTop: 14 }}>Selected account</div>
-        {!selectedAccount && <div style={{ color: '#94a3b8' }}>Click a member to tag.</div>}
-        {selectedAccount && (
-          <>
-            <div style={{ color: '#475569' }}>
-              @{selectedAccount.username || selectedAccount.id}{selectedAccount.displayName ? ` · ${selectedAccount.displayName}` : ''}
-            </div>
-            <AccountMembershipPanel
-              ego={ego}
-              account={selectedAccount}
-              loading={membershipLoading}
-              error={membershipError}
-              membership={membership}
-            />
-            <AccountTagPanel
-              ego={ego}
-              account={selectedAccount}
-              onTagChanged={onTagChanged}
-            />
-          </>
-        )}
-      </div>
+        </details>
+
+        {/* Members — collapsed by default; total is shown in the summary */}
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ fontWeight: 600, cursor: 'pointer', padding: '4px 0' }}>
+            Members ({membersTotal})
+          </summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflow: 'auto', marginTop: 8 }}>
+            {members.map(m => (
+              <div
+                key={m.id}
+                onClick={() => onMemberSelect({ accountId: m.id, parentId: cluster.id, username: m.username, displayName: m.displayName })}
+                style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 8, cursor: 'pointer' }}
+                title="Select account to tag"
+              >
+                <div style={{ fontWeight: 600 }}>{m.username || m.id}</div>
+                <div style={{ color: '#475569', fontSize: 13 }}>Followers: {m.numFollowers ?? '–'}</div>
+              </div>
+            ))}
+            {!members.length && <div style={{ color: '#94a3b8' }}>No members loaded</div>}
+          </div>
+        </details>
+
+        {/* Selected account — auto-opens when an account is selected so
+            the tagging UI is visible without an extra click */}
+        <details style={{ marginTop: 8 }} open={!!selectedAccount}>
+          <summary style={{ fontWeight: 700, cursor: 'pointer', padding: '4px 0' }}>
+            Selected account
+          </summary>
+          <div style={{ marginTop: 8 }}>
+            {!selectedAccount && <div style={{ color: '#94a3b8' }}>Click a member to tag.</div>}
+            {selectedAccount && (
+              <>
+                <div style={{ color: '#475569' }}>
+                  @{selectedAccount.username || selectedAccount.id}{selectedAccount.displayName ? ` · ${selectedAccount.displayName}` : ''}
+                </div>
+                <AccountMembershipPanel
+                  ego={ego}
+                  account={selectedAccount}
+                  loading={membershipLoading}
+                  error={membershipError}
+                  membership={membership}
+                />
+                <AccountTagPanel
+                  ego={ego}
+                  account={selectedAccount}
+                  onTagChanged={onTagChanged}
+                />
+              </>
+            )}
+          </div>
+        </details>
     </div>
   )
 }
