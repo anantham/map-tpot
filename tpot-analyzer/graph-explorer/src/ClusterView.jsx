@@ -14,9 +14,17 @@ import AccountSearch from './AccountSearch'
 import { fetchTeleportPlan } from './accountsApi'
 import ClusterDetailsSidebar from './ClusterDetailsSidebar'
 import ClusterSettingsPanel from './ClusterSettingsPanel'
+import Drawer from './Drawer'
+import ClusterTour, { useClusterTour, ClusterTourTrigger } from './ClusterTour'
+import { granularityToConfig, configToGranularity } from './granularity'
 import { clamp, toNumber, computeBaseCut, alignLayout } from './clusterGeometry'
 
 export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeChange }) {
+  // Granularity (0-100) is the single user-facing knob. It derives budget /
+  // visibleTarget / expandDepth via granularity.js. The Advanced settings
+  // panel still exposes the underlying knobs for power users who want to
+  // decouple them.
+  const [granularity, setGranularity] = useState(50)
   const [budget, setBudget] = useState(25) // Max clusters allowed (slider)
   const [visibleTarget, setVisibleTarget] = useState(computeBaseCut(25)) // Initial/base cut below budget
   const [wl, setWl] = useState(0)
@@ -70,6 +78,22 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const [repulsionStrength, setRepulsionStrength] = useState(120)
   const [collisionPadding, setCollisionPadding] = useState(28)
   const [minZoom, setMinZoom] = useState(0.3) // Prevent excessive zoom-out causing label overlap
+
+  // First-visit tour. localStorage-backed so it only auto-opens once;
+  // persistent "?" button lets users re-open from the toolbar.
+  const tour = useClusterTour()
+
+  // Single-knob handler — moving the Granularity slider snaps all three
+  // underlying controls to consistent values. Power users can still
+  // override individually via the Advanced settings panel.
+  const handleGranularityChange = useCallback((percent) => {
+    const cfg = granularityToConfig(percent)
+    setGranularity(percent)
+    setBudget(cfg.budget)
+    setVisibleTarget(cfg.visibleTarget)
+    setExpandDepth(cfg.expandDepth)
+  }, [])
+
   const expandedList = useMemo(() => Array.from(expanded), [expanded])
   const collapsedList = useMemo(() => Array.from(collapsed), [collapsed])
   const expandedCount = expandedList.length
@@ -90,6 +114,9 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     // Budget defaults to n, but if n=0, use a sensible default (25) to allow expansions
     const budgetParam = toNumber(params.get('budget'), nParam) || 25
     setBudget(budgetParam)
+    // Position the Granularity slider to match the persisted budget so the
+    // user's URL is faithful to their last slider position.
+    setGranularity(configToGranularity({ budget: budgetParam }))
     const visibleParam = toNumber(params.get('visible'), NaN)
     if (Number.isFinite(visibleParam)) {
       setVisibleTarget(clamp(visibleParam, 5, budgetParam))
@@ -1069,88 +1096,122 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{
-        padding: '12px 16px',
+        padding: '10px 16px',
         borderBottom: '1px solid var(--panel-border)',
         background: 'var(--panel)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px'
+        gap: '8px'
       }}>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ fontWeight: 700, color: 'var(--text)' }}>Visible {visibleCount}/{budget}</div>
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <label style={{ fontWeight: 600 }}>Max clusters</label>
+        {/* Row 1 — status line. Tells the user what they're looking at and
+            the first thing to do, instead of leading with controls. */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+          <span style={{ color: 'var(--text)', fontWeight: 600 }}>
+            {/* "Loading…" only while actively loading AND we have nothing
+                to show yet. If a fetch returned empty/dropped (e.g. no
+                clusters at this filter), loading flips false but data
+                stays null — in that case fall through to "Cluster view"
+                so we don't claim to be loading forever. */}
+            {loading && !data
+              ? 'Loading…'
+              : data?.meta?.total_accounts
+                ? `${data.meta.total_accounts.toLocaleString()} accounts`
+                : 'Cluster view'}
+            {' · '}
+            <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+              {visibleCount > 0
+                ? `${visibleCount} clusters shown. Click a cluster to see its members; scroll on one to drill in.`
+                : data
+                  ? 'No clusters at this granularity. Slide right to show more.'
+                  : 'preparing the map…'}
+            </span>
+          </span>
+          {/* Only show the inline pill when data already exists and a new
+              fetch is in flight — avoids two "Loading" texts on screen. */}
+          {loading && data && <span style={{ color: 'var(--text-muted)' }}>· Loading…</span>}
+          {data?.cache_hit && <span style={{ color: '#10b981', fontSize: 11 }}>· Cache hit</span>}
+          {error && <span style={{ color: '#b91c1c' }}>· {error}</span>}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <ClusterTourTrigger onClick={tour.openTour} />
+          </div>
+        </div>
+
+        {/* Row 2 — the one row of controls. Granularity is the canonical
+            "detail level" knob; the rest (Lens, Teleport, Settings) sit on
+            the right. Multi-select / Return surface conditionally so they
+            don't clutter the default view. */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+            <span style={{ fontWeight: 600, color: 'var(--text)' }}>Granularity</span>
             <input
               type="range"
-              min={5}
-              max={200}
-              value={budget}
-              onChange={e => {
-                const next = Number(e.target.value)
-                setBudget(next)
-                setVisibleTarget(computeBaseCut(next))
-              }}
+              min={0}
+              max={100}
+              value={granularity}
+              onChange={e => handleGranularityChange(Number(e.target.value))}
+              title="Coarse (few large clusters) ↔ Fine (many small clusters)"
+              style={{ minWidth: 140 }}
             />
-            <span style={{ minWidth: 32 }}>{budget}</span>
-          </div>
+            <span style={{ color: 'var(--text-muted)', minWidth: 48 }}>
+              {granularity < 33 ? 'coarse' : granularity > 66 ? 'fine' : 'medium'}
+            </span>
+          </label>
           <button
             onClick={() => setSelectionMode(m => !m)}
             style={{
-              padding: '6px 10px',
+              padding: '4px 10px',
               borderRadius: 6,
+              fontSize: 12,
               border: selectionMode ? '1px solid var(--accent)' : '1px solid var(--panel-border)',
               background: selectionMode ? 'rgba(14,165,233,0.12)' : 'var(--panel)',
               color: selectionMode ? 'var(--accent)' : 'var(--text-muted)',
             }}
-            title="Toggle drag-to-select mode for collapsing multiple clusters"
+            title="Drag-to-select mode for collapsing multiple clusters at once"
           >
-            {selectionMode ? 'Multi-select on' : 'Multi-select off'}
+            {selectionMode ? '✓ Multi-select' : 'Multi-select'}
           </button>
           {collapseSelection.size > 0 && (
             <button
               onClick={handleCollapseSelected}
-              style={{ padding: '6px 10px', borderRadius: 6, background: 'var(--text)', color: 'var(--bg)', border: 'none' }}
+              style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, background: 'var(--text)', color: 'var(--bg)', border: 'none' }}
             >
               Collapse selected ({collapseSelection.size})
             </button>
           )}
-          {loading && <span style={{ color: 'var(--text-muted)' }}>Loading…</span>}
-          {data?.cache_hit && <span style={{ color: '#10b981' }}>Cache hit</span>}
-          {error && <span style={{ color: '#b91c1c' }}>{error}</span>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {returnSnapshot && (
               <button
                 onClick={restorePreviousView}
                 style={{
-                  padding: '6px 10px',
+                  padding: '4px 10px',
                   borderRadius: 6,
+                  fontSize: 12,
                   border: '1px solid var(--panel-border)',
                   background: 'rgba(14,165,233,0.10)',
                   color: 'var(--text)',
                 }}
                 title="Return to your previous cluster view"
               >
-                Return
+                ← Return
               </button>
             )}
-            <AccountSearch onPick={handleTeleportPick} placeholder="Teleport to @account…" />
+            <AccountSearch onPick={handleTeleportPick} placeholder="🔍 teleport to @account…" />
             <button
               onClick={() => setShowSettings(s => !s)}
               style={{
-                padding: '6px 12px',
+                padding: '4px 12px',
                 borderRadius: 6,
+                fontSize: 12,
                 border: '1px solid var(--panel-border)',
                 background: showSettings ? 'var(--bg-muted)' : 'var(--panel)',
                 color: 'var(--text)',
                 cursor: 'pointer'
               }}
+              title="Advanced controls (base cut, expand depth, ego, physics)"
             >
-              Settings
+              ⚙ Advanced
             </button>
           </div>
-        </div>
-        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-          Pan: drag · Zoom: scroll · Split/merge: scroll on a node · Multi-select: toggle above
         </div>
         {showSettings && (
           <ClusterSettingsPanel
@@ -1297,36 +1358,67 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
           minZoom={minZoom}
         />
 
-        <ClusterDetailsSidebar
-          cluster={selectedCluster}
-          expandPreview={expandPreview}
-          collapsePreview={collapsePreview}
-          collapseSelected={collapseSelection.has(selectedCluster?.id)}
-          onExpand={() => handleExpand(selectedCluster)}
-          onCollapse={() => handleCollapse(selectedCluster)}
-          onToggleCollapseSelection={() => toggleCollapseSelection(selectedCluster)}
-          labelDraft={labelDraft}
-          onLabelDraftChange={setLabelDraft}
-          onRename={handleRename}
-          onDeleteLabel={handleDeleteLabel}
-          ego={ego.trim()}
-          tagSummary={tagSummary}
-          tagSummaryLoading={tagSummaryLoading}
-          tagSummaryError={tagSummaryError}
-          onApplySuggestedLabel={handleApplySuggestedLabel}
-          members={members}
-          membersTotal={membersTotal}
-          onMemberSelect={handleMemberSelect}
-          selectedAccount={selectedAccount}
-          membership={membership}
-          membershipLoading={membershipLoading}
-          membershipError={membershipError}
-          onTagChanged={() => {
-            if (selectedCluster?.id) loadTagSummary(selectedCluster.id)
-            if (selectedAccount?.id) loadMembership(selectedAccount.id)
-          }}
-        />
+        <Drawer
+          open={!!selectedCluster}
+          onClose={() => handleSelect(null)}
+          width={360}
+          title={selectedCluster ? `Cluster: ${selectedCluster.label || selectedCluster.id}` : 'Cluster details'}
+        >
+          <ClusterDetailsSidebar
+            cluster={selectedCluster}
+            expandPreview={expandPreview}
+            collapsePreview={collapsePreview}
+            collapseSelected={collapseSelection.has(selectedCluster?.id)}
+            onExpand={() => handleExpand(selectedCluster)}
+            onCollapse={() => handleCollapse(selectedCluster)}
+            onToggleCollapseSelection={() => toggleCollapseSelection(selectedCluster)}
+            labelDraft={labelDraft}
+            onLabelDraftChange={setLabelDraft}
+            onRename={handleRename}
+            onDeleteLabel={handleDeleteLabel}
+            ego={ego.trim()}
+            tagSummary={tagSummary}
+            tagSummaryLoading={tagSummaryLoading}
+            tagSummaryError={tagSummaryError}
+            onApplySuggestedLabel={handleApplySuggestedLabel}
+            members={members}
+            membersTotal={membersTotal}
+            onMemberSelect={handleMemberSelect}
+            selectedAccount={selectedAccount}
+            membership={membership}
+            membershipLoading={membershipLoading}
+            membershipError={membershipError}
+            onTagChanged={() => {
+              if (selectedCluster?.id) loadTagSummary(selectedCluster.id)
+              if (selectedAccount?.id) loadMembership(selectedAccount.id)
+            }}
+          />
+        </Drawer>
+
+        {/* Empty-state hint — only when canvas has loaded clusters but the
+            user hasn't selected one yet. A first-timer needs to know that
+            the blobs are clickable. */}
+        {!selectedCluster && visibleCount > 0 && (
+          <div style={{
+            position: 'absolute',
+            top: 16,
+            left: 16,
+            background: 'rgba(15, 23, 42, 0.75)',
+            color: '#fff',
+            padding: '6px 12px',
+            borderRadius: 6,
+            fontSize: 12,
+            pointerEvents: 'none',
+            opacity: 0.9,
+          }}>
+            Click any blob → details panel
+          </div>
+        )}
       </div>
+
+      {/* First-visit walkthrough. Auto-opens once (localStorage gated),
+          re-opens via the ? button in the toolbar. */}
+      <ClusterTour open={tour.open} onClose={tour.closeTour} />
     </div>
   )
 }

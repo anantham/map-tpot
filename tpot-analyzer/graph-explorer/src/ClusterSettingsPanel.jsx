@@ -107,9 +107,15 @@ export default function ClusterSettingsPanel({
           </button>
         </div>
       )}
-      {/* Physics settings section */}
-      <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--panel-border)', paddingTop: 10, marginTop: 4 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8, color: 'var(--text)' }}>Physics Settings</div>
+      {/* Advanced / Physics — collapsed by default. These are debug-level
+          force-simulation knobs; a normal user never touches them. */}
+      <details style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--panel-border)', paddingTop: 10, marginTop: 4 }}>
+        <summary style={{ fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>
+          Advanced · physics tuning
+        </summary>
+        <div style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: 12, marginBottom: 8 }}>
+          Force-simulation parameters. Tune only if the layout feels jittery or labels overlap.
+        </div>
         <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <label style={{ fontWeight: 600, minWidth: 100 }} title="Threshold for detecting sudden jerky movements (lower = more sensitive)">
@@ -178,7 +184,7 @@ export default function ClusterSettingsPanel({
             <span style={{ minWidth: 32 }}>{minZoom.toFixed(2)}</span>
           </div>
         </div>
-      </div>
+      </details>
     </div>
   )
 }
