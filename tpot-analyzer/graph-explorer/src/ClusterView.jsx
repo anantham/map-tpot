@@ -70,6 +70,7 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   const prevLayoutRef = useRef({ positions: {}, ids: [] })
   const teleportAppliedRef = useRef(null) // `${leaf}|${accountId}`
   const focusAppliedRef = useRef(null) // `${accountId}`
+  const pendingSelectionRef = useRef(null) // URL-deep-linked cluster id awaiting data load
   const [showSettings, setShowSettings] = useState(false)
   const [alpha, setAlpha] = useState(0) // Community bias alpha
   const [lens, setLens] = useState('full') // Graph lens: 'full' or 'tpot'
@@ -83,6 +84,15 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
   // First-visit tour. localStorage-backed so it only auto-opens once;
   // persistent "?" button lets users re-open from the toolbar.
   const tour = useClusterTour()
+
+  // Empty-state hint ("Click any blob → details panel") shows until the
+  // user demonstrates they know what to do by selecting a cluster at
+  // least once. After that the hint becomes noise — they don't need to
+  // be told the same thing every time they unselect.
+  const [hasEverSelected, setHasEverSelected] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try { return window.localStorage.getItem('tpot:clusterEverSelected') === '1' } catch { return false }
+  })
 
   // Single-knob handler — moving the Granularity slider snaps all three
   // underlying controls to consistent values. Power users can still
@@ -156,8 +166,30 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     if (collapsedParam) {
       setCollapsed(new Set(collapsedParam.split(',').filter(Boolean)))
     }
+    // `selected` deep-links to a specific cluster. We can't select it
+    // immediately (clusters haven't loaded yet), so stash it on a ref;
+    // the auto-select effect below will resolve it once data arrives.
+    const selectedParam = params.get('selected')
+    if (selectedParam) {
+      pendingSelectionRef.current = selectedParam
+    }
     setUrlParsed(true)
   }, [defaultEgo])
+
+  // Resolve URL-deep-linked cluster selection once data is loaded.
+  // Runs at most once per pending selection (cleared after applying).
+  useEffect(() => {
+    const wantedId = pendingSelectionRef.current
+    if (!wantedId || !data?.clusters?.length) return
+    const found = data.clusters.find(c => c.id === wantedId)
+    if (found) {
+      pendingSelectionRef.current = null
+      handleSelect(found)
+    }
+    // If the cluster isn't in the current view (e.g. it's nested inside
+    // an unexpanded parent), leave the ref set so a future expansion
+    // could pick it up. Don't spam — user can manually navigate.
+  }, [data])
 
   // Update URL when controls change
   useEffect(() => {
@@ -187,8 +219,15 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     } else {
       url.searchParams.delete('ego')
     }
+    // Deep-link the active cluster selection so collaborators can share
+    // an exact "look at this cluster" URL, not just the same map shape.
+    if (selectedCluster?.id) {
+      url.searchParams.set('selected', selectedCluster.id)
+    } else {
+      url.searchParams.delete('selected')
+    }
     window.history.replaceState({}, '', url.toString())
-  }, [urlParsed, budget, visibleTarget, wl, expandDepth, alpha, lens, ego, expanded, collapsed])
+  }, [urlParsed, budget, visibleTarget, wl, expandDepth, alpha, lens, ego, expanded, collapsed, selectedCluster?.id])
 
   // Fetch cluster view
   useEffect(() => {
@@ -754,6 +793,14 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       if (tagSummaryAbortRef.current) tagSummaryAbortRef.current.abort()
       if (membershipAbortRef.current) membershipAbortRef.current.abort()
       return
+    }
+    // Mark that the user has selected a cluster at least once — silences
+    // the empty-state hint on subsequent visits. Done here (not in the
+    // effect) so it fires whether the selection came from a click,
+    // teleport, or URL-deep-link.
+    if (!hasEverSelected) {
+      setHasEverSelected(true)
+      try { window.localStorage.setItem('tpot:clusterEverSelected', '1') } catch {}
     }
     clusterViewLog.info('Cluster selected', {
       id: cluster.id,
@@ -1360,10 +1407,11 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
           />
         </Drawer>
 
-        {/* Empty-state hint — only when canvas has loaded clusters but the
-            user hasn't selected one yet. A first-timer needs to know that
-            the blobs are clickable. */}
-        {!selectedCluster && visibleCount > 0 && (
+        {/* Empty-state hint — first-timer needs to know blobs are clickable.
+            Hidden once they've selected at least one (localStorage-backed)
+            so repeat users don't get nagged. The tour ? button stays
+            available for re-learning. */}
+        {!selectedCluster && visibleCount > 0 && !hasEverSelected && (
           <div style={{
             position: 'absolute',
             top: 16,

@@ -723,3 +723,161 @@ describe('ClusterView Membership Panel', () => {
     })
   })
 })
+
+// =============================================================================
+// URL Persistence — shareable cluster selection deep-links
+// =============================================================================
+
+describe('ClusterView URL Persistence', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    vi.resetModules()
+    // Each test gets its own initial URL via per-test override
+    Object.defineProperty(window, 'location', {
+      value: { search: '', href: 'http://localhost/' },
+      writable: true,
+    })
+    window.history.replaceState = vi.fn()
+    // Clear localStorage so the empty-state hint logic starts fresh
+    try { window.localStorage.removeItem('tpot:clusterEverSelected') } catch {}
+  })
+
+  it('writes ?selected=ID to the URL when a cluster is selected', async () => {
+    const { fetchClusterView } = await import('./data')
+    fetchClusterView.mockResolvedValue({
+      clusters: [
+        { id: 'd_0', label: 'Cluster Alpha', size: 5, memberIds: ['a'] },
+      ],
+      edges: [],
+      positions: { 'd_0': [0, 0] },
+      meta: { budget: 25, budget_remaining: 24 },
+    })
+
+    const ClusterView = (await import('./ClusterView')).default
+    render(<ClusterView />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('select-d_0')).toBeInTheDocument()
+    })
+
+    // Click the cluster — mocked ClusterCanvas calls onSelect(node)
+    fireEvent.click(screen.getByTestId('select-d_0'))
+
+    // URL should now include the selected param
+    await waitFor(() => {
+      const calls = window.history.replaceState.mock.calls
+      const lastUrl = calls[calls.length - 1][2]
+      expect(lastUrl).toContain('selected=d_0')
+    })
+  })
+
+  it('removes ?selected from URL when no cluster is selected', async () => {
+    const { fetchClusterView } = await import('./data')
+    fetchClusterView.mockResolvedValue({
+      clusters: [{ id: 'd_0', label: 'C', size: 5 }],
+      edges: [],
+      positions: { 'd_0': [0, 0] },
+      meta: { budget: 25, budget_remaining: 24 },
+    })
+
+    const ClusterView = (await import('./ClusterView')).default
+    render(<ClusterView />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('select-d_0')).toBeInTheDocument()
+    })
+
+    // Select then close the drawer (✕ button triggers onClose → handleSelect(null))
+    fireEvent.click(screen.getByTestId('select-d_0'))
+    await waitFor(() => {
+      expect(window.history.replaceState.mock.calls.some(
+        c => c[2].includes('selected=d_0')
+      )).toBe(true)
+    })
+
+    // Find and click the drawer close button
+    fireEvent.click(screen.getByLabelText('Close panel'))
+
+    await waitFor(() => {
+      const calls = window.history.replaceState.mock.calls
+      const lastUrl = calls[calls.length - 1][2]
+      expect(lastUrl).not.toContain('selected=')
+    })
+  })
+
+  it('auto-selects a cluster from ?selected= in URL on load', async () => {
+    // Pre-seed the URL so the initial parse picks up the selection
+    window.location.search = '?selected=d_42'
+
+    const { fetchClusterView, fetchClusterMembers, fetchClusterTagSummary, fetchClusterPreview } = await import('./data')
+    fetchClusterView.mockResolvedValue({
+      clusters: [
+        { id: 'd_42', label: 'Deep-linked cluster', size: 100, memberIds: ['x', 'y'] },
+      ],
+      edges: [],
+      positions: { 'd_42': [0, 0] },
+      meta: { budget: 25, budget_remaining: 24 },
+    })
+    fetchClusterMembers.mockResolvedValue({ members: [], total: 0 })
+    fetchClusterTagSummary.mockResolvedValue(null)
+    fetchClusterPreview.mockResolvedValue({ expand: null, collapse: null })
+
+    const ClusterView = (await import('./ClusterView')).default
+    render(<ClusterView />)
+
+    // The Drawer becomes open + the cluster label appears in its header
+    await waitFor(() => {
+      expect(screen.getByText(/Deep-linked cluster/)).toBeInTheDocument()
+    })
+  })
+
+  it('shows the empty-state hint on first render, writes the seen-flag on first select', async () => {
+    // We assert the *observable* effects (hint DOM presence on first
+    // render, localStorage flag after select) rather than polling for
+    // the re-render — React state-flush timing makes the conditional
+    // re-render assertion flaky under jsdom.
+    const { fetchClusterView } = await import('./data')
+    fetchClusterView.mockResolvedValue({
+      clusters: [{ id: 'd_0', label: 'C', size: 5 }],
+      edges: [],
+      positions: { 'd_0': [0, 0] },
+      meta: { budget: 25, budget_remaining: 24 },
+    })
+
+    const ClusterView = (await import('./ClusterView')).default
+    render(<ClusterView />)
+
+    // Hint visible on first render (localStorage flag absent)
+    await waitFor(() => {
+      expect(screen.getByText(/Click any blob → details panel/)).toBeInTheDocument()
+    })
+    expect(window.localStorage.getItem('tpot:clusterEverSelected')).toBeNull()
+
+    // First selection writes the flag → next mount won't show the hint
+    fireEvent.click(screen.getByTestId('select-d_0'))
+    expect(window.localStorage.getItem('tpot:clusterEverSelected')).toBe('1')
+  })
+
+  it('respects the seen-flag on mount — no hint when flag is preset', async () => {
+    // Direct check that the useState initializer reads the flag.
+    window.localStorage.setItem('tpot:clusterEverSelected', '1')
+
+    const { fetchClusterView } = await import('./data')
+    fetchClusterView.mockResolvedValue({
+      clusters: [{ id: 'd_0', label: 'C', size: 5 }],
+      edges: [],
+      positions: { 'd_0': [0, 0] },
+      meta: { budget: 25, budget_remaining: 24 },
+    })
+
+    const ClusterView = (await import('./ClusterView')).default
+    render(<ClusterView />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('select-d_0')).toBeInTheDocument()
+    })
+
+    // Hint never appears because the flag was set before mount
+    expect(screen.queryByText(/Click any blob → details panel/)).not.toBeInTheDocument()
+  })
+})
