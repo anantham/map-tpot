@@ -17,6 +17,11 @@ export default function ClusterSettingsPanel({
   onWlChange,
   onExpandDepthChange,
   onEgoChange,
+  // Community bias (α) — used to live in the standalone legend bar;
+  // moved here because it's a tuning knob, not a primary view control
+  alpha,
+  alphaPresets,
+  onAlphaChange,
   // Theme
   theme,
   onThemeChange,
@@ -105,6 +110,31 @@ export default function ClusterSettingsPanel({
           >
             {theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
           </button>
+        </div>
+      )}
+      {/* Community bias — biases the clustering toward the existing
+          community structure. Off (0) is the raw spectral split; higher
+          values pull clusters toward community boundaries. */}
+      {alphaPresets && alphaPresets.length > 1 && onAlphaChange && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <label style={{ fontWeight: 600 }} title="Bias clustering toward existing community boundaries. Off = pure spectral.">
+            Community bias
+          </label>
+          {alphaPresets.map(preset => (
+            <button
+              key={preset}
+              onClick={() => onAlphaChange(preset)}
+              style={{
+                padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
+                border: alpha === preset ? '1px solid var(--accent)' : '1px solid var(--panel-border)',
+                background: alpha === preset ? 'var(--accent)' : 'transparent',
+                color: alpha === preset ? '#fff' : 'var(--text-muted)',
+                fontSize: 11, fontWeight: 500,
+              }}
+            >
+              {preset === 0 ? 'off' : `α=${preset}`}
+            </button>
+          ))}
         </div>
       )}
       {/* Advanced / Physics — collapsed by default. These are debug-level

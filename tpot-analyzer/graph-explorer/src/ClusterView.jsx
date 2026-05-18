@@ -16,6 +16,7 @@ import ClusterDetailsSidebar from './ClusterDetailsSidebar'
 import ClusterSettingsPanel from './ClusterSettingsPanel'
 import Drawer from './Drawer'
 import ClusterTour, { useClusterTour, ClusterTourTrigger } from './ClusterTour'
+import ColorLegendChip from './ColorLegendChip'
 import { granularityToConfig, configToGranularity } from './granularity'
 import { clamp, toNumber, computeBaseCut, alignLayout } from './clusterGeometry'
 
@@ -93,6 +94,21 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
     setVisibleTarget(cfg.visibleTarget)
     setExpandDepth(cfg.expandDepth)
   }, [])
+
+  // Switching lens (Full Graph ↔ TPOT Core) requires resetting expansion
+  // state because cluster IDs differ between lenses. Extracted from the
+  // original lens-bar onClick so both the toolbar pill and the Advanced
+  // panel can drive it without duplicating reset logic.
+  const handleLensChange = useCallback((nextLens) => {
+    if (!nextLens || nextLens === lens) return
+    setExpanded(new Set())
+    setCollapsed(new Set())
+    setExpansionStack([])
+    setExplodedLeaves(new Map())
+    setSelectedCluster(null)
+    setPendingAction(null)
+    setLens(nextLens)
+  }, [lens])
 
   const expandedList = useMemo(() => Array.from(expanded), [expanded])
   const collapsedList = useMemo(() => Array.from(collapsed), [collapsed])
@@ -1156,6 +1172,34 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
               {granularity < 33 ? 'coarse' : granularity > 66 ? 'fine' : 'medium'}
             </span>
           </label>
+          {/* Lens pills (Full Graph / TPOT Core). Promoted from the old
+              standalone "View:" bar into the main toolbar so it shares a
+              row with Granularity — both are "what am I looking at" knobs. */}
+          {data?.meta?.availableLenses?.length > 1 && (
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 11 }}>
+              <span style={{ color: 'var(--text-muted)', marginRight: 2 }}>Lens:</span>
+              {data.meta.availableLenses.map(l => {
+                const label = l === 'full' ? 'Full' : l === 'tpot' ? 'TPOT' : l
+                const active = lens === l
+                return (
+                  <button
+                    key={l}
+                    onClick={() => handleLensChange(l)}
+                    style={{
+                      padding: '2px 8px', borderRadius: 4, cursor: active ? 'default' : 'pointer',
+                      border: active ? '1px solid var(--accent)' : '1px solid var(--panel-border)',
+                      background: active ? 'var(--accent)' : 'transparent',
+                      color: active ? '#fff' : 'var(--text-muted)',
+                      fontSize: 11, fontWeight: 500,
+                    }}
+                    title={l === 'full' ? 'Full follow graph' : l === 'tpot' ? 'TPOT core subset' : l}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
           <button
             onClick={() => setSelectionMode(m => !m)}
             style={{
@@ -1220,10 +1264,13 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
             wl={wl}
             expandDepth={expandDepth}
             ego={ego}
+            alpha={alpha}
+            alphaPresets={data?.meta?.alphaPresets}
             onVisibleTargetChange={setVisibleTarget}
             onWlChange={setWl}
             onExpandDepthChange={setExpandDepth}
             onEgoChange={setEgo}
+            onAlphaChange={setAlpha}
             theme={theme}
             onThemeChange={onThemeChange}
             jerkThreshold={jerkThreshold}
@@ -1240,93 +1287,11 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
         )}
       </div>
 
-      {/* Lens toggle (Full Graph / TPOT Core) */}
-      {data?.meta?.availableLenses?.length > 1 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px',
-          background: 'var(--bg-muted)', borderBottom: '1px solid var(--panel-border)',
-          fontSize: 12,
-        }}>
-          <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginRight: 4 }}>View:</span>
-          {data.meta.availableLenses.map(l => {
-            const label = l === 'full' ? 'Full Graph' : l === 'tpot' ? 'TPOT Core' : l
-            const active = lens === l
-            return (
-              <button
-                key={l}
-                onClick={() => {
-                  if (l === lens) return
-                  // Reset expansion state — cluster IDs change between lenses
-                  setExpanded(new Set())
-                  setCollapsed(new Set())
-                  setExpansionStack([])
-                  setExplodedLeaves(new Map())
-                  setSelectedCluster(null)
-                  setPendingAction(null)
-                  setLens(l)
-                }}
-                style={{
-                  padding: '3px 10px', borderRadius: 4, cursor: active ? 'default' : 'pointer',
-                  border: active ? '1px solid var(--accent)' : '1px solid var(--panel-border)',
-                  background: active ? 'var(--accent)' : 'transparent',
-                  color: active ? '#fff' : 'var(--text-muted)',
-                  fontSize: 11, fontWeight: 500,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {label}
-              </button>
-            )
-          })}
-          {lens === 'tpot' && data?.meta?.tpotStats && (
-            <span style={{ color: 'var(--text-muted)', fontSize: 11, marginLeft: 8 }}>
-              {data.meta.tpotStats.n_core?.toLocaleString()} core + {data.meta.tpotStats.n_halo?.toLocaleString()} halo nodes
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Community legend + alpha slider */}
-      {data?.meta?.communities?.length > 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12, padding: '4px 12px',
-          background: 'var(--bg-muted)', borderBottom: '1px solid var(--panel-border)',
-          flexWrap: 'wrap', fontSize: 12,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-            <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Communities:</span>
-          </div>
-          {data.meta.communities.map(c => (
-            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <span style={{
-                display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
-                background: c.color, border: '1px solid rgba(255,255,255,0.15)',
-              }} />
-              <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{c.name}</span>
-            </div>
-          ))}
-          {data.meta.alphaPresets && data.meta.alphaPresets.length > 1 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
-              <span style={{ color: 'var(--text-muted)' }}>Community bias:</span>
-              {data.meta.alphaPresets.map(preset => (
-                <button
-                  key={preset}
-                  onClick={() => setAlpha(preset)}
-                  style={{
-                    padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
-                    border: alpha === preset ? '1px solid var(--accent)' : '1px solid var(--panel-border)',
-                    background: alpha === preset ? 'var(--accent)' : 'transparent',
-                    color: alpha === preset ? '#fff' : 'var(--text-muted)',
-                    fontSize: 11, fontWeight: 500,
-                  }}
-                >
-                  {preset === 0 ? 'off' : `α=${preset}`}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Lens toggle and community legend used to live here as two
+          always-on bars (~30px each). Lens moved into the toolbar above;
+          the legend is now the floating ColorLegendChip inside the canvas
+          container below. α presets moved into the Advanced panel.
+          Reclaims ~60px of canvas viewport. */}
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         <ClusterCanvas
@@ -1412,6 +1377,30 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
             opacity: 0.9,
           }}>
             Click any blob → details panel
+          </div>
+        )}
+
+        {/* Floating legend chip — bottom-right of canvas, expandable on
+            click. Replaces the always-on 30px legend bar; reclaims that
+            vertical space while keeping the color story discoverable. */}
+        <ColorLegendChip communities={data?.meta?.communities} />
+
+        {/* TPOT lens stats — when in TPOT lens, surface the core+halo
+            counts as a small bottom-left pill (these used to live in the
+            standalone lens bar). */}
+        {lens === 'tpot' && data?.meta?.tpotStats && (
+          <div style={{
+            position: 'absolute',
+            bottom: 12,
+            left: 12,
+            background: 'rgba(15, 23, 42, 0.55)',
+            color: '#fff',
+            padding: '4px 10px',
+            borderRadius: 12,
+            fontSize: 11,
+            pointerEvents: 'none',
+          }}>
+            {data.meta.tpotStats.n_core?.toLocaleString()} core + {data.meta.tpotStats.n_halo?.toLocaleString()} halo
           </div>
         )}
       </div>
