@@ -73,13 +73,17 @@ describe('Drawer', () => {
     expect(dialog).toHaveStyle({ pointerEvents: 'none' })
   })
 
-  it('applies a translateX transform when closed (slide-out animation)', () => {
+  it('applies a translateX transform with scrollbar buffer when closed', () => {
+    // +24px over `width` so the drawer's left edge clears the viewport
+    // even when a vertical scrollbar is present (Windows ~15px). Found
+    // during visual QA — without the buffer the "Cluster details" header
+    // peeked past the viewport edge.
     render(
       <Drawer open={false} onClose={vi.fn()} title="Test" width={360}>
         <div>x</div>
       </Drawer>
     )
     const dialog = screen.getByRole('dialog', { hidden: true })
-    expect(dialog.style.transform).toBe('translateX(360px)')
+    expect(dialog.style.transform).toBe('translateX(384px)')
   })
 })

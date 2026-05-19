@@ -57,7 +57,11 @@ export default function Drawer({
         background: 'var(--panel, #fff)',
         borderLeft: '1px solid var(--panel-border, #e2e8f0)',
         boxShadow: open ? '0 0 20px rgba(0,0,0,0.08)' : 'none',
-        transform: open ? 'translateX(0)' : `translateX(${width}px)`,
+        // +24px buffer over `width` so a vertical scrollbar (usually ~15px
+        // on Windows) doesn't leave the drawer's left edge peeking past the
+        // viewport in the closed state. Empirically verified during visual
+        // QA — the drawer was at x=1412..1772 in a 1423px viewport.
+        transform: open ? 'translateX(0)' : `translateX(${width + 24}px)`,
         transition: 'transform 200ms ease, box-shadow 200ms ease',
         overflow: 'auto',
         zIndex: 10,
