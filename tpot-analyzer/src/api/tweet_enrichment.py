@@ -20,6 +20,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 from src.config import DEFAULT_ARCHIVE_DB
+from src.api.url_guard import safe_urlopen
 
 DB_PATH = DEFAULT_ARCHIVE_DB
 
@@ -53,6 +54,9 @@ def _ensure_cache_table(conn: sqlite3.Connection) -> None:
 
 def fetch_syndication(tweet_id: str) -> dict | None:
     """Fetch tweet data from Twitter syndication API. Returns parsed JSON or None."""
+    if not str(tweet_id).isdigit():
+        logger.warning("Refusing syndication fetch for non-numeric tweet_id: %r", tweet_id)
+        return None
     url = _SYNDICATION_URL.format(tweet_id=tweet_id)
     try:
         req = urllib.request.Request(url)
@@ -67,9 +71,7 @@ def fetch_syndication(tweet_id: str) -> dict | None:
 def resolve_tco_url(tco_url: str) -> str | None:
     """Resolve a t.co short URL to its final destination."""
     try:
-        req = urllib.request.Request(tco_url)
-        req.add_header("User-Agent", "Mozilla/5.0")
-        resp = urllib.request.urlopen(req, timeout=5)
+        resp = safe_urlopen(tco_url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
         return resp.url
     except Exception as e:
         logger.debug("Failed to resolve %s: %s", tco_url, e)
@@ -95,9 +97,7 @@ def fetch_link_content(url: str, db_path: Path | None = None) -> dict:
                 "body_text": cached[2], "url": url, "cached": True}
 
     try:
-        req = urllib.request.Request(url)
-        req.add_header("User-Agent", "Mozilla/5.0")
-        resp = urllib.request.urlopen(req, timeout=10)
+        resp = safe_urlopen(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         html = resp.read().decode("utf-8", errors="replace")[:100000]
 
         # Extract og:title, og:description
@@ -358,9 +358,7 @@ def enrich_tweet(tweet_id: str, db_path: Path | None = None) -> dict:
 def download_image_base64(url: str) -> str | None:
     """Download an image and return as base64 data URL for multimodal models."""
     try:
-        req = urllib.request.Request(url)
-        req.add_header("User-Agent", "Mozilla/5.0")
-        resp = urllib.request.urlopen(req, timeout=10)
+        resp = safe_urlopen(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
         img_data = resp.read()
         # Determine content type from URL
         if url.endswith(".png"):
