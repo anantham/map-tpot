@@ -1,5 +1,24 @@
 # Worklog - TPOT Analyzer
 
+## SSRF Hardening — Tweet Enrichment Fetches (2026-05-21)
+
+- [2026-05-21] **SSRF guard for tweet-enrichment URL fetches (Claude Opus 4.7)**
+    - **Assumptions**
+        - The tweet-enrichment pipeline only ever needs to fetch *public* web content — it has no legitimate reason to reach localhost, LAN, link-local, cloud-metadata, or tailnet addresses.
+        - `t.co` link destinations resolved out of tweet text are attacker-controlled: anyone whose archive is ingested can plant a short link that redirects anywhere.
+    - **Predicted outcome**
+        - `fetch_link_content`, `resolve_tco_url`, and `download_image_base64` now refuse non-public targets (and non-public redirect hops) with `BlockedURLError`. The existing `except` blocks already turn that into a graceful "fetch failed" — no behavior change for public URLs.
+    - **Confidence** — `0.9`
+    - **Fallback plan**
+        - If a legitimate fetch is over-blocked, narrow `_ip_is_blocked` or add an explicit allowlist parameter. DNS-rebinding TOCTOU is a known residual (documented in the module docstring) — close it with IP-pinned connections before any public deploy.
+    - **Changes (files + why)**
+        - `tpot-analyzer/src/api/url_guard.py` (NEW, ~150 LOC): `validate_url()` enforces an http(s) scheme allowlist and rejects any host resolving to a private/loopback/link-local/reserved/multicast address; explicitly blocks `100.64.0.0/10` (Tailscale/CGNAT, since `ipaddress.is_private` is version-inconsistent there) and unwraps IPv4-mapped IPv6. `safe_urlopen()` validates the URL and re-validates every redirect hop via `_ValidatingRedirectHandler`.
+        - `tpot-analyzer/src/api/tweet_enrichment.py`: route `resolve_tco_url`, `fetch_link_content`, and `download_image_base64` through `safe_urlopen`; add a `tweet_id.isdigit()` guard to `fetch_syndication`. SSRF reachable path was `POST /interpret` (mode=rich) → `gather_labeling_context` → `resolve_tweet_links` → these fetches.
+        - `tpot-analyzer/tests/test_url_guard.py` (NEW): 20 tests — scheme allowlist, blocked IP literals, hostname resolution (mocked `getaddrinfo`), redirect-hop revalidation.
+    - **Verification**
+        - `pytest tests/test_url_guard.py -q` → `20 passed`.
+        - `pytest tests/test_golden_routes.py tests/test_golden_support_routes.py -q` → `23 passed` (enrichment consumers unaffected by the change).
+
 ## Topic Seed Repair (2026-04-15)
 
 - [2026-04-15 14:35 ET] **Topic-seed ingestion + active-learning handoff repair (Codex GPT-5)**
