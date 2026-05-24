@@ -124,22 +124,27 @@ def test_log_summary_called_at_end_of_main_scrape_methods():
     import ast
     from pathlib import Path
 
-    source_path = Path(__file__).resolve().parent.parent / "src" / "shadow" / "selenium_worker.py"
-    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    shadow_dir = Path(__file__).resolve().parent.parent / "src" / "shadow"
+    source_paths = [
+        shadow_dir / "selenium_worker.py",
+        *(shadow_dir / "selenium_internals").glob("*.py"),
+    ]
 
     methods_with_summary_call: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            for sub in ast.walk(node):
-                if (
-                    isinstance(sub, ast.Call)
-                    and isinstance(sub.func, ast.Attribute)
-                    and sub.func.attr == "log_summary"
-                    and isinstance(sub.func.value, ast.Name)
-                    and sub.func.value.id == "silent_failures"
-                ):
-                    methods_with_summary_call.add(node.name)
-                    break
+    for source_path in source_paths:
+        tree = ast.parse(source_path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                for sub in ast.walk(node):
+                    if (
+                        isinstance(sub, ast.Call)
+                        and isinstance(sub.func, ast.Attribute)
+                        and sub.func.attr == "log_summary"
+                        and isinstance(sub.func.value, ast.Name)
+                        and sub.func.value.id == "silent_failures"
+                    ):
+                        methods_with_summary_call.add(node.name)
+                        break
 
     assert "fetch_list_members" in methods_with_summary_call, (
         "fetch_list_members must call silent_failures.log_summary(...) at "
