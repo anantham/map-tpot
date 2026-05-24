@@ -46,7 +46,7 @@ class TestAccountStatusTracking(unittest.TestCase):
             )
             self.worker._save_page_snapshot = Mock()
             # Mock wait
-            with patch('src.shadow.selenium_worker.WebDriverWait'):
+            with patch('src.shadow.selenium_internals._profile_mixin.WebDriverWait'):
                 profile = self.worker.fetch_profile_overview("protected_user")
             
             self.assertEqual(profile.display_name, "[PROTECTED]")
