@@ -1,5 +1,36 @@
 # Worklog - TPOT Analyzer
 
+## Monolith-Split Sweep (2026-05-25)
+
+- [2026-05-25] **Five monoliths split across 5 commits, all pushed (Claude Opus 4.7)**
+    - **Goal**
+        - Clear every file from `docs/TECH_DEBT_SCAN_2026-03-24.md`'s "Size Hotspots" list. The pattern, established once and repeated: extract method clusters into private mixin/helper modules under a sibling `_internals/` package, keep the original file as a thin coordinator with re-exports for back-compat so test imports keep working.
+    - **Commits (oldest to newest, all in `origin/main` at `7a6b393`)**
+        - `68b5c56` `refactor(shadow): extract 9 pure parsers from SeleniumWorker (-252 LOC)` — `@staticmethod` parsers (`handle_from_href`, `clean_bio_text`, `parse_compact_count`, `parse_profile_schema_payload`, etc.) → `src/shadow/selenium_parsing.py`. Class keeps one-line `staticmethod()` wrappers so the ~100 `SeleniumWorker._method(...)` call sites in tests/scripts work unchanged.
+        - `a548088` `refactor(shadow): split SeleniumWorker into coordinator + 4 behavior mixins` — `selenium_worker.py` 2,198 → **102 LOC**. Four mixins under `src/shadow/selenium_internals/`: `_driver_mixin` (lifecycle/login), `_list_capture_mixin` (fetch_*/scroll), `_profile_mixin` (overview/status detection), `_counters_mixin` (anchor walking). Two tests needed patch-path updates (`patch('src.shadow.selenium_worker.WebDriverWait')` → mixin path) because `from X import Y` makes a local binding that re-exports can't shadow.
+        - `7967243` `refactor(scripts): split export_public_site.py into orchestrator + 3 helpers` — 1,285 → **388 LOC**. Helpers under `scripts/_export_helpers/`: `_community_extractors`, `_tweet_evidence`, `_slug_registry`.
+        - `89d074a` `refactor(scripts): split active_learning.py into orchestrator + 4 helpers` — 1,066 → **415 LOC**. Helpers under `scripts/_active_learning_helpers/`: `_account_selection`, `_labeling`, `_reporting`, `_measurement`.
+        - `7a6b393` `refactor(shadow): split HybridShadowEnricher into coordinator + 5 mixins` — `enricher.py` 2,449 → **953 LOC**. Five mixins under `src/shadow/_enricher_internals/`: `_observability_mixin`, `_freshness_mixin`, `_refresh_actions_mixin`, `_record_builders_mixin`, `_capture_helpers_mixin`. The 750 LOC `enrich()` method stays in the coordinator — its intertwined signal handling, pause menus, and per-seed state don't decompose cleanly without an orchestrator-level rewrite.
+    - **Pattern conventions (codified, reusable)**
+        - Coordinator imports each mixin and inherits in declaration order (MRO matters when methods are overridden; in practice nothing is).
+        - Mixins use `from __future__ import annotations` so cross-mixin type hints (e.g. `seed: SeedAccount`) don't require importing the dataclass back from the coordinator (would be circular).
+        - Mixins do **NOT** define `__init__`. State lives on the coordinator. Each mixin documents its required-state assumptions at the top.
+        - Cross-mixin calls go via `self.method(...)` so Python's MRO resolves them at runtime — mixins never import each other.
+        - All Selenium/dataclass re-exports stay in the coordinator for back-compat with `from src.shadow.X import Y` test imports.
+        - Logger channel stays as `src.shadow.X` (explicit `LOGGER = logging.getLogger("src.shadow.X")` in each mixin) so log-grep tests don't notice the move.
+        - One Windows gotcha: from `src.shadow._enricher_internals._X`, the right relative path to `src.data.shadow_store` is `...data.shadow_store` (three dots up to `src`), not `..data` (which would hit nonexistent `src.shadow.data`).
+    - **Verification**
+        - selenium + shadow suites: `219 passed, 2 skipped` per refactor (same before/after).
+        - `test_export_public_site.py` + `test_pipeline_e2e.py`: `48 passed`.
+        - `test_active_learning.py` + related: `52 passed`.
+        - Total: 319 tests across the touched surface, zero behavior change.
+    - **Confidence** — `0.95` (mechanical file moves with rich test coverage as the safety net)
+    - **Residuals**
+        - `enricher.py` is still 953 LOC — `enrich()` alone is ~750. Above the 800 monolith threshold but a 61% reduction. Decomposing `enrich()` is a method-level refactor (extracting skip-gates block, status-marker block, refresh+persist block) — separate from this file split, deferred.
+        - `_freshness_mixin.py` (423 LOC) and `_list_capture_mixin.py` (884 LOC) are the next-largest files. The latter is driven by `_collect_user_list` being ~370 LOC by itself.
+        - Dead-code finding inside `_make_discovery_records` (now in `_record_builders_mixin.py`): `pure_followers = followers_usernames - followers_you_follow_usernames` is computed and never used. Loop iterates ALL `followers`. Looks like intended filter that got dropped. Not investigated, not a regression introduced by this refactor.
+        - The back-compat re-export pattern (staticmethod wrappers + module re-exports) defers a "migrate tests to new import paths" cleanup. That cleanup is LOC-neutral and can be done at leisure.
+
 ## SSRF Hardening — Tweet Enrichment Fetches (2026-05-21)
 
 - [2026-05-21] **SSRF guard for tweet-enrichment URL fetches (Claude Opus 4.7)**
