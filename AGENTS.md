@@ -64,6 +64,40 @@ When the user says something **tangential, ambitious, or out-of-scope** while yo
 - Write a short "Test Intent" (2-5 bullets) before implementation; store it in the test file docstring or tests/intent/<feature>.md.
 - If test intent changes mid-implementation, update it and note why in WORKLOG.
 
+## TEST_DESIGN_PRINCIPLES
+
+**Core tenet:** test behavior through public APIs, not implementation details.
+
+### DO test
+- Public API surface (functions / methods exposed to callers)
+- Observable outcomes (DB records, file contents, emitted metrics)
+- Side effects (messages sent, logs written, HTTP calls made)
+- Error conditions and edge cases reached *through* public interfaces
+
+### DON'T test
+- Private helpers (renaming them breaks tests for no behavior change)
+- Internal state / helper call-order
+- `mock.called` without asserting the actual effect it should have produced
+- Internal data structures unless they are part of the public contract
+
+### Anti-patterns we've been bitten by
+1. **Implementation coupling** — asserting a private helper ran instead of asserting the public method's observable result + side effect. Prefer `result == X and store.count() == 0` over `obj._should_skip(x)`.
+2. **Mock-called without effect check** — `assert worker.fetch.called` proves nothing on its own; also assert the data it should have persisted (e.g. `len(store.get(id)) == 100`).
+3. **Fixture type-mismatch** — constructing a fixture with the wrong field name (`User(handle=...)` when the signature is `username`) raises at setup and masks the real test; match the actual signature.
+4. **Fragile assumptions** — stubbing a return as `None`/minimal when realistic code needs a complete object; build a realistic fixture so the test survives internal changes.
+
+### When implementation testing is acceptable
+Complex algorithms (test intermediate steps), performance-critical paths (test the optimization logic), security-sensitive code (test sanitization / auth) — but always supplement with behavioral integration tests.
+
+### Checklist before writing / reviewing a test
+1. Does it survive refactoring (rename a helper, reorder code)?
+2. Does it verify observable outcomes (DB, files, metrics, logs)?
+3. Can it run without mocking internal helpers?
+4. Does it use realistic fixtures (complete objects, not minimal stubs)?
+5. Will it catch a real bug (not just "code was called")?
+
+Reference: "Test behavior, not implementation."
+
 ---
 
 Below is the Bug Squashing protocol that might be invoked when we are dealing with difficult bugs that need careful precise repair. This protocol is designed to prevent you from goodharting and trying to quickly get the app working. The idea is to do it beautifully, completely like a work of art.
@@ -310,6 +344,8 @@ ANTI_PATTERNS (avoid)
     
 7. Scope Creeper — expanding beyond approved boundaries
     
+8. Schema Guesser — assuming the field names of an API response / config / DB row without inspecting a real instance first. Print the keys (or a sample) of the actual response before writing parsing code; a wrong key name silently returns empty instead of failing loudly, which can burn an entire debugging session. Read the API docs; don't infer field names from a different endpoint.
+    
 
 ---
 
@@ -397,7 +433,7 @@ footers other than BREAKING CHANGE: <description> may be provided and follow a c
 REMEMBER  
 "We are peers bridging computational and biological intelligence. Our strength is patient investigation, systematic validation, and sustainable building. When uncertain, pause and seek human wisdom."
 
-Version: 2.1.0 (shared core — synced across repos via ~/.claude/scripts/sync_agents.py)  
+Version: 2.2.0 (shared core — synced across repos via ~/.claude/scripts/sync_agents.py)  
 Last_Updated: 2026-06-07  
 Next_Review: on first loop‑limit or context‑overflow incident
 
@@ -409,8 +445,8 @@ Next_Review: on first loop‑limit or context‑overflow incident
 > The shared core above is generic and synced across repos. This section holds
 > everything specific to THIS repo: path bindings, directive OVERRIDES (where
 > this repo is stricter than the core), ADDITIONAL directives (#11–#13), and the
-> TDD / test-design / anti-pattern material that predates the shared core. Edit
-> THIS section for project rules; never hand-edit inside the markers above.
+> TDD material that predates the shared core. Edit THIS section for project
+> rules; never hand-edit inside the markers above.
 
 ## Repo layout & path bindings
 
@@ -482,97 +518,11 @@ Failing tests are still never to be hacked around. The TDD convention narrows *w
 
 If a PR adds code in a "default-on" area without tests, expect a reviewer (human or agent) to flag it.
 
-## TEST_DESIGN_PRINCIPLES
+## Repo testing notes — concrete instances of core anti-patterns
 
-**Core Tenet:** Test behavior through public APIs, not implementation details.
+`TEST_DESIGN_PRINCIPLES` (test behavior through public APIs, the four anti-patterns, the checklist) now lives in the **shared core above** — it was distilled from this repo's testing history, so the core's examples mirror bugs this repo actually hit (brittle `_should_skip` coupling, `mock.called` without effect checks, `CapturedUser(handle=)` fixture TypeErrors, `None`-stubbed metrics).
 
-### What to Test
-
-✅ **DO Test:**
-- Public API surface (methods, functions exposed to users)
-- Observable outcomes (database records, file contents, metrics)
-- Side effects (emails sent, logs written, HTTP calls made)
-- Error conditions and edge cases through public interfaces
-
-❌ **DON'T Test:**
-- Private methods/helpers (refactoring breaks tests)
-- Implementation details (internal state, helper call order)
-- Mock.called without verifying actual effects
-- Internal data structures unless part of public contract
-
-### Anti-Patterns We've Learned From
-
-1. **Implementation Coupling (Brittle Tests)**
-   ```python
-   # ❌ BAD: Tests private helper
-   def test_should_skip_seed():
-       enricher._should_skip_seed(seed)  # breaks if we rename helper
-
-   # ✅ GOOD: Tests public behavior
-   def test_enrich_skips_complete_seeds():
-       result = enricher.enrich([seed])
-       assert result[seed.id]["skipped"] is True
-       assert store.edge_count() == 0  # verify side effect
-   ```
-
-2. **Mock Verification Without Side Effect Checks**
-   ```python
-   # ❌ BAD: Only checks mock was called
-   assert mock_worker.fetch_followers.called
-
-   # ✅ GOOD: Verifies actual data persisted
-   assert mock_worker.fetch_followers.called
-   edges = store.get_edges(seed.account_id)
-   assert len(edges) == 100  # verify side effect
-   ```
-
-3. **Fixture Bugs (Type Mismatches)**
-   ```python
-   # ❌ BAD: Wrong parameter name
-   CapturedUser(handle="test")  # raises TypeError
-
-   # ✅ GOOD: Match actual signature
-   CapturedUser(username="test")
-   ```
-
-4. **Fragile Assumptions**
-   ```python
-   # ❌ BAD: Assumes implementation detail
-   mock_store.get_last_scrape_metrics.return_value = None
-   # breaks when we change how metrics work
-
-   # ✅ GOOD: Set up realistic scenario
-   mock_store.get_last_scrape_metrics.return_value = ScrapeRunMetrics(
-       run_at=datetime.utcnow() - timedelta(days=200),
-       following_claimed_total=100,
-       # ... complete record
-   )
-   ```
-
-### When Implementation Testing Is Acceptable
-
-- Complex algorithms with intricate calculations (test intermediate steps)
-- Performance-critical code paths (test optimization logic)
-- Security-sensitive code (test sanitization, auth checks)
-- BUT: Always supplement with behavioral integration tests
-
-### Test Design Checklist
-
-Before writing/reviewing tests, ask:
-1. Does this test survive refactoring? (rename helper, reorder code)
-2. Does it verify observable outcomes? (DB, files, metrics, logs)
-3. Can it run without mocking internal helpers? (test public API)
-4. Does it use realistic fixtures? (complete objects, not minimal stubs)
-5. Will it catch real bugs? (not just "code was called")
-
-### Resources
-- [Test Behavior, Not Implementation](https://www.thecoder.cafe/p/test-behavior-not-implementation)
-- [Stack Overflow: Testing Public vs Private](https://stackoverflow.com/questions/856115)
-- [Medium: Expected Behaviors vs Implementation](https://medium.com/@victor.ronin/should-you-test-only-expected-software-behaviors-vs-implementation-details-6a925c510f7b)
-
-## ANTI_PATTERNS — repo addition
-
-8. **Schema Guesser** — assuming API response field names without checking. ALWAYS examine the actual response body (print keys, print a sample) before writing parsing code. Example: twitterapi.io `user/followings` returns `{"followings": [...]}` not `{"data": [...]}`. Reading `resp.json().get('data', [])` silently returns empty while the real data sits in `followings`. This cost ~180K API credits and an entire session of "the API doesn't work" debugging. The fix took 1 character. Examine actual responses. Read API docs. Don't assume field names from other endpoints.
+**The canonical "Schema Guesser" case (core ANTI_PATTERN #8):** twitterapi.io `user/followings` returns `{"followings": [...]}`, NOT `{"data": [...]}`. Reading `resp.json().get('data', [])` silently returns empty while the real data sits in `followings`. This cost ~180K API credits and an entire session of "the API doesn't work" debugging — the fix was 1 character. Always print the actual response keys before parsing; don't reuse field names from a different endpoint.
 
 ## COMMIT_MESSAGE_TEMPLATES — repo addition
 
