@@ -2,7 +2,152 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-26 (Community Archive full-file inspection)*
+*Last updated: 2026-07-26 (graph artifact compatibility)*
+
+---
+
+## EXP-014: Do the graph, propagation, calibration, and frozen TPOT output belong together?
+
+**Date:** 2026-07-26
+
+**Question:** Can the existing graph artifacts safely support controlled
+experiments on network discoverability and soft group membership, or are
+positional arrays from different node universes being combined?
+
+**Hypotheses:**
+
+1. The bare 95,057 × 95,057 adjacency cache still represents the ordered
+   `graph_snapshot.nodes.parquet` and `graph_snapshot.edges.parquet`.
+2. The newer 298,347-node `community_propagation.npz` is a usable superset that
+   can be reindexed to the full graph.
+3. The 95,057-node training propagation is the artifact that generated the
+   current calibrated 8,984-node TPOT output.
+
+**Method:**
+
+1. Reconstructed a directed binary CSR matrix from every graph edge under the
+   Parquet node order and compared its shape, sparse structure, and values
+   exactly with the cache.
+2. Compared unique account IDs and order for both propagation candidates
+   against the graph, and inspected every array dimension before permitting
+   alignment.
+3. Recomputed degrees, relevance, calibrated core + one-hop halo selection, and
+   ordered selected-node identity at the saved threshold.
+4. Compared the recomputed relevance vector with the producer's saved float32
+   vector, then verified the selected mapping, exact induced node/edge Parquets,
+   full and TPOT spectral row order, and TPOT runtime adjacency semantics.
+5. Inspected membership score mode, community schema, solver convergence, and
+   held-out-label leakage. Corrected the historical “F1” description: the
+   threshold objective is the harmonic mean of positive holdout recall and
+   graph compactness, not precision/recall F1 because no negatives were used.
+6. Added behavioral tests for stale same-shape caches, duplicate IDs, partial
+   overlap, caller-priority plus safe superset reindexing of every known
+   node-indexed array, classic versus independent score semantics, malformed
+   calibration provenance, exact relevance binding, output reservation, and
+   spectral node/shape mismatches.
+
+**Predicted outcomes:**
+
+- If hypothesis 1 is true, all 319,771 edge rows reconstruct with zero ignored
+  edges and zero differing sparse cells.
+- If hypothesis 2 is true, all 95,057 graph IDs occur uniquely in the active
+  propagation and can be reordered without truncation.
+- If hypothesis 3 is true, training propagation has exact graph order and
+  reproduces core=175, halo=8,809, total=8,984 and the frozen ordered node list.
+
+**Result:** **H1 and H3 confirmed; H2 decisively rejected.**
+
+- A committed compatibility record pins all 15 frozen scientific files:
+  27,272,597 total bytes, with exact size and SHA-256 for graph Parquets,
+  adjacency caches, selected propagation, calibration/holdout/relevance,
+  mapping, both spectral pairs, and TPOT Parquets. Bundle ID:
+  `frozen-tpot-control-20260726`.
+- The adjacency cache exactly reconstructs: 95,057 nodes, 319,771 edge rows,
+  319,771 nonzeros, and zero ignored edges.
+- Ordered graph digest:
+  `c5ba0e5e9ef297fe5e1ddc3790301df4d9a4f659a5332c340262a4b07384ee86`.
+- Adjacency structure digest:
+  `df84d5d1a3c596bb1eefa95b7d99ebdba0f7e71332be830e4fb835a93dd18d0f`.
+- Adjacency value digest:
+  `b9246583162bc508dc3c6e564e0a21e2ffbeefc2a498e4399510c713c78b61f3`.
+- The active propagation matches only 358 graph IDs and omits 94,699. It is a
+  larger, largely different node universe, not a safe superset. It declares
+  `independent` Lift semantics, has 16 communities plus `none`, and cannot be
+  passed into the probability-based TPOT relevance scorer even if its node
+  domain were rebuilt to match.
+- `community_propagation_train.npz` contains exactly the same 95,057 IDs in the
+  same order. At `tau=0.05644444444444444`, it exactly reproduces the saved
+  175 core + 8,809 halo = 8,984 total selection.
+- The train artifact is legacy 14-community-plus-`none`; it has no saved mode,
+  but its finite nonnegative rows sum to one within `2.38e-7`, so it satisfies
+  the legacy classic probability contract and matches the certified file hash
+  `610d59cfdae3e6f3bb1520b6a86e53c9df850ad3beeb01949bb1a768c4dbaab2`.
+  New mode-less artifacts are rejected. Its community UUIDs have zero overlap
+  with the active 16-community schema.
+- All 15 train-artifact convergence flags are false and every recorded solver
+  iteration count is 800. The downstream relevance scorer therefore applies
+  its non-convergence factor of `0.3` to every dominant class. Compatibility is
+  proven; solver validity is not.
+- Recomputed relevance is exactly equal after the producer's float32 cast;
+  saved-vector SHA-256:
+  `e08d5a87fdf096f7c7751de2cedbc2a01871831e2afc72a6b7022da496b576dd`.
+- The recomputed ordered selection matches the frozen mapping at compatibility
+  digest
+  `5b6a8bc27ccedcab9c6d10b676a5158543e9e044397f8a259d1615263a8beed2`.
+- The TPOT node/edge Parquets are the exact induced subset (8,984 nodes,
+  186,442 edge rows), both spectral artifacts have exact node-row binding
+  (95,057 × 20 full; 8,984 × 30 TPOT), and the TPOT runtime adjacency exactly
+  reconstructs with `directed_plus_mutual_reverse` semantics at structure
+  digest
+  `95ef9a4623d0a54b2f6e105faea7d9f05563f169e1d749d674e46983bb195e65`.
+- The existing calibration predates provenance manifests, so it is explicitly
+  labeled `legacy-runtime-validation-required`; its graph count and all saved
+  selection counts are nevertheless reproduced at runtime.
+- The recorded holdout declares 55 accounts and 243 training labels. All 55
+  resolve, `labeled_mask.sum()` is 243, and none of the holdout accounts is
+  labeled in the train propagation.
+- The full frozen cache uses raw `directed_edge_rows`, while the API's current
+  cache rebuild path adds reverse entries for mutual edges. Deleting the cache
+  would therefore change construction semantics instead of reproducing this
+  pinned digest.
+
+**Lesson:** Filename recency and matrix dimensions are not compatibility
+evidence. The prior builder preferred the active filename and would combine it
+positionally with a different graph, producing a broadcast failure today and
+potentially silent scientific corruption if dimensions happened to agree.
+Account-ID coverage, explicit ordering, score semantics, topology
+reconstruction, community schema, calibration identity, scorer identity, and
+output reproduction must be one gate. Reproducibility alone does not establish
+convergence, taxonomy currency, calibration validity, or topology freshness.
+
+**Assumptions and confidence:**
+
+- String account IDs are stable join keys across these artifacts: `0.99` for
+  the frozen bundle.
+- Exact reconstruction proves this cache belongs to these node/edge tables:
+  `0.99`.
+- The exact training-artifact reproduction identifies the frozen TPOT
+  derivation: `0.99`.
+- The frozen artifact is suitable as a deterministic control: `0.98`.
+- The frozen soft memberships are scientifically calibrated current group
+  probabilities: `0.20`, because the solver did not converge, the taxonomy is
+  legacy, and the threshold sweep used no negatives.
+- This proves current social-network freshness: `0.10`; the topology remains a
+  frozen control and is not refreshed by the tweet-only Community Archive
+  export.
+
+**Fallback:** If any future artifact lacks full ID coverage, changes node
+ordering, fails cache reconstruction, contradicts calibration provenance, or
+changes the saved selection unexpectedly, fail closed and retain the certified
+frozen bundle. Rebuild from a single source snapshot rather than truncating,
+broadcasting, or choosing the newest-looking file.
+
+**Next step:** Use this frozen, compatibility-checked bundle as the control arm.
+First test solver convergence and taxonomy sensitivity in a new no-clobber
+generation. Then design refreshed-topology, out-of-sample discoverability, and
+proper probability-calibration experiments as new versioned bundles. Do not
+overwrite, rebuild through the current cache path, or silently reinterpret this
+control. Atomic generation publication remains required before deployment.
 
 ---
 

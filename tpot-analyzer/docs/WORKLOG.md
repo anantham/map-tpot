@@ -1,5 +1,143 @@
 # Worklog - TPOT Analyzer
 
+## Frozen Graph Artifact Compatibility Baseline (2026-07-26)
+
+- [2026-07-26 08:56 IST] **Made the existing graph-to-TPOT chain safe for
+  controlled, read-only assumption experiments (Codex GPT-5)**
+    - **Goal**
+        - Establish whether graph, adjacency, propagation, calibration,
+          selected TPOT subgraph, and spectral artifacts actually belong
+          together before testing network discoverability or soft group
+          membership.
+        - Prevent future builders from combining arrays by filename/position or
+          overwriting the certified frozen control.
+    - **Hypotheses**
+        - `H1` (`0.98`): the 95,057-node cache exactly reconstructs from the
+          ordered graph nodes and 319,771 edge rows.
+        - `H2` (`0.65`): the newer 298,347-node active propagation is a full
+          superset that can be safely reindexed to the graph.
+        - `H3` (`0.90`): the 95,057-node train propagation plus saved threshold
+          exactly generated the frozen 8,984-node TPOT output.
+        - `H4` (`0.95`): strict identity/reproduction checks can make the
+          frozen chain a deterministic control without claiming it is fresh or
+          scientifically validated ground truth.
+    - **Predicted outcome**
+        - Exact sparse reconstruction either proves cache binding or fails with
+          differing-cell counts; propagation candidates are accepted only with
+          complete unique ID coverage; calibration must reproduce exact
+          relevance, counts, ordered selection, Parquet subsets, spectral rows,
+          and runtime adjacency semantics.
+    - **Result**
+        - `H1`, `H3`, and `H4` confirmed; `H2` rejected. The active propagation
+          overlaps only 358 graph IDs and omits 94,699.
+        - `community_propagation_train.npz` has exact graph order and reproduces
+          175 core + 8,809 halo = 8,984 selected nodes at
+          `tau=0.05644444444444444`.
+        - The saved float32 relevance vector reproduces exactly (SHA-256
+          `e08d5a87fdf096f7c7751de2cedbc2a01871831e2afc72a6b7022da496b576dd`);
+          mapping, node/edge Parquets, both spectral artifacts, and TPOT runtime
+          adjacency also bind exactly.
+        - Compatibility exposed two scientific caveats instead of hiding them:
+          the legacy control uses a 14-community schema disjoint from the
+          active 16-community independent-Lift schema, and 0/15 legacy solver
+          classes converged (all recorded 800 iterations).
+        - The historical threshold “F1” label was corrected to
+          positive-recall/graph-compactness harmonic utility; it contains no
+          negative-class precision signal.
+    - **Confidence**
+        - `0.99` that the frozen files are internally identity-compatible.
+        - `0.98` that the branch now fails closed on positional, score-semantic,
+          calibration-method, or output-binding contradictions.
+        - `0.20` that the legacy soft memberships should be interpreted as
+          calibrated current group probabilities without new experiments.
+        - `0.10` that the frozen follow topology is current; the fresh
+          Community Archive Parquet is tweet-only.
+    - **Fallback plan**
+        - If any compatibility check fails, retain the hash-pinned frozen
+          control and investigate the named artifact. Never truncate, select by
+          modification time, delete/rebuild the adjacency cache, weaken
+          convergence evidence, or overwrite flat outputs.
+    - **Changes (files + why)**
+        - `src/artifacts/adjacency_binding.py:1-124`,
+          `digests.py:1-60`: exact node/order/topology/value identity and
+          explicit directed versus mutual-reverse construction semantics.
+        - `src/artifacts/propagation_alignment.py:1-215`,
+          `propagation_schema.py:1-140`, `tpot_inputs.py:1-110`: complete-ID
+          candidate selection, safe superset reindexing of known node arrays,
+          mode-aware classic probability versus independent Lift validation,
+          and TPOT probability-semantic enforcement.
+        - `src/artifacts/provenance.py:1-216`,
+          `selection_binding.py:1-80`, `spectral_binding.py:1-170`,
+          `relevance_binding.py:1-51`: graph/propagation compatibility records
+          plus exact relevance, selection, and spectral binding.
+        - `data/manifests/frozen_control_compatibility.json`,
+          `src/artifacts/frozen_manifest.py:1-107`: persist and verify expected
+          byte sizes and SHA-256 for all 15 scientific files in the frozen
+          control, preventing same-shape membership or embedding replacement.
+        - `src/artifacts/calibration_method.py:1-116`,
+          `calibration_record.py:1-183`, `calibration_output.py:1-89`,
+          `tpot_calibration.py:1-69`: holdout leakage/count checks, honest
+          objective naming, method/code hashes, no-clobber calibration output,
+          and threshold-to-artifact binding.
+        - `src/artifacts/output_reservation.py:1-36`,
+          `tpot_bundle_output.py:1-43`: cooperating-writer lock, absent-path
+          reservation, and exact ordered sidecar output. This deliberately does
+          not claim atomic multi-file publication.
+        - `src/artifacts/frozen_control_verifier.py:1-221`,
+          `frozen_output_verifier.py:1-134`,
+          `scripts/verify_artifact_compatibility.py:1-46`: modular
+          human-readable end-to-end verifier with ✓/✗ metrics, convergence
+          warning, hashes, and next action.
+        - `scripts/build_tpot_spectral.py:1-268`: replace filename/positional
+          propagation choice and default threshold fallback with compatibility
+          binding, exact legacy reproduction, score-mode checks, output
+          reservation, and absent-prefix-only output.
+        - `scripts/calibrate_tpot_threshold.py:1-252`: require train-only
+          propagation plus fully resolved non-leaking holdout, remove production
+          fallback, rename the objective, reject infeasible recall floors, and
+          write new outputs without replacement.
+        - `src/graph/spectral.py:1-260`, `spectral_types.py:1-33`,
+          `spectral_validation.py:1-64`,
+          `src/graph/tpot_relevance.py:1-173`: split types/validation below 300
+          lines, validate spectral identities and actual dimensions, and
+          centralize safe symmetrized degree statistics.
+        - `tests/test_artifact_*.py`, `tests/test_calibration_*.py`,
+          `tests/test_frozen_manifest.py`,
+          `tests/test_output_reservation.py`,
+          `tests/test_propagation_artifact_alignment.py`,
+          `tests/test_relevance_binding.py`,
+          `tests/test_selection_artifact_binding.py`,
+          `tests/test_spectral*.py`, and `tests/test_tpot_*.py`: behavioral
+          contracts for every compatibility and no-clobber boundary.
+        - `docs/adr/020-graph-artifact-compatibility.md`,
+          `docs/EXPERIMENT_LOG.md` (EXP-014), `docs/ROADMAP.md`, and
+          `docs/index.md`: record the decision, empirical evidence, limitations,
+          and next experiments.
+        - `Makefile:8-47`: expose `make verify-artifact-compatibility` without
+          making gitignored research data a clean-checkout baseline dependency.
+    - **Verification**
+        - `make verify-artifact-compatibility`: all frozen-chain checks pass;
+          pins 15 files/27,272,597 bytes and reports the 0/15 convergence
+          warning rather than treating it as success.
+        - Focused compatibility, calibration, relevance, output, and spectral
+          surface: `99 passed`.
+        - Credential-free backend suite with normal local log/database write
+          access: `1307 passed, 5 skipped, 20 warnings`.
+        - Docs hygiene: `9 passed, 0 failed`; `git diff --check` passes.
+        - All new or materially expanded implementation files are below 300
+          lines.
+    - **Residuals**
+        - This is a compatibility record, not the complete producer manifest:
+          effective propagation parameters, seeds, source database cutoffs,
+          producer Git state, and taxonomy generation still need binding.
+        - Multi-file candidate output is reserved/no-clobber but not atomically
+          published. Immutable generation directories plus a validated manifest
+          and atomic pointer are required before replacement/deployment.
+        - The API rebuild path uses different adjacency construction semantics
+          from the pinned full cache.
+        - The legacy propagation producer still overwrites flat artifacts and
+          is not safe for regeneration; a versioned producer is roadmap work.
+
 ## Versioned Community Archive Snapshot Foundation (2026-07-26)
 
 - [2026-07-26 07:06 IST] **Implemented and live-probed a non-destructive,

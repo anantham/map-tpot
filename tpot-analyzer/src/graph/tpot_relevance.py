@@ -16,6 +16,19 @@ from scipy import sparse
 logger = logging.getLogger(__name__)
 
 
+def compute_symmetrized_degree_stats(adjacency):
+    """Return undirected adjacency, degrees, and a safe nonzero median."""
+    sym = adjacency.maximum(adjacency.T).tocsr()
+    degrees = np.asarray(sym.sum(axis=1)).ravel()
+    positive_degrees = degrees[degrees > 0]
+    median_degree = (
+        float(np.median(positive_degrees))
+        if len(positive_degrees)
+        else 0.0
+    )
+    return sym, degrees, median_degree
+
+
 def _normalized_entropy(memberships: np.ndarray) -> np.ndarray:
     """Shannon entropy of each row, normalized to [0, 1].
 

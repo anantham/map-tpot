@@ -188,14 +188,44 @@ Full classification pipeline (all accounts)
 - [ ] Add a versioned artifact manifest binding source Git SHA, database hashes,
   row/date cutoffs, graph snapshot generation, propagation generation, seeds,
   and model parameters; warn first, then reject incompatible topology and
-  semantic-propagation combinations.
-- [ ] Repair `build_tpot_spectral.py` so propagation arrays are selected and
+  semantic-propagation combinations. The graph/adjacency/propagation/community
+  schema/calibration compatibility slice is shipped under ADR 020; source
+  database cutoffs, effective propagation parameters, seed provenance, and
+  producer Git identity remain.
+- [ ] Add a no-clobber, versioned propagation producer with explicit input and
+  output directories. The current `propagate_community_labels --save` path
+  overwrites flat active/train artifacts and must not be used to regenerate the
+  certified control. Persist graph generation, mode/score semantics, solver
+  tolerances, effective iterations, convergence, random seeds, code hashes, and
+  Git state.
+- [ ] Publish calibration and TPOT outputs as immutable generation directories
+  with validated manifests and one atomically replaced current-generation
+  pointer. API readers must resolve the pointer once, load into local state,
+  validate the full generation, and swap state only after success. Retain the
+  flat frozen bundle as a warned, read-only fallback.
+- [ ] Make the compatibility verifier generation-aware (`--calibration-path`
+  and `--output-prefix` or a manifest path). The shipped command deliberately
+  verifies the frozen flat control; newly written unpublished candidates need
+  an equivalent full-chain verifier before they can be promoted.
+- [ ] Unify adjacency construction semantics. The pinned full cache is
+  `directed_edge_rows`, while the API rebuild path adds mutual reverse edges;
+  deleting/rebuilding the cache currently changes its scientific meaning.
+  Store construction in the manifest and make producers explicit.
+- [x] Repair `build_tpot_spectral.py` so propagation arrays are selected and
   aligned by node ID before elementwise scoring. The active 298,347-node
   propagation overlaps the full 95,057-node spectral graph at only 358 IDs;
   the 95,057-node training propagation is exactly order-compatible and
   reproduces the frozen 8,984-node TPOT selection. Bind the chosen propagation,
   node-order digest, topology digest, community schema, and calibrated threshold
-  in one compatibility manifest.
+  in one compatibility record, including persisted size/SHA-256 identities for
+  all 15 frozen scientific files
+  (`scripts/verify_artifact_compatibility.py`, ADR 020, implemented
+  2026-07-26).
+- [ ] Rerun the compatible propagation in a new versioned generation with
+  convergence diagnostics before interpreting soft membership. The frozen
+  control has 0/15 converged classes at the 800-iteration cap and an older
+  14-community taxonomy with zero UUID overlap against the active
+  16-community independent-Lift schema.
 
 ### Golden Dataset Curation
 - [x] Simulacrum taxonomy theory doc (`docs/specs/simulacrum_taxonomy.md`)
@@ -388,6 +418,21 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   `coverage-driven`) and surface it in API/UI evidence cards.
 - Calibrate GRF probability outputs against held-out anchors (Platt/isotonic)
   and persist calibration metadata in membership responses.
+- Replace the current positive-recall/graph-compactness threshold utility with
+  an evaluation containing held-out negatives and probability-quality metrics
+  (at minimum precision-recall, Brier score, and calibration curves). The
+  historical score is not classification F1.
+- Design a Lift-aware TPOT relevance model for `independent` propagation or
+  retain an explicitly versioned classic probability model. Do not feed
+  independent Lift rows into the current `1 - p_none` probability equation.
+- Benchmark soft group membership with time-split and topology-split holdouts:
+  compare harmonic/GRF, directed PPR, degree-corrected block-model or mixed
+  membership baselines, and graph+semantic late fusion. Report uncertainty,
+  missing-not-at-random sensitivity, and performance by degree/community.
+- Benchmark network discoverability as a retrieval problem on future or hidden
+  edges: seed-to-account recall@k, precision@k, mean reciprocal rank, coverage
+  across low-degree accounts, and stability across topology snapshots. Keep
+  current frozen topology as the control arm rather than a freshness claim.
 - Add an explicit offline/local-only snapshot mode for
   `scripts.refresh_graph_snapshot` (or a quickstart flag pattern) so first-run
   onboarding does not unexpectedly attempt Supabase refresh when local cache is

@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
@@ -16,34 +15,10 @@ from scipy.sparse.linalg import eigsh, ArpackNoConvergence
 from sklearn.cluster import Birch
 from sklearn.metrics import adjusted_rand_score
 
+from src.graph.spectral_types import SpectralConfig, SpectralResult
+from src.graph.spectral_validation import validate_spectral_inputs
+
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class SpectralConfig:
-    """Configuration for spectral embedding computation."""
-
-    n_dims: int = 30
-    eigensolver_tol: float = 1e-10
-    eigensolver_maxiter: int = 5000
-    linkage_method: str = "ward"
-    stability_runs: int = 1  # >=2 enables stability ARI check
-    max_linkage_nodes: int = 12000  # above this, use approximate method
-    birch_threshold: float = 0.3  # BIRCH clustering threshold
-
-
-@dataclass
-class SpectralResult:
-    """Result of spectral embedding computation."""
-
-    embedding: np.ndarray  # (n_nodes, n_dims)
-    node_ids: np.ndarray  # (n_nodes,)
-    eigenvalues: np.ndarray  # (n_dims,)
-    linkage_matrix: np.ndarray  # (n_nodes - 1, 4) OR (n_micro - 1, 4) for approx
-    metadata: Dict[str, Any]
-    # For approximate mode (large graphs):
-    micro_labels: Optional[np.ndarray] = None  # (n_nodes,) micro-cluster assignments
-    micro_centroids: Optional[np.ndarray] = None  # (n_micro, n_dims)
 
 
 def _row_normalize(matrix: np.ndarray) -> np.ndarray:
@@ -82,7 +57,7 @@ def compute_spectral_embedding(
 ) -> SpectralResult:
     """Compute spectral embedding and linkage for clustering."""
     cfg = config or SpectralConfig()
-    node_ids = np.array(list(node_ids))
+    node_ids = validate_spectral_inputs(adjacency, node_ids, cfg)
 
     metrics: Dict[str, Any] = {}
     start_total = time.time()
@@ -216,7 +191,8 @@ def compute_spectral_embedding(
     metadata = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "n_nodes": len(node_ids),
-        "n_dims": cfg.n_dims,
+        "n_dims": int(embedding.shape[1]),
+        "requested_n_dims": cfg.n_dims,
         "method": "normalized_laplacian",
         "eigensolver": "arpack",
         "eigensolver_params": {

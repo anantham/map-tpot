@@ -7,6 +7,7 @@ from src.graph.tpot_relevance import (
     _normalized_entropy,
     build_core_halo_mask,
     compute_relevance,
+    compute_symmetrized_degree_stats,
     reweight_adjacency,
 )
 
@@ -237,6 +238,16 @@ def test_core_halo_directed_symmetrized():
     assert mask[0]  # core
     assert mask[1]  # halo (neighbor via 0→1 or reverse)
     assert not mask[2]  # 2-hop away from core
+
+
+def test_symmetrized_degree_stats_handle_edgeless_graph():
+    adjacency = sparse.csr_matrix((3, 3))
+
+    sym, degrees, median_degree = compute_symmetrized_degree_stats(adjacency)
+
+    assert sym.shape == (3, 3)
+    np.testing.assert_array_equal(degrees, np.zeros(3))
+    assert median_degree == 0.0
 
 
 # --- reweight_adjacency ---
