@@ -82,6 +82,19 @@ These items were built but not tracked in the original Phase 4-8 roadmap below. 
 
 ## Testing Coverage
 
+- [x] Add frozen-control verifiers for propagation solver contracts, soft-target
+  agreement, hard-label confidence calibration, taxonomy/edge-loss assumptions,
+  and structural
+  discoverability bias. Standardize exit codes as 0=measurement complete,
+  1=input/method failure, and 2=strict scientific falsification; expose one
+  combined Make target (implemented 2026-07-26).
+- Add end-to-end propagation censoring tests that rerun the solver under MCAR,
+  capture-center, degree-biased, and community-biased edge masking. The shipped
+  2026-07-26 edge-loss check holds memberships fixed and only recomputes
+  degree/relevance/core/halo.
+- Add a high-precision full-class reference replay for the legacy Laplacian-CG
+  artifact. Gate on residual, membership delta, top-label flips, selection
+  Jaccard, and holdout-recall change rather than the solver's boolean alone.
 - [x] Replace the clean-clone CI dependency on ignored
   `data/graph_snapshot.spectral.npz` with the committed medium fixture at
   granularities 25 and 40; make the cluster verifier use a sparse synthetic
@@ -425,6 +438,15 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Design a Lift-aware TPOT relevance model for `independent` propagation or
   retain an explicitly versioned classic probability model. Do not feed
   independent Lift rows into the current `1 - p_none` probability equation.
+- Fix and behaviorally verify directed-PPR solver contracts before producing a
+  replacement bundle: plumb `PropagationConfig.max_iter`/`tolerance`, conserve
+  dangling-node mass, remove or implement unused parameters, and version the
+  changed score semantics. The 2026-07-26 strict verifier currently rejects
+  iteration plumbing and mass conservation.
+- Correct the public About page's membership semantics. The NMF producer
+  row-normalizes `W`, while the page currently claims independent percentages
+  that can sum above one. Choose compositional shares or independent
+  overlapping affinities before changing code or copy.
 - Benchmark soft group membership with time-split and topology-split holdouts:
   compare harmonic/GRF, directed PPR, degree-corrected block-model or mixed
   membership baselines, and graph+semantic late fusion. Report uncertainty,
@@ -447,6 +469,12 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Infrastructure & Tooling
 
+- [x] Add immutable Community Archive snapshot comparison with deep hash
+  verification, corpus/linkage deltas, samples, no-clobber JSON, strict
+  falsifiers, and a Make target (implemented 2026-07-26).
+- Track a small committed pointer/lock record for the approved Community
+  Archive snapshot ID and SHA-256 while keeping the ~902 MB Parquet bodies
+  ignored. Snapshot presence alone must not silently activate downstream data.
 - Introduce caching layer for Flask metrics endpoint to reduce recomputation
   during rapid slider adjustments.
 - Monitor SQLite growth and evaluate move to PostgreSQL if enrichment scale

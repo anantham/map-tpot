@@ -5,7 +5,7 @@ PYTEST ?= $(VENV_PY) -m pytest
 
 .DEFAULT_GOAL := help
 
-.PHONY: help ensure-venv verify-louvain-contract verify-artifact-compatibility verify-baseline probe-community-archive verify-community-archive test-smoke test-ci test verify-docs deploy-public-site
+.PHONY: help ensure-venv verify-louvain-contract verify-artifact-compatibility verify-baseline probe-community-archive verify-community-archive compare-community-archive verify-propagation-contract evaluate-frozen-membership verify-network-discoverability verify-research-assumptions test-smoke test-ci test verify-docs deploy-public-site
 
 help:
 	@echo "Available targets:"
@@ -14,6 +14,8 @@ help:
 	@echo "  make verify-baseline          # run non-deploying baseline contract checks"
 	@echo "  make probe-community-archive  # HEAD-only bulk snapshot freshness probe"
 	@echo "  make verify-community-archive SNAPSHOT_DIR=...  # deep snapshot verification"
+	@echo "  make compare-community-archive BASELINE_SNAPSHOT=... CANDIDATE_SNAPSHOT=..."
+	@echo "  make verify-research-assumptions  # measure frozen solver/membership/network"
 	@echo "  make test-smoke               # run fast backend smoke tests"
 	@echo "  make test-ci                  # run the credential-free backend CI suite"
 	@echo "  make test                     # run the full backend test suite"
@@ -43,6 +45,22 @@ probe-community-archive: ensure-venv
 verify-community-archive: ensure-venv
 	@test -n "$(SNAPSHOT_DIR)" || (echo "Missing SNAPSHOT_DIR=/path/to/versioned/snapshot" && exit 1)
 	@$(VENV_PY) -m scripts.verify_community_archive_snapshot "$(SNAPSHOT_DIR)" --inspect-parquet
+
+compare-community-archive: ensure-venv
+	@test -n "$(BASELINE_SNAPSHOT)" || (echo "Missing BASELINE_SNAPSHOT=/path/to/versioned/snapshot" && exit 1)
+	@test -n "$(CANDIDATE_SNAPSHOT)" || (echo "Missing CANDIDATE_SNAPSHOT=/path/to/versioned/snapshot" && exit 1)
+	@$(VENV_PY) -m scripts.compare_community_archive_snapshots "$(BASELINE_SNAPSHOT)" "$(CANDIDATE_SNAPSHOT)"
+
+verify-propagation-contract: ensure-venv
+	@$(VENV_PY) -m scripts.verify_propagation_solver_contract
+
+evaluate-frozen-membership: ensure-venv
+	@$(VENV_PY) -m scripts.evaluate_frozen_membership
+
+verify-network-discoverability: ensure-venv
+	@$(VENV_PY) -m scripts.verify_network_discoverability
+
+verify-research-assumptions: verify-propagation-contract evaluate-frozen-membership verify-network-discoverability
 
 test-smoke: ensure-venv
 	@$(PYTEST) tests/test_spectral.py tests/test_clusters.py -q

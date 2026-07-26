@@ -2,7 +2,127 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-26 (graph artifact compatibility)*
+*Last updated: 2026-07-26 (membership and discoverability assumption audit)*
+
+---
+
+## EXP-016: Do frozen soft memberships and graph discoverability satisfy their stated contracts?
+
+**Date:** 2026-07-26
+
+**Question:** Once the frozen graph-to-output chain is identity-compatible, do
+its solver behavior, probability interpretation, threshold behavior, taxonomy
+stability, and discoverability structure support the claims made about them?
+
+**Hypotheses:** The historical uncertainty post-processing fingerprint should
+reproduce; configured PPR controls and probability mass should behave as
+declared; soft-target predictions should beat empirical-prior and uniform
+baselines; top-class confidence should have ECE ≤ .05; propagation-heldout
+calibration positives should usually be core rather than halo;
+information-equivalent taxonomy splits should preserve selection; bounded edge
+loss should preserve selection; and capture, direction, and degree mechanisms
+should be measurable explicitly.
+
+**Method:** Added three frozen-manifest-first evaluators with deterministic
+fixtures, explicit falsifiers, stable ties, no-clobber outputs, and a shared
+`0/1/2` exit contract. Measured a bounded solver cycle and dangling-node
+control, the 55-account propagation-heldout calibration set, an equal split of
+every taxonomy factor, ten fixed-seed edge-deletion repetitions at 1%/5%/10%,
+directed versus undirected versus reciprocal components/reachability, the exact
+18-handle seed panel, capture-center incidence, and degree-stratified selection.
+Full methods and limitations are recorded in
+`docs/experiments/2026-07-26-membership-discoverability-audit.md`.
+
+**Predicted outcomes:** A valid solver must respect `max_iter=1` and conserve
+mass within `1e-9`. Soft-target predictions must beat empirical-prior and
+uniform Brier and soft-label log loss; hard dominant-class confidence must have
+ECE ≤ .05. At least half of recalled calibration accounts must cross τ. Equal
+factor splitting must keep core Jaccard ≥ .95 and core-count change ≤ 5%.
+Selection Jaccard must remain at least .95/.90/.85 under the three edge-loss
+levels.
+
+**Result:** **The historical uncertainty fingerprint and bounded selection
+stability survived; solver validity, soft-target agreement, hard-label
+confidence calibration, calibration-set core interpretation, and taxonomy
+invariance were falsified. Capture, direction, and degree mechanisms were
+confirmed as material.**
+
+- Legacy uncertainty reconstruction maximum error: `3.6783e-08`, with zero
+  cells above `1e-6`.
+- Requested `max_iter=1`, but all three probe classes reported 90 iterations.
+- Dangling graph converged with mass `.21375`; reciprocal control retained `1`.
+- Static documentation correspondence rejected the About page's independent
+  overlapping-percent interpretation: the NMF producer explicitly
+  row-normalizes `W` to sum to one.
+- Holdout: top-1 `11/55`, top-3 `27/55`; model/prior/uniform Brier
+  `.586815/.505926/.517078`, log loss
+  `3.737831/2.620363/2.708050`, ECE `.094255`. The empirical prior is
+  optimistically estimated from the evaluation holdout, but uniform also wins.
+- Core/halo: `0/53/2` propagation-heldout calibration accounts were
+  core/halo-only/missed. Because these accounts selected τ, this is
+  retrospective behavior rather than threshold generalization.
+- Equal split-all: core `175→71`, core Jaccard `.405714`; selection
+  `8,984→5,179`, Jaccard `.576469`.
+- Minimum selection Jaccards under 1%/5%/10% stored-edge deletion:
+  `.990984/.961264/.922418`. Memberships were fixed, so this is not an
+  end-to-end propagation result.
+- Capture centers are 1.731% of nodes but touch 100% of shadow edges; 80.336%
+  of nodes have degree one.
+- Seed reachability is 39.944% forward, 66.780% reverse, 99.991% when
+  undirected, and 6.425% on reciprocal-only edges.
+- Published selection reconstructs exactly as 175 core + 8,809 one-hop halo;
+  degree-one versus degree≥51 selection differs by 80.176 percentage points.
+
+**Lesson:** Reproducible soft values can still have an unsupported probability
+interpretation. The current output is a useful weak ranking/control artifact,
+but its soft-target agreement and hard-label confidence calibration both fail
+these diagnostics. The threshold result needs a second untouched validation
+set. Near-total weak connectivity is also not network discoverability when
+capture design, edge direction, reciprocity, and degree change the reachable
+universe.
+
+**Next step:** Keep the frozen bundle immutable. Fix the PPR contracts, choose
+compositional versus independently overlapping membership semantics, collect
+taxonomy-compatible positives and verified negatives, and evaluate
+future-time/multi-center retrieval before generating a replacement.
+
+---
+
+## EXP-015: Did the Community Archive corpus advance, and did archive linkage keep pace?
+
+**Date:** 2026-07-26
+
+**Question:** Is the July 25 immutable snapshot stale relative to the mutable
+bulk object one day later, and can the delta be measured without treating
+missing linkage as known provenance?
+
+**Hypothesis:** A changed source identity should add rows/accounts and advance
+the newest-tweet cutoff. If archive linkage keeps pace, new linked rows should
+cover the row delta and missing-upload-ID rows should not grow.
+
+**Method:** Probed and downloaded the changed object into a new no-clobber
+snapshot directory, then independently verified the full file hash and Parquet
+metrics. Added a comparator that verifies both immutable snapshots before
+reporting numeric deltas, samples, falsifiers, and optional exclusive-create
+JSON.
+
+**Result:** **Corpus advance confirmed; archive-linkage pace falsified.**
+
+- Candidate `20260726T045149Z-37a97fa3e057`, SHA-256
+  `99e93da98bb9fbdbddaa46a9e7f00da7ae501144294c123155e4d56447a8e9bd`.
+- Rows `8,318,250→8,321,675` (`+3,425`); accounts
+  `34,684→34,698` (`+14`); newest tweet advanced `87,038` seconds.
+- Archive-linked rows changed by `0`; missing upload-ID rows grew by `3,425`;
+  linked fraction declined by `.000333`.
+
+**Lesson:** “Latest bulk export” and “latest fully archive-linked evidence” are
+different claims. The new snapshot is the latest corpus observation made in
+this experiment, but it does not refresh follower topology and its added rows
+must not be silently asserted to have archive-upload provenance.
+
+**Next step:** Bind this candidate snapshot by ID and hash to any downstream
+tweet-corpus experiment. Keep graph/topology freshness and raw per-user archive
+inventory as separate experiments.
 
 ---
 
