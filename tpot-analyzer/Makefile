@@ -5,24 +5,37 @@ PYTEST ?= $(VENV_PY) -m pytest
 
 .DEFAULT_GOAL := help
 
-.PHONY: help ensure-venv verify-louvain-contract test-smoke test verify-docs deploy-public-site
+.PHONY: help ensure-venv verify-louvain-contract verify-baseline test-smoke test-ci test verify-docs deploy-public-site
 
 help:
 	@echo "Available targets:"
 	@echo "  make verify-louvain-contract  # verify python-louvain pin + import contract"
+	@echo "  make verify-baseline          # run non-deploying baseline contract checks"
 	@echo "  make test-smoke               # run fast backend smoke tests"
-	@echo "  make test                     # run full backend test suite"
+	@echo "  make test-ci                  # run the credential-free backend CI suite"
+	@echo "  make test                     # run the full backend test suite"
 	@echo "  make verify-docs              # run docs hygiene verification"
 	@echo "  make deploy-public-site       # [DANGER] Run bootstrap prop + export + blob upload"
 
 ensure-venv:
-	@test -x "$(VENV_PY)" || (echo "Missing $(VENV_PY). Run: python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt" && exit 1)
+	@test -x "$(VENV_PY)" || (echo "Missing $(VENV_PY). Run: python3.11 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt" && exit 1)
 
 verify-louvain-contract: ensure-venv
 	@$(VENV_PY) -m scripts.verify_louvain_dependency_contract
 
+verify-baseline: ensure-venv
+	@$(VENV_PY) -m scripts.verify_assumption_baseline
+	@$(VENV_PY) -m scripts.verify_louvain_dependency_contract
+	@$(VENV_PY) -m scripts.verify_docs_hygiene
+	@$(VENV_PY) -m scripts.verify_api_contracts
+	@$(VENV_PY) -m scripts.verify_clusters --base-path tests/fixtures/medium_graph/graph_snapshot --granularity 25
+	@$(VENV_PY) -m scripts.verify_clusters --base-path tests/fixtures/medium_graph/graph_snapshot --granularity 40
+
 test-smoke: ensure-venv
 	@$(PYTEST) tests/test_spectral.py tests/test_clusters.py -q
+
+test-ci: ensure-venv
+	@$(PYTEST) tests -m 'not selenium and not requires_supabase' -q --tb=short --maxfail=20
 
 test: ensure-venv
 	@$(PYTEST) -q --maxfail=20

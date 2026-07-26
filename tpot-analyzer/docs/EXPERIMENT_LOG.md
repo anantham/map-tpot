@@ -2,7 +2,98 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-04-15 (Session 12)*
+*Last updated: 2026-07-25 (repository readiness)*
+
+---
+
+## EXP-012: Can current main become a reproducible assumption-testing baseline?
+
+**Date:** 2026-07-25
+
+**Question:** Can we recover from the backup-synchronized conflicted checkout
+without losing local work, reproduce the code gates, and attach the existing
+research data without allowing experiments to mutate the source baseline?
+
+**Hypothesis:** Current `origin/main` contains the intended source, while most
+apparent local changes are upstream copies, CRLF/mode drift, and sync-conflict
+artifacts. An isolated checkout on the CI toolchain plus an independent
+copy-on-write data copy should produce a green code gate and a certifiable,
+read-only handoff boundary.
+
+**Method:**
+
+1. Cloned current `origin/main` at `7cfb45fc6cf84115fdd9968064a962751983a55b`
+   beside the old checkout and created `codex/community-archive-readiness`.
+2. Compared 749 relevant paths after CRLF normalization and separately
+   classified tracked content, file-mode changes, symlink flattening,
+   non-conflict untracked files, and `sync-conflict` artifacts.
+3. Tried the pinned Python dependencies on 3.12, then on CI's Python 3.11.
+4. Ran the CI verifier surface before attaching production data, including the
+   expected ignored-artifact cluster failure.
+5. Created independent APFS copy-on-write files for the two core databases and
+   active graph/propagation artifacts. Compared device/inode identity, sizes,
+   SHA-256 hashes, schema/count probes, and SQLite `quick_check`.
+6. Ran the credential-free Python suite and both frontend suites. The
+   graph-explorer suite was deliberately repeated under Node 22 after Node 26's
+   experimental unusable `localStorage` global caused a correlated failure.
+
+**Result:** **CONFIRMED, with explicit freshness and runtime warnings.**
+
+- Genuine local-only source/docs/tests: **0**. Of 749 relevant paths, 746 match
+  current main after EOL normalization, one historical `AGENTS.md` was
+  superseded upstream, and two old-only compatibility/server files were
+  intentionally deleted upstream. The old checkout remains untouched.
+- Python 3.12 was rejected by evidence: `pandas==2.1.0` fell back to a failing
+  source build. Python 3.11.15 installed all 55 requirements and passed the
+  backend suite.
+- Clean-clone CI had a real contract defect: its granularity-25 cluster step
+  required gitignored `data/graph_snapshot.spectral.npz`. Both granularity
+  checks now use the committed deterministic medium fixture.
+- The working `archive_tweets.db` and `cache.db` have distinct inodes from the
+  source, equal byte sizes, matching SHA-256 hashes, zero-byte source WALs, and
+  quiescent working WALs, with `quick_check: ok`. Eight required
+  artifacts—including graph metadata sidecars—were bound into the certificate.
+  Core hashes include:
+  - `archive_tweets.db`: `c99b23fc83e1d01e64962124385674324a163ab6ccfee2a36d59cb995b894cd4`
+  - `cache.db`: `4e04289dd6d86f7166f8cdfadb03443e6925f6b90b710393fc93a648baf8a552`
+  - `graph_snapshot.meta.json`: `2f1692e62a92df497dba49abce1a7e55c3442d526336b7e50c1d4c1cfe321150`
+  - `graph_snapshot.spectral.npz`: `05306f30c329bc7461c770228db77b39ac34144b0919e62070567e55e3796b8e`
+  - `graph_snapshot.spectral_meta.json`: `854677cbf47d9c98758e0d9247add2c3c09c6bc15e8d7b5e8190d883f9e7018e`
+  - `community_propagation.npz`: `1d12f3371205260d7808d1b01c6ecd66cb3cdb7013420cb9a591993d2082a830`
+- Baseline volume: 5,553,430 tweets, 17,501,243 likes, 413 fetch-log usernames
+  representing 334 distinct account IDs, and 95,057-node spectral metadata.
+  Newest archived tweet is 2026-03-22; spectral topology is from 2026-02-26 and
+  propagation is from 2026-04-10. This is a valid frozen baseline but not
+  current network truth.
+- Verification:
+  - `make verify-baseline` under Node 22.23.1: pass; under Node 26: expected
+    failure on the now-strict runtime contract
+  - deep data certificate: `56 passed, 0 failed`
+  - Python: `1210 passed, 5 skipped`
+  - readiness verifier regressions: `3 passed`
+  - public-site: `184 passed`
+  - graph-explorer under Node 22.23.1: `729 passed`
+  - graph-explorer under host Node 26: `43 failed`, all coupled to the
+    experimental unavailable `localStorage`; this falsified the assumption that
+    any newer Node runtime is an equivalent local test environment.
+
+**Lesson:** Code recovery and data recovery are separate problems. Normalized
+content comparison is necessary before trusting a dirty synchronized checkout;
+CI must depend only on tracked fixtures; exact runtime majors matter; and
+SQLite source data must be copied independently and certified before
+experimentation. Freshness must be derived from Twitter Snowflake IDs—the
+archive's textual `created_at` values cannot be ordered with SQL `MAX`.
+
+**Data stored:** Clean checkout at
+`Project 2 - Map TPOT - clean-main`; source data remains in the original
+checkout; working data is gitignored under the clean checkout's `data/`.
+Certification is reproducible with
+`scripts/verify_assumption_baseline.py --require-data --source-data-dir PATH --hash-data --deep`.
+
+**Next step:** Treat this as the frozen control dataset. Before drawing claims
+about current network discoverability or soft membership, approve and implement
+the snapshot-aware Community Archive refresh/manifest design, then rerun the
+same evaluations on both frozen and refreshed snapshots.
 
 ---
 

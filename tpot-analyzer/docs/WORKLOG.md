@@ -1,5 +1,128 @@
 # Worklog - TPOT Analyzer
 
+## Assumption-Testing Repository Readiness (2026-07-25)
+
+- [2026-07-25 21:38 IST] **Recovered current main into an isolated,
+  reproducible code + frozen-data baseline (Codex GPT-5)**
+    - **Goal**
+        - Make the repository safe to begin empirical tests of clustering,
+          network discoverability, and soft group-membership assumptions without
+          pulling into or repairing the backup-synchronized conflicted checkout.
+    - **Hypotheses**
+        - `H1` (`0.60`): current `origin/main` contains the intended source and
+          most old-checkout changes are upstream copies or sync/EOL noise.
+        - `H2` (`0.25`): a small set of genuine local-only code/tests needs
+          preservation.
+        - `H3` (`0.15`): toolchain and data-path assumptions, rather than source
+          drift, block a reproducible baseline.
+    - **Predicted outcome**
+        - Normalized comparison finds no or very little unique local source;
+          CI-equivalent code gates pass on the exact toolchain; independently
+          copied data matches the immutable source at the handoff boundary and
+          reports its age instead of being mistaken for current network truth.
+    - **Result**
+        - `H1` confirmed, `H2` rejected, `H3` confirmed. Across 749 relevant
+          paths, 746 match current main after CRLF normalization; the only
+          mismatch is a superseded historical `AGENTS.md`; two old-only files
+          were intentionally deleted upstream. Genuine local-only
+          source/docs/tests: **0**.
+        - Python 3.12 failed to install `pandas==2.1.0`; exact CI Python 3.11.15
+          installed all 55 requirements. Node 26 caused 43 coupled
+          `localStorage` test failures; checksum-verified Node 22.23.1 passed all
+          729 graph-explorer tests.
+        - The frozen data copy is byte-identical and structurally valid but
+          stale: newest tweet 2026-03-22, spectral snapshot 2026-02-26,
+          propagation 2026-04-10.
+    - **Confidence**
+        - `0.99` that the clean checkout loses no unique code/docs/tests.
+        - `0.96` that the copied artifacts are a sound frozen control baseline.
+        - `0.35` that the baseline represents the current Community Archive or
+          current social graph; a refresh/manifest phase is still required.
+    - **Fallback plan**
+        - Keep the old checkout immutable and recover any disputed policy from
+          Git history. If later data verification diverges, discard only the
+          ignored working copies and recreate them from the source; continue
+          method work on deterministic fixtures until refresh semantics are
+          approved.
+    - **Changes (files + why)**
+        - `tpot-analyzer/.python-version:1` and `.nvmrc:1`: pin the local
+          interpreter majors to CI's Python 3.11 and Node 22.
+        - `tpot-analyzer/.github/workflows/test.yml:41-48`: replace the
+          untracked-production-artifact cluster gate with two granularities over
+          the committed deterministic medium fixture.
+        - `tpot-analyzer/Makefile:8-41`: add `verify-baseline` and a distinct
+          credential-free `make test-ci` target while preserving the historical
+          unfiltered `make test` contract.
+        - `tpot-analyzer/scripts/verify_clusters.py:1-103`: use a sparse
+          production-safe synthetic adjacency and temporary label database,
+          print explicit failure metrics/next steps, and return non-zero on
+          exceptions or failed checks.
+        - `tpot-analyzer/scripts/verify_assumption_baseline.py:1-85`: add the
+          human-facing, read-only baseline CLI with strict certification-option
+          validation.
+        - `tpot-analyzer/scripts/_assumption_baseline_checks.py:1-116`: isolate
+          Git, runtime, lock-hash, status, and reporting checks.
+        - `tpot-analyzer/scripts/_assumption_baseline_data.py:1-240`: isolate
+          source/working inode-size-hash parity, source/working WAL quiescence,
+          immutable SQLite schema/count/integrity checks, Snowflake-based
+          freshness, and bound artifact metadata.
+        - `tpot-analyzer/tests/test_verify_assumption_baseline.py:1-69`: cover
+          invalid hash certification, required snapshot sidecars, and
+          descriptive empty-archive failure.
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:7-100,155-205,234-238,274-279`:
+          align onboarding with CI, use `npm ci`, remove the nonexistent Ruff
+          contract, replace the unused `shadow.db` copy advice, and document
+          immutable-source data certification.
+        - `tpot-analyzer/docs/EXPERIMENT_LOG.md:5-95`: record EXP-012, including
+          rejected runtime assumptions, hashes, test outcomes, and the
+          Snowflake-date lesson.
+        - `tpot-analyzer/docs/ROADMAP.md:5,85-95,153-178,418-432`: record the
+          shipped readiness work and future dependency-security, refresh,
+          unified-data-path, artifact-manifest, and documentation-decomposition
+          work.
+    - **Operational data handoff (gitignored)**
+        - Clean code checkout:
+          `/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT - clean-main`
+          on `codex/community-archive-readiness`, based on `7cfb45f`.
+        - Old checkout was not pulled, reset, or edited. It remains the recovery
+          and immutable-data source.
+        - APFS copy-on-write files were created only for `archive_tweets.db`,
+          `cache.db`, active full/TPOT graph artifacts, adjacency caches, and
+          propagation outputs. `archive_cache/` and unrelated experimental DBs
+          were not copied.
+        - Core handoff hashes:
+          - archive DB:
+            `c99b23fc83e1d01e64962124385674324a163ab6ccfee2a36d59cb995b894cd4`
+          - cache DB:
+            `4e04289dd6d86f7166f8cdfadb03443e6925f6b90b710393fc93a648baf8a552`
+          - spectral:
+            `05306f30c329bc7461c770228db77b39ac34144b0919e62070567e55e3796b8e`
+          - propagation:
+            `1d12f3371205260d7808d1b01c6ecd66cb3cdb7013420cb9a591993d2082a830`
+    - **Verification**
+        - `make verify-baseline` under Node 22.23.1 → pass (runtime, docs,
+          dependency contract, API contracts, cluster granularities 25/40);
+          Node 26 now fails explicitly.
+        - Deep data certification → `56 passed, 0 failed`; both SQLite
+          `quick_check` results `ok`; all eight required source/working hash
+          pairs match, have distinct inodes, and source/working WALs are
+          quiescent.
+        - Readiness verifier regressions → `3 passed`.
+        - Backend `make test-ci` → `1210 passed, 5 skipped, 20 warnings`.
+        - Public site → `12 files / 184 tests passed`.
+        - Graph explorer, Node 22.23.1 → `30 files / 729 tests passed`.
+    - **Residuals / human gates**
+        - Current Node lockfiles report 23 graph-explorer vulnerabilities
+          (2 critical) and 4 high-severity public-site vulnerabilities. No
+          automatic audit fix was applied; upgrades need a reviewed dependency
+          change.
+        - The data is suitable as a frozen control, not a current-state result.
+          Snapshot-aware Community Archive refresh semantics and a cross-artifact
+          manifest remain an architectural human gate.
+        - `docs/WORKLOG.md`, `docs/ROADMAP.md`, and `docs/EXPERIMENT_LOG.md`
+          exceed 300 LOC. This phase made narrow mandated append-only updates;
+          decomposition remains explicitly tracked in the roadmap.
+
 ## Monolith-Split Sweep (2026-05-25)
 
 - [2026-05-25] **Five monoliths split across 5 commits, all pushed (Claude Opus 4.7)**
