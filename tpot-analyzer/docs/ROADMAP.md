@@ -40,6 +40,11 @@ These items were built but not tracked in the original Phase 4-8 roadmap below. 
 - [x] 85 tests across 7 test files, all passing
 - [x] First experiment: 5 accounts enriched + labeled ($0.25 spent), @Teknium correctly classified
 
+The implementation remains useful as a baseline, but its scientific
+acquisition policy, automatic LLM-seed promotion, and stale estimated cost
+model are partially superseded by ADR 022. Do not run the historical “next
+round” checklist as an approved spend plan.
+
 ### Signal Framework
 - [x] Mention graph: 8.5M edges from Supabase user_mentions
 - [x] Quote graph: from Supabase quote_tweets (keyset pagination + resume)
@@ -81,6 +86,19 @@ These items were built but not tracked in the original Phase 4-8 roadmap below. 
 ---
 
 ## Testing Coverage
+
+- Implement the sealed account-level evaluation and local-model benchmark in
+  the [personal-ontology plan](plans/2026-07-26-personal-ontology-active-discovery-implementation.md):
+  frozen eligible universe, probability-sampled calibration/test accounts,
+  separate purposive challenge and policy panels, explicit abstention,
+  graph-blind extraction, source/degree/time strata, and one terminal test
+  release.
+- Add time-matched, wrong-time, and placebo-context ablations so news/trend
+  features cannot leak later knowledge into historical interpretations.
+- Calibrate predicted versus realized action value under mask/reveal before any
+  adaptive paid batch. Refit/cross-fit the full policy inside offline
+  uncertainty estimation; use the exact 20% randomized live arm for cost,
+  yield, and bias auditing rather than unsupported whole-policy counterfactuals.
 
 - [x] Add frozen-control verifiers for propagation solver contracts, soft-target
   agreement, hard-label confidence calibration, taxonomy/edge-loss assumptions,
@@ -404,6 +422,20 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Features & Analysis
 
+- Implement ADR 021's independently overlapping, user-scoped affiliation,
+  observable-competence, and publicly expressed participation-interest heads.
+  Keep style descriptors and evidence coverage separate; call outputs
+  affinities until task-specific calibration passes.
+- Extend the existing Community Gold account deep-dive into a blind,
+  save/resume dossier with immutable corrections and visible development-set
+  learning; do not create a parallel labeling store.
+- Implement ADR 022's typed observe/interpret/judge action policy, beginning
+  with the existing frontier heuristic as a baseline and the USD 0
+  retrospective mask/reveal tranche.
+- Add the frozen \(C_{\mathrm{new}}\) prospective expansion cohort: retain all
+  novel IDs, probability-audit relevance/yield per dollar, report support and
+  source/coverage diversity, and abstain outside registered model support.
+
 - Phase 1.4 completion: finalize policy-driven refresh loop and document human
   confirmation UX.
 - Phase 2 planning: temporal analysis of follower deltas and community evolution
@@ -496,8 +528,14 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Persist per-model active-learning outputs alongside `llm_ensemble`
   consensus rows so `scripts.verify_active_learning` can measure real
   3-model coverage instead of reporting a false `0/N` gap.
-- Migrate account tagging from local SQLite (`account_tags.db`) to shared
-  workspace-backed storage with actor/source provenance and conflict policy.
+- Keep pilot judgments in versioned local SQLite. Revisit shared
+  workspace-backed storage, tenancy, and conflict policy only through a
+  separate approved ADR; ADR 006's proposed Postgres migration is not approved.
+- Add a backend-neutral inference seam with immutable model/prompt/schema/cache
+  identity, explicit unavailable provider fields, usage receipts, and a record
+  of whether and which public evidence left the machine.
+- Extend `enrichment_log` and current budget guards with actual credits,
+  modality/direction, propensity, usable yield, egress, and provenance.
 - Ship Chrome extension labeling integration against canonical backend tag
   endpoints with auth/workspace scoping and audit logs.
 - [x] Add a firehose relay worker that tails `indra_net/feed_events.ndjson`
@@ -523,6 +561,10 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   working-set guidance for agents.
 - Decompose `docs/EXPERIMENT_LOG.md` into an index plus dated experiment
   slices; it is also now >300 LOC and should not remain a growing monolith.
+- Recreate `docs/PROJECT_STRUCTURE.md` or correct the required-reading pointer
+  in `AGENTS.md` after identifying the intended canonical structure source.
+- Track the additional monoliths and reuse boundaries in the
+  [personal-ontology refactor ledger](plans/2026-07-26-personal-ontology-refactor-ledger.md).
 - Decompose `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterView.jsx` and `tpot-analyzer/graph-explorer/src/data.js` into focused modules/hooks (<300 LOC each); current files exceed 1100 LOC and 700 LOC.
@@ -537,12 +579,7 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Infrastructure / Observability
 
-- **API credit telemetry**: Add a lightweight ledger for twitterapi.io credit usage.
-  Store in a DB table `api_calls(endpoint, credits_used, timestamp, note)` and expose
-  via `/api/usage`. Surface in a settings panel in the UI so credit burn is always
-  visible before running enrichment jobs. Current costs for reference:
-  - `/twitter/tweets` (batch): 15 credits per returned tweet
-  - `/twitter/user/info`: 18 credits per profile
-  - `/twitter/tweet/replies/v2`: 75 credits per call
-  - `/twitter/tweet/advanced_search`: 75 credits per call
-  - Budget as of 2026-02-25: ~1,988,340 credits ($19.88)
+- **API credit telemetry**: extend the acquisition receipt ledger and expose
+  quoted worst-case versus actual provider usage before and after each action.
+  The 2026-02-25 endpoint estimates formerly listed here are historical, not a
+  current rate card. Price cards must be versioned and refreshed before spend.
