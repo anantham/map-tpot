@@ -19,9 +19,43 @@ Every tweet emitted into the noosphere is a person taking a stance toward an ide
 
 The esoteric traditions call these collective idea-entities **egregores**. Carl Jung called a subset of them archetypes. The more precise term might be **memeplex** — a self-preserving cluster of memes that behaves like an agent with its own preferences. Nations, ideological movements, religions, internet subcultures: these are not passive collections of human preferences. They are alien agents with their own reproductive fitness, using biological minds as substrate.
 
-What we're building is **cartography of these living ideas** — who carries which egregores, how densely, at what level of awareness. The communities that emerge from this analysis aren't arbitrary graph clusters. They are the territories of actual egregores, made visible.
+This project uses **living ideas** and **egregores** as interpretive metaphors.
+The empirical work is narrower: map observable patterns in public content and
+interaction, test whether those patterns help people discover communities, and
+preserve alternative explanations when they do not.
 
-TPOT is a good entry point because it's small enough to study carefully, rich enough to be interesting, and contains an unusually high density of people who are *aware* they're being channeled — which makes the dynamics more legible.
+TPOT is a useful entry point because it is bounded enough to study carefully,
+rich enough to be interesting, and contains unusually self-referential public
+language about memes, in-groups, irony, and participation.
+
+---
+
+## Applied Mission — Finding People for Niche Coordination
+
+This project maps overlapping niche subcultures in public online discourse so
+talent-constrained community-building projects can discover potential
+collaborators whom ordinary marketing and keyword search miss. Examples include
+local and open-source LLM builders, forecasters, interface designers,
+second-brain practitioners, and people seriously engaged with contemplative
+practice.
+
+The product should return evidence-backed candidate hypotheses, not a ranking
+of human worth:
+
+- likely affiliation with a user-defined community;
+- observable domain-relevant contribution or competence;
+- explicitly expressed interest in participating;
+- the evidence coverage and provenance behind each inference; and
+- uncertainty, ambiguity, and plausible alternative interpretations.
+
+These are separate quantities. Community affiliation does not prove competence;
+fluent discourse does not prove achievement; public interest does not prove
+availability.
+
+The map is a discovery aid for human community builders. It is not an automated
+hiring system, psychological diagnosis, sensitive-identity inference, or
+outreach/spam engine. Its job is to make promising evidence inspectable and help
+a human decide where further investigation is worth the time.
 
 ---
 
@@ -29,22 +63,32 @@ TPOT is a good entry point because it's small enough to study carefully, rich en
 
 The naive approach: build a follow graph, cluster by mutual connections, call those communities.
 
-This fails for TPOT specifically because **TPOT is vibe-based, not structure-based**. Two accounts can be graph-identical — same follow density, same mutual count — and one is TPOT and one is a journalist who follows TPOT accounts for research. The difference is in *how they speak*, not *who they follow*.
+This is insufficient for TPOT because a structurally nearby account may be a
+participant, observer, critic, or journalist. Authored content and interaction
+context may distinguish these cases, but that incremental value is a
+falsifiable hypothesis rather than a premise.
 
-More precisely: the difference is in each person's **relationship to language as a tool for meaning-making**.
+One candidate signal is how public language functions in context. It must be
+tested against simpler graph, topic, and embedding baselines.
 
 ---
 
-## The Simulacrum Levels — The Primary Epistemic Tool
+## The Simulacrum Levels — A Research Construct
 
-We classify tweets on a four-level axis based on the speaker's intent:
+We annotate tweets on a four-level axis as a provisional description of how a
+message functions in its observed context:
 
 - **L1 — The Map**: Saying something because it's true. Truth-tracking. If they discovered they were wrong, they'd stop saying it.
 - **L2 — The Persuasion**: Saying something to induce a belief or behavior. Audience-tracking. Would say the opposite if it served the goal.
 - **L3 — The Signal**: Saying something to show which tribe you belong to. Tribe-tracking. Would say it even if false. The egregore speaking through the individual.
-- **L4 — The Simulacrum**: No individual agency. The cultural pattern is fully in the driver's seat. The speaker is just substrate.
+- **L4 — The Simulacrum**: The message appears dominated by a circulating
+  cultural pattern rather than a locally inspectable truth claim.
 
-This axis matters because **the distribution of L1/L2/L3 in someone's tweets is a fingerprint of their epistemics** — and epistemics predict cluster membership better than topic does. Two people who both use irony as a vehicle for sincere insight (a distinctly TPOT mode) are likely neighbors in the space regardless of what they're talking about.
+This taxonomy can be useful only as an uncertain, context-dependent annotation
+of public messages. It is not a measurement of private intent, agency,
+intelligence, developmental attainment, or a person's fixed psychological
+stage. Claims that it predicts community membership better than simpler content
+or graph baselines remain hypotheses to be tested on held-out labels.
 
 Full theory: `docs/specs/simulacrum_taxonomy.md`
 
@@ -54,34 +98,57 @@ Full theory: `docs/specs/simulacrum_taxonomy.md`
 
 TPOT's signature mode doesn't fit cleanly into L1-L4. It's something like: *"I'm channeling the egregore, we all know it, and our shared awareness of the channeling is itself the authentic signal."* Simultaneously sincere and ironic. The tribe-signal IS the genuine expression.
 
-This is the most diagnostic thing about TPOT and the taxonomy doesn't fully capture it yet. It's the primary open question in the classification work.
+This may be a useful diagnostic signal, but the taxonomy does not yet capture
+it reliably. Its incremental value is an open classification question.
 
 ---
 
-## The Two-Layer Architecture
+## The Four-Part Evidence Architecture
 
-**Layer 1 — Content-aware embedding (universal, runs once):**
-Each account gets a fingerprint vector built from:
-- Distribution of L1/L2/L3/L4 across their posted tweets
-- Distribution of functional tweet types (aggression, dialectics, insight, art, etc.)
-- Same distributions over their *liked* tweets (passive engagement — reveals latent aesthetic preferences)
-- Graph features and bio embedding
+1. **Versioned event substrate:** preserve public observations, direction,
+   timestamp, source, and provenance. The substrate grows; each evidence
+   snapshot is immutable and addressable.
+2. **Typed views:** derive separate authored-content, engagement, graph,
+   profile, artifact, and temporal-context views. They are not collapsed into
+   one supposedly universal edge or fingerprint.
+3. **Observable descriptors:** extract topics, entities, stance, functional
+   message annotations, and evidence spans without giving the extractor graph
+   communities or user labels. Descriptors are recomputed when evidence,
+   preprocessing, model, prompt, or schema identity changes.
+4. **User-scoped task heads:** fit separate affiliation, observable competence,
+   and publicly expressed participation-interest estimates for a versioned
+   ontology. Graph is available here as its own typed view; coverage and
+   provenance condition the estimates rather than becoming a hidden target.
 
-This gives you a 334-account semantic coordinate system grounded in actual epistemic style.
+Group affinities overlap independently rather than being forced to sum to one.
+Message style remains a separately versioned descriptor, and evidence coverage
+remains observed metadata. Every user owns an immutable, superseding history of
+judgments over versioned evidence.
 
-**Layer 2 — Per-user semantic labeling (configurable, per-user):**
-Anyone can label a handful of accounts with their own taxonomy — "this person is EA," "this one is woo," "this is core TPOT" — and the system fits a soft classifier over the embedding. Different users see different community boundaries over the same underlying structure.
-
-The math finds natural groupings. Humans give those groupings meaning. The meaning is personal, not global.
+The math proposes structure. Humans define what a boundary means. The meaning
+is personal and contingent, not global or permanent.
 
 ---
 
 ## The Data
 
-- **334 anchor accounts** — the core TPOT-adjacent corpus. Rich data: full tweet archives, follow graphs, bios.
-- **11.5M tweets + 13.6M liked tweets** — pulled from the Community Archive (public Supabase instance).
-- **Broader follow/following graph** — hundreds of thousands of additional accounts with only graph data. Once the 334 are embedded, these get positioned relative to them.
-- **twitterapi.io** — used sparingly for: thread context when classifying replies to external accounts, and targeted graph enrichment for high-value bridge accounts.
+The corpus and graph are mutable observations with different freshness and
+coverage. Counts do not belong in this vision document. Current identities,
+cutoffs, coverage, and known gaps are recorded in `docs/DATA_INVENTORY.md`,
+versioned Community Archive manifests, and the experiment documents indexed by
+`docs/index.md`.
+
+Community Archive evidence is exhausted and deduplicated before paid
+acquisition. Stored follows, followers, likes, retweets, replies, quotes,
+mentions, co-follows, authored content, and temporal context remain typed rather
+than being treated as interchangeable edges.
+
+TwitterAPI.io is used only for missing evidence whose expected development-set
+value justifies its monetary and human-review cost. Local-first inference is
+the target policy, contingent on the planned benchmark. Current generation
+paths still include OpenRouter and serverless calls; any remote action must be
+explicit, disclose the complete outbound payload, and produce an egress receipt.
+Static lookup and local research should not require remote inference.
 
 ---
 
@@ -91,81 +158,56 @@ The math finds natural groupings. Humans give those groupings meaning. The meani
 - Thread context fetcher with local cache — never pays for the same tweet twice (`src/archive/thread_fetcher.py`)
 - Simulacrum taxonomy document (`docs/specs/simulacrum_taxonomy.md`)
 - Machine-readable taxonomy YAML with golden examples (`data/golden/taxonomy.yaml`)
-- Architecture decision records (`docs/adr/001-008`)
+- Typed directed graph signals, immutable account/tweet judgments, deterministic
+  train/dev/test splits, provenance manifests, and human-facing verification
+  scripts
+- An experimental LM-Studio-compatible embedding script; reproducible local
+  generation/extraction is not yet integrated or benchmarked
+- Architecture decision records (`docs/adr/`)
 
 ## What's In Progress
 
-- Archive fetch for all 316 accounts (running)
-- Golden dataset construction — collaborative human labeling of real tweets
-- LLM eval harness — few-shot classification with Brier score calibration
+- Correcting the membership semantics and solver assumptions falsified by the
+  2026-07-26 audit
+- Growing explicit positive, negative, and abstain judgments without exposing
+  the sealed test set
+- Replacing heuristic acquisition ranking with budgeted, falsifiable
+  value-of-information experiments
 
 ## What's Next
 
-- Classification pipeline (OpenRouter, Kimi K2.5 or equivalent)
-- Account fingerprint aggregation
-- Clustering recompute on content-aware features
-- Per-user labeling UI
-- Venn/overlap visualization
+- Local-first, graph-blind structured evidence extraction
+- Independent overlapping affinity and competence heads
+- A dossier-based blind-review interface with immutable corrections
+- Offline mask/reveal comparison against random and existing heuristics
+- A small paid acquisition microtrial only after the offline policy earns it
+
+## The Learning Flywheel
+
+Human attention is a budget alongside dollars and compute. The interface should
+surface a compact evidence dossier, allow investigation and save/resume, and
+hide model suggestions until the human has recorded an initial judgment.
+
+After each judgment, the system should show an honest before/after account:
+the prior prediction, realized surprise, posterior change, affected candidate
+rankings, and change on the development set. The sealed test set is evaluated
+once, after every choice for that run is final. A correction creates a new
+judgment that supersedes rather than erases the old one, preserving ontology
+version, evidence/context hash, timestamp, and notes.
+
+Sometimes the truthful result is “this label did not improve the model.” The
+product should show that rather than manufacturing progress.
 
 ---
 
-## Distribution: How This Reaches Users
+## Distribution and Publication Boundary
 
-### Two User Types
-
-**Power users** clone the repo, feed their own API keys, and run the full pipeline locally. They label tweets, shape community boundaries, name their clusters, and produce a personal ontology of their corner of Twitter. The labeling UI, classification pipeline, and clustering tools are all local-first — computation happens on your machine, data stays on your disk. A power user IS the admin of their own instance.
-
-**Casual users** visit a published URL and type their Twitter handle. They see where they sit in the power user's community map — soft membership percentages across named communities. No account needed, no API keys, no local setup. Just curiosity and a handle.
-
-### The Casual User Experience
-
-The MVP experience is a lightweight static site (Vercel or equivalent). The flow:
-
-1. **Landing page** — search bar. "Find your ingroup."
-2. **Type your handle** — instant client-side lookup against a pre-computed static JSON index.
-3. **Results card** — soft community placement as percentage bars with human-curated community names. "80% Post-rationalist, 15% AI Safety, 5% Woo." Provocative-by-design — the labels are part of the appeal.
-4. **Downloadable PNG** — "Share your card" button generates a screenshot-ready image client-side (canvas-to-PNG, zero server cost). This is the viral mechanic.
-5. **"Explore the map" link** — optional deeper view. A simplified cluster visualization showing the user's position in the full community landscape. Heavier to load, but available for the curious.
-
-**If the handle isn't found:** a banner with three paths to get included:
-- DM the power user directly (fastest — they add your data to their local pipeline)
-- Upload your Twitter data export to the [Community Archive](https://github.com/community-archive) (benefits the whole community)
-- Clone the repo and become a power user yourself
-
-This creates a **growth flywheel**: people want to see their results, so they contribute their data. The power user periodically re-fetches the latest community archive accounts and re-publishes with an expanded index.
-
-### The Publishing Workflow
-
-All computation happens locally. Publishing is just exporting the results:
-
-1. Power user runs the full pipeline locally: labeling, classification, clustering, community naming
-2. A build step exports the results as **static JSON** — every account's community membership scores, community metadata (names, colors, descriptions), and a simplified cluster layout for the map view
-3. The static site (a lightweight React/Vite app) ships with this JSON baked in. Client-side lookup, client-side rendering, client-side PNG generation. Zero backend in production.
-4. Deploy to Vercel/Netlify/GitHub Pages. Cost: free or near-free.
-5. To update: re-run the pipeline with new data, re-export, re-deploy.
-
-The published site is a **read-only snapshot** of the power user's analysis at a point in time. It does not connect to any backend, database, or API. The full research tools (labeling UI, LLM interpretation, branch management) stay local-only.
-
-### Open Source Strategy
-
-**Current model (v1):** One repo, framework and data bundled. Someone who clones it gets the tool AND the specific TPOT analysis (community labels, graph snapshots, golden dataset). They can fork and modify, run their own labeling, publish their own version.
-
-**Future model (if demand exists):** Separate the framework (the pipeline, the UIs, the static site generator) from the data (a specific power user's community ontology). The framework becomes a reusable tool; each power user maintains their own data repo. This separation happens only if multiple people actually want to run their own analyses — premature abstraction otherwise.
-
-### What Gets Published vs What Stays Local
-
-| Artifact | Published (static site) | Local only (power user) |
-|----------|------------------------|------------------------|
-| Community names + colors | Yes | Yes |
-| Account membership scores | Yes (pre-computed JSON) | Yes (live in SQLite) |
-| Simplified cluster layout | Yes (for map view) | Yes (full spectral data) |
-| Account handles + display names | Yes (public Twitter data) | Yes |
-| Tweet text / labels / golden dataset | No | Yes |
-| Labeling UI | No | Yes |
-| LLM interpretation | No | Yes |
-| Branch management | No | Yes |
-| Classification pipeline | No | Yes |
-| API keys / secrets | No | Yes (in .env) |
+Power users shape local, personal ontologies; casual users may inspect only
+explicitly approved snapshot fields. Local-first does not mean local-only, and
+public evidence does not make private dossiers or sensitive inferences
+publishable. The current product flow, remote-egress disclosure, static-snapshot
+semantics, and field-level boundary live in
+`docs/product/2026-07-26-publishing-and-privacy-boundary.md`.
 
 ---
 
@@ -175,6 +217,8 @@ This project started with "where does TPOT end?"
 
 The better question is: **what egregores are operating here, what is their territory, and what is their relationship to each other?**
 
-The Venn diagram you end up with isn't a map of a social network. It's a map of the living ideas that are using these minds as substrate — and the people who, to varying degrees, know that's happening and have chosen a stance toward it.
+The hoped-for result is not just a social-network partition. It is an
+inspectable, revisable map of how public ideas, practices, and collaborations
+co-occur—without claiming access to private awareness or choice.
 
 Every tweet is a vote on which spirit gets to exist.
