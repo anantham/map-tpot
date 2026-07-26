@@ -33,6 +33,7 @@ htmlcov/
 
 # Archive cache (large per-account JSON files, re-downloadable)
 data/archive_cache/
+data/community_archive/
 
 # Local data and state
 *.db

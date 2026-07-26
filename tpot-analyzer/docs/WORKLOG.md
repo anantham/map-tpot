@@ -1,5 +1,120 @@
 # Worklog - TPOT Analyzer
 
+## Versioned Community Archive Snapshot Foundation (2026-07-26)
+
+- [2026-07-26 07:06 IST] **Implemented and live-probed a non-destructive,
+  evidence-grade bulk snapshot path (Codex GPT-5)**
+    - **Goal**
+        - Make current Community Archive tweet data acquirable without
+          overwriting the certified frozen baseline, silently trusting a
+          mutable URL, or combining an incomplete transfer with old derived
+          artifacts.
+    - **Hypotheses**
+        - `H1` (`0.90`): the mutable canonical Parquet object is newer than its
+          release-page label and the local 2026-03-22 tweet cutoff.
+        - `H2` (`0.98`): strict HEAD/GET validator equality, two independent
+          byte ceilings, streamed SHA-256, no-clobber publication, Parquet
+          schema checks, and a manifest written last are sufficient for a safe
+          acquisition boundary.
+        - `H3` (`0.95`): preserving old relationship observations is safer than
+          interpreting absence from a later archive as an unfollow/unlike.
+    - **Predicted outcome**
+        - Probe-only mode performs one HEAD and no writes; a changed or
+          oversized response is rejected before publication; completed
+          snapshots are immutable and reusable only after deep verification;
+          the frozen baseline remains untouched.
+    - **Result**
+        - `H1` confirmed by the live probe: the object was modified
+          2026-07-25 even though its release title said 2026-07-13, and the
+          one-row live API probe reached 2026-07-26 versus the local
+          2026-03-22 cutoff.
+        - `H2` confirmed for focused fixtures and the live metadata probe.
+          Full-body capture is intentionally deferred until this implementation
+          is committed, so the manifest can record a clean producer Git state.
+        - `H3` retained as ADR 019's conservative data contract. The official
+          pair-key upsert ingest does not delete absent following/follower
+          pairs, so those source tables are themselves accumulated
+          observations rather than exact current-state snapshots.
+    - **Confidence**
+        - `0.99` that no completed snapshot can be silently overwritten by this
+          workflow.
+        - `0.98` that a mid-transfer change visible through ETag,
+          Last-Modified, length, or received bytes is rejected.
+        - `0.90` that the live Parquet schema matches the documented string-ID
+          and timezone-aware timestamp contract; full inspection is the next
+          falsification step.
+    - **Fallback plan**
+        - On validator, cap, schema, hash, or manifest failure, leave the frozen
+          baseline active and do not create a commit-marker manifest. Re-probe
+          the source; never weaken checks to accept a candidate.
+    - **Changes (files + why)**
+        - `.gitignore:20-23`: ignore large versioned Community Archive snapshot
+          bodies and manifests.
+        - `Makefile:8-47`: add safe HEAD-only probing and explicit snapshot
+          verification targets.
+        - `src/archive/snapshot.py:1-205`: model remote identity, parse
+          validators, enforce positive length and streaming byte caps, hash
+          while streaming, reject HEAD/GET drift, and publish with unique
+          temporary files plus no-clobber links.
+        - `src/archive/snapshot_contract.py:1-25`: isolate filenames, schema
+          version, required columns, and human-facing check records.
+        - `src/archive/snapshot_dataset_validation.py:1-94`: isolate dataset
+          count, partition, column, sample, and cutoff invariants.
+        - `src/archive/snapshot_manifest.py:1-204`: validate Parquet ID/time
+          types, scan dataset metrics, create provenance manifests, and publish
+          the manifest last without replacement.
+        - `src/archive/snapshot_validation.py:1-226`: verify source/directory
+          identity, structural types, cross-field byte/count invariants,
+          required columns, cutoffs, code identity, and optional deep SHA-256.
+        - `src/archive/snapshot_workflow.py:1-136`: orchestrate new acquisition
+          versus verified immutable reuse and reject unmanifested collisions.
+        - `scripts/refresh_community_archive_snapshot.py:1-176`: default to
+          metadata-only probing; require explicit `--download`; print
+          ✓/✗ metadata, caps, metrics, and next steps.
+        - `scripts/verify_community_archive_snapshot.py:1-103`: add the
+          mandatory human verifier with deep hash by default and optional
+          Parquet metric rescan.
+        - `tests/test_archive_snapshot*.py`: add 20 behavior-level tests for
+          transfer, validation, workflow, and CLI contracts.
+        - `docs/adr/019-versioned-research-data-and-artifact-manifests.md`:
+          record the accepted immutable-snapshot and future artifact-binding
+          decision.
+        - `docs/modules/archive.md` and `docs/index.md`: document the new module
+          boundary and correct the old `INSERT OR IGNORE`/writer-lock claims.
+        - `docs/EXPERIMENT_LOG.md` (EXP-013): record live probe metadata,
+          bounded API results, assumptions, and the pending full-download test.
+        - `docs/ROADMAP.md`: separate shipped bulk acquisition from raw archive
+          refresh, topology inventory, artifact compatibility, and the
+          confirmed TPOT node-alignment defect.
+    - **Verification**
+        - Focused TDD surface:
+          `20 passed` across transfer, structural validation, acquisition
+          workflow, and CLI tests.
+        - Credential-free backend suite with normal clean-checkout write access:
+          `1230 passed, 5 skipped, 20 warnings`.
+        - Docs hygiene verifier: `9 passed, 0 failed`.
+        - Live canonical HEAD:
+          snapshot `20260725T045122Z-4123f74b1a43`, 901,456,905 bytes,
+          Last-Modified `2026-07-25T04:51:22+00:00`, ETag
+          `"b07a2925eca027be751c5814fe3ddffe-54"`.
+        - Probe-only output explicitly confirmed no body download and no file
+          changes.
+        - `make verify-baseline` on the host correctly rejected Node 26 because
+          the repository/CI contract is Node 22; this repeats EXP-012's known
+          runtime diagnostic and is unrelated to the Python snapshot surface.
+        - All new implementation and test files are below 300 lines;
+          `git diff --check` passes.
+    - **Residuals**
+        - The full 901 MB corpus has not yet been downloaded or scanned.
+        - The tweet-only Parquet does not refresh following/follower topology;
+          bounded raw-object inventory is separate future work.
+        - Existing `store.py`/fetch CLI still have terminal-status, username
+          identity, update, and presence-history limitations documented in the
+          roadmap.
+        - `WORKLOG.md`, `ROADMAP.md`, and `EXPERIMENT_LOG.md` remain above the
+          300-line threshold; decomposition is tracked rather than mixed into
+          this data-acquisition phase.
+
 ## Assumption-Testing Repository Readiness (2026-07-25)
 
 - [2026-07-25 21:38 IST] **Recovered current main into an isolated,

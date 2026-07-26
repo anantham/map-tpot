@@ -2,7 +2,79 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-25 (repository readiness)*
+*Last updated: 2026-07-26 (Community Archive snapshot probe)*
+
+---
+
+## EXP-013: Can the mutable Community Archive export be captured reproducibly?
+
+**Date:** 2026-07-26
+
+**Question:** Is the frozen local corpus stale relative to Community Archive,
+and can the current mutable bulk export be identified and acquired without
+overwriting the baseline or accepting a mid-transfer source change?
+
+**Hypothesis:** The release-label date is not a sufficient freshness marker.
+A HEAD probe should expose a newer object identity, and a versioned,
+validator-bound, byte-capped, hash-verified workflow can capture it additively.
+
+**Method:**
+
+1. Read Community Archive's current `llms.txt`, API guide, release metadata,
+   storage behavior, and upstream relationship-ingest schema.
+2. Issued a HEAD-only probe against the canonical enriched-tweet Parquet object
+   and bounded one-row REST freshness probes. No bulk body was downloaded.
+3. Compared those dates with the certified local baseline's Snowflake-derived
+   tweet cutoff.
+4. Wrote behavioral tests first for metadata identity, strict validators,
+   streaming caps, no-clobber publication, Parquet ID/schema checks, structural
+   manifest invariants, immutable reuse, and probe-only CLI behavior.
+5. Implemented ADR 019's snapshot acquisition and verifier modules, keeping
+   every new code and test file below 300 lines.
+
+**Result:** **PARTIALLY CONFIRMED; acquisition implementation and live probe
+pass, full corpus capture remains pending.**
+
+- The canonical object is newer than both the frozen corpus and its GitHub
+  release title. On 2026-07-26 its metadata was:
+  - snapshot ID: `20260725T045122Z-4123f74b1a43`
+  - `Last-Modified`: `2026-07-25T04:51:22+00:00`
+  - size: `901,456,905` bytes
+  - ETag: `"b07a2925eca027be751c5814fe3ddffe-54"`
+- The release page said “updated 2026-07-13,” while the mutable object was
+  modified on 2026-07-25. Release-title freshness is therefore rejected.
+- The newest one-row REST tweet probe was tweet `2081177390386950643` at
+  `2026-07-26T00:38:50+00:00`; the frozen archive's newest tweet is
+  2026-03-22, about 124 days older.
+- A bounded exact `all_account` count returned 502,629. An exact enriched-tweet
+  count hit the database statement timeout, confirming that exact bulk counts
+  should come from Parquet metadata rather than an expensive API count.
+- The canonical object passed the 2,000,000,000-byte safety ceiling. Probe-only
+  mode issued HEAD and changed no files.
+- Focused regression surface: `20 passed`.
+
+**Lesson:** Community Archive provides mutable views, not immutable releases.
+Freshness must use live validators and ingestion metadata; evidence must use a
+locally recorded SHA-256. The tweet-only export does not establish social-graph
+freshness, and a null `archive_upload_id` should be reported as missing linkage,
+not asserted to be streamed without a stronger upstream invariant.
+
+**Assumptions and confidence:**
+
+- HTTP validators change when the mutable object changes: `0.98`.
+- Strict HEAD/GET validator equality plus byte count and SHA-256 detects an
+  unsafe acquisition: `0.99`.
+- The Parquet export preserves snowflake IDs as strings and `created_at` as a
+  timezone-aware timestamp: `0.90`; the full-file inspection will falsify this
+  quickly if the upstream schema differs.
+
+**Fallback:** If the full download changes validators, violates the cap, or
+fails schema/manifest checks, leave the frozen baseline active and keep the
+candidate directory unmanifested. Re-probe rather than weakening validation.
+
+**Next step:** Commit the acquisition code so its Git state is clean, download
+the versioned snapshot, run deep hash plus Parquet verification, and append the
+observed row/account/time metrics as a separate experiment result.
 
 ---
 
