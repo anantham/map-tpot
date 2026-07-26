@@ -1,5 +1,141 @@
 # Worklog - TPOT Analyzer
 
+## Frozen Membership and Discoverability Assumption Audit (2026-07-26)
+
+- [2026-07-26 11:53 IST] **Turned the approved assumption plan into
+  reproducible falsification harnesses and refreshed corpus evidence
+  (Codex GPT-5 with three parallel computational peers)**
+    - **Goal**
+        - Test the frozen solver, soft-membership, threshold, taxonomy, graph
+          sampling, direction, and degree assumptions without modifying the
+          frozen control or mistaking a negative finding for execution failure.
+        - Refresh and compare the mutable Community Archive tweet export while
+          keeping topology freshness and paid live API collection separate.
+    - **Hypotheses and predicted falsifiers**
+        - The frozen uncertainty formula should reproduce within `1e-6`;
+          configured PPR `max_iter=1` must not exceed one iteration; dangling
+          PPR mass must remain within `1e-9` of one.
+        - Frozen rows must beat empirical-prior and uniform Brier/log-loss
+          baselines; top-class confidence must have ECE ≤ `.05`; at least half
+          of recalled propagation-heldout calibration accounts must be core;
+          an information-equivalent factor split must keep core Jaccard ≥ `.95`
+          and core-count change ≤ 5%.
+        - Final selection Jaccard must remain ≥ `.95/.90/.85` under
+          1%/5%/10% stored-edge deletion.
+        - Capture-center, edge-direction/reciprocity, and degree mechanisms
+          should pass their predeclared structural detection thresholds.
+        - A newer Community Archive corpus must add rows and advance its newest
+          tweet; archive linkage keeps pace only if linked rows cover the delta
+          and missing upload IDs do not grow.
+    - **Result**
+        - Community Archive corpus advance confirmed:
+          snapshot `20260726T045149Z-37a97fa3e057`, 8,321,675 rows,
+          34,698 accounts, newest tweet 2026-07-26T04:26:07Z, SHA-256
+          `99e93da98bb9fbdbddaa46a9e7f00da7ae501144294c123155e4d56447a8e9bd`.
+          Versus July 25: +3,425 rows, +14 accounts, +87,038 seconds.
+          Linkage pace rejected: +0 archive-linked rows and +3,425 missing IDs.
+        - Historical uncertainty post-processing fingerprint confirmed at
+          maximum error
+          `3.6783e-08`. PPR iteration plumbing rejected (requested one;
+          observed 90/90/90) and dangling-mass conservation rejected
+          (mass `.21375` versus reciprocal control `1.0`).
+        - About/NMF correspondence rejected: the page describes independent
+          overlapping percentages, but `cluster_soft.py` row-normalizes every
+          account's factor weights to a compositional sum of one.
+        - Soft-target predictive agreement rejected: model/prior/uniform Brier
+          `.586815/.505926/.517078`, log loss
+          `3.737831/2.620363/2.708050`; hard dominant-class confidence
+          calibration also rejected at ECE `.094255`. The empirical prior is
+          in-sample, but the independent uniform baseline also beats the model.
+          Calibration-set core interpretation rejected at 0 core, 53
+          halo-only, and 2 missed. These 55 accounts were held out from
+          propagation but reused to select τ, so this is not threshold
+          generalization. Equal split-all taxonomy invariance rejected at core
+          Jaccard `.405714` and total-selection Jaccard `.576469`.
+        - Bounded fixed-membership edge-loss selection survived:
+          minimum Jaccards `.990984/.961264/.922418`.
+        - Capture/direction/degree mechanisms confirmed: 1.731% capture centers
+          touch 100% of shadow edges; 80.336% degree-one nodes; seed reach
+          39.944% forward, 66.780% reverse, 99.991% undirected, 6.425% mutual;
+          exact 175 core + 8,809 halo selection with an 80.176-point
+          degree-one versus degree≥51 selection-rate gap.
+    - **Assumptions, confidence, and fallback**
+        - `0.99` that results bind to the frozen manifest and named snapshot
+          hashes; every scientific loader fails closed on identity errors.
+        - `0.98` that current outputs are useful deterministic ranking/control
+          evidence; `0.15` that they are calibrated current group probabilities.
+        - Edge-loss support is conditional (`0.95`) on fixed memberships and
+          tests only degree/relevance/core/halo recomputation, not propagation.
+        - On any identity, leakage, serialization, or runtime failure, return
+          exit `1` and preserve prior evidence. Scientific falsification
+          returns `0` in measurement mode and `2` only under an explicit strict
+          gate. Do not patch the producer or overwrite the frozen bundle.
+    - **Changes (files + why)**
+        - `src/archive/snapshot_comparison.py:1-195`,
+          `scripts/compare_community_archive_snapshots.py:1-125`,
+          `tests/test_snapshot_comparison.py:1-168`: verified immutable
+          baseline/candidate comparison, exact count/linkage deltas, samples,
+          no-clobber JSON, falsifiers, and `0/1/2` CLI behavior.
+        - `src/evaluation/solver_contract.py:1-281`,
+          `scripts/verify_propagation_solver_contract.py:1-90`,
+          `tests/test_solver_contract.py:1-152`: historical uncertainty
+          post-processing fingerprint, bounded config-plumbing probe,
+          dangling-mass control, and future-fix-safe behavioral verdict tests.
+        - `src/evaluation/frozen_membership.py:1-195`,
+          `membership_scoring.py:1-117`, `membership_stress.py:1-105`,
+          `scripts/evaluate_frozen_membership.py:1-136`,
+          `tests/test_frozen_membership_evaluation.py:1-190`: leakage-safe
+          holdout metrics, stable ties, probability baselines, ECE, taxonomy
+          intervention, fixed-membership edge loss, and strict result gate.
+        - `src/evaluation/discoverability.py:1-270`,
+          `discoverability_topology.py:1-78`,
+          `scripts/verify_network_discoverability.py:1-113`,
+          `tests/test_discoverability_evaluation.py:1-202`: modular directed,
+          any-direction, and reciprocal graph views; components/reachability;
+          capture and degree measurements; exact fixed seed panel; no-clobber
+          evidence.
+        - `Makefile:1-84`: expose snapshot comparison and individual/combined
+          assumption-verifier targets.
+        - `docs/experiments/2026-07-26-membership-discoverability-audit.md:1-199`,
+          `docs/EXPERIMENT_LOG.md` (EXP-015/016), `docs/ROADMAP.md`, and
+          `docs/index.md`: durable methodology, falsifiers, exact results,
+          limitations, future work, and discoverable documentation intent.
+    - **Verification**
+        - Full deep snapshot comparison passed both hashes and identities;
+          strict mode returned the expected `2` for linkage falsification.
+        - `make verify-research-assumptions` completed all three evidence lanes.
+          Solver and membership strict modes returned expected `2`;
+          discoverability strict mode returned `0`.
+        - Focused plus adjacent Python surface: `63 passed`.
+        - Independent pre-commit construct-validity review narrowed the
+          uncertainty claim, split predictive agreement from hard-label ECE,
+          exposed calibration-set reuse, and found the missing-degree report
+          edge case. All four findings were corrected without changing an
+          observed metric or scientific outcome.
+        - Credential-free backend suite: initial restricted-sandbox attempt
+          stopped with 20 `PermissionError` setup errors when existing API
+          logging could not create `logs/api.log`; the prescribed rerun with
+          normal workspace write access passed:
+          `1,338 passed, 5 skipped, 20 warnings`.
+        - Docs hygiene: `9 passed, 0 failed`; remote fetch succeeded and
+          `origin/main` remains `7cfb45f` with this branch five commits ahead
+          before the current commit.
+        - All new implementation modules are at most 281 lines;
+          `git diff --check` passes.
+    - **Residuals / attention boundaries**
+        - No production solver, membership, threshold, About-page, or graph
+          artifact was changed. Architecture must first choose compositional
+          shares versus independently overlapping affinities.
+        - No TwitterAPI.io call was made and the clean clone has no credentials.
+          Attention is required only before credential use or material spend.
+        - The new tweet snapshot does not refresh follower topology. Raw archive
+          relationship inventory, multi-center temporal holdouts, end-to-end
+          censoring, verified negatives, and NMF restart stability remain
+          roadmap work.
+        - The backup-synchronized 1,337-entry damaged checkout remains
+          quarantined. Promoting this clean clone and archiving/removing the old
+          path is a separate path-changing/destructive attention boundary.
+
 ## Frozen Graph Artifact Compatibility Baseline (2026-07-26)
 
 - [2026-07-26 08:56 IST] **Made the existing graph-to-TPOT chain safe for

@@ -111,6 +111,7 @@ Last reviewed: 2026-07-26
 | Document | Notes |
 |----------|-------|
 | [Testing Methodology](TESTING_METHODOLOGY.md) | Primary testing guide |
+| [Frozen Membership and Discoverability Audit](experiments/2026-07-26-membership-discoverability-audit.md) | 2026-07-26 methods, falsifiers, results, limits, and reproduction commands |
 | [Test Audit](TEST_AUDIT.md) | Historical audit snapshot (see note below) |
 | [Test plans](test-plans/) | Feature-level testing plans |
 
