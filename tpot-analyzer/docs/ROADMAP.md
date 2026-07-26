@@ -3,7 +3,7 @@
 Living backlog of follow-on work items. Update this document as new ideas,
 coverage gaps, or UX improvements surface.
 
-*Last updated: 2026-07-25*
+*Last updated: 2026-07-26*
 
 ---
 
@@ -128,6 +128,9 @@ These items were built but not tracked in the original Phase 4-8 roadmap below. 
   full 15-community coverage once the first human-review import cycle lands.
 - Add a richer local-context path for Phase 1 hard negatives (API fetch or
   cached external post samples) so famous-adjacent reviews are not bio-only.
+- Split the append-only `WORKLOG.md`, `ROADMAP.md`, and `EXPERIMENT_LOG.md`
+  into indexed yearly or phase files. They are already 1,183, 455, and 489
+  lines respectively, beyond the 300-line agent-context threshold.
 
 ---
 
@@ -163,12 +166,18 @@ Full classification pipeline (all accounts)
   targeted additions brought the frozen 2026-07-25 local baseline to 5,553,430
   tweets without constituting a full refresh.
 - [ ] Run data quality verification (`scripts/verify_archive_vs_cache.py`)
-- [ ] Design a snapshot-aware Community Archive refresh contract. The current
+- [x] Add versioned, bounded, no-clobber acquisition and evidence-grade
+  verification for the mutable Community Archive enriched-tweet Parquet export
+  (`scripts/refresh_community_archive_snapshot.py`, ADR 019, implemented
+  2026-07-26). The frozen baseline remains unchanged.
+- [ ] Extend snapshot-aware refresh to per-account raw archives. The current
   one-shot fetch log suppresses already-successful accounts before `--force`
   can act, while `INSERT OR IGNORE` preserves a historical union rather than
-  upstream deletions/updates. Record per-account upstream snapshot identity,
-  fetch cutoff, row deltas, and tombstone policy before refreshing the
-  2026-03-22 baseline.
+  upstream deletions/updates. Record stable account identity, upstream
+  validators/hash, fetch cutoff, row deltas, and presence/tombstone policy.
+- [ ] Inventory raw archive freshness with bounded HEAD requests before any
+  multi-gigabyte transfer; do not infer topology freshness from the tweet-only
+  Parquet export.
 - [ ] Unify runtime data configuration around an approved `TPOT_DATA_DIR` (or
   equivalent manifest) so archive DB, cache DB, snapshot, and propagation
   input/output paths cannot silently point at different vintages.
@@ -176,6 +185,13 @@ Full classification pipeline (all accounts)
   row/date cutoffs, graph snapshot generation, propagation generation, seeds,
   and model parameters; warn first, then reject incompatible topology and
   semantic-propagation combinations.
+- [ ] Repair `build_tpot_spectral.py` so propagation arrays are selected and
+  aligned by node ID before elementwise scoring. The active 298,347-node
+  propagation overlaps the full 95,057-node spectral graph at only 358 IDs;
+  the 95,057-node training propagation is exactly order-compatible and
+  reproduces the frozen 8,984-node TPOT selection. Bind the chosen propagation,
+  node-order digest, topology digest, community schema, and calibrated threshold
+  in one compatibility manifest.
 
 ### Golden Dataset Curation
 - [x] Simulacrum taxonomy theory doc (`docs/specs/simulacrum_taxonomy.md`)

@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-03-26
+Last reviewed: 2026-07-26
 
 ## Start Here
 
@@ -76,6 +76,7 @@ Last reviewed: 2026-03-26
 
 ### ADRs
 
+- [ADR 019: Versioned Research Data and Artifact Manifests](adr/019-versioned-research-data-and-artifact-manifests.md) (Accepted, 2026-07-26)
 - [ADR 018: Propagation Engine and Confidence Scoring](adr/018-propagation-engine-and-confidence.md) (Accepted, 2026-05-17)
 - [ADR 017: Multi-View Account Descriptor](adr/017-multi-view-account-descriptor.md) (Revised, 2026-03-30)
 - [ADR 016: Four-Part Epistemic Architecture](adr/016-four-part-epistemic-architecture.md)
