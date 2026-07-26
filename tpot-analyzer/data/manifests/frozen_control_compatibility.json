@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "bundle_id": "frozen-tpot-control-20260726",
+  "recorded_at": "2026-07-26T08:56:00+05:30",
+  "purpose": "Expected byte identities for the compatibility-checked frozen graph-to-TPOT research control.",
+  "selected_propagation": "community_propagation_train.npz",
+  "files": {
+    "adjacency_matrix_cache.pkl": {
+      "size_bytes": 4217873,
+      "sha256": "dbff18732fffe83ef7730de462724809a21f69f48cdb0e1f6263748f5728d55f"
+    },
+    "adjacency_matrix_cache.tpot.pkl": {
+      "size_bytes": 1528068,
+      "sha256": "aeec1826b10fcf6454dcd6c98ea335e89fe53ac037cf632a76a4814c88ce6ba5"
+    },
+    "community_propagation_train.npz": {
+      "size_bytes": 2239372,
+      "sha256": "610d59cfdae3e6f3bb1520b6a86e53c9df850ad3beeb01949bb1a768c4dbaab2"
+    },
+    "graph_snapshot.edges.parquet": {
+      "size_bytes": 3409746,
+      "sha256": "b721a21f84842ed2d98916ac7623547b762452d4d62f1324b2105111522d6e95"
+    },
+    "graph_snapshot.nodes.parquet": {
+      "size_bytes": 9296585,
+      "sha256": "458e84ff876b3398adadfe9839598e3084bbb9a3112de99b16316a43b869173b"
+    },
+    "graph_snapshot.spectral.npz": {
+      "size_bytes": 2984716,
+      "sha256": "05306f30c329bc7461c770228db77b39ac34144b0919e62070567e55e3796b8e"
+    },
+    "graph_snapshot.spectral_meta.json": {
+      "size_bytes": 726,
+      "sha256": "854677cbf47d9c98758e0d9247add2c3c09c6bc15e8d7b5e8190d883f9e7018e"
+    },
+    "graph_snapshot_tpot.edges.parquet": {
+      "size_bytes": 1221245,
+      "sha256": "42640d1bfa05448d590fdc05861d43473f95805602cbd8960687a8c036ac95b4"
+    },
+    "graph_snapshot_tpot.mapping.json": {
+      "size_bytes": 197059,
+      "sha256": "3edb657465e4f13561a887777902a2a4f6b07b750a5c24f50b97b3237a85ec6f"
+    },
+    "graph_snapshot_tpot.nodes.parquet": {
+      "size_bytes": 981890,
+      "sha256": "a627d35989ff93d8de81738f23829eafa7d6b8149219d821d0de90cd16116188"
+    },
+    "graph_snapshot_tpot.spectral.npz": {
+      "size_bytes": 773433,
+      "sha256": "faf237bdcb1fb88a45df627da0feb76f203755e3beff875ff95a58fe21e31b34"
+    },
+    "graph_snapshot_tpot.spectral_meta.json": {
+      "size_bytes": 691,
+      "sha256": "5f567aae315dc2c386dc795b7ef12d754d9ff442ac6ba58cbe1e8ffe46dd3612"
+    },
+    "tpot_calibration.json": {
+      "size_bytes": 18686,
+      "sha256": "58acf22e81981dc3d4068a82c86031f2a11944454d194beb24e6777eac5a5277"
+    },
+    "tpot_holdout_seeds.json": {
+      "size_bytes": 22151,
+      "sha256": "3f063150ff334a271020d8540414a7deabffbc4023c507f6b551fb4528e4a07b"
+    },
+    "tpot_relevance_scores.npy": {
+      "size_bytes": 380356,
+      "sha256": "e08d5a87fdf096f7c7751de2cedbc2a01871831e2afc72a6b7022da496b576dd"
+    }
+  }
+}

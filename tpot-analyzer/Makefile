@@ -5,11 +5,12 @@ PYTEST ?= $(VENV_PY) -m pytest
 
 .DEFAULT_GOAL := help
 
-.PHONY: help ensure-venv verify-louvain-contract verify-baseline probe-community-archive verify-community-archive test-smoke test-ci test verify-docs deploy-public-site
+.PHONY: help ensure-venv verify-louvain-contract verify-artifact-compatibility verify-baseline probe-community-archive verify-community-archive test-smoke test-ci test verify-docs deploy-public-site
 
 help:
 	@echo "Available targets:"
 	@echo "  make verify-louvain-contract  # verify python-louvain pin + import contract"
+	@echo "  make verify-artifact-compatibility  # bind graph/cache/propagation/calibration"
 	@echo "  make verify-baseline          # run non-deploying baseline contract checks"
 	@echo "  make probe-community-archive  # HEAD-only bulk snapshot freshness probe"
 	@echo "  make verify-community-archive SNAPSHOT_DIR=...  # deep snapshot verification"
@@ -24,6 +25,9 @@ ensure-venv:
 
 verify-louvain-contract: ensure-venv
 	@$(VENV_PY) -m scripts.verify_louvain_dependency_contract
+
+verify-artifact-compatibility: ensure-venv
+	@$(VENV_PY) -m scripts.verify_artifact_compatibility
 
 verify-baseline: ensure-venv
 	@$(VENV_PY) -m scripts.verify_assumption_baseline
