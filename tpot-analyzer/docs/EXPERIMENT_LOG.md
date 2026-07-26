@@ -37,9 +37,7 @@ validator-bound, byte-capped, hash-verified workflow can capture it additively.
    schema and timestamp values, wrote canonical-string and Snowflake-quality
    regressions, then rescanned all 8.3 million rows.
 
-**Result:** **PARTIALLY CONFIRMED; the safety boundary worked, the initial
-timestamp-type assumption was rejected and repaired, and final manifested
-capture remains pending.**
+**Result:** **CONFIRMED, with explicit upstream timestamp-quality warnings.**
 
 - The canonical object is newer than both the frozen corpus and its GitHub
   release title. On 2026-07-26 its metadata was:
@@ -73,6 +71,14 @@ capture remains pending.**
   - 108 disagree by more than one second; five source timestamps predate
     Twitter and are demonstrably wrong for their tweet IDs
 - Focused regression surface: `23 passed`.
+- Attempt 2/3, after commit `7b405bb`, reacquired and manifested the same
+  still-current remote identity successfully:
+  - local SHA-256:
+    `f40645e181976558f2e107528e9eebf90d82038881fdb886d759e973c3fd3667`
+  - acquisition code: `7b405bb5b56a83d2764ffb9598ae6279efd14a6f`,
+    `git_dirty=false`
+  - independent deep verification recomputed the same hash and rescanned all
+    Parquet metrics with zero failed checks
 
 **Lesson:** Community Archive provides mutable views, not immutable releases.
 Freshness must use live validators and ingestion metadata; evidence must use a
@@ -96,9 +102,14 @@ counts/samples, and use Snowflake-derived cutoffs for eligible tweet IDs.
 fails schema/manifest checks, leave the frozen baseline active and keep the
 candidate directory unmanifested. Re-probe rather than weakening validation.
 
-**Next step:** Commit the schema/quality refinement, discard only the
-unmanifested candidate file, retry acquisition from the same still-current
-remote identity, then run deep SHA-256 plus Parquet verification.
+**Data stored:** Gitignored immutable snapshot at
+`data/community_archive/snapshots/20260725T045122Z-4123f74b1a43/`.
+The manifest and Parquet file together are the evidence boundary; neither is a
+replacement for the frozen control databases or social-topology artifacts.
+
+**Next step:** Bind graph, adjacency, spectral, propagation, calibration, and
+selection artifacts to explicit node-order/topology/source identities before
+running refreshed network-discoverability or soft-membership comparisons.
 
 ---
 
