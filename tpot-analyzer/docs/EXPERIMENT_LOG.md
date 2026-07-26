@@ -2,7 +2,7 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-26 (Community Archive snapshot probe)*
+*Last updated: 2026-07-26 (Community Archive full-file inspection)*
 
 ---
 
@@ -31,9 +31,15 @@ validator-bound, byte-capped, hash-verified workflow can capture it additively.
    manifest invariants, immutable reuse, and probe-only CLI behavior.
 5. Implemented ADR 019's snapshot acquisition and verifier modules, keeping
    every new code and test file below 300 lines.
+6. Committed the acquisition code at `48f8daa`, downloaded the full object with
+   a clean Git state, and ran the schema/coverage inspection.
+7. When the strict timestamp-type assumption failed, inspected the actual
+   schema and timestamp values, wrote canonical-string and Snowflake-quality
+   regressions, then rescanned all 8.3 million rows.
 
-**Result:** **PARTIALLY CONFIRMED; acquisition implementation and live probe
-pass, full corpus capture remains pending.**
+**Result:** **PARTIALLY CONFIRMED; the safety boundary worked, the initial
+timestamp-type assumption was rejected and repaired, and final manifested
+capture remains pending.**
 
 - The canonical object is newer than both the frozen corpus and its GitHub
   release title. On 2026-07-26 its metadata was:
@@ -51,30 +57,48 @@ pass, full corpus capture remains pending.**
   should come from Parquet metadata rather than an expensive API count.
 - The canonical object passed the 2,000,000,000-byte safety ceiling. Probe-only
   mode issued HEAD and changed no files.
-- Focused regression surface: `20 passed`.
+- Attempt 1/3 transferred all 901,456,905 bytes with matching HEAD/GET
+  validators and clean producer Git state, then correctly refused to write a
+  manifest because live `created_at` is `string`, not Arrow timestamp. The
+  incomplete candidate did not replace or activate anything.
+- Actual schema inspection showed canonical UTC strings such as
+  `2019-06-20 06:22:41+00`. The refined parser accepts that exact validated
+  representation while retaining timezone-aware Arrow timestamp support.
+- Full candidate scan:
+  - 8,318,250 rows and 34,684 distinct account IDs
+  - 6,728,898 archive-upload-linked rows and 1,589,352 rows with no upload ID
+  - source `created_at` range: 1998-10-28 to 2026-07-25
+  - Snowflake-derived eligible range: 2010-11-04 to 2026-07-25
+  - 8,261,478 of 8,261,586 eligible IDs agree within one second
+  - 108 disagree by more than one second; five source timestamps predate
+    Twitter and are demonstrably wrong for their tweet IDs
+- Focused regression surface: `23 passed`.
 
 **Lesson:** Community Archive provides mutable views, not immutable releases.
 Freshness must use live validators and ingestion metadata; evidence must use a
 locally recorded SHA-256. The tweet-only export does not establish social-graph
 freshness, and a null `archive_upload_id` should be reported as missing linkage,
-not asserted to be streamed without a stronger upstream invariant.
+not asserted to be streamed without a stronger upstream invariant. Source
+`created_at` also cannot be treated as infallible: retain it, expose anomaly
+counts/samples, and use Snowflake-derived cutoffs for eligible tweet IDs.
 
 **Assumptions and confidence:**
 
 - HTTP validators change when the mutable object changes: `0.98`.
 - Strict HEAD/GET validator equality plus byte count and SHA-256 detects an
   unsafe acquisition: `0.99`.
-- The Parquet export preserves snowflake IDs as strings and `created_at` as a
-  timezone-aware timestamp: `0.90`; the full-file inspection will falsify this
-  quickly if the upstream schema differs.
+- The Parquet export preserves snowflake IDs as strings: confirmed, `0.99`.
+- `created_at` is a timezone-aware Arrow timestamp: rejected. The observed
+  contract is a canonical `YYYY-MM-DD HH:MM:SS+00` string; confidence `0.99`
+  for this snapshot, while the verifier remains explicit about future drift.
 
 **Fallback:** If the full download changes validators, violates the cap, or
 fails schema/manifest checks, leave the frozen baseline active and keep the
 candidate directory unmanifested. Re-probe rather than weakening validation.
 
-**Next step:** Commit the acquisition code so its Git state is clean, download
-the versioned snapshot, run deep hash plus Parquet verification, and append the
-observed row/account/time metrics as a separate experiment result.
+**Next step:** Commit the schema/quality refinement, discard only the
+unmanifested candidate file, retry acquisition from the same still-current
+remote identity, then run deep SHA-256 plus Parquet verification.
 
 ---
 

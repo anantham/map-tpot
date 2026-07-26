@@ -32,6 +32,18 @@ def validate_dataset(
     sample_rows = dataset.get("sample_rows")
     cutoff_min = _timestamp(dataset.get("created_at_min"))
     cutoff_max = _timestamp(dataset.get("created_at_max"))
+    snowflake_eligible = dataset.get("snowflake_eligible_rows")
+    snowflake_exact = dataset.get("created_at_snowflake_exact_rows")
+    snowflake_within = dataset.get(
+        "created_at_snowflake_within_one_second_rows"
+    )
+    snowflake_mismatch = dataset.get(
+        "created_at_snowflake_mismatch_gt_one_second_rows"
+    )
+    pre_twitter = dataset.get("created_at_pre_twitter_rows")
+    snowflake_min = _timestamp(dataset.get("snowflake_created_at_min"))
+    snowflake_max = _timestamp(dataset.get("snowflake_created_at_max"))
+    anomaly_samples = dataset.get("created_at_anomaly_samples")
 
     columns_valid = isinstance(columns, list) and REQUIRED_COLUMNS.issubset(columns)
     samples_valid = (
@@ -45,6 +57,34 @@ def validate_dataset(
             and _timestamp(sample.get("created_at")) is not None
             for sample in sample_rows
         )
+    )
+    timestamp_quality_valid = (
+        _integer(row_count)
+        and all(
+            _integer(value)
+            for value in (
+                snowflake_eligible,
+                snowflake_exact,
+                snowflake_within,
+                snowflake_mismatch,
+                pre_twitter,
+            )
+        )
+        and snowflake_exact <= snowflake_within <= snowflake_eligible
+        and snowflake_within + snowflake_mismatch == snowflake_eligible
+        and pre_twitter <= row_count
+        and (
+            (snowflake_eligible == 0 and snowflake_min is None and snowflake_max is None)
+            or (
+                snowflake_eligible > 0
+                and snowflake_min is not None
+                and snowflake_max is not None
+                and snowflake_min <= snowflake_max
+            )
+        )
+        and isinstance(anomaly_samples, list)
+        and len(anomaly_samples) <= 5
+        and len(anomaly_samples) <= snowflake_mismatch
     )
     checks = [
         SnapshotCheck(
@@ -81,6 +121,13 @@ def validate_dataset(
             and cutoff_min <= cutoff_max,
             f"min={dataset.get('created_at_min')}, max={dataset.get('created_at_max')}",
         ),
+        SnapshotCheck(
+            "dataset timestamp quality",
+            timestamp_quality_valid,
+            "eligible="
+            f"{snowflake_eligible}, within_1s={snowflake_within}, "
+            f"mismatch_gt_1s={snowflake_mismatch}, pre_twitter={pre_twitter}",
+        ),
     ]
     metrics = {
         "row_count": row_count,
@@ -90,5 +137,13 @@ def validate_dataset(
         "archive_upload_id_missing_rows": missing_upload,
         "archive_upload_linked_rows": linked,
         "sample_rows": sample_rows,
+        "snowflake_eligible_rows": snowflake_eligible,
+        "created_at_snowflake_exact_rows": snowflake_exact,
+        "created_at_snowflake_within_one_second_rows": snowflake_within,
+        "created_at_snowflake_mismatch_gt_one_second_rows": snowflake_mismatch,
+        "created_at_pre_twitter_rows": pre_twitter,
+        "snowflake_created_at_min": dataset.get("snowflake_created_at_min"),
+        "snowflake_created_at_max": dataset.get("snowflake_created_at_max"),
+        "created_at_anomaly_samples": anomaly_samples,
     }
     return checks, metrics

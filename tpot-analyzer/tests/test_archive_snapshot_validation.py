@@ -74,6 +74,14 @@ def _valid_manifest(snapshot_dir):
                 "archive_upload_id": 10,
             }
         ],
+        "snowflake_eligible_rows": 3,
+        "created_at_snowflake_exact_rows": 3,
+        "created_at_snowflake_within_one_second_rows": 3,
+        "created_at_snowflake_mismatch_gt_one_second_rows": 0,
+        "created_at_pre_twitter_rows": 0,
+        "snowflake_created_at_min": "2025-01-01T00:00:00+00:00",
+        "snowflake_created_at_max": "2026-07-25T00:00:00+00:00",
+        "created_at_anomaly_samples": [],
     }
     return create_snapshot_manifest(
         _metadata(8),
@@ -105,6 +113,48 @@ def test_inspection_rejects_numeric_snowflake_ids(tmp_path):
         inspect_enriched_tweets_parquet(path)
 
 
+def test_inspection_accepts_canonical_utc_string_timestamps(tmp_path):
+    path = tmp_path / "enriched_tweets.parquet"
+    table = pa.table(
+        {
+            "tweet_id": ["1", "2"],
+            "account_id": ["a", "b"],
+            "username": ["one", "two"],
+            "created_at": [
+                "2026-07-25 04:51:22+00",
+                "2025-01-01 00:00:00+00",
+            ],
+            "full_text": ["x", "y"],
+            "archive_upload_id": [10, None],
+        }
+    )
+    pq.write_table(table, path)
+
+    result = inspect_enriched_tweets_parquet(path)
+
+    assert result["created_at_min"] == "2025-01-01T00:00:00+00:00"
+    assert result["created_at_max"] == "2026-07-25T04:51:22+00:00"
+    assert result["sample_rows"][0]["created_at"] == "2026-07-25T04:51:22+00:00"
+
+
+def test_inspection_rejects_noncanonical_string_timezone(tmp_path):
+    path = tmp_path / "enriched_tweets.parquet"
+    table = pa.table(
+        {
+            "tweet_id": ["1"],
+            "account_id": ["a"],
+            "username": ["one"],
+            "created_at": ["2026-07-25 10:21:22+05"],
+            "full_text": ["x"],
+            "archive_upload_id": [10],
+        }
+    )
+    pq.write_table(table, path)
+
+    with pytest.raises(ValueError, match="canonical UTC"):
+        inspect_enriched_tweets_parquet(path)
+
+
 def test_verifier_returns_failed_check_for_non_object_manifest(tmp_path):
     snapshot_dir = tmp_path / "snapshot"
     snapshot_dir.mkdir()
@@ -125,6 +175,7 @@ def test_verifier_detects_cross_field_manifest_contradictions(tmp_path):
     manifest["source"]["content_length"] = 999
     manifest["dataset"]["archive_upload_linked_rows"] = 3
     manifest["dataset"]["archive_upload_id_missing_rows"] = 2
+    manifest["dataset"]["created_at_snowflake_mismatch_gt_one_second_rows"] = 1
     (snapshot_dir / "manifest.json").write_text(
         json.dumps(manifest),
         encoding="utf-8",
@@ -135,6 +186,7 @@ def test_verifier_detects_cross_field_manifest_contradictions(tmp_path):
 
     assert outcomes["source/local byte size"] is False
     assert outcomes["dataset row partition"] is False
+    assert outcomes["dataset timestamp quality"] is False
     assert outcomes["snapshot directory identity"] is True
 
 

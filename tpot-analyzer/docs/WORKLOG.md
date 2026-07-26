@@ -28,9 +28,14 @@
           2026-07-25 even though its release title said 2026-07-13, and the
           one-row live API probe reached 2026-07-26 versus the local
           2026-03-22 cutoff.
-        - `H2` confirmed for focused fixtures and the live metadata probe.
-          Full-body capture is intentionally deferred until this implementation
-          is committed, so the manifest can record a clean producer Git state.
+        - `H2` confirmed as a safety boundary. After commit `48f8daa`, the first
+          full-body attempt transferred all bytes with a clean producer Git
+          state, then refused to manifest because live `created_at` is a
+          canonical UTC string rather than the predicted Arrow timestamp.
+          The candidate remained incomplete and did not affect the baseline.
+        - The refined string parser rescanned all 8,318,250 rows successfully
+          and exposed 108 source/Snowflake disagreements larger than one second,
+          including five impossible pre-Twitter source timestamps.
         - `H3` retained as ADR 019's conservative data contract. The official
           pair-key upsert ingest does not delete absent following/follower
           pairs, so those source tables are themselves accumulated
@@ -40,9 +45,9 @@
           workflow.
         - `0.98` that a mid-transfer change visible through ETag,
           Last-Modified, length, or received bytes is rejected.
-        - `0.90` that the live Parquet schema matches the documented string-ID
-          and timezone-aware timestamp contract; full inspection is the next
-          falsification step.
+        - `0.99` that this snapshot's observed string-ID and canonical UTC
+          string-time schema is now represented accurately; the original Arrow
+          timestamp-only assumption was rejected by the full-file test.
     - **Fallback plan**
         - On validator, cap, schema, hash, or manifest failure, leave the frozen
           baseline active and do not create a commit-marker manifest. Re-probe
@@ -58,11 +63,15 @@
           temporary files plus no-clobber links.
         - `src/archive/snapshot_contract.py:1-25`: isolate filenames, schema
           version, required columns, and human-facing check records.
-        - `src/archive/snapshot_dataset_validation.py:1-94`: isolate dataset
-          count, partition, column, sample, and cutoff invariants.
-        - `src/archive/snapshot_manifest.py:1-204`: validate Parquet ID/time
-          types, scan dataset metrics, create provenance manifests, and publish
-          the manifest last without replacement.
+        - `src/archive/snapshot_dataset_validation.py:1-149`: isolate dataset
+          count, partition, column, sample, cutoff, and timestamp-quality
+          invariants.
+        - `src/archive/snapshot_inspection.py:1-204`: validate Parquet ID/time
+          representations and scan coverage, linkage, samples, and quality.
+        - `src/archive/snapshot_manifest.py:1-98`: create provenance manifests
+          and publish them last without replacement.
+        - `src/archive/snapshot_quality.py:1-147`: compare source timestamps
+          with eligible tweet Snowflake times and retain bounded anomalies.
         - `src/archive/snapshot_validation.py:1-226`: verify source/directory
           identity, structural types, cross-field byte/count invariants,
           required columns, cutoffs, code identity, and optional deep SHA-256.
@@ -74,8 +83,9 @@
         - `scripts/verify_community_archive_snapshot.py:1-103`: add the
           mandatory human verifier with deep hash by default and optional
           Parquet metric rescan.
-        - `tests/test_archive_snapshot*.py`: add 20 behavior-level tests for
-          transfer, validation, workflow, and CLI contracts.
+        - `tests/test_archive_snapshot*.py`: add 23 behavior-level tests for
+          transfer, schema/quality inspection, validation, workflow, and CLI
+          contracts.
         - `docs/adr/019-versioned-research-data-and-artifact-manifests.md`:
           record the accepted immutable-snapshot and future artifact-binding
           decision.
@@ -88,7 +98,7 @@
           confirmed TPOT node-alignment defect.
     - **Verification**
         - Focused TDD surface:
-          `20 passed` across transfer, structural validation, acquisition
+          `23 passed` across transfer, structural validation, acquisition
           workflow, and CLI tests.
         - Credential-free backend suite with normal clean-checkout write access:
           `1230 passed, 5 skipped, 20 warnings`.
@@ -99,13 +109,20 @@
           `"b07a2925eca027be751c5814fe3ddffe-54"`.
         - Probe-only output explicitly confirmed no body download and no file
           changes.
+        - First full transfer: 901,456,905 bytes received; strict inspection
+          rejected the string timestamp schema and wrote no manifest.
+        - Refined full-file scan: 8,318,250 rows, 34,684 accounts, source maximum
+          2026-07-25T04:15:29Z, Snowflake maximum
+          2026-07-25T04:15:29.758Z, 108 >1-second timestamp anomalies.
         - `make verify-baseline` on the host correctly rejected Node 26 because
           the repository/CI contract is Node 22; this repeats EXP-012's known
           runtime diagnostic and is unrelated to the Python snapshot surface.
         - All new implementation and test files are below 300 lines;
           `git diff --check` passes.
     - **Residuals**
-        - The full 901 MB corpus has not yet been downloaded or scanned.
+        - The full 901 MB corpus was downloaded and scanned, but the first
+          candidate remains deliberately unmanifested. It will be discarded
+          and reacquired after committing the refined schema/quality contract.
         - The tweet-only Parquet does not refresh following/follower topology;
           bounded raw-object inventory is separate future work.
         - Existing `store.py`/fetch CLI still have terminal-status, username

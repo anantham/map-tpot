@@ -26,7 +26,9 @@ src/archive/
 ├── snapshot.py          — remote probe and validated atomic bulk download
 ├── snapshot_contract.py — snapshot constants and human-facing check records
 ├── snapshot_dataset_validation.py — dataset count/schema/sample invariants
-├── snapshot_manifest.py — Parquet inspection and no-clobber manifest creation
+├── snapshot_inspection.py — Parquet schema, coverage, and quality inspection
+├── snapshot_manifest.py — provenance creation and no-clobber publication
+├── snapshot_quality.py  — Snowflake/source timestamp consistency metrics
 ├── snapshot_validation.py — structural, identity, hash, and metric validation
 ├── snapshot_workflow.py — download/reuse orchestration and commit-marker rules
 ├── store.py             — parse archive JSON and persist to archive_tweets.db
@@ -99,12 +101,14 @@ streaming cap, or an HTTP failure aborts the operation and removes the partial
 file. A successful file is flushed, `fsync`ed, and atomically published without
 overwriting an existing snapshot.
 
-`snapshot_manifest.py` then checks the expected Parquet columns and records:
+`snapshot_inspection.py` then checks the expected Parquet columns and records:
 
 - row and distinct-account counts;
 - full column inventory;
 - minimum and maximum tweet `created_at`;
 - rows linked to an archive upload versus rows with no upload ID;
+- source `created_at` coverage plus Snowflake-derived coverage, counts within one
+  second, larger mismatches, pre-Twitter timestamps, and bounded anomaly samples;
 - source validators, local byte size, and SHA-256; and
 - acquisition Git SHA and dirty state.
 
