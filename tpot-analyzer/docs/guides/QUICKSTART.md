@@ -8,15 +8,19 @@ Get the TPOT Analyzer running locally in under 10 minutes.
 
 | Tool | Version | Check Command |
 |------|---------|---------------|
-| Python | 3.9+ | `python3 --version` |
-| Node.js | 18+ | `node --version` |
-| npm | 9+ | `npm --version` |
+| Python | 3.11 | `python3.11 --version` |
+| Node.js | 22 | `node --version` |
+| npm | Bundled with Node 22 | `npm --version` |
 | Git | Any | `git --version` |
 
 **macOS**: Install missing tools with Homebrew:
 ```bash
-brew install python@3.11 node git
+brew install python@3.11 node@22 git
+export PATH="$(brew --prefix node@22)/bin:$PATH"
 ```
+
+**Windows**: use the Python launcher (`py -3.11 -m venv .venv`) and install
+Node 22 through your normal version manager.
 
 ---
 
@@ -28,7 +32,7 @@ git clone <your-repo-url>
 cd tpot-analyzer
 
 # Create Python virtual environment
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install Python dependencies
@@ -67,16 +71,27 @@ FLASK_DEBUG=1
 ## 3. Initialize Data
 
 The analyzer needs either:
-- **Option A**: Import from existing data (recommended for quick start)
+- **Option A**: Generate deterministic sample data (recommended for quick start)
 - **Option B**: Build from scratch (requires Twitter credentials)
 
-### Option A: Use Sample Data (Quick)
+Production datasets are gitignored. For research, preserve the source dataset
+as an immutable baseline and use an independent copy in `data/`; do not symlink
+or hardlink writable SQLite files into a working checkout.
+
+After copying research data, certify it against its source:
 
 ```bash
-# If you have a data dump:
-cp /path/to/your/shadow.db data/shadow.db
+python -m scripts.verify_assumption_baseline \
+  --require-data \
+  --source-data-dir /path/to/immutable/tpot-analyzer/data \
+  --hash-data \
+  --deep
+```
 
-# Or generate a deterministic local cache.db fixture:
+### Option A: Generate Sample Data (Quick)
+
+```bash
+# Generate a deterministic local cache.db fixture:
 python - <<'PY'
 from pathlib import Path
 from tests.fixtures.create_test_cache_db import create_test_cache_db
@@ -147,8 +162,8 @@ Open a **new terminal**:
 ```bash
 cd graph-explorer
 
-# Install Node dependencies (first time only)
-npm install
+# Install the exact lockfile dependencies (first time only)
+npm ci
 
 # Start Vite dev server (port 5173)
 npm run dev
@@ -184,11 +199,12 @@ cd graph-explorer && npm run dev
 
 | Task | Command |
 |------|---------|
-| Run tests | `make test` |
+| Verify baseline contracts | `make verify-baseline` |
+| Run credential-free backend tests | `make test-ci` |
+| Run every backend test | `make test` |
 | Rebuild graph | `python -m scripts.refresh_graph_snapshot` |
 | Check API health | `curl localhost:5001/api/health` |
 | Frontend E2E tests | `cd graph-explorer && npm run test:e2e:mock` |
-| Lint Python | `ruff check src/` |
 | Lint Frontend | `cd graph-explorer && npm run lint` |
 
 ---
@@ -221,8 +237,7 @@ python -m scripts.start_api_server
 ### Frontend won't start
 ```bash
 cd graph-explorer
-rm -rf node_modules
-npm install
+npm ci
 npm run dev
 ```
 
@@ -263,7 +278,7 @@ tpot-analyzer/
 
 1. **Explore the UI**: Navigate clusters, search accounts
 2. **Read the docs**: `docs/reference/` for API details
-3. **Run tests**: `pytest tests/ -v` to verify setup
+3. **Run checks**: `make verify-baseline && make test-ci` to verify setup
 4. **Customize**: Edit `config/graph_settings.json` for your preferences
 
 For GPU-accelerated spectral computation, see [GPU Setup Guide](GPU_SETUP.md).

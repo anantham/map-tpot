@@ -3,7 +3,7 @@
 Living backlog of follow-on work items. Update this document as new ideas,
 coverage gaps, or UX improvements surface.
 
-*Last updated: 2026-03-23*
+*Last updated: 2026-07-25*
 
 ---
 
@@ -82,6 +82,17 @@ These items were built but not tracked in the original Phase 4-8 roadmap below. 
 
 ## Testing Coverage
 
+- [x] Replace the clean-clone CI dependency on ignored
+  `data/graph_snapshot.spectral.npz` with the committed medium fixture at
+  granularities 25 and 40; make the cluster verifier use a sparse synthetic
+  adjacency plus temporary label DB and fail with explicit diagnostics
+  (implemented 2026-07-25).
+- Add a Node dependency-security upgrade lane. The 2026-07-25 lockfile install
+  reported 23 graph-explorer vulnerabilities (2 critical) and 4 high-severity
+  public-site vulnerabilities; remediate through reviewed dependency upgrades,
+  not an unbounded `npm audit fix --force`.
+- Add a CI assertion that local developer toolchain pins (`.python-version`,
+  `.nvmrc`) stay aligned with workflow Python/Node versions.
 - Expand Selenium worker coverage to browser lifecycle + scrolling workflows once
   reliable integration harness is available.
 - [x] Automate README graph snapshot insertion via `python -m scripts.analyze_graph --update-readme`
@@ -147,9 +158,24 @@ Full classification pipeline (all accounts)
 - [x] Thread context fetcher with local cache — pays for each thread once
   (`src/archive/thread_fetcher.py`, implemented 2026-02-25)
 - [x] **Complete community archive fetch for all 334 accounts** (`scripts/fetch_archive_data.py`)
-  — 394 ok, 19 no archive (accounts without uploaded archive). 5,553,228 tweets and
-  17,501,243 likes in DB. Archive fetch complete as of 2026-02-26.
+  — 394 ok, 19 no archive (accounts without uploaded archive). The systematic
+  fetch produced 5,553,228 tweets and 17,501,243 likes as of 2026-02-26; later
+  targeted additions brought the frozen 2026-07-25 local baseline to 5,553,430
+  tweets without constituting a full refresh.
 - [ ] Run data quality verification (`scripts/verify_archive_vs_cache.py`)
+- [ ] Design a snapshot-aware Community Archive refresh contract. The current
+  one-shot fetch log suppresses already-successful accounts before `--force`
+  can act, while `INSERT OR IGNORE` preserves a historical union rather than
+  upstream deletions/updates. Record per-account upstream snapshot identity,
+  fetch cutoff, row deltas, and tombstone policy before refreshing the
+  2026-03-22 baseline.
+- [ ] Unify runtime data configuration around an approved `TPOT_DATA_DIR` (or
+  equivalent manifest) so archive DB, cache DB, snapshot, and propagation
+  input/output paths cannot silently point at different vintages.
+- [ ] Add a versioned artifact manifest binding source Git SHA, database hashes,
+  row/date cutoffs, graph snapshot generation, propagation generation, seeds,
+  and model parameters; warn first, then reject incompatible topology and
+  semantic-propagation combinations.
 
 ### Golden Dataset Curation
 - [x] Simulacrum taxonomy theory doc (`docs/specs/simulacrum_taxonomy.md`)
@@ -391,6 +417,10 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Developer Experience
 
+- [x] Add clean-checkout toolchain pins, a non-deploying
+  `make verify-baseline`, and a read-only assumption-baseline verifier that
+  reports Git state, lock hashes, data-copy independence, hashes, SQLite
+  integrity/counts, and artifact freshness (implemented 2026-07-25).
 - [x] Document end-to-end enrichment + explorer refresh workflow in `docs/PLAYBOOK.md`
   (implemented 2026-02-09).
 - [x] Add `make` targets to standardize test and verification entrypoints
@@ -398,6 +428,8 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Decompose `docs/WORKLOG.md` and `docs/ROADMAP.md` into archived session
   slices or sub-docs; both are now >300 LOC and violate the repo's own
   working-set guidance for agents.
+- Decompose `docs/EXPERIMENT_LOG.md` into an index plus dated experiment
+  slices; it is also now >300 LOC and should not remain a growing monolith.
 - Decompose `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterView.jsx` and `tpot-analyzer/graph-explorer/src/data.js` into focused modules/hooks (<300 LOC each); current files exceed 1100 LOC and 700 LOC.
