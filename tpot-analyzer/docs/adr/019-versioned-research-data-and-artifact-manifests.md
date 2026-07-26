@@ -54,7 +54,7 @@ The acquisition workflow must:
    atomically publish the final Parquet path without replacing an existing file;
 7. inspect the Parquet schema and record row count, distinct account count,
    columns, minimum and maximum tweet `created_at`, archive-upload-linked rows,
-   and rows with no archive-upload ID; and
+   rows with no archive-upload ID, and source/Snowflake timestamp disagreements;
 8. write `manifest.json` atomically **last**, without replacing an existing
    manifest.
 
@@ -95,7 +95,9 @@ rather than relying on matching array lengths or filenames.
 
 - `ETag`, `Last-Modified`, and `Content-Length` are useful change validators but
   are not substitutes for a cryptographic content hash.
-- The canonical export retains tweet/account IDs as strings.
+- The canonical export retains tweet/account IDs as strings and may encode
+  `created_at` either as a timezone-aware Arrow timestamp or a canonical UTC
+  string.
 - Tweet `created_at` measures content coverage; source validators and upload
   metadata measure acquisition/ingestion freshness.
 - The enriched-tweet Parquet export does not establish a complete,
@@ -162,6 +164,8 @@ invariants, source identity, directory identity, required columns, byte length,
 SHA-256, dataset row partitions, time bounds, and acquisition-code identity. An
 optional Parquet rescan compares recorded dataset metrics with the file rather
 than inferring that every missing `archive_upload_id` came from streaming.
+Snowflake-derived bounds and bounded mismatch samples make upstream timestamp
+anomalies visible instead of silently treating textual `created_at` as truth.
 
 ## Related Decisions and Artifacts
 
@@ -172,7 +176,9 @@ than inferring that every missing `archive_upload_id` came from streaming.
 - `src/archive/snapshot.py`
 - `src/archive/snapshot_contract.py`
 - `src/archive/snapshot_dataset_validation.py`
+- `src/archive/snapshot_inspection.py`
 - `src/archive/snapshot_manifest.py`
+- `src/archive/snapshot_quality.py`
 - `src/archive/snapshot_validation.py`
 - `src/archive/snapshot_workflow.py`
 - `scripts/refresh_community_archive_snapshot.py`

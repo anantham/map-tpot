@@ -178,6 +178,10 @@ Full classification pipeline (all accounts)
 - [ ] Inventory raw archive freshness with bounded HEAD requests before any
   multi-gigabyte transfer; do not infer topology freshness from the tweet-only
   Parquet export.
+- [ ] Investigate and define downstream handling for the current bulk export's
+  108 source-`created_at`/Snowflake disagreements larger than one second,
+  including five impossible pre-Twitter timestamps. Use Snowflake-derived
+  cutoffs for eligible tweet IDs and preserve both values for auditability.
 - [ ] Unify runtime data configuration around an approved `TPOT_DATA_DIR` (or
   equivalent manifest) so archive DB, cache DB, snapshot, and propagation
   input/output paths cannot silently point at different vintages.
