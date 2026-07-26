@@ -36,6 +36,9 @@
         - The refined string parser rescanned all 8,318,250 rows successfully
           and exposed 108 source/Snowflake disagreements larger than one second,
           including five impossible pre-Twitter source timestamps.
+        - Attempt 2/3 reacquired the unchanged remote object after commit
+          `7b405bb`, wrote the manifest last, and passed independent deep hash
+          plus full Parquet verification. Snapshot acquisition is complete.
         - `H3` retained as ADR 019's conservative data contract. The official
           pair-key upsert ingest does not delete absent following/follower
           pairs, so those source tables are themselves accumulated
@@ -114,15 +117,22 @@
         - Refined full-file scan: 8,318,250 rows, 34,684 accounts, source maximum
           2026-07-25T04:15:29Z, Snowflake maximum
           2026-07-25T04:15:29.758Z, 108 >1-second timestamp anomalies.
+        - Completed snapshot:
+          `data/community_archive/snapshots/20260725T045122Z-4123f74b1a43/`;
+          SHA-256
+          `f40645e181976558f2e107528e9eebf90d82038881fdb886d759e973c3fd3667`;
+          producer `7b405bb5b56a83d2764ffb9598ae6279efd14a6f`,
+          `git_dirty=false`.
+        - Independent verifier recomputed the 901,456,905-byte file hash and
+          rescanned every dataset metric with zero failed checks.
         - `make verify-baseline` on the host correctly rejected Node 26 because
           the repository/CI contract is Node 22; this repeats EXP-012's known
           runtime diagnostic and is unrelated to the Python snapshot surface.
         - All new implementation and test files are below 300 lines;
           `git diff --check` passes.
     - **Residuals**
-        - The full 901 MB corpus was downloaded and scanned, but the first
-          candidate remains deliberately unmanifested. It will be discarded
-          and reacquired after committing the refined schema/quality contract.
+        - The first unmanifested candidate was explicitly removed and
+          reacquired; only the completed immutable snapshot remains.
         - The tweet-only Parquet does not refresh following/follower topology;
           bounded raw-object inventory is separate future work.
         - Existing `store.py`/fetch CLI still have terminal-status, username
