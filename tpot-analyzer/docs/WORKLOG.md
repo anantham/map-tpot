@@ -1,5 +1,101 @@
 # Worklog - TPOT Analyzer
 
+## Personal-Ontology Documentation Foundation (2026-07-26)
+
+- [2026-07-26 13:30 IST] **Specified overlapping discovery semantics,
+  budget-constrained evidence acquisition, and a local-first implementation
+  sequence (Codex GPT-5 with three independent computational-peer reviews)**
+    - **Goal**
+        - Turn the approved research direction into a documentation-only
+          foundation: an applied mission, precise task meanings, falsifiable
+          acquisition policy, USD 100 planned pilot, thin implementation
+          slices, and an explicit refactor/debt boundary.
+        - Reuse the existing Community Gold, frontier-ranking,
+          active-learning, enrichment-log, fetcher, and dossier surfaces rather
+          than designing parallel stacks.
+    - **Hypotheses and predicted outcomes**
+        - Independent affiliation heads should represent genuinely overlapping
+          communities more faithfully than normalized shares; this is rejected
+          if blind human judgments are reliably mutually exclusive or a
+          simplex/hierarchy calibrates better on equivalent evidence.
+        - Typed graph, content, interaction, artifact, and time-correct context
+          should improve retrieval over simple baselines; each modality is
+          rejected when cost-matched mask/reveal intervals show no practical
+          development gain.
+        - Local models may replace some hosted inference only if the frozen
+          benchmark meets schema, evidence-span, proper-score, and correction
+          thresholds. Installed weights alone are not implementation evidence.
+        - An adaptive policy should beat random, degree, entropy, and current
+          frontier baselines per dollar/human minute; it is rejected before
+          live expansion if retrospective value calibration fails.
+    - **Assumptions, confidence, and fallback**
+        - `0.95` that separating affiliation, competence, public participation
+          interest, style, and observed coverage removes a real semantic defect.
+        - `0.75` that local structured extraction will clear the registered
+          non-inferiority threshold; fallback is embeddings/statistical heads
+          plus pinned hosted audits, never unmeasured local routing.
+        - `0.65` that value-of-information ranking will beat the current
+          heuristic after selection-bias controls; fallback is the strongest
+          simple randomized or fixed baseline.
+        - No paid API call, model download, data mutation, label change, or
+          runtime behavior change is authorized by this phase.
+    - **Changes (files + intent)**
+        - `docs/VISION.md` and
+          `docs/product/2026-07-26-publishing-and-privacy-boundary.md`: define
+          the applied mission, four-part evidence architecture, overlapping
+          affinity language, remote-egress disclosure, and field-level
+          publication boundary without growing the vision into a monolith.
+        - `docs/adr/021-independent-overlapping-membership-and-evidence-semantics.md`:
+          separate task targets/coverage, evaluation integrity, reuse boundary,
+          decision-level falsifiers, and prior-ADR relationships.
+        - `docs/adr/022-budget-constrained-active-evidence-acquisition.md`:
+          define typed actions, development-risk reduction, constrained batch
+          policy, conditional local-first cascade, receipts, temporal controls,
+          random audit, and stop rules.
+        - `docs/experiments/2026-07-26-budgeted-personal-ontology-local-first-pilot.md`:
+          plan the USD 0/USD 10/USD 70/USD 20 tranches, exact 20% randomized
+          audit, quantitative falsifiers, egress allowlist, and sealed outcomes.
+        - `docs/experiments/2026-07-26-personal-ontology-evaluation-methods.md`:
+          freeze the eligible universe and probability sampling, separate
+          challenge/calibration/policy/extraction panels, define abstention and
+          the scalar primary endpoint, add a probability-audited novel-account
+          cohort, prohibit evaluation reuse, and distinguish offline policy
+          promotion from the terminal task-head test.
+        - `docs/plans/2026-07-26-personal-ontology-active-discovery-implementation.md`
+          and `personal-ontology-refactor-ledger.md`: sequence ten gated thin
+          slices and record keep/repair/retire, monolith, embedding-provenance,
+          and safe-parallelization debt.
+        - `docs/index.md` and `docs/ROADMAP.md`: index the new canonical
+          records, mark precise supersessions, retire stale price guidance, and
+          expose follow-on work.
+        - `scripts/verify_personal_ontology_docs.py`: read-only, human-facing
+          documentation contract verifier required by the phase.
+        - Final line map: `docs/VISION.md:1-224`, publishing boundary `:1-90`,
+          ADR 021 `:1-249`, ADR 022 `:1-267`, pilot `:1-268`, evaluation
+          methods `:1-251`, implementation plan `:1-274`, refactor ledger
+          `:1-108`, verifier `:1-217`, `docs/index.md:8-147`, and
+          `docs/ROADMAP.md:40-585`.
+    - **Documentation debt**
+        - `docs/PROJECT_STRUCTURE.md` is required by `AGENTS.md` but absent.
+          The refactor ledger records the gap; this phase does not invent a
+          replacement without determining the intended canonical source.
+        - `WORKLOG.md`, `ROADMAP.md`, and `EXPERIMENT_LOG.md` already exceed the
+          300-line working-set limit; decomposition remains tracked work.
+    - **Verification**
+        - Independent review rejected the first draft's purposive-panel
+          calibration, reusable test checkpoints, ordinary-bootstrap adaptive
+          stopping, additive mutual-information utility, and post-selectable
+          metrics. Final review also removed zero-probability evaluation roles
+          and scoped all population-weighted claims to \(U_{\mathrm{eval}}\).
+        - Final personal-ontology verifier: 14/14 passed. Existing docs-hygiene
+          verifier: 9/9 passed. Every new doc is below 300 lines and
+          `git diff --check` is clean.
+        - Python syntax compilation passed with `PYTHONPYCACHEPREFIX` directed
+          to `/tmp`; the first default-cache attempt failed descriptively
+          because the isolated clone could not create `scripts/__pycache__`.
+        - No entry is added to `docs/EXPERIMENT_LOG.md` because this phase runs
+          no scientific measurement.
+
 ## Frozen Membership and Discoverability Assumption Audit (2026-07-26)
 
 - [2026-07-26 11:53 IST] **Turned the approved assumption plan into
