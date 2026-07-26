@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from .base import BaseCommunityGoldStore
 from .candidates import CommunityGoldCandidateMixin
+from .candidate_pool import CommunityGoldCandidatePoolMixin
 from .evals import CommunityGoldEvaluationMixin
 from .methods import CommunityGoldMethodMixin
 from .reads import CommunityGoldReadMixin
@@ -13,6 +14,7 @@ class CommunityGoldStore(
     CommunityGoldReadMixin,
     CommunityGoldMethodMixin,
     CommunityGoldEvaluationMixin,
+    CommunityGoldCandidatePoolMixin,
     CommunityGoldCandidateMixin,
 ):
     """Unified community gold store composed from focused modules."""
