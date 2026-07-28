@@ -2,7 +2,216 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-26 (membership and discoverability assumption audit)*
+*Last updated: 2026-07-28 (personal-ontology Slice 1 final falsifiers)*
+
+---
+
+## EXP-018: Does the Slice 1 store enforce its holdout and identity claims?
+
+**Date:** 2026-07-26; amended 2026-07-28
+
+**Question:** Can a local versioned Community Gold adapter preserve legacy
+meaning, keep global account roles stable, prevent terminal-label leakage,
+separate predictions from human judgments, and make a terminal release
+one-use and reproducible?
+
+**Hypothesis:** An additive nullable migration plus immutable ontology/task,
+global-role, evidence, head, prediction, and release records should preserve
+legacy rows without invented scope. Purpose-gated SQL should exclude terminal
+labels from training, and adversarial direct writes should fail or be detected
+by stored digests.
+
+**Method:** Built behavior-first SQLite tests and a synthetic, network-blocked
+verifier. Falsifiers included reopening after corrections, stale/malformed
+migrations and triggers, same- and cross-registry account reassignment,
+ontology projection append, role alias collision, head deletion/rewind, empty
+or partial terminal release, sibling-task writes after release, forged terminal
+JSON/hashes, direct probability insertion, missing method output, terminal
+reads through training SQL, live GRF probability/interval wording, table/index
+name impersonation, post-write terminal actor/time tampering, a missing coverage
+denominator, zero/missing public graph signals, and malformed graph-settings
+JSON. The final hardening queue
+also tests a post-cutoff terminal head, incomplete full-judgment/lineage
+attestation, future-schema no-mutation, weakened partial-index predicates and
+UNIQUE/CHECK clauses, a silent schema marker, fractional counts, and nullable
+`TEXT PRIMARY KEY` columns. Three independent computational peers reviewed
+migration, access, evaluator, construct validity, and public claims.
+
+**Result:** **The seven hostile schema/release classes were reproduced and
+repaired on synthetic data, and A1 idempotent terminal replay is green.
+Real-use randomization, authenticated actor identity, and label-support gates
+remain open.**
+
+- Verifier: 6/6 checks passed with 12 global roles and nominal terminal
+  probability at least `0.166667`. This is a quota probability conditional on
+  uniform seed randomization, not proof that the caller-supplied seed was
+  committed before outcome knowledge.
+- Synthetic allocation: 4 model-development, 1 policy-development, 2 terminal,
+  and 3 frame-only accounts, plus fixed training/challenge identities.
+- Training returned only its development-role label at the raw SQL-query
+  boundary. The terminal release required all four account/group heads for one
+  reviewer, reported `in/out/abstain` and labelability coverage, and stored
+  frame, role, receipt, and release digests.
+- A second release and writes to any sibling frame sharing the global role
+  generation failed. Prediction records remained separate from five human
+  scoped-history rows.
+- `calibrated_probability` remained unavailable through both the store API and
+  direct SQL. Legacy diagnostics now report missing-score coverage and suppress
+  Brier/ECE; the live GRF surface reports affinity, heuristic uncertainty, and
+  coverage separately.
+- Missing expected-following data previously fabricated `1.0` coverage; it now
+  returns `value=null`, `status=unknown`. A zero public graph signal remains
+  zero, while a missing signal is displayed as unavailable rather than as
+  weakest evidence.
+- Full structural migration validation at the earlier checkpoint rejected
+  table/index impostors. The terminal access-envelope digest rejected
+  post-write mutation of the caller-asserted actor or access time; it did not
+  authenticate who supplied that actor.
+- Final falsification produced nine expected-failing tests covering ten concrete
+  hostile shapes (the weakened-CHECK test was parameterized). The shapes were a
+  post-cutoff terminal head, incomplete full-judgment/lineage attestation,
+  future-schema mutation, weakened partial index, weakened UNIQUE, two weakened
+  CHECK forms, silent schema marker, fractional count, and nullable text primary
+  key. After repair, the focused Community Gold suite passed 101/101.
+- Red-to-green surfaces: trigger regression 3/3; schema/migration guard 8/8;
+  adversarial head/prediction/migration/terminal/provenance 12/12; role/frame
+  20/20; membership endpoint 5/5; graph-explorer membership panel 4/4;
+  public EvidenceSummary 2/2; combined backend GRF/evaluator 17/17.
+- Prior integrated checkpoint, now superseded by final hardening: focused
+  backend 114/114; credential-free Python 1,425 passed and five skipped; public
+  site 189/189; graph explorer 730/730; synthetic verifier 6/6.
+- Final core handoff also passed the Slice 1 verifier 6/6 and its verifier unit
+  test 1/1; `git diff --check` was clean. The largest scoped implementation file
+  was 264 LOC and the largest regression file 260 LOC.
+- **A1 idempotent terminal replay — GREEN:** the RED phase deliberately
+  produced 11/11 expected failures across two focused files, covering
+  lost-response recovery; exact payload/`accessedAt` replay; actor, reviewer,
+  receipt, and frame conflicts; corruption; sealing; concurrent requests; no
+  post-commit reload; and HTTP 409 with no leaked rows. Final delivery tests pass
+  12/12, the broader Community Gold/Slice 1 surface passes 102/102, and the human
+  verifier passes 6/6. The first release fully verifies before commit and its
+  rollback test passes; an identical retry returns exact judgments/access
+  metadata, preserves `accessedAt`, uses one row, and marks `replayed=true`;
+  mismatches map to HTTP 409 with no rows; corruption fails closed; concurrent
+  calls converge; and the route no longer reloads post-commit. Maximum route
+  size is 270 LOC and the new delivery module is 262 LOC. `accessedBy` remains
+  caller-asserted.
+- The verifier test's socket hooks observed no network attempt; no real database,
+  label, model, provider, or external state was changed.
+- A separate architecture falsifier remains open: `list_anchor_polarities(ego)`
+  aggregates polarity across all tag keys and the membership endpoint/cache has
+  no ontology/task/community target. Synthetic binary endpoint results are
+  valid smoke checks, but they do not test overlapping multi-subculture
+  inference or cross-target isolation.
+- A no-filesystem malformed-settings stub made the GRF verifier print the
+  settings path and exact `JSONDecodeError` as a failed parse check; malformed
+  JSON no longer silently becomes an empty settings dictionary.
+- Independent final verification passed credential-free Python
+  `1,449 passed, 5 skipped`, public site `190/190`, graph explorer `741/741`,
+  Slice 1 `6/6`, documentation contracts `21/21`, documentation hygiene `9/9`,
+  GRF affinity smoke checks `10/10`, and both production frontend builds.
+  The graph explorer's repository-wide lint command separately exposed
+  `15` errors and `2` warnings in existing unrelated frontend debt, so this
+  experiment does not claim a clean full lint gate.
+
+**Lesson:** Passing happy-path tests was insufficient. Restart-time index
+recreation, mutable ontology/head/release state, caller-selected registry
+escape, frame-local rather than generation-level sealing, late filtering, and
+unverified payloads all survived the first implementation. A validated
+transactional migration, one registry per stable account, complete release
+coverage, and read-time recomputation are necessary to make “sealed”
+operational rather than rhetorical.
+
+**Next step:** Add a pre-allocation universe commitment plus independently
+auditable seed/randomization receipt, then review real identity receipts,
+strata, quotas, and negative/abstain labeling capacity before creating any
+non-synthetic frame. Keep probability language disabled until a compatible
+calibration record and untouched class support exist. Before live release,
+derive actor provenance from an authenticated principal; A1 now supplies safe
+idempotent lost-response replay. Before real membership inference, scope
+anchors, cache, and responses by immutable target ID and pass
+cross-target-isolation tests. Bind coverage numerator/denominator to compatible
+generation/as-of data.
+
+---
+
+## EXP-019: Why did graph-explorer lose localStorage under the full suite?
+
+**Date:** 2026-07-28
+
+**Question:** Were 43 graph-explorer failures evidence of application
+regressions, test contamination, or a runtime/toolchain mismatch?
+
+**Hypothesis:** Node 26's experimental global web-storage accessor was
+shadowing jsdom's `window.localStorage`. If true, disabling experimental web
+storage should make the four affected files pass without application changes.
+
+**Method:** Ran the ordinary full Vitest command, inspected the runtime/config,
+then reran `storage`, `discoveryCache`, `ClusterTour`, and `ClusterView`
+integration tests with `NODE_OPTIONS=--no-experimental-webstorage`. Added a
+conditional, standards-shaped in-memory `Storage` in test setup only when
+jsdom storage is unusable, then reran both the focused set and ordinary full
+command.
+
+**Result:** **Confirmed.** The initial ordinary run had 687 passes and 43
+localStorage-only failures. Disabling Node's experimental web storage produced
+107/107 focused passes. The conditional setup repair produced 107/107 without
+the flag and 730/730 on the ordinary full suite. No application storage code
+was changed.
+
+**Lesson:** A new runtime global can shadow a browser emulator even though the
+test environment is configured as jsdom. Patching product storage behavior
+would have hidden the root cause; the correct seam was conditional test
+environment setup.
+
+**Next step:** Pin a supported Node version for CI/developer parity or remove
+the shim after Vitest/jsdom no longer expose the Node 26 conflict. The runtime
+still emits an experimental-webstorage warning before setup executes.
+
+---
+
+## EXP-017: Can the imported Community Gold rows calibrate a versioned task?
+
+**Date:** 2026-07-26
+
+**Question:** What is actually present in the existing Community Gold tables,
+and can migration safely attach a personal ontology or calibration meaning?
+
+**Hypothesis:** Existing rows should migrate without loss, but their identity,
+class balance, evidence provenance, and correction history must determine
+whether they can enter a versioned task.
+
+**Method:** Queried the local archive database read-only through SQLite's
+immutable-URI connection mode. That mode prevented writes through the
+connection; it did not prove that the source artifact itself was immutable.
+Counted label/split/reviewer/judgment/history rows, inspected evidence keys and
+creation times, classified account-ID forms, and checked available
+alias-to-numeric mappings. No path-independent snapshot ID, size, mtime,
+SHA-256, or query receipt was recorded.
+
+**Result:** **The observed source shape was migration-compatible; calibration
+eligibility was decisively rejected.**
+
+- 167 label rows and 167 split rows, all active: 113 train, 25 development,
+  and 29 test.
+- All 167 judgments are `in`; there are zero `out`, zero `abstain`, and zero
+  supersessions. The only reviewer is `curator:adityaarpitha`.
+- Evidence contains only `handle` and `source`; creation spans less than one
+  second on 2026-03-21.
+- IDs comprise 81 `shadow:*`, 54 `handle:*`, and 32 numeric values. At least 61
+  shadow and 4 handle identifiers have candidate numeric profile mappings, but
+  no immutable resolution receipt binds them.
+
+**Lesson:** These rows are imported positive membership evidence, not a
+binary calibration or untouched evaluation set. Automatically assigning user,
+ontology, task, stable account, evidence generation, or negative meaning would
+fabricate semantics.
+
+**Next step:** Preserve every row as `legacy_unbound`. Build explicit
+identity-resolution receipts and collect blinded `out`/`abstain` judgments in
+a frozen frame before estimating calibration or prevalence-sensitive metrics.
+Capture a deep-hashed source/query manifest before reusing these point-in-time
+counts; they are not evidence that the Community Archive corpus was latest.
 
 ---
 

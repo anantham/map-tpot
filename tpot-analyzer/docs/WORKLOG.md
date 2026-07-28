@@ -1,5 +1,276 @@
 # Worklog - TPOT Analyzer
 
+## Personal-Ontology Slice 1 — Evaluation Integrity (2026-07-26)
+
+- [2026-07-28 12:13 IST] **Independent final release verification
+  (Codex GPT-5)**
+    - **Outcome**
+        - Credential-free Python: `1,449 passed, 5 skipped`, with 20 existing
+          SciPy sparse-efficiency warnings.
+        - Public site: `190/190` tests passed; the production Vite build
+          completed successfully.
+        - Graph explorer: `741/741` tests passed; the production Vite build
+          completed successfully. Existing Node experimental-storage,
+          React `act(...)`, dynamic-import, and bundle-size warnings remain
+          non-failing.
+        - Human verifiers: Slice 1 `6/6`, documentation contracts `21/21`,
+          documentation hygiene `9/9`, and GRF affinity smoke checks `10/10`.
+        - `git diff --check` passed after the documentation integration.
+    - **Files verified**
+        - Community Gold and regression surfaces under
+          `src/data/community_gold/`, `src/api/routes/community_gold_integrity.py`,
+          `tests/test_*community_gold*`, `tests/test_slice1_*`, and
+          `tests/test_terminal_delivery*.py`.
+        - Score-contract surfaces under `src/api/cluster/`,
+          `src/graph/membership_grf.py`, `graph-explorer/src/`, and
+          `public-site/src/`.
+        - Methodology records and human-readable verifiers under `docs/` and
+          `scripts/verify_*`.
+    - **Non-blocking debt found**
+        - The full graph-explorer lint command is not green: `15` errors and
+          `2` warnings remain across pre-existing `ClusterTour`, `Labeling`,
+          `TweetCard`, test-import, empty-catch, Fast Refresh, and hook
+          dependency debt. The changed membership assertions/builds/tests are
+          green, but this release does not claim a repository-wide lint pass.
+          The stale completed roadmap item was reopened rather than expanding
+          this integrity slice into an unrelated frontend cleanup.
+
+- [2026-07-28 11:24 IST] **Adversarial integrity and score-semantics hardening
+  (Codex GPT-5 with three read-only computational-peer audits)**
+    - **Hypotheses and falsifiers**
+        - Complete table/index structural validation should reject
+          name-compatible migration impostors; the falsifier was a malformed
+          table or partial index accepted by preflight/postflight.
+        - A terminal access envelope should bind the stored actor assertion and
+          time as well as frame, release, roles, and label heads; the falsifier
+          was post-write `accessed_by`/`accessed_at` tampering that still
+          verified. This detects mutation but does not authenticate the actor.
+        - Final schema/release falsifiers were: a terminal head
+          created after the release cutoff; incomplete attestation of full
+          judgment history and lineage; mutation when opening a future-schema
+          database; weakened partial-index predicates or UNIQUE/CHECK clauses;
+          a silent/absent schema marker; fractional count values; and nullable
+          `TEXT PRIMARY KEY` columns. Nine expected-failing tests represented
+          ten concrete hostile shapes because the weakened-CHECK case was
+          parameterized; the repaired focused suite passed 101/101.
+        - Per-target anchor isolation should prevent one subculture label from
+          changing another. The current falsifier is that
+          `list_anchor_polarities(ego)` aggregates across tag keys while the
+          endpoint/cache has no ontology/task/community target.
+        - Missing expected-following data must remain unknown; the falsifier
+          was the prior fabricated `1.0` coverage.
+        - GRF output, entropy/degree uncertainty, public-card intensity, and
+          NMF shares must survive explicit zero/missing cases without becoming
+          probabilities or confidence intervals.
+        - Node 26's experimental global web storage, rather than product code,
+          caused the graph-explorer full-suite failures; prediction was that
+          disabling it would restore jsdom `localStorage`.
+    - **Changes (files + current line ranges)**
+        - `src/data/community_gold/migration_table_specs.py:1-208`,
+          `migration_table_contracts.py:1-112`, and
+          `migration_index_contracts.py:1-101` validate NOT NULL, CHECK,
+          foreign-key, UNIQUE, index-column, uniqueness, and partial-predicate
+          structure.
+        - `src/data/community_gold/terminal_access_envelope.py:1-86` binds
+          frame, registry, caller-asserted actor, time, access receipt, release
+          manifest, and released-head count; verification recomputes the
+          envelope but does not authenticate the original assertion.
+        - `src/data/community_gold/integrity_triggers.py:1-176` and
+          `ontology_frame_triggers.py:1-137` split trigger responsibilities
+          below 300 lines without changing their registry.
+        - `src/api/cluster/membership_coverage.py:1-35`,
+          `src/graph/membership_grf.py:1-186`, and the graph-explorer/public
+          evidence surfaces preserve unknown coverage and use uncalibrated
+          affinity/heuristic-signal language.
+        - `public-site/src/About.jsx`,
+          `CommunityCard.jsx:1-245`, and `App.jsx:19-267` distinguish
+          compositional NMF shares, PPR Lift, GRF affinity, heuristic
+          uncertainty, and coverage; unregistered intervals are hidden and
+          the acquisition flywheel is labeled planned.
+        - `graph-explorer/src/setupTests.js:1-63` supplies a conditional
+          standards-shaped in-memory `Storage` only when Node 26 shadows
+          jsdom's implementation.
+        - `public-site/src/About.jsx`, ADR 012/013 dated amendments,
+          `docs/modules/communities.md`, `docs/index.md`, `docs/ROADMAP.md`, this
+          worklog, EXP-018, and the Slice 1 plan/debt ledger record producer-specific
+          edge views, legacy empirical caveats, score/coverage semantics, actor
+          and delivery limits, target-collapse risk, and remaining provenance debt.
+        - `scripts/verify_personal_ontology_docs.py` now protects ADR 007,
+          ADR 011, ADR 012, and ADR 013 amendments. Their declarative needles
+          were extracted to `scripts/_personal_ontology_adr_contracts.py`, keeping
+          the verifier at 291 LOC and the helper at 51 LOC.
+          `scripts/verify_membership_grf.py` reports the settings path and exact
+          JSON read/parse error instead of silently replacing malformed input.
+    - **Verification**
+        - Prior integrated checkpoint (superseded by the final hardening):
+          focused backend 114/114; credential-free Python 1,425
+          passed/five skipped; public site 189/189; graph explorer 730/730;
+          synthetic verifier 6/6.
+        - Final hostile-shape falsification: nine expected failures covering ten
+          concrete shapes. After repair: focused Community Gold 101/101,
+          synthetic Slice 1 verifier 6/6, and verifier unit test 1/1.
+          Largest scoped implementation file: 264 LOC; largest regression file:
+          260 LOC.
+        - **A1 idempotent terminal replay — GREEN:** the RED phase
+          deliberately produced 11/11 expected failures across two focused test
+          files. They cover lost-response recovery; exact payload/`accessedAt`
+          replay; actor, reviewer, receipt, and frame conflicts; corruption;
+          sealing; concurrent requests; no post-commit reload; and HTTP 409 with
+          no leaked rows. Final delivery tests pass 12/12, the broader Community
+          Gold/Slice 1 surface passes 102/102, and the human verifier passes 6/6.
+          The first release fully verifies before commit and its rollback test
+          passes; an identical retry returns exact judgments/access metadata,
+          preserves the original `accessedAt`, uses one row, and marks
+          `replayed=true`; conflicts map to HTTP 409 with no rows; corruption
+          fails closed; concurrent calls converge; and the route no longer
+          reloads after commit. Maximum route size is 270 LOC and the new
+          delivery module is 262 LOC. `accessedBy` remains caller-asserted.
+        - Documentation contract: 21/21; docs hygiene: 9/9; standalone GRF
+          affinity verifier: 10/10. The first docs run exposed one case-sensitive
+          verifier needle (20/21); correcting that contract produced 21/21.
+          A no-filesystem malformed-settings stub emitted the precise
+          `JSONDecodeError` and failed its parse check instead of silently
+          substituting empty settings.
+        - Core handoff and final documentation integration both passed
+          `git diff --check`.
+    - **Limits**
+        - No live/archive refresh, API request, provider/LLM inference, external
+          write, or paid action occurred. Synthetic GRF/evaluator computation is
+          not a live model run. Public empirical counts remain point-in-time
+          until a source/run manifest is exposed.
+        - The public export still mixes NMF/bits shares, classic simplex values,
+          and independent Lift under one `weight` field. Explicit per-score
+          semantics remain required before the card can format every producer
+          without ambiguity.
+        - A1 now handles lost-response retry through exact idempotent replay,
+          but a shared curator token still does not authenticate `accessed_by`.
+          Principal-derived actor identity remains a live-release gate.
+        - Membership anchors, cache, and response are not target-scoped, so
+          synthetic binary tests do not validate overlapping multi-subculture
+          inference. Coverage is also unknown when numerator and denominator
+          lack compatible source/generation/as-of provenance.
+
+- [2026-07-26 16:29 IST] **Implemented a synthetic-only, fail-closed
+  ontology/holdout substrate (Codex GPT-5 with three independent
+  computational-peer audits)**
+    - **Goal**
+        - Extend the existing Community Gold adapter with versioned personal
+          ontology/task identity, immutable global account roles, typed score
+          semantics, append-only human judgments, and a one-use terminal
+          release before modeling or paid acquisition begins.
+        - Preserve the 167 imported labels without fabricating ontology,
+          evidence-generation, stable-identity, negative, or calibration
+          meaning.
+    - **Hypotheses and falsifiers**
+        - `H1` (`0.90`): an additive nullable migration preserves legacy rows;
+          falsifier was row/identity drift or restart failure.
+        - `H2` (`0.85`): caller-supplied role catalogs, strata, and integer
+          quotas yield deterministic exclusive roles and nominal quota
+          probabilities conditional on a genuinely precommitted random seed;
+          falsifiers were registry reuse, cross-registry reassignment,
+          whitespace split-brain, missing accounts, or nonpositive terminal
+          probability. A seed/randomization receipt remains a real-use gate.
+        - `H3` (`0.90`): purpose-gated reads keep terminal labels out of
+          training/selection; falsifiers were returned or SQL-fetched sealed
+          heads, repeated terminal access, or post-release writes.
+        - `H4` (`0.95`): structurally separate predictions cannot masquerade
+          as judgments; falsifiers were legacy/scoped leakage, mutable payloads,
+          missing score semantics, or a forgeable probability claim.
+        - `legacy_unbound` remains a curator-authenticated writable
+          compatibility surface, isolated from versioned study reads and
+          excluded from scientific evaluation. No parallel database/store was
+          introduced.
+    - **Initial failures that paid down assumptions**
+        - Reopening after two valid scoped corrections recreated the legacy
+          global unique index and raised `IntegrityError`.
+        - Extra role rows were ignored by projection verification.
+        - A corrupt terminal row consumed the one-use receipt before failing.
+        - The same role-registry ID accepted a different seed/allocation; a new
+          caller-selected registry could reassign the same accounts; terminal
+          release did not seal sibling task frames; empty or reviewer-filtered
+          releases burned the holdout; ontology groups remained appendable;
+          judgment heads could be deleted/rewound; and earlier schema-v2 shapes
+          were not upgradable transactionally.
+        - Arbitrary hashes could claim `calibrated_probability`; prediction and
+          terminal receipt/manifest hashes were not recomputed; role whitespace
+          produced a later access `KeyError`; missing method outputs became
+          score zero; the legacy evaluator emitted Brier/ECE for uncalibrated
+          scores; and the live GRF API/UI called a coverage-blended affinity a
+          probability with a fabricated 95% interval.
+        - Behavior-first tests reproduced each defect before the corresponding
+          migration, trigger, registry, digest, canonicalization, query, or
+          release-manifest repair.
+    - **Changes (files + intent)**
+        - `src/data/community_gold/`: transactional additive schema version 3;
+          validated upgrades from the earlier v2 access shape; replace-on-open
+          integrity triggers; immutable
+          ontology/group/task projections; global role registry; frozen frame
+          projection; evidence-bound append-only judgment heads; SQL-level
+          purpose access; separate immutable predictions; generation-level
+          sealing; complete single-reviewer terminal coverage manifests;
+          tamper-checked access receipts; future-schema refusal; and explicit
+          `legacy_unbound` compatibility filtering.
+        - `src/data/community_gold/candidate_pool.py` was extracted in commit
+          `17217a0` before role work; pure frame/allocation contracts landed in
+          `549de93`. New responsibilities remain in focused files below 300
+          lines.
+        - `src/data/community_gold/evals.py` and
+          `evaluation_reporting.py` restrict the legacy evaluator to
+          train→development diagnostics, report prediction missingness and
+          development class support, keep calibration eligibility false, and
+          suppress Brier/ECE until registered probabilities exist.
+        - `src/api/cluster/membership.py` and
+          `graph-explorer/src/AccountMembershipPanel.jsx` now expose the live
+          GRF result as uncalibrated `affinity`; evidence coverage and heuristic
+          uncertainty remain separate and no confidence interval is claimed.
+        - `src/api/routes/community_gold_integrity.py`,
+          `src/api/routes/community_gold.py`, and `src/api/server.py`: register
+          the canonical route family in the production factory and protect
+          every Community Gold route with the existing fail-closed curator
+          token.
+        - `scripts/_personal_ontology_slice1_fixture.py`,
+          `_personal_ontology_slice1_checks.py`, and
+          `verify_personal_ontology_slice1.py`: network-free synthetic verifier
+          with explicit checks, complete in/out/abstain terminal coverage,
+          nominal inclusion probability, digests, and next steps.
+        - Focused behavior tests cover migration/restart, frame/role identity,
+          global registry reuse, history/head integrity, legacy isolation,
+          prediction immutability, sealed release, API/auth behavior, evaluator
+          claims, and verifier network isolation.
+    - **Empirical legacy baseline**
+        - A read-only point-in-time SQLite inspection found 167/167 active labels,
+          all `in`, one reviewer, no corrections, only `handle`/`source`
+          evidence, and mixed 81 shadow / 54 handle / 32 numeric IDs.
+          No source hash/snapshot/query receipt was recorded, so this is not an
+          immutable baseline or freshness claim.
+        - These rows cannot calibrate; they remain `legacy_unbound`. Candidate
+          alias mappings are not accepted without immutable receipts.
+        - Full method and result records are EXP-017 and EXP-018 in
+          `docs/EXPERIMENT_LOG.md`.
+    - **Verification**
+        - Final focused Community Gold, personal-ontology, adversarial
+          migration, route/auth, verifier, and GRF semantics surface: 114 tests
+          passed.
+        - Final credential-free suite: 1,425 passed with five expected skips
+          and zero failures.
+        - Synthetic verifier: 6/6 passed; role mix
+          `4 model-development / 1 policy-development / 2 terminal / 3
+          frame-only`, four complete terminal heads spanning `in/out/abstain`,
+          nominal minimum terminal probability `.166667`, and content-addressed
+          frame/role/release digests.
+        - No real ontology, role, judgment, prediction, release, API request,
+          provider/LLM inference, data download, or paid action occurred.
+          Synthetic GRF/evaluator computation did run.
+    - **Residuals**
+        - Real identity resolution, seed precommit/randomization proof,
+          quotas/strata, explicit real negatives and abstentions, 20/20 class
+          support, calibration records, simplex-vector finalization, and IPW
+          versioned evaluation remain future work.
+        - Community Gold UI modules remain orphaned and reveal model/group
+          information; they were intentionally not wired.
+        - Historical acquisition holdout fail-open behavior is outside Slice 1
+          and must be repaired before spend.
+
 ## Personal-Ontology Documentation Foundation (2026-07-26)
 
 - [2026-07-26 13:30 IST] **Specified overlapping discovery semantics,

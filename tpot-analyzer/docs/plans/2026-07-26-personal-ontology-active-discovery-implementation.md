@@ -1,7 +1,7 @@
 # Personal-Ontology Active Discovery — Thin-Slice Implementation Plan
 
 - Date: 2026-07-26
-- Status: Ready for implementation after documentation verification
+- Status: Slice 1 implemented 2026-07-26 and adversarially hardened/reverified 2026-07-28; Slices 2–9 pending
 - Governing decisions: ADR 021 and ADR 022
 - Research protocol: `docs/experiments/2026-07-26-budgeted-personal-ontology-local-first-pilot.md`
 - Evaluation methods:
@@ -31,17 +31,22 @@ criteria explicitly permit it.
 3. Keep compatibility shims until callers and tests migrate.
 4. Preserve frozen controls and outputs; publish new generations.
 5. Stop on schema guessing, silent failure, leakage, or ambiguous provenance.
-6. Before first modifying a file above 300 lines, extract the touched
-   responsibility in a separate behavior-preserving mini-slice and commit.
+6. Before first modifying a file above 300 lines, normally extract the touched
+   responsibility in a separate behavior-preserving mini-slice. Narrow 2026-07-28
+   scientific-contract corrections were an explicit no-new-responsibility exception;
+   every affected monolith remains tracked debt and the exception does not repeat.
 
 ## Slice 0 — Documentation and preregistration
 
-Status: this branch. Deliver the vision, ADRs, pilot/methods, plan/debt ledger,
-index/roadmap/worklog, and verifier. Exit only when both docs verifiers pass,
-new docs stay below 300 lines, `git diff --check` is clean, and no application,
-data, label, model, API, or external state changed.
+Status: complete on 2026-07-26. The vision, ADRs, pilot/methods, plan/debt
+ledger, index/roadmap/worklog, and both documentation verifiers changed no
+application, data, label, model, API, or external state.
 
 ## Slice 1 — Evaluation integrity and ontology identity
+
+Status: implemented on `codex/personal-ontology-slice-1` on 2026-07-26 using
+synthetic temporary databases only. No real ontology, study frame, judgment,
+prediction, terminal release, API call, model run, or spend was created.
 
 Goal: make the target and holdout impossible to confuse before modeling.
 
@@ -54,7 +59,8 @@ Changes:
 - add user/ontology/version identity to community judgments and predictions;
 - freeze \(U_0\), training/challenge exclusions, \(U_{\mathrm{eval}}\),
   mask/reveal \(U_{\mathrm{rich}}\), novel-candidate/OOD rules, inclusion
-  probabilities, and one mutually exclusive global account-role allocation;
+  probabilities conditional on precommitted randomization, and one mutually
+  exclusive global account-role allocation;
 - persist evidence/context hashes and observation timestamps;
 - preserve supersession;
 - prohibit test reads from training/selection paths;
@@ -69,9 +75,28 @@ Predicted verification:
 - old records migrate/read without fabricated ontology meaning;
 - evaluator refuses positive-only calibration.
 
-Fallback: keep legacy tables read-only behind the one canonical Community Gold
-adapter. A migration-shadow table is temporary only, has no independent write
-API, and must have explicit parity and retirement criteria.
+Fallback intent: keep legacy tables read-only behind the one canonical
+Community Gold adapter. Current implementation deviation: authenticated legacy
+upsert/delete routes remain writable for compatibility. Versioned scientific
+reads exclude those `legacy_unbound` rows, but the mutation surface must be
+frozen, retired, or explicitly audited before a real study. A migration-shadow
+table is temporary only, has no independent write API, and must have explicit
+parity and retirement criteria.
+
+Implementation note: legacy Community Gold remains an explicit `legacy_unbound`
+surface. Versioned studies use immutable ontology/task/group projections, global
+roles, SQL purpose filtering, append-only heads, separate predictions, shared-token
+curator auth, and idempotent terminal delivery. The first release verifies before
+commit and an identical retry returns the exact original payload/access metadata
+from one row. Live use is still blocked until `accessed_by` comes from an
+authenticated principal; A1 replay does not authenticate that caller assertion.
+The current membership path is also only a synthetic binary substrate:
+`list_anchor_polarities(ego)` aggregates all tag keys and the endpoint/cache has
+no ontology/task/community target. Scope anchors, cache, and response by immutable
+target ID and pass cross-target isolation before overlapping-subculture inference.
+Evidence-coverage numerator and denominator must share a snapshot generation/as-of
+contract. Probability and design-based claims still require compatible calibration
+and independently auditable pre-allocation receipts.
 
 ## Slice 2 — Backend-neutral inference receipts
 

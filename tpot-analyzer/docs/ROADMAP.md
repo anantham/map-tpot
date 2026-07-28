@@ -3,7 +3,7 @@
 Living backlog of follow-on work items. Update this document as new ideas,
 coverage gaps, or UX improvements surface.
 
-*Last updated: 2026-07-26*
+*Last updated: 2026-07-28*
 
 ---
 
@@ -87,12 +87,56 @@ round” checklist as an approved spend plan.
 
 ## Testing Coverage
 
-- Implement the sealed account-level evaluation and local-model benchmark in
-  the [personal-ontology plan](plans/2026-07-26-personal-ontology-active-discovery-implementation.md):
-  frozen eligible universe, probability-sampled calibration/test accounts,
-  separate purposive challenge and policy panels, explicit abstention,
-  graph-blind extraction, source/degree/time strata, and one terminal test
-  release.
+- Replace `public-site/src/App.test.jsx`'s copied card-opacity/message helper
+  formulas with rendered public-component behavior tests; the copied formulas
+  can pass while production semantics change.
+- [x] Implement the Slice 1 account-level integrity substrate in the
+  [personal-ontology plan](plans/2026-07-26-personal-ontology-active-discovery-implementation.md):
+  versioned ontology/task identity, frozen eligible universe and global roles,
+  nominal quota probabilities, SQL-level purpose isolation, append-only
+  judgments, separate prediction semantics, curator auth, and a complete
+  generation-level one-use terminal release manifest (synthetic-only
+  substrate implemented 2026-07-26; adversarial hardening and final local
+  verification performed 2026-07-28).
+- **Next implementation slice / high-priority research gate:** scope working anchors, membership cache keys,
+  and membership responses by `ego + ontology/task/community target` (or an
+  equivalent immutable target ID). `AccountTagStore.list_anchor_polarities(ego)`
+  currently aggregates polarity across every tag key and the membership endpoint
+  has no target parameter, collapsing different subculture judgments into one
+  binary GRF. Synthetic binary endpoint tests remain useful, but real overlapping
+  multi-subculture inference is blocked until a cross-target-isolation test proves
+  that changing one target cannot affect another target's anchors or cached result.
+- Authenticate the terminal-release actor from a principal rather than accepting
+  `accessed_by` as a caller assertion under a shared curator token. The current
+  envelope detects post-write tampering but does not establish who created it.
+- [x] Add A1 idempotent terminal replay for lost-response recovery. The first
+  release verifies before commit; an identical retry replays the exact payload
+  and original access metadata from one row; conflicts return HTTP 409 without
+  rows; corruption fails closed; and concurrent calls converge (delivery tests
+  12/12, broader Community Gold/Slice 1 102/102, human verifier 6/6;
+  implemented 2026-07-28). This does not authenticate caller-asserted
+  `accessed_by`; principal-derived identity remains the separate gate above.
+- Bind evidence-coverage numerators and denominators to the same source snapshot,
+  generation, and as-of time; otherwise return unknown/incompatible.
+- Create the first real evaluation frame only after reviewing stable account
+  identity receipts, source/degree/time strata, quotas, explicit
+  negative/abstain budget, minimum 20/20 labelable class support, and an
+  independently auditable pre-allocation seed/randomization receipt. Slice 1
+  creates no real ontology, roles, labels, or design-based/calibration claim.
+- Bind that receipt to the role-registry ID, ordered eligible-universe hash,
+  normalized roles, strata, integer quotas, randomization seed/algorithm,
+  allocator code identity, timestamp, and an externally auditable pre-outcome
+  commitment.
+- Add an immutable generation-extension/supersession protocol before an account
+  can join a later global-role registry; caller-selected registry IDs must
+  never reassign an existing account.
+- Bind frozen frames directly to ontology/task definition hashes so portable
+  replay does not depend on mutable lookup context.
+- Add an atomic prediction-vector finalization record before treating stored
+  `simplex` scalars as a complete sum-to-one composition.
+- Do not confuse complete terminal-head coverage with adequate class support;
+  gate real evaluation separately on labelable positive/negative support and
+  report abstention.
 - Add time-matched, wrong-time, and placebo-context ablations so news/trend
   features cannot leak later knowledge into historical interpretations.
 - Calibrate predicted versus realized action value under mask/reveal before any
@@ -145,10 +189,12 @@ round” checklist as an approved spend plan.
 - [x] Ensure expansion-strategy environments pin `python-louvain` (module
   `community`) via `requirements.txt` and ship dependency-contract verifier
   (`scripts/verify_louvain_dependency_contract.py`) (implemented 2026-02-21).
-- [x] Resolve remaining `react-hooks/exhaustive-deps` warnings in
-  `graph-explorer/src/ClusterCanvas.jsx` and `graph-explorer/src/ClusterView.jsx`
-  so `npm run lint` is fully warning-free and hook dependency semantics are explicit
-  (implemented 2026-02-25).
+- [ ] Restore the graph-explorer repository-wide lint gate. A 2026-07-28 full
+  run found `15` errors and `2` warnings across pre-existing empty catches,
+  Fast Refresh export boundaries, unused imports/locals, and hook dependencies
+  in `ClusterTour`, `ClusterView`, `Labeling`, `TweetCard`, and several tests.
+  This supersedes the earlier “fully warning-free” completion note; keep the
+  cleanup separate from the personal-ontology integrity slice.
 - Replace ClusterView utility reimplementation tests with exported helpers or
   behavioral flows (remove reimplementation markers in
   `tpot-analyzer/graph-explorer/src/ClusterView.test.jsx`).
@@ -160,8 +206,9 @@ round” checklist as an approved spend plan.
 - Add a richer local-context path for Phase 1 hard negatives (API fetch or
   cached external post samples) so famous-adjacent reviews are not bio-only.
 - Split the append-only `WORKLOG.md`, `ROADMAP.md`, and `EXPERIMENT_LOG.md`
-  into indexed yearly or phase files. They are already 1,183, 455, and 489
-  lines respectively, beyond the 300-line agent-context threshold.
+  into indexed yearly or phase files. All three are already far beyond the
+  300-line agent-context threshold; preserve their history through indexed
+  archives rather than rewriting it.
 
 ---
 
@@ -331,21 +378,25 @@ their personal taxonomy over the shared embedding.
 - [x] `AccountTagStore` — per-ego, per-account tagging with polarity + confidence
   (`src/data/account_tags.py`)
 - [x] `AccountTagPanel.jsx` — tag CRUD in graph explorer
-- [x] `AccountMembershipPanel.jsx` — GRF membership probability with uncertainty
+- [x] `AccountMembershipPanel.jsx` — uncalibrated GRF affinity, heuristic graph
+  uncertainty, and separate evidence coverage
 - [x] Tag CRUD API routes (`src/api/routes/accounts.py`)
 - [x] GRF membership scoring from anchor tags (`src/graph/membership_grf.py`)
 
 ### What's Missing
-- [ ] **Community score API** — given a user-defined tag (e.g., "woo"), return probability
-  distribution over all 334 accounts. Currently GRF scores binary TPOT/not-TPOT; extend
-  to multi-label soft scoring.
+- [ ] **Community score API** — given a user-defined tag (e.g., "woo"), return
+  independent affinity scores for all 334 accounts. Keep them as affinities
+  until each task passes held-out calibration; they are not a probability
+  distribution over accounts.
 - [ ] **Venn/overlap visualization** — accounts with high scores on multiple communities
   rendered as overlapping zones. Start with a 2D scatterplot colored by dominant community
-  with opacity = confidence. Venn comes later when communities are stable.
+  while encoding affinity, heuristic uncertainty, and known/unknown evidence
+  coverage separately. Venn comes later when communities are stable.
 - [ ] **Toggle between users' label sets** — same underlying embedding, different community
   boundaries per ego. UI control to switch the active ego.
-- [ ] Soft membership scores in graph explorer node color (dominant community) + opacity
-  (certainty) — replaces current graph-cluster coloring.
+- [ ] Soft affinity scores in graph explorer node color (dominant community);
+  do not use one opacity channel to conflate affinity, uncertainty, and
+  coverage.
 
 ---
 
@@ -361,7 +412,9 @@ Requires Phase 5 fingerprints + Phase 6 community definitions.
 - [ ] For accounts in follow graph but outside 334: fetch recent tweets via
   `twitterapi.io /Get User Last Tweets` (budget-controlled, ~$0.15/1000 calls)
 - [ ] Score fetched tweets with same classification pipeline
-- [ ] Compute content fingerprint (subset — fewer tweets, lower confidence)
+- [ ] Compute content fingerprint on the observed subset; report content volume,
+  freshness, and coverage separately rather than calling fewer tweets lower
+  confidence
 - [ ] Cosine similarity to community centroids → latent member score
 - [ ] Rank output: "These 50 accounts in your follow graph score high on your 'woo' community"
 
@@ -445,8 +498,8 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Surface cached list snapshot freshness in CLI summaries and reuse them when
   prioritising seeds (now that persistence exists).
 - Implement anchor-conditioned TPOT membership scoring that combines graph
-  proximity, latent-space similarity, semantic tags/text, and missingness-aware
-  confidence.
+  proximity, latent-space similarity, and semantic tags/text, with separately
+  typed affinity, heuristic uncertainty, and evidence-coverage fields.
 - [x] Ship Phase 1 GRF membership endpoint (`GET /api/clusters/accounts/<id>/membership`)
   using ego-scoped account-tag anchors with cacheable graph solve
   (`src/graph/membership_grf.py`, `tests/test_cluster_membership_endpoint.py`,
@@ -459,10 +512,12 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Add embedding jobs for extension-captured tweet text and feed-exposure
   recency weighting so TPOT membership scores can use content semantics with
   ranking-bias normalization.
-- Add uncertainty decomposition for TPOT membership (`epistemic` vs
-  `coverage-driven`) and surface it in API/UI evidence cards.
-- Calibrate GRF probability outputs against held-out anchors (Platt/isotonic)
-  and persist calibration metadata in membership responses.
+- Replace the current entropy/degree heuristic with a validated uncertainty
+  decomposition (`epistemic` versus coverage-driven) and surface both
+  components separately in API/UI evidence cards.
+- Calibrate GRF affinity outputs against held-out positives and negatives
+  (Platt/isotonic) before adding any probability field; persist compatible
+  calibration metadata in membership responses.
 - Replace the current positive-recall/graph-compactness threshold utility with
   an evaluation containing held-out negatives and probability-quality metrics
   (at minimum precision-recall, Brier score, and calibration curves). The
@@ -475,10 +530,23 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   dangling-node mass, remove or implement unused parameters, and version the
   changed score semantics. The 2026-07-26 strict verifier currently rejects
   iteration plumbing and mass conservation.
-- Correct the public About page's membership semantics. The NMF producer
-  row-normalizes `W`, while the page currently claims independent percentages
-  that can sum above one. Choose compositional shares or independent
-  overlapping affinities before changing code or copy.
+- [x] Correct the public About page's NMF and graph-score semantics: normalized
+  NMF rows are compositional shares, GRF output is uncalibrated affinity,
+  heuristic uncertainty and coverage remain separate, and active acquisition
+  is planned rather than autonomous. The 2026-07-28 audit also separated raw
+  from working-graph counts, producer-specific edge views, heuristic edge
+  weights, like ambiguity, provider/compute cost, and unregistered legacy
+  measurements.
+- Register and ablate producer-specific typed-edge views. NMF currently uses
+  follow + retweet + optional like blocks, while propagation has a different
+  eight-type weighting table. Test edge direction, time decay, polarity/context,
+  and weight sensitivity; a like may mean attention, bookmarking, irony, or
+  disagreement rather than endorsement.
+- Add explicit per-score semantics to the public export and card contract.
+  Exemplar NMF/bits shares, classic simplex rows, and independent PPR Lift
+  values currently share one `weight` field; the UI must format factor share,
+  probability, Lift, and future affinity differently before those producers
+  can be mixed without ambiguity.
 - Benchmark soft group membership with time-split and topology-split holdouts:
   compare harmonic/GRF, directed PPR, degree-corrected block-model or mixed
   membership baselines, and graph+semantic late fusion. Report uncertainty,
@@ -491,11 +559,12 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   `scripts.refresh_graph_snapshot` (or a quickstart flag pattern) so first-run
   onboarding does not unexpectedly attempt Supabase refresh when local cache is
   stale.
-- [x] Add membership endpoint integration into graph-explorer account panel so
-  users can inspect probability/CI while navigating clusters
+- [x] Add membership endpoint integration into graph-explorer account panel;
+  the UI path was wired 2026-02-18 and its semantics were corrected and
+  reverified 2026-07-28. It displays uncalibrated affinity, heuristic graph
+  uncertainty, and evidence coverage separately, with no probability/CI claim
   (`graph-explorer/src/AccountMembershipPanel.jsx`,
-  `graph-explorer/src/ClusterView.integration.test.jsx`,
-  implemented 2026-02-18).
+  `graph-explorer/src/ClusterView.integration.test.jsx`).
 - Add MNAR stress diagnostics comparing metric degradation under MCAR vs
   degree/community-biased masking to validate MAR approximation safety.
 
@@ -531,6 +600,21 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Keep pilot judgments in versioned local SQLite. Revisit shared
   workspace-backed storage, tenancy, and conflict policy only through a
   separate approved ADR; ADR 006's proposed Postgres migration is not approved.
+- Add immutable alias-resolution receipts for mixed numeric, `shadow:*`, and
+  `handle:*` Community Gold identities before any legacy label is admitted to
+  a versioned study.
+- Freeze, retire, or explicitly audit curator-authenticated writes to the
+  `legacy_unbound` compatibility surface before creating a real versioned
+  study.
+- Capture an immutable source manifest (path-independent snapshot ID, size,
+  timestamps, deep hash, and query receipt) before reusing EXP-017's
+  point-in-time Community Gold counts.
+- Add an artifact registry that proves evidence/context/model/method/calibration
+  artifacts exist and are mutually compatible; format-valid hashes alone are
+  not provenance.
+- Add a registered calibration-record artifact with ontology/task/evidence
+  compatibility, class support, labelability/abstain coverage, and untouched
+  development/test identity before enabling `calibrated_probability`.
 - Add a backend-neutral inference seam with immutable model/prompt/schema/cache
   identity, explicit unavailable provider fields, usage receipts, and a record
   of whether and which public evidence left the machine.
@@ -548,6 +632,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Developer Experience
 
+- Pin a supported Node version for frontend CI/developer parity and retire the
+  conditional graph-explorer test `Storage` shim once Vitest/jsdom no longer
+  conflicts with Node 26 experimental web storage.
 - [x] Add clean-checkout toolchain pins, a non-deploying
   `make verify-baseline`, and a read-only assumption-baseline verifier that
   reports Git state, lock hashes, data-copy independence, hashes, SQLite
@@ -565,10 +652,19 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   in `AGENTS.md` after identifying the intended canonical structure source.
 - Track the additional monoliths and reuse boundaries in the
   [personal-ontology refactor ledger](plans/2026-07-26-personal-ontology-refactor-ledger.md).
+- Wire the currently orphaned Community Gold React modules only after
+  decomposing the live `Communities.jsx` and `AccountDeepDive.jsx` path and
+  adding a blind dossier mode that cannot reveal model/group recommendations
+  before judgment.
 - Decompose `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
-- Decompose `tpot-analyzer/graph-explorer/src/ClusterView.jsx` and `tpot-analyzer/graph-explorer/src/data.js` into focused modules/hooks (<300 LOC each); current files exceed 1100 LOC and 700 LOC.
-- Decompose `tpot-analyzer/src/api/cluster_routes.py` into focused route/service modules (<300 LOC each); current file is >1000 LOC and now contains both hierarchy and membership endpoints.
+- Decompose `tpot-analyzer/graph-explorer/src/ClusterView.jsx` (1,464 LOC in the
+  2026-07-28 audit) and `tpot-analyzer/graph-explorer/src/data.js` (739 LOC) into
+  focused modules/hooks below 300 LOC.
+- Continue the cluster-route decomposition under `tpot-analyzer/src/api/cluster/`.
+  The historical `src/api/cluster_routes.py` path no longer exists, but
+  `src/api/cluster/state.py` remains 630 LOC and mixes state loading, caching,
+  membership wiring, and hierarchy concerns.
 - Decompose `tpot-analyzer/public-site/api/generate-card.js` (421 LOC) into request validation, OpenRouter client, cache/budget helpers, and prompt-construction modules so timeout and observability changes stop accumulating in one serverless file.
 - Decompose `tpot-analyzer/src/shadow/enricher.py` (2449 LOC) into orchestration, retry/backoff, state management, and API dispatch modules (<300 LOC each); current file mixes all four concerns.
 - Decompose `tpot-analyzer/src/shadow/selenium_worker.py` (2173 LOC) into browser control, HTML parsing, and network handling modules (<300 LOC each); tightly coupled to enricher — decompose both together.
@@ -583,3 +679,6 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   quoted worst-case versus actual provider usage before and after each action.
   The 2026-02-25 endpoint estimates formerly listed here are historical, not a
   current rate card. Price cards must be versioned and refreshed before spend.
+- Make the historical acquisition holdout guard fail closed when its schema is
+  absent, and verify that behavior before any TwitterAPI.io or other paid
+  enrichment action.

@@ -1,9 +1,8 @@
 # Graph Module — Embedding, Clustering & Hierarchy
 
 <!--
-Last verified: 2026-03-05
-Code hash: bb8bf98
-Verified by: agent
+Module inventory snapshot: 2026-03-05 (LOC counts may have drifted)
+Score-semantics audit: 2026-07-28
 -->
 
 ## Purpose
@@ -30,6 +29,9 @@ without re-running expensive math. The UI can ask "show me 10 clusters" or "show
 clusters" and the server just cuts the precomputed tree at a different height. Soft
 memberships (distance-based softmax on embeddings) give fractional membership for every
 node, enabling continuous edge weights between clusters rather than hard assignment.
+These distance-softmax values are compositional visualization weights: each
+node's row sums to one. They are neither independently overlapping affinities
+nor calibrated probabilities of group membership.
 
 ### Why hierarchical expand/collapse instead of a flat cluster list?
 
@@ -243,8 +245,8 @@ Scores individual candidate accounts for relevance to a seed set using four sign
 
 ### `tpot_relevance.py` (160 LOC) — TPOT relevance lens
 
-Four-factor relevance score combining community signal strength, focus, convergence
-confidence, and degree normalization. Used to reweight the adjacency for TPOT-focused
+Four-factor relevance score combining community signal strength, focus, a solver-status
+gate, and degree normalization. Used to reweight the adjacency for TPOT-focused
 embedding.
 
 **Public API:**
@@ -268,19 +270,24 @@ where:
 
 Reweighting is continuous (no hard pruning) to preserve downstream PageRank and spectral
 computation. The core/halo mask includes 1-hop neighbours to avoid isolated core islands.
+This is a legacy compositional relevance heuristic. Neither \(r_i\) nor
+`1 - p_none` is a probability or calibrated confidence, and independently
+normalized Lift rows must not be passed through this equation.
 
 ---
 
 ### `membership_grf.py` (186 LOC) — GRF membership inference
 
 Harmonic label propagation on the graph Laplacian. Given positive/negative anchor nodes
-(from account tags), computes smooth membership probabilities for all unlabelled nodes.
+(from account tags), computes smooth, bounded graph affinities for all unlabelled nodes.
+The affinities are uncalibrated; their \([0,1]\) range does not make them
+membership probabilities.
 
 **Public API:**
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `compute_grf_membership(adjacency, positive_anchors, negative_anchors, config)` | `GRFMembershipResult` | Solve harmonic labels via conjugate gradient |
+| `compute_grf_membership(adjacency, positive_anchors, negative_anchors, config)` | `GRFMembershipResult` | Solve harmonic graph affinities via conjugate gradient |
 
 ```python
 @dataclass
@@ -294,23 +301,29 @@ class GRFMembershipConfig:
 
 @dataclass
 class GRFMembershipResult:
-    probabilities: np.ndarray    # (n_nodes,) — membership score ∈ [0, 1]
+    affinities: np.ndarray       # (n_nodes,) — uncalibrated score ∈ [0, 1]
+    total_uncertainty: np.ndarray
+    entropy_uncertainty: np.ndarray
+    degree_uncertainty: np.ndarray
     converged: bool
+    cg_info: int
     cg_iterations: int
-    total_uncertainty: float
-    # per-node uncertainty = entropy_weight * binary_entropy + degree_weight * degree_uncertainty
 ```
 
 **How it works:** Partitions nodes into anchors (fixed at 0 or 1) and free nodes.
 Solves `L_uu × x_u = −L_ul @ anchor_values` via conjugate gradient with optional
 Tikhonov regularization. Anchors come from `AccountTagStore.list_anchor_polarities()`.
+Per-node `total_uncertainty` is a weighted combination of binary entropy of
+the affinity and an inverse-degree penalty. It is a heuristic prioritization
+score, not posterior uncertainty or a confidence interval.
 
 ---
 
 ### `observation_model.py` (201 LOC) — Observation-aware weighting (IPW)
 
 Handles partial observability: not every account's follow list has been fully scraped.
-Inverse Probability Weighting upweights well-observed edges and downweights sparse ones.
+Inverse Probability Weighting upweights an observed edge when the MAR proxy says
+that edge had a low probability of being observed.
 
 **Public API:**
 
@@ -329,6 +342,13 @@ p_uv = clip( (c_u × c_v) / mean(c), p_min=0.01, 1.0 )
 **Assumption:** Edges are missing at random (MAR) given node-level completeness. This
 assumption may not hold if dormant or protected accounts are systematically unobserved in
 ways that correlate with community membership.
+
+The internal IPW completeness vector is a modeling proxy, not factual evidence
+coverage. When expected following is unavailable, the current proxy defaults
+the expected count to the observed count, which can yield `1.0`; this must not
+be surfaced as measured completeness. The account-membership API uses a
+separate coverage contract: observed outgoing-follow edges divided by expected
+follows when the denominator is known and positive, otherwise `unknown`.
 
 ---
 
