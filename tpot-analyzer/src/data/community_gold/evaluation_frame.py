@@ -13,7 +13,12 @@ from .frame_validation import (
     require_utc_aware,
     unique_ids,
 )
-from .role_allocation import allocate_roles
+from .role_allocation import (
+    allocate_roles,
+    normalize_quotas_by_stratum,
+    normalize_role_catalog,
+    normalize_strata_by_account,
+)
 
 def _digest_payload(payload: Dict[str, Any]) -> str:
     without_digest = {
@@ -22,6 +27,13 @@ def _digest_payload(payload: Dict[str, Any]) -> str:
         if key != "manifestDigest"
     }
     return json_sha256(without_digest)
+
+
+def _rule_manifest(value: Any, *, field: str) -> Dict[str, Any]:
+    normalized = json_value(value, field=field)
+    if not isinstance(normalized, dict) or not normalized:
+        raise ValueError(f"{field} must be a non-empty object")
+    return normalized
 
 
 def freeze_evaluation_frame(
@@ -92,36 +104,22 @@ def freeze_evaluation_frame(
             f"{sorted(set(rich) - u_eval_set)}"
         )
 
+    normalized_catalog, normalized_terminal_roles = normalize_role_catalog(
+        role_catalog,
+        terminal_test_roles,
+    )
+    normalized_quotas = normalize_quotas_by_stratum(quotas_by_stratum)
+    normalized_strata = normalize_strata_by_account(strata_by_account)
     assignments = allocate_roles(
         u_eval,
-        strata_by_account=strata_by_account,
+        strata_by_account=normalized_strata,
         rich_account_ids=rich,
-        role_catalog=role_catalog,
-        quotas_by_stratum=quotas_by_stratum,
-        terminal_test_roles=terminal_test_roles,
+        role_catalog=normalized_catalog,
+        quotas_by_stratum=normalized_quotas,
+        terminal_test_roles=normalized_terminal_roles,
         seed=seed,
         role_registry_id=role_registry_id,
     )
-    normalized_catalog = {
-        role: {
-            "readPurposes": sorted(
-                {str(value) for value in contract.get("readPurposes", [])}
-            ),
-            "requiresRich": bool(contract.get("requiresRich", False)),
-        }
-        for role, contract in sorted(role_catalog.items())
-    }
-    normalized_quotas = {
-        stratum: {
-            role: int(quota)
-            for role, quota in sorted(quotas.items())
-        }
-        for stratum, quotas in sorted(quotas_by_stratum.items())
-    }
-    normalized_strata = {
-        account_id: str(strata_by_account[account_id])
-        for account_id in u_eval
-    }
     payload: Dict[str, Any] = {
         "schemaVersion": 1,
         "frameId": frame_name,
@@ -148,11 +146,11 @@ def freeze_evaluation_frame(
                 field="evidence_cutoff",
             ),
         },
-        "candidateRules": json_value(
+        "candidateRules": _rule_manifest(
             candidate_rules,
             field="candidate_rules",
         ),
-        "oodRules": json_value(ood_rules, field="ood_rules"),
+        "oodRules": _rule_manifest(ood_rules, field="ood_rules"),
         "u0AccountIds": u0,
         "fixedTrainingIds": training,
         "fixedChallengeIds": challenge,
@@ -170,8 +168,14 @@ def freeze_evaluation_frame(
             "seed": require_text(seed, field="seed"),
             "catalog": normalized_catalog,
             "quotasByStratum": normalized_quotas,
-            "terminalTestRoles": sorted(
-                {str(value) for value in terminal_test_roles}
+            "terminalTestRoles": normalized_terminal_roles,
+        },
+        "randomizationAudit": {
+            "status": "caller_seed_unverified",
+            "designInferenceEligible": False,
+            "probabilitySemantics": (
+                "nominal_quota_fraction_conditional_on_uniform_"
+                "precommitted_seed"
             ),
         },
         "roleAssignments": assignments,

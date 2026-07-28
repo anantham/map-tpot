@@ -8,6 +8,7 @@ from typing import Optional
 
 from flask import Blueprint, jsonify, request
 
+from src.api.curator_auth import curator_only
 from src.api.responses import error_response
 
 from src.data.community_gold import CommunityGoldStore, EVALUATION_METHODS, SPLIT_NAMES
@@ -55,6 +56,7 @@ def _parse_bool(raw: Optional[str]) -> bool:
 
 
 @community_gold_bp.route("/communities", methods=["GET"])
+@curator_only
 def list_communities():
     try:
         return jsonify({"communities": _get_store().list_communities()})
@@ -67,6 +69,7 @@ def list_communities():
 
 
 @community_gold_bp.route("/labels", methods=["GET"])
+@curator_only
 def get_labels():
     try:
         labels = _get_store().list_labels(
@@ -90,6 +93,7 @@ def get_labels():
 
 
 @community_gold_bp.route("/labels", methods=["POST"])
+@curator_only
 def upsert_label():
     data = request.get_json(silent=True) or {}
     try:
@@ -121,6 +125,7 @@ def upsert_label():
 
 
 @community_gold_bp.route("/labels", methods=["DELETE"])
+@curator_only
 def clear_label():
     data = request.get_json(silent=True) or {}
     try:
@@ -155,6 +160,7 @@ def clear_label():
 
 
 @community_gold_bp.route("/metrics", methods=["GET"])
+@curator_only
 def get_metrics():
     try:
         return jsonify(_get_store().metrics())
@@ -167,6 +173,7 @@ def get_metrics():
 
 
 @community_gold_bp.route("/candidates", methods=["GET"])
+@curator_only
 def get_candidates():
     try:
         candidates = _get_store().list_review_candidates(
@@ -190,6 +197,7 @@ def get_candidates():
 
 
 @community_gold_bp.route("/evaluate", methods=["POST"])
+@curator_only
 def evaluate():
     data = request.get_json(silent=True) or {}
     try:

@@ -63,7 +63,9 @@ class CommunityGoldCandidateMixin:
             LEFT JOIN (
                 SELECT community_id, COUNT(*) AS gold_label_count
                 FROM account_community_gold_label_set
-                WHERE is_active = 1 AND reviewer = ?
+                WHERE is_active = 1
+                  AND identity_status = 'legacy_unbound'
+                  AND reviewer = ?
                 GROUP BY community_id
             ) gl ON gl.community_id = c.id
             {where_clause}

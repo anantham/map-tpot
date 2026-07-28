@@ -29,6 +29,7 @@ class CommunityGoldCandidatePoolMixin:
             FROM account_community_gold_label_set ls
             JOIN account_community_gold_split s ON s.account_id = ls.account_id
             WHERE ls.community_id = ? AND ls.reviewer = ? AND ls.is_active = 1
+              AND ls.identity_status = 'legacy_unbound'
             """,
             (community["communityId"], reviewer),
         ).fetchall()

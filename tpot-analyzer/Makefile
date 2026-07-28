@@ -5,7 +5,7 @@ PYTEST ?= $(VENV_PY) -m pytest
 
 .DEFAULT_GOAL := help
 
-.PHONY: help ensure-venv verify-louvain-contract verify-artifact-compatibility verify-baseline probe-community-archive verify-community-archive compare-community-archive verify-propagation-contract evaluate-frozen-membership verify-network-discoverability verify-research-assumptions test-smoke test-ci test verify-docs deploy-public-site
+.PHONY: help ensure-venv verify-louvain-contract verify-artifact-compatibility verify-baseline probe-community-archive verify-community-archive compare-community-archive verify-propagation-contract evaluate-frozen-membership verify-network-discoverability verify-research-assumptions verify-personal-ontology-slice1 test-smoke test-ci test verify-docs deploy-public-site
 
 help:
 	@echo "Available targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  make verify-community-archive SNAPSHOT_DIR=...  # deep snapshot verification"
 	@echo "  make compare-community-archive BASELINE_SNAPSHOT=... CANDIDATE_SNAPSHOT=..."
 	@echo "  make verify-research-assumptions  # measure frozen solver/membership/network"
+	@echo "  make verify-personal-ontology-slice1  # verify scoped gold + sealed roles"
 	@echo "  make test-smoke               # run fast backend smoke tests"
 	@echo "  make test-ci                  # run the credential-free backend CI suite"
 	@echo "  make test                     # run the full backend test suite"
@@ -61,6 +62,9 @@ verify-network-discoverability: ensure-venv
 	@$(VENV_PY) -m scripts.verify_network_discoverability
 
 verify-research-assumptions: verify-propagation-contract evaluate-frozen-membership verify-network-discoverability
+
+verify-personal-ontology-slice1: ensure-venv
+	@$(VENV_PY) -m scripts.verify_personal_ontology_slice1
 
 test-smoke: ensure-venv
 	@$(PYTEST) tests/test_spectral.py tests/test_clusters.py -q

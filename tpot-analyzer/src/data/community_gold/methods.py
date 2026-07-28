@@ -42,10 +42,14 @@ class CommunityGoldMethodMixin:
             """,
             (run_id, int(seeded_idx), *account_ids),
         ).fetchall()
-        scores = {account_id: 0.0 for account_id in account_ids}
+        scores = {}
         for row in rows:
             scores[str(row["account_id"])] = float(row["weight"])
-        return {"available": True, "scores": scores}
+        return {
+            "available": True,
+            "scores": scores,
+            "missingScorePolicy": "unknown_excluded",
+        }
 
     def _louvain_scores(
         self,
@@ -87,14 +91,18 @@ class CommunityGoldMethodMixin:
         for account_id in account_ids:
             cluster = louvain.get(account_id)
             if cluster is None:
-                scores[account_id] = global_prior
                 continue
             bucket = cluster_counts.get(int(cluster))
             if not bucket:
                 scores[account_id] = global_prior
                 continue
             scores[account_id] = (bucket["pos"] + smoothing * global_prior) / (bucket["total"] + smoothing)
-        return {"available": True, "scores": scores}
+        return {
+            "available": True,
+            "scores": scores,
+            "missingScorePolicy": "unknown_excluded",
+            "unseenClusterPolicy": "global_train_prior",
+        }
 
     def _train_grf_scores(self, artifacts: SnapshotArtifacts, community: Dict[str, Any], train_split: str) -> Dict[str, Any]:
         positive_ids = community["labels"][train_split]["in"]
@@ -114,10 +122,14 @@ class CommunityGoldMethodMixin:
 
         result = compute_grf_membership(adjacency, pos_idx, neg_idx)
         node_ids = artifacts.load_node_ids()
-        scores = {str(node_ids[idx]): float(prob) for idx, prob in enumerate(result.probabilities)}
+        scores = {
+            str(node_ids[idx]): float(affinity)
+            for idx, affinity in enumerate(result.affinities)
+        }
         return {
             "available": True,
             "scores": scores,
+            "missingScorePolicy": "unknown_excluded",
             "solver": {
                 "converged": bool(result.converged),
                 "cgIterations": int(result.cg_iterations),

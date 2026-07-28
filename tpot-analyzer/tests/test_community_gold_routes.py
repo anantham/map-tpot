@@ -14,6 +14,8 @@ import src.api.routes.community_gold as community_gold_routes
 from src.api.routes.community_gold import community_gold_bp
 from src.communities.store import init_db, save_memberships, save_run, upsert_community, upsert_community_account
 
+CURATOR_TOKEN = "community-gold-test-token"
+
 
 def _seed_archive_schema(db_path: Path) -> None:
     with sqlite3.connect(db_path) as conn:
@@ -76,6 +78,7 @@ def community_gold_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask
     with open(tmp_path / "adjacency_matrix_cache.pkl", "wb") as handle:
         pickle.dump({"adjacency": adjacency}, handle)
     monkeypatch.setenv("ARCHIVE_DB_PATH", str(db_path))
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
     community_gold_routes._community_gold_store = None
     community_gold_routes._community_gold_store_path = None
 
@@ -88,6 +91,7 @@ def community_gold_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask
 @pytest.mark.integration
 def test_upsert_and_list_labels_roundtrip(community_gold_app: Flask) -> None:
     client = community_gold_app.test_client()
+    client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = CURATOR_TOKEN
 
     first = client.post(
         "/api/community-gold/labels",
@@ -127,6 +131,7 @@ def test_upsert_and_list_labels_roundtrip(community_gold_app: Flask) -> None:
 @pytest.mark.integration
 def test_metrics_and_delete_label(community_gold_app: Flask) -> None:
     client = community_gold_app.test_client()
+    client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = CURATOR_TOKEN
 
     client.post(
         "/api/community-gold/labels",
@@ -160,6 +165,7 @@ def test_metrics_and_delete_label(community_gold_app: Flask) -> None:
 @pytest.mark.integration
 def test_candidates_route_round_robins_cold_start(community_gold_app: Flask) -> None:
     client = community_gold_app.test_client()
+    client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = CURATOR_TOKEN
 
     resp = client.get("/api/community-gold/candidates?reviewer=human&limit=2")
 
@@ -174,6 +180,7 @@ def test_candidates_route_round_robins_cold_start(community_gold_app: Flask) -> 
 @pytest.mark.integration
 def test_candidates_route_uses_warm_scoring_when_train_labels_exist(community_gold_app: Flask) -> None:
     client = community_gold_app.test_client()
+    client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = CURATOR_TOKEN
 
     client.post("/api/community-gold/labels", json={"accountId": "acct-1", "communityId": "comm-a", "judgment": "in"})
     client.post("/api/community-gold/labels", json={"accountId": "acct-2", "communityId": "comm-a", "judgment": "out"})
@@ -196,6 +203,7 @@ def test_candidates_route_uses_warm_scoring_when_train_labels_exist(community_go
 @pytest.mark.integration
 def test_evaluate_route_returns_scoreboard(community_gold_app: Flask) -> None:
     client = community_gold_app.test_client()
+    client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = CURATOR_TOKEN
 
     client.post("/api/community-gold/labels", json={"accountId": "acct-1", "communityId": "comm-a", "judgment": "in"})
     client.post("/api/community-gold/labels", json={"accountId": "acct-2", "communityId": "comm-a", "judgment": "out"})

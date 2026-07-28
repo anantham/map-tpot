@@ -17,26 +17,32 @@ def _require_unique_ids(values: Sequence[str], *, field: str) -> list[str]:
     return parsed
 
 
-def _normalized_catalog(
+def normalize_role_catalog(
     role_catalog: Mapping[str, Mapping[str, Any]],
     terminal_test_roles: Sequence[str],
 ) -> tuple[Dict[str, Dict[str, Any]], list[str]]:
     if not role_catalog:
         raise ValueError("role_catalog must define at least one role")
-    if "frame_only" not in role_catalog:
-        raise ValueError("role_catalog must define an explicit frame_only role")
 
     normalized: Dict[str, Dict[str, Any]] = {}
     for raw_role, raw_contract in role_catalog.items():
         role = str(raw_role).strip()
         if not role:
             raise ValueError("role_catalog contains an empty role name")
+        if role in normalized:
+            raise ValueError(
+                f"role_catalog duplicates normalized role '{role}'"
+            )
         if not isinstance(raw_contract, Mapping):
             raise ValueError(f"role_catalog['{role}'] must be an object")
         raw_purposes = raw_contract.get("readPurposes", [])
         if not isinstance(raw_purposes, Sequence) or isinstance(raw_purposes, str):
             raise ValueError(f"role_catalog['{role}'].readPurposes must be a list")
         purposes = sorted({str(value).strip() for value in raw_purposes})
+        if any(not purpose for purpose in purposes):
+            raise ValueError(
+                f"role_catalog['{role}'].readPurposes contains an empty value"
+            )
         unknown = sorted(set(purposes) - READ_PURPOSES)
         if unknown:
             raise ValueError(
@@ -46,6 +52,8 @@ def _normalized_catalog(
             "readPurposes": purposes,
             "requiresRich": bool(raw_contract.get("requiresRich", False)),
         }
+    if "frame_only" not in normalized:
+        raise ValueError("role_catalog must define an explicit frame_only role")
 
     terminal_roles = sorted({str(value).strip() for value in terminal_test_roles})
     if not terminal_roles or any(not value for value in terminal_roles):
@@ -73,6 +81,59 @@ def _normalized_catalog(
                 f"non-terminal role '{role}' cannot allow terminal_evaluation"
             )
     return dict(sorted(normalized.items())), terminal_roles
+
+
+def normalize_quotas_by_stratum(
+    quotas_by_stratum: Mapping[str, Mapping[str, int]],
+) -> Dict[str, Dict[str, int]]:
+    normalized: Dict[str, Dict[str, int]] = {}
+    for raw_stratum, raw_quotas in quotas_by_stratum.items():
+        stratum = str(raw_stratum).strip()
+        if not stratum:
+            raise ValueError("quotas_by_stratum contains an empty stratum")
+        if stratum in normalized:
+            raise ValueError(
+                f"quotas_by_stratum duplicates normalized stratum '{stratum}'"
+            )
+        if not isinstance(raw_quotas, Mapping):
+            raise ValueError(
+                f"quotas_by_stratum['{stratum}'] must be an object"
+            )
+        role_quotas: Dict[str, int] = {}
+        for raw_role, quota in raw_quotas.items():
+            role = str(raw_role).strip()
+            if not role:
+                raise ValueError(
+                    f"quotas_by_stratum['{stratum}'] contains an empty role"
+                )
+            if role in role_quotas:
+                raise ValueError(
+                    f"quotas for stratum '{stratum}' duplicate role '{role}'"
+                )
+            role_quotas[role] = quota
+        normalized[stratum] = dict(sorted(role_quotas.items()))
+    return dict(sorted(normalized.items()))
+
+
+def normalize_strata_by_account(
+    strata_by_account: Mapping[str, str],
+) -> Dict[str, str]:
+    normalized: Dict[str, str] = {}
+    for raw_account, raw_stratum in strata_by_account.items():
+        account = str(raw_account).strip()
+        stratum = str(raw_stratum).strip()
+        if not account:
+            raise ValueError("strata_by_account contains an empty account ID")
+        if not stratum:
+            raise ValueError(
+                f"strata_by_account['{account}'] is empty"
+            )
+        if account in normalized:
+            raise ValueError(
+                f"strata_by_account duplicates normalized account '{account}'"
+            )
+        normalized[account] = stratum
+    return normalized
 
 
 def _allocation_key(
@@ -111,17 +172,19 @@ def allocate_roles(
     if not parsed_seed:
         raise ValueError("seed is required")
 
-    catalog, terminal_roles = _normalized_catalog(
+    catalog, terminal_roles = normalize_role_catalog(
         role_catalog,
         terminal_test_roles,
     )
+    normalized_quotas = normalize_quotas_by_stratum(quotas_by_stratum)
+    normalized_strata = normalize_strata_by_account(strata_by_account)
     account_set = set(accounts)
     rich_set = set(_require_unique_ids(rich_account_ids, field="rich_account_ids"))
     if not rich_set <= account_set:
         outside = sorted(rich_set - account_set)
         raise ValueError(f"rich_account_ids must be inside account_ids: {outside}")
 
-    stratum_keys = {str(value).strip() for value in strata_by_account}
+    stratum_keys = set(normalized_strata)
     missing_strata = sorted(account_set - stratum_keys)
     extra_strata = sorted(stratum_keys - account_set)
     if missing_strata or extra_strata:
@@ -132,14 +195,12 @@ def allocate_roles(
 
     grouped: Dict[str, list[str]] = defaultdict(list)
     for account_id in accounts:
-        stratum = str(strata_by_account[account_id]).strip()
-        if not stratum:
-            raise ValueError(f"strata_by_account['{account_id}'] is empty")
+        stratum = normalized_strata[account_id]
         grouped[stratum].append(account_id)
-    if set(quotas_by_stratum) != set(grouped):
+    if set(normalized_quotas) != set(grouped):
         raise ValueError(
             "quotas_by_stratum keys must exactly match observed strata; "
-            f"observed={sorted(grouped)}, configured={sorted(quotas_by_stratum)}"
+            f"observed={sorted(grouped)}, configured={sorted(normalized_quotas)}"
         )
 
     assignments: Dict[str, Dict[str, Any]] = {}
@@ -153,7 +214,7 @@ def allocate_roles(
                 "eligibility must be part of the frozen stratum"
             )
         stratum_is_rich = True in rich_flags
-        configured = quotas_by_stratum[stratum]
+        configured = normalized_quotas[stratum]
         if set(configured) != set(roles):
             raise ValueError(
                 f"quotas for stratum '{stratum}' must name every role exactly; "
