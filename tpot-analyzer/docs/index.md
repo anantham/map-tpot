@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-07-26
+Last reviewed: 2026-07-28
 
 ## Start Here
 
@@ -84,18 +84,18 @@ Last reviewed: 2026-07-26
 - [ADR 021: Independent Overlapping Membership and Evidence Semantics](adr/021-independent-overlapping-membership-and-evidence-semantics.md) (Accepted, 2026-07-26)
 - [ADR 020: Graph Artifact Compatibility](adr/020-graph-artifact-compatibility.md) (Accepted, 2026-07-26)
 - [ADR 019: Versioned Research Data and Artifact Manifests](adr/019-versioned-research-data-and-artifact-manifests.md) (Accepted, 2026-07-26)
-- [ADR 018: Propagation Engine and Confidence Scoring](adr/018-propagation-engine-and-confidence.md) (Accepted decision; current solver contracts falsified pending repair; confidence interpretation partially superseded by ADR 021)
+- [ADR 018: Propagation Engine and Confidence Scoring](adr/018-propagation-engine-and-confidence.md) (Accepted decision; amended 2026-07-28; current solver contracts falsified pending repair; confidence/rerun-range interpretation superseded by ADR 021)
 - [ADR 017: Multi-View Account Descriptor](adr/017-multi-view-account-descriptor.md) (Revised; graph-only membership claims partially superseded by ADR 021)
 - [ADR 016: Four-Part Epistemic Architecture](adr/016-four-part-epistemic-architecture.md)
 - [ADR 015: Data Pipeline Architecture](adr/015-data-pipeline-architecture.md) (Accepted, 2025-09-05)
 - [ADR 014: Account-Community Gold Labels](adr/014-account-community-gold-labels-and-held-out-evaluation.md)
-- [ADR 013: Probabilistic Cluster Color Contract](adr/013-probabilistic-cluster-color-contract.md) (Accepted, 2026-03-06)
-- [ADR 012: Community-Seeded Cluster Navigation](adr/012-community-seeded-cluster-navigation.md)
-- [ADR 011: Content-Aware Fingerprinting](adr/011-content-aware-fingerprinting-and-community-visualization.md)
+- [ADR 013: Probabilistic Cluster Color Contract](adr/013-probabilistic-cluster-color-contract.md) (Accepted; amended 2026-07-28; probability/confidence semantics superseded by ADR 021; current chroma is a heuristic rendering score)
+- [ADR 012: Community-Seeded Cluster Navigation](adr/012-community-seeded-cluster-navigation.md) (Proposed; amended 2026-07-28; probability/confidence portions superseded by ADR 021)
+- [ADR 011: Content-Aware Fingerprinting](adr/011-content-aware-fingerprinting-and-community-visualization.md) (Proposed; amended 2026-07-28; probability/certainty semantics superseded by ADR 021; historical heading-number typo recorded)
 - [ADR 010: Labeling Dashboard and LLM Eval Harness](adr/010-labeling-dashboard-and-llm-eval-harness.md)
 - [ADR 009: Golden Curation Schema](adr/009-golden-curation-schema-and-active-learning-loop.md)
 - [ADR 008: Tweet-Level LLM Classification](adr/008-tweet-classification-account-fingerprinting.md)
-- [ADR 007: Observation-Aware Clustering](adr/007-observation-aware-clustering-membership.md)
+- [ADR 007: Observation-Aware Clustering](adr/007-observation-aware-clustering-membership.md) (Proposed; amended 2026-07-28; GRF semantics partially superseded by ADR 021; MAR/IPW assumption remains unvalidated)
 - [ADR 006: Shared Tagging and TPOT Membership](adr/006-shared-tagging-and-tpot-membership.md) (Proposed; per-ego concept adopted and single-target semantics superseded by ADR 021; Postgres not approved)
 - [ADR 005: Blob Storage Import](adr/005-blob-storage-import.md) (Implemented, 2025-11-08)
 - [ADR 004: Precomputed Graph Snapshots](adr/004-precomputed-graph-snapshots.md)

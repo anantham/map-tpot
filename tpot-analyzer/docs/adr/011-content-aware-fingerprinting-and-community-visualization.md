@@ -260,3 +260,17 @@ D3 or a force-directed layout with per-community "gravity wells."
   specified but not yet in the schema).
 - **Prompt version tracking is critical.** Fingerprints computed from different prompt
   versions are not comparable. All downstream artifacts must carry `prompt_version`.
+
+## Amendment — 2026-07-28: identity and score semantics
+
+Identity note: the heading “ADR 010” above is a historical numbering typo;
+this file and the documentation index identify this record as ADR 011.
+
+ADR 021 supersedes the probability/certainty wording above. Multi-label GRF
+runs produce independent account-by-community affinities until each task is
+calibrated on registered development/calibration labels and evaluated once on
+untouched terminal labels; they are not a probability distribution over
+accounts. Visualization must encode affinity separately from heuristic
+uncertainty and evidence coverage. Tweet count is observed content volume, not
+coverage, because it lacks a denominator, freshness, and source-completeness
+contract.

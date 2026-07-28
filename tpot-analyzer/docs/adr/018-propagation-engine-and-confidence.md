@@ -175,3 +175,23 @@ Bootstrap mode (`n_bootstrap > 0`, used in `make deploy-public-site`) runs propa
 - ADR 015 — data pipeline architecture (where propagation sits)
 - ADR 016 — four-part epistemic architecture (propagation is the "spread" stage)
 - ADR 017 — multi-view descriptor (uses graph view = propagation output as primary detection signal)
+
+## Amendment — 2026-07-28: score and rerun-range semantics
+
+ADR 021 supersedes the membership-probability and calibrated-confidence
+interpretation of this record. Independent-mode PPR/Lift values are
+uncalibrated affinities relative to a global-PageRank null model. The
+five-factor “confidence index” is a heuristic evidence/support score; it is not
+posterior confidence, evidence coverage, or a probability of correct
+membership.
+
+The historical `n_bootstrap` procedure repeatedly omits 20% of seeds and takes
+the 2.5th and 97.5th percentiles across reruns. It is a seed-holdout
+sensitivity range, not ordinary bootstrap resampling and not a 95% confidence
+interval with a coverage guarantee. Public surfaces must label it accordingly
+or omit it.
+
+The 2026-07-26 frozen solver audit also falsified the documented iteration
+plumbing and dangling-mass conservation contracts. The frozen bundle remains a
+control artifact, not evidence that the runtime satisfies every algorithmic
+claim above. Repair and version the solver before publishing a replacement.

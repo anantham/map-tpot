@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from scripts._personal_ontology_adr_contracts import ADR_SEMANTIC_CONTRACTS
+
 
 @dataclass(frozen=True)
 class Check:
@@ -22,6 +24,11 @@ FILES = {
     "publishing": DOCS / "product/2026-07-26-publishing-and-privacy-boundary.md",
     "adr21": DOCS / "adr/021-independent-overlapping-membership-and-evidence-semantics.md",
     "adr22": DOCS / "adr/022-budget-constrained-active-evidence-acquisition.md",
+    "adr07": DOCS / "adr/007-observation-aware-clustering-membership.md",
+    "adr11": DOCS / "adr/011-content-aware-fingerprinting-and-community-visualization.md",
+    "adr12": DOCS / "adr/012-community-seeded-cluster-navigation.md",
+    "adr13": DOCS / "adr/013-probabilistic-cluster-color-contract.md",
+    "adr18": DOCS / "adr/018-propagation-engine-and-confidence.md",
     "pilot": DOCS / "experiments/2026-07-26-budgeted-personal-ontology-local-first-pilot.md",
     "methods": DOCS / "experiments/2026-07-26-personal-ontology-evaluation-methods.md",
     "plan": DOCS / "plans/2026-07-26-personal-ontology-active-discovery-implementation.md",
@@ -29,6 +36,8 @@ FILES = {
     "index": DOCS / "index.md",
     "roadmap": DOCS / "ROADMAP.md",
     "worklog": DOCS / "WORKLOG.md",
+    "graph": DOCS / "modules/graph.md",
+    "about": ROOT / "public-site/src/About.jsx",
 }
 NEW_DOC_KEYS = ("publishing", "adr21", "adr22", "pilot", "methods", "plan", "debt")
 
@@ -167,6 +176,7 @@ def run_checks() -> tuple[list[Check], dict[str, int]]:
     missing_slices = [number for number in range(10) if f"## Slice {number} " not in plan]
     plan_ok = (
         not missing_slices
+        and "Status: Slice 1 implemented" in plan
         and FILES["debt"].name in plan
         and "src/api/routes/community_gold.py" in plan
         and "No slice may make a remote call" in plan
@@ -182,9 +192,73 @@ def run_checks() -> tuple[list[Check], dict[str, int]]:
     roadmap_ok = contains_all(roadmap, ("ADR 021", "ADR 022", FILES["plan"].name, FILES["debt"].name))
     checks.append(Check("Roadmap tracks implementation and debt", roadmap_ok, "decisions, plan, and ledger referenced"))
 
+    graph = read("graph")
+    graph_ok = contains_all(
+        graph,
+        (
+            "bounded graph affinities",
+            "affinities are uncalibrated",
+            "heuristic prioritization score",
+            "otherwise `unknown`",
+        ),
+    )
+    checks.append(Check("Graph methods separate affinity, uncertainty, and coverage", graph_ok, "GRF and IPW semantics"))
+
+    for key, name, needles, detail in ADR_SEMANTIC_CONTRACTS:
+        checks.append(Check(name, contains_all(read(key), needles), detail))
+
+    about = read("about")
+    about_ok = contains_all(
+        about,
+        (
+            "heuristic, not a membership probability",
+            "relative factor shares, not probabilities of belonging",
+            "point-in-time legacy measurement",
+            "Different producers use different",
+            "Target-scoped anchors, cache keys, responses, and cross-target-isolation tests",
+            "Planned Active Learning Loop",
+        ),
+    )
+    stale_about = (
+        "These memberships don&rsquo;t sum to one",
+        "Confidence decays with distance",
+        "The Active Learning Engine",
+    )
+    stale_about_hits = [phrase for phrase in stale_about if phrase in about]
+    checks.append(
+        Check(
+            "About page states current score semantics",
+            about_ok and not stale_about_hits,
+            f"stale phrases: {stale_about_hits or 'none'}",
+        )
+    )
+
+    adr18 = read("adr18")
+    adr18_ok = contains_all(
+        adr18,
+        (
+            "seed-holdout sensitivity range",
+            "not a 95% confidence interval",
+            "falsified the documented iteration plumbing",
+        ),
+    )
+    checks.append(
+        Check(
+            "ADR 018 records propagation claim limits",
+            adr18_ok,
+            "affinity, rerun range, and solver falsifiers",
+        )
+    )
+
     worklog = read("worklog")
-    worklog_ok = "Personal-Ontology Documentation Foundation" in worklog
-    checks.append(Check("Worklog records this phase", worklog_ok, "phase entry found" if worklog_ok else "phase entry missing"))
+    worklog_ok = contains_all(
+        worklog,
+        (
+            "Personal-Ontology Documentation Foundation",
+            "Personal-Ontology Slice 1",
+        ),
+    )
+    checks.append(Check("Worklog records this phase", worklog_ok, "Slice 0 and Slice 1 entries found" if worklog_ok else "phase entry missing"))
     return checks, line_counts
 
 
@@ -208,8 +282,8 @@ def main() -> int:
         print("1. Repair the named documentation contract failures.")
         print("2. Re-run this verifier; do not begin implementation or spend.")
         return 1
-    print("1. Begin Slice 1 only after reviewing the linked implementation plan.")
-    print("2. Keep paid actions blocked until Slices 1–5 and 7 plus the USD 10 entry gate pass.")
+    print("1. Review the Slice 1 handoff before beginning the backend-neutral inference slice.")
+    print("2. Keep paid actions blocked until Slices 2–5 and 7 plus the USD 10 entry gate pass.")
     return 0
 
 
