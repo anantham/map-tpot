@@ -25,6 +25,13 @@ def test_frame_is_deterministic_content_addressed_and_preserves_order() -> None:
     assert len(first["u0Digest"]) == 64
     assert len(first["roleAssignmentsDigest"]) == 64
     assert len(first["manifestDigest"]) == 64
+    assert first["randomizationAudit"] == {
+        "status": "caller_seed_unverified",
+        "designInferenceEligible": False,
+        "probabilitySemantics": (
+            "nominal_quota_fraction_conditional_on_uniform_precommitted_seed"
+        ),
+    }
     validate_evaluation_frame(first)
 
 
@@ -64,4 +71,46 @@ def test_frame_rejects_invalid_identity_and_subset_contracts(mutation, message: 
     mutation(kwargs)
 
     with pytest.raises(ValueError, match=message):
+        freeze_evaluation_frame(**kwargs)
+
+
+def test_frame_canonicalizes_role_registry_whitespace_once() -> None:
+    kwargs = frame_kwargs()
+    catalog = kwargs["role_catalog"]
+    quotas = kwargs["quotas_by_stratum"]
+    catalog[" terminal_test "] = catalog.pop("terminal_test")
+    catalog[" terminal_test "]["readPurposes"] = [
+        " terminal_evaluation "
+    ]
+    for role_quotas in quotas.values():
+        role_quotas[" terminal_test "] = role_quotas.pop("terminal_test")
+    kwargs["terminal_test_roles"] = [" terminal_test "]
+
+    frame = freeze_evaluation_frame(**kwargs)
+
+    assert "terminal_test" in frame["roleRegistry"]["catalog"]
+    assert " terminal_test " not in frame["roleRegistry"]["catalog"]
+    assert frame["roleRegistry"]["terminalTestRoles"] == ["terminal_test"]
+    assert {
+        row["assignedRole"] for row in frame["roleAssignments"]
+    } <= set(frame["roleRegistry"]["catalog"])
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("candidate_rules", []),
+        ("candidate_rules", {}),
+        ("ood_rules", []),
+        ("ood_rules", {}),
+    ],
+)
+def test_frame_rejects_empty_or_untyped_rule_manifests(
+    field: str,
+    value,
+) -> None:
+    kwargs = frame_kwargs()
+    kwargs[field] = value
+
+    with pytest.raises(ValueError, match="non-empty object"):
         freeze_evaluation_frame(**kwargs)

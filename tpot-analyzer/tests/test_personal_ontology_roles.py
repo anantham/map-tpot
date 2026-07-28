@@ -63,3 +63,28 @@ def test_role_allocation_rejects_unfilled_stratum_quota() -> None:
 
     with pytest.raises(ValueError, match="quota total"):
         allocate_roles(**kwargs)
+
+
+def test_role_catalog_rejects_aliases_after_whitespace_normalization() -> None:
+    kwargs = allocation_kwargs()
+    kwargs["role_catalog"][" frame_only "] = {
+        "readPurposes": [],
+        "requiresRich": False,
+    }
+
+    with pytest.raises(ValueError, match="duplicates normalized role"):
+        allocate_roles(**kwargs)
+
+
+def test_role_catalog_accepts_one_normalized_frame_only_role() -> None:
+    kwargs = allocation_kwargs()
+    contract = kwargs["role_catalog"].pop("frame_only")
+    kwargs["role_catalog"][" frame_only "] = contract
+    for quotas in kwargs["quotas_by_stratum"].values():
+        quotas[" frame_only "] = quotas.pop("frame_only")
+
+    assignments = allocate_roles(**kwargs)
+
+    assigned_roles = {row["assignedRole"] for row in assignments}
+    assert "frame_only" in assigned_roles
+    assert " frame_only " not in assigned_roles

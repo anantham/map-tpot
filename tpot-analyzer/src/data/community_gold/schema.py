@@ -32,10 +32,6 @@ CREATE TABLE IF NOT EXISTS account_community_gold_label_set (
     FOREIGN KEY (supersedes_label_set_id) REFERENCES account_community_gold_label_set(id)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_account_community_gold_active
-ON account_community_gold_label_set(account_id, community_id, reviewer)
-WHERE is_active = 1;
-
 CREATE INDEX IF NOT EXISTS idx_account_community_gold_lookup
 ON account_community_gold_label_set(community_id, reviewer, judgment, is_active, created_at DESC);
 

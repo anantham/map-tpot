@@ -12,21 +12,25 @@ def brier_score(labels: np.ndarray, scores: np.ndarray) -> float:
 
 
 def expected_calibration_error(labels: np.ndarray, scores: np.ndarray, *, n_bins: int = 10) -> float:
-    bins = np.linspace(0.0, 1.0, n_bins + 1)
+    if len(labels) != len(scores):
+        raise ValueError("labels and scores must have the same length")
+    if np.any(~np.isfinite(scores)) or np.any((scores < 0.0) | (scores > 1.0)):
+        raise ValueError("calibration scores must be finite values in [0, 1]")
+    if len(labels) == 0:
+        raise ValueError("calibration metrics require at least one sample")
+    order = np.argsort(scores, kind="stable")
+    buckets = np.array_split(order, min(n_bins, len(order)))
     ece = 0.0
-    n = max(1, len(labels))
-    for start, end in zip(bins[:-1], bins[1:]):
-        if end >= 1.0:
-            mask = (scores >= start) & (scores <= end)
-        else:
-            mask = (scores >= start) & (scores < end)
-        if not np.any(mask):
+    for indices in buckets:
+        if len(indices) == 0:
             continue
-        bucket_scores = scores[mask]
-        bucket_labels = labels[mask]
+        bucket_scores = scores[indices]
+        bucket_labels = labels[indices]
         confidence = float(np.mean(bucket_scores))
         accuracy = float(np.mean(bucket_labels))
-        ece += abs(confidence - accuracy) * (len(bucket_scores) / n)
+        ece += abs(confidence - accuracy) * (
+            len(bucket_scores) / len(labels)
+        )
     return float(ece)
 
 
@@ -62,17 +66,22 @@ def summarize_binary_metrics(
     labels: np.ndarray,
     scores: np.ndarray,
     threshold: float,
+    include_probability_metrics: bool = False,
 ) -> Dict[str, Any]:
     precision, recall, f1 = precision_recall_f1(labels, scores, threshold)
-    return {
+    metrics = {
         "aucPr": float(average_precision_score(labels, scores)),
-        "brier": brier_score(labels, scores),
-        "ece": expected_calibration_error(labels, scores),
+        "brier": None,
+        "ece": None,
         "precision": float(precision),
         "recall": float(recall),
         "f1": float(f1),
         "threshold": float(threshold),
     }
+    if include_probability_metrics:
+        metrics["brier"] = brier_score(labels, scores)
+        metrics["ece"] = expected_calibration_error(labels, scores)
+    return metrics
 
 
 def macro_average(rows: Iterable[Dict[str, Any]], key: str) -> float | None:

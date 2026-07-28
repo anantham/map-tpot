@@ -6,6 +6,9 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from .migrations import migrate_community_gold
+from .migration_schema import COMMUNITY_GOLD_SCHEMA_VERSION
+from .migration_validation import refuse_future_schema
 from .schema import SCHEMA, now_iso, split_for_account, validate_confidence, validate_judgment
 
 
@@ -19,6 +22,14 @@ class BaseCommunityGoldStore:
     def _open(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=60)
         conn.row_factory = sqlite3.Row
+        try:
+            refuse_future_schema(
+                conn,
+                supported_version=COMMUNITY_GOLD_SCHEMA_VERSION,
+            )
+        except Exception:
+            conn.close()
+            raise
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
@@ -27,6 +38,7 @@ class BaseCommunityGoldStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._open() as conn:
             conn.executescript(SCHEMA)
+            migrate_community_gold(conn)
             conn.commit()
 
     def _assert_community_table(self, conn: sqlite3.Connection) -> None:
@@ -93,7 +105,8 @@ class BaseCommunityGoldStore:
             prior = conn.execute(
                 """
                 SELECT id FROM account_community_gold_label_set
-                WHERE account_id = ? AND community_id = ? AND reviewer = ? AND is_active = 1
+                WHERE account_id = ? AND community_id = ? AND reviewer = ?
+                  AND is_active = 1 AND identity_status = 'legacy_unbound'
                 ORDER BY id DESC LIMIT 1
                 """,
                 (account_id, community_id, reviewer),
@@ -143,7 +156,8 @@ class BaseCommunityGoldStore:
                 """
                 UPDATE account_community_gold_label_set
                 SET is_active = 0
-                WHERE account_id = ? AND community_id = ? AND reviewer = ? AND is_active = 1
+                WHERE account_id = ? AND community_id = ? AND reviewer = ?
+                  AND is_active = 1 AND identity_status = 'legacy_unbound'
                 """,
                 (account_id, community_id, reviewer),
             )
