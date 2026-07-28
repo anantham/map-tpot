@@ -3,8 +3,10 @@
 Soft community detection via NMF (Non-negative Matrix Factorization).
 
 
-Unlike hard clustering, NMF gives each account a fractional membership weight
-per community — so @thezvi can be EA=0.7 + consciousness=0.4 simultaneously.
+Unlike hard clustering, NMF gives each account nonzero weights on several
+factors. This script row-normalizes those weights into compositional shares
+that sum to one; they are not independent affinities or membership
+probabilities.
 
 The H matrix tells you what DEFINES each community (top following targets).
 The W matrix tells you how much each account belongs to each community.

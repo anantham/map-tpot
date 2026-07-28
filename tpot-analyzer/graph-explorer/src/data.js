@@ -8,6 +8,7 @@
 import { API_BASE_URL, API_TIMEOUT_MS, API_TIMEOUT_SLOW_MS, withCuratorAuth } from './config';
 import { IndexedDBCache } from './cache/IndexedDBCache';
 import { fetchWithRetry } from './fetchClient';
+import { assertAccountMembershipResponse } from './membershipContract';
 
 /**
  * Performance tracking utility.
@@ -649,6 +650,7 @@ export const fetchAccountMembership = async ({ accountId, ego, signal }) => {
     const detail = payload?.error || `Failed to fetch membership (${res.status})`
     throw new Error(detail)
   }
+  assertAccountMembershipResponse(payload)
   return { ...payload, _timing: res._timing }
 }
 

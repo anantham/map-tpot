@@ -687,9 +687,11 @@ describe('ClusterView Membership Panel', () => {
       tagCounts: [],
     })
     fetchAccountMembership.mockResolvedValue({
-      probability: 0.72,
-      confidenceInterval95: [0.61, 0.81],
+      affinity: 0.72,
+      scoreSemantics: 'affinity',
+      calibrated: false,
       uncertainty: 0.15,
+      uncertaintySemantics: 'heuristic_graph_entropy_degree',
       engine: 'grf',
       evidence: { coverage: 0.58 },
       anchorCounts: { positive: 5, negative: 7 },
@@ -718,8 +720,8 @@ describe('ClusterView Membership Panel', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('TPOT membership')).toBeInTheDocument()
-      expect(screen.getByText('72%')).toBeInTheDocument()
+      expect(screen.getByText('TPOT affinity')).toBeInTheDocument()
+      expect(screen.getByText('0.720')).toBeInTheDocument()
     })
   })
 })
