@@ -1,5 +1,6 @@
 import { render, screen, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { buildShareText } from './shareText'
 
 /**
  * Tests for App.jsx — focuses on tier mapping (THE BIG BUG) and handleResult logic.
@@ -138,22 +139,6 @@ describe('CI messaging thresholds', () => {
   })
 })
 
-// ShareButton tweet text construction
-function buildShareText(handle, memberships, communityMap) {
-  const communityText = (memberships || [])
-    .map(m => {
-      const c = communityMap?.get(m.community_id)
-      return c ? `${Math.round(m.weight * 100)}% ${c.name}` : null
-    })
-    .filter(Boolean)
-    .slice(0, 3)
-    .join(', ')
-
-  return communityText
-    ? `I'm ${communityText} on TPOT.\n\nFind your ingroup →`
-    : `Find which TPOT communities you belong to →`
-}
-
 describe('ShareButton tweet text', () => {
   const communityMap = new Map([
     [1, { id: 1, name: 'Core TPOT', color: '#ff0' }],
@@ -169,7 +154,8 @@ describe('ShareButton tweet text', () => {
       { community_id: 3, weight: 0.15 },
       { community_id: 4, weight: 0.05 },
     ]
-    const text = buildShareText('alice', memberships, communityMap)
+    const text = buildShareText(memberships, communityMap)
+    expect(text).toContain('My current TPOT map scores:')
     expect(text).toContain('50% Core TPOT')
     expect(text).toContain('30% LLM Whisperers')
     expect(text).toContain('15% Qualia')
@@ -178,18 +164,18 @@ describe('ShareButton tweet text', () => {
   })
 
   it('returns generic text when no memberships', () => {
-    const text = buildShareText('alice', [], communityMap)
+    const text = buildShareText([], communityMap)
     expect(text).toBe('Find which TPOT communities you belong to →')
   })
 
   it('returns generic text when memberships is null', () => {
-    const text = buildShareText('alice', null, communityMap)
+    const text = buildShareText(null, communityMap)
     expect(text).toBe('Find which TPOT communities you belong to →')
   })
 
   it('handles missing communities in map gracefully', () => {
     const memberships = [{ community_id: 999, weight: 0.5 }]
-    const text = buildShareText('alice', memberships, communityMap)
+    const text = buildShareText(memberships, communityMap)
     // community_id 999 not in map → filtered out → generic text
     expect(text).toBe('Find which TPOT communities you belong to →')
   })

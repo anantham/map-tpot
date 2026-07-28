@@ -1,8 +1,8 @@
 /**
  * EvidenceSummary — transparent text below the card showing what signals
- * were used to determine community membership and how confident we are.
+ * were used to estimate community affinity and what a legacy heuristic means.
  *
- * The card stays beautiful. This text is the calibrated honesty.
+ * The card stays beautiful. This text keeps score semantics explicit.
  *
  * Evidence data (from search.json):
  *   evidence.seed_neighbors_by_community: {community_name: count}
@@ -23,6 +23,11 @@ export default function EvidenceSummary({
   onHandleClick,
 }) {
   if (!tier || tier === 'not_found') return null
+  const isSeedTier = tier === 'exemplar' || tier === 'classified'
+  const parsedSignal = confidence == null ? NaN : Number(confidence)
+  const heuristicSignal = Number.isFinite(parsedSignal)
+    ? Math.max(0, Math.min(1, parsedSignal))
+    : null
 
   const bars = (memberships || [])
     .map(m => {
@@ -32,12 +37,9 @@ export default function EvidenceSummary({
         weight: m.weight,
         pct: Math.round(m.weight * 100),
         neighbors: m.seed_neighbors || 0,
-        ci: m.ci, // [low, high]
       }
     })
     .sort((a, b) => b.weight - a.weight)
-
-  const formatBound = (val) => val != null ? `${Math.round(val * 100)}%` : '?'
 
   const topBar = bars[0]
   const totalNeighbors = seedNeighbors || bars.reduce((s, b) => s + b.neighbors, 0)
@@ -48,33 +50,37 @@ export default function EvidenceSummary({
   const notableFollowers = ev.notable_followers || []
   const tweets = sampleTweets || []
 
-  // Confidence badge
+  // Legacy heuristic badge. This is not a calibrated probability, and its
+  // inputs differ between seed and propagated exports.
   let badgeLabel, badgeClass
-  if (tier === 'exemplar' || tier === 'classified') {
+  if (isSeedTier) {
     badgeLabel = 'Seed'
     badgeClass = 'strong'
-  } else if (confidence >= 0.5) {
-    badgeLabel = 'Strong'
+  } else if (heuristicSignal == null) {
+    badgeLabel = 'Heuristic unavailable'
+    badgeClass = 'faint'
+  } else if (heuristicSignal >= 0.5) {
+    badgeLabel = 'Strong heuristic'
     badgeClass = 'strong'
-  } else if (confidence >= 0.15) {
-    badgeLabel = 'Moderate'
+  } else if (heuristicSignal >= 0.15) {
+    badgeLabel = 'Moderate heuristic'
     badgeClass = 'moderate'
-  } else if (confidence >= 0.05) {
-    badgeLabel = 'Emerging'
+  } else if (heuristicSignal >= 0.05) {
+    badgeLabel = 'Emerging heuristic'
     badgeClass = 'emerging'
   } else {
-    badgeLabel = 'Faint'
+    badgeLabel = 'Faint heuristic'
     badgeClass = 'faint'
   }
 
   // Tier description
   const tierDesc = {
-    exemplar: 'Seed account with full archive data — follows, retweets, and liked content analyzed.',
-    classified: 'Seed account with full archive data — follows, retweets, and liked content analyzed.',
-    specialist: 'Clearly belongs to one community. Confident graph placement.',
+    exemplar: 'Seed account with richer local evidence; exact source coverage varies by account.',
+    classified: 'Seed account with richer local evidence; exact source coverage varies by account.',
+    specialist: 'Strong relative affinity to one community in the current graph.',
     bridge: 'Straddles multiple communities — a connector between scenes.',
     frontier: 'Inferred from network position. Fewer direct connections to classified accounts.',
-    faint: 'Barely visible in the network. Present but below the confidence threshold.',
+    faint: 'Barely visible in the network. Present but below the display threshold.',
   }
 
   // Group notable follows by community
@@ -113,7 +119,7 @@ export default function EvidenceSummary({
       {/* Community placement */}
       {topBar && (
         <p className="evidence-line">
-          Community: {topBar.name} ({topBar.pct}%).
+          Highest displayed affinity: {topBar.name} (score {topBar.pct}%).
           {bars.filter(b => b.pct >= 5).length >= 3 ? (
             <span className="evidence-bridge-label"> (TPOT Bridge Account)</span>
           ) : null}
@@ -121,11 +127,17 @@ export default function EvidenceSummary({
         </p>
       )}
 
-      {/* Signal Strength / Confidence Meta */}
+      {/* Legacy, uncalibrated display-score metadata */}
       <p className="evidence-line evidence-line--meta">
-        Confidence: {Math.round((confidence || 0.99) * 100)}%.
-        {totalNeighbors > 0 && ` Derived from ${totalNeighbors.toLocaleString()} classified neighbors.`}
-        {tier === 'exemplar' || tier === 'classified' ? ' (Full archive analyzed)' : ''}
+        {isSeedTier
+          ? 'Legacy heuristic evidence composite'
+          : 'Legacy heuristic display score'}: {heuristicSignal == null
+          ? 'unavailable'
+          : `${Math.round(heuristicSignal * 100)}%`}.
+        {isSeedTier
+          ? ' Combines data richness, labeling depth, concentration, network context, and source agreement.'
+          : ' Primarily classified-neighbor support; historical exports may use a distribution fallback.'}
+        {totalNeighbors > 0 && ` Evidence lists ${totalNeighbors.toLocaleString()} classified neighbors.`}
       </p>
 
       {/* Seed neighbors by community */}
@@ -136,11 +148,6 @@ export default function EvidenceSummary({
             {bars.filter(b => b.neighbors > 0).map((bar) => (
               <span key={bar.name} className="evidence-neighbor-chip">
                 {bar.neighbors} {bar.name}
-                {bar.ci && (
-                  <span className="evidence-ci-tag" title="95% Confidence Interval">
-                    &nbsp;[{formatBound(bar.ci[0])} - {formatBound(bar.ci[1])}]
-                  </span>
-                )}
               </span>
             ))}
           </div>
@@ -203,7 +210,8 @@ export default function EvidenceSummary({
       )}
 
       {/* Improvement suggestion */}
-      {tier !== 'exemplar' && tier !== 'classified' && confidence < 0.15 && (
+      {tier !== 'exemplar' && tier !== 'classified'
+        && heuristicSignal != null && heuristicSignal < 0.15 && (
         <p className="evidence-line evidence-line--improve">
           Based on network position only. Tweet analysis would sharpen this.
         </p>
