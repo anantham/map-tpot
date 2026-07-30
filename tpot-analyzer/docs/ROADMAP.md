@@ -487,6 +487,17 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   explicit uncalibrated score semantics
   (`src/graph/source_selectivity.py`,
   `scripts/verify_source_selectivity.py`, implemented 2026-07-30).
+- [x] Run a zero-spend named-seed coverage triage against the latest
+  deep-verified Community Archive tweet snapshot and explicit local follow
+  views. The four Dharma seeds yielded 3,305 source-selective candidates, but
+  the follow batch remains acquisition-unattributed and the SQLite inputs are
+  mutable query-time views
+  (`data/evals/dharma_seed_coverage_report_20260730.json`,
+  `scripts/verify_seed_coverage_triage.py`, implemented 2026-07-30).
+- Add a blind candidate-review surface over the frozen named-seed ranking.
+  Show source support and raw evidence, never legacy community names or a
+  membership percentage; record relevance only after canonical task and
+  snapshot-addressed judgment contracts exist.
 - Compare source-selective ranking against raw distinct-seed support only after
   30 real scoped judgments permit a frozen development/holdout split. Report
   Recall@K, precision@K, reciprocal rank, degree/community strata, and
@@ -614,6 +625,25 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Track a small committed pointer/lock record for the approved Community
   Archive snapshot ID and SHA-256 while keeping the ~902 MB Parquet bodies
   ignored. Snapshot presence alone must not silently activate downstream data.
+- Canonicalize one explicit data root (or a versioned data-root manifest) and
+  fail on ambiguous sibling copies. EXP-023 found independent 12 GB archive
+  databases whose selection changed the named-seed candidate universe from
+  894 to 3,305.
+- Make follow experiments snapshot-addressed: export the exact queried edge
+  subset with a content digest, or copy/checkpoint the SQLite database and WAL.
+  A path/inode/mtime receipt from a mutable WAL database preserves history but
+  cannot reproduce the exact ranking after the source advances.
+- Add row-level `source_provider`, `source_channel`, `fetch_run_id`, and
+  `fetched_at` receipts to every future follow ingestion. Migrate or explicitly
+  mark current `account_following` / `account_followers` rows as unattributed;
+  do not infer Community Archive or twitterapi.io provenance from timing.
+- Audit and version `shadow_edge` orientation semantics across historical
+  writers. Current producer code and stored metadata treat `direction` as
+  capture context, while `docs/reference/DATABASE_SCHEMA.md` contains
+  contradictory source/target prose.
+- Extend named-seed triage with source-separated typed-edge coverage
+  (replies, mentions, quotes, retweets, and likes) only after event timestamps
+  are distinguished from aggregate-build timestamps.
 - Introduce caching layer for Flask metrics endpoint to reduce recomputation
   during rapid slider adjustments.
 - Monitor SQLite growth and evaluate move to PostgreSQL if enrichment scale

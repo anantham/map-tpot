@@ -2,7 +2,124 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-30 (Research Notes inbox synthetic contract)*
+*Last updated: 2026-07-30 (named-seed coverage and path-dependence triage)*
+
+---
+
+## EXP-023: Do the named Dharma seeds already have enough local evidence to rank candidates?
+
+**Date:** 2026-07-30
+
+**Question:** Before buying more X data, do the latest Community Archive tweet
+snapshot plus existing local/archive and shadow follow views contain usable
+neighborhoods for RomeoStevens76, TVachaW, realityacid108, and SuttaSlime?
+Can the project produce a source-selective candidate ranking without silently
+turning stored-key counts into coverage or membership claims?
+
+**Hypothesis:** A read-only, receipt-bearing union of direct and inverse
+following observations will recover a nonempty neighborhood for every named
+seed and make the Slice 1 source-selectivity primitive operational. The
+stronger retrieval hypothesis remains that this ordering will beat raw support
+on held-out judgments. A second hypothesis was that each follow batch could be
+attributed to Community Archive, shadow scraping, or twitterapi.io.
+
+**Method:** Refreshed the canonical Community Archive Parquet snapshot and
+deep-verified its manifest and SHA-256. Pinned the four numeric account IDs and
+profile-count observations in a versioned seed panel. Opened explicitly
+selected SQLite inputs with `mode=ro`, `PRAGMA query_only=ON`, and WAL-aware
+transactions; missing tables were represented as unavailable rather than
+zero. For each seed, the report kept these stored sources separate before
+deduplicating their identity keys:
+
+1. `account_following` direct following rows;
+2. `account_followers` rows inverted through `follower_account_id`;
+3. direct shadow following rows;
+4. inverse shadow following evidence where the seed appeared on another
+   account's follower surface.
+
+The report then ran `source_selectivity_v1`, inspected latest-snapshot authored
+posts and incoming non-self replies, compared two independent local archive
+database paths, and priced a complete twitterapi.io followings refresh from a
+dated official price card. It made no network request while building the
+report and made no paid API call. The earlier Community Archive refresh used
+the public archive endpoint and cost USD 0.
+
+**Result:** **Local retrieval is operational; acquisition provenance is
+falsified, and retrieval quality remains untested.**
+
+- The selected Community Archive snapshot is
+  `20260730T045247Z-4913d0183e39`: 8,511,975 tweets, 34,917 accounts, newest
+  event `2026-07-30T04:24:20Z`, 920,495,154 bytes, SHA-256
+  `24843080391b664ed8a138cd65362a4c65756c95459858e19aca98ed7e87e471`.
+- Stored-key following unions were RomeoStevens76 `957`, TVachaW `2,323`,
+  realityacid108 `226`, and SuttaSlime `58`. These are not completeness
+  percentages: mixed-time sources and unresolved numeric/`shadow:*` aliases
+  can make a union exceed a current profile claim.
+- Latest-snapshot authored rows were `14,542`, `290`, `7`, and `1`;
+  incoming non-self reply rows were `2,947`, `360`, `6`, and `47`
+  respectively.
+- Source selectivity returned 3,305 candidates. The leading candidate,
+  `danielbrottman`, had support from all four seeds; the next tranche included
+  `chercher_ai`, `TPatbat`, and `rakkhasa_`. This is suggestive face validity,
+  not precision evidence or a community assignment.
+- Database selection changed the result materially. The stale project-root
+  database produced unions of `735`, `225`, `1`, and `2`; the selected active
+  local database produced `957`, `2,323`, `226`, and `58`, changing the
+  candidate universe from `894` to `3,305`. Every seed target-set digest
+  changed. This falsifies
+  EXP-021's provisional sparse-coverage diagnosis as a path-dependent
+  observation, not as a scoring failure.
+- The active `account_following` table contains a contiguous later batch that
+  closes the four named neighborhoods, but its schema stores no source,
+  fetch time, or run ID. Neither stale `edge_fetch_state` nor
+  `enrichment_log` can attribute it. The only honest source label is
+  local follow rows without row-level provenance; they cannot be claimed as
+  Community Archive or twitterapi.io data.
+- At the verified 2026-07-30 price card, complete followings refreshes are
+  estimated at USD `0.00800`, `0.02334`, `0.00260`, and `0.00177`, totaling
+  USD `0.03571`. This prices full traversal, not the
+  claimed-minus-observed gap. Actual spend in this experiment was USD `0`.
+
+**Assumptions and falsifiers:**
+
+- Current producer code and stored row metadata support interpreting direct
+  and inverse shadow rows as following evidence. Historical
+  `shadow_edge.direction` documentation is internally inconsistent; a writer-
+  version or row-level provenance audit that shows mixed orientation would
+  falsify that interpretation.
+- Stored identity keys are treated as distinct accounts. Alias reconciliation
+  can reduce counts and change scores.
+- The two SQLite transactions are individually read-consistent but not
+  mutually atomic, and the selected databases are mutable. The JSON is a
+  frozen historical record of one query-time output and its input receipts;
+  it cannot reproduce the exact ranking after either database or WAL advances.
+- Follow observations are treated as durable attention signals despite unknown
+  age, endorsement, list maintenance, and capture propensity.
+- Profile follow counts are observations at one timestamp, not ground-truth
+  denominators for mixed-time local edges.
+- The retrieval claim is falsified if a frozen development/holdout evaluation
+  fails to improve Recall@K, precision@K, or reciprocal rank over raw support,
+  or if the gain disappears across seed-degree and evidence-source strata.
+
+**Lesson:** The apparent absence of the Dharma neighborhood was primarily a
+data-root/provenance problem, not evidence that source selectivity failed.
+There is enough local topology to put real candidates in front of a reviewer
+without spending money. The next constraint is human relevance judgment and
+identity/provenance cleanup, not another inference substrate.
+
+**Data stored:** `data/evals/dharma_seed_coverage_panel.json`,
+`data/manifests/twitterapiio_price_card_20260730.json`, frozen report
+`data/evals/dharma_seed_coverage_report_20260730.json`, implementation under
+`src/evaluation/seed_coverage*.py`, behavioral contracts in
+`tests/test_seed_coverage.py`, `tests/test_seed_coverage_contract.py`, and
+`tests/test_seed_coverage_io.py`, and the human verifier
+`scripts/verify_seed_coverage_triage.py`.
+
+**Next step:** Show the frozen top candidates in a simple blind review surface
+and collect relevance judgments without exposing legacy communities. Compare
+source-selective order with raw support after a development/holdout split
+exists. Do not purchase follow data until that zero-cost baseline is evaluated;
+first add source/run/timestamp receipts to any future acquisition.
 
 ---
 
@@ -176,6 +293,14 @@ against an identified frozen snapshot before use as comparative evidence.
 split, reconcile seed identities, and compare source-selective ranking with raw
 support on the same candidate universe. Do not tune the discrimination
 function on the terminal holdout.
+
+**2026-07-30 amendment:** EXP-023 compared independent database paths and
+falsified this section's provisional real-data sparsity diagnosis. The
+arithmetic result remains valid, but the `538/10/0/0` neighborhood observation
+came from a stale project-root database. The active local database yielded
+`957/2,323/226/58` stored-key unions and 3,305 candidates. Those later rows
+still lack acquisition provenance, so the amendment increases usable topology
+without establishing freshness, completeness, or source.
 
 ---
 
