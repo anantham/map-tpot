@@ -482,6 +482,16 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   geometry, or rank-only names with an adjacent “not membership probabilities”
   caveat
   (`scripts/verify_legacy_community_truthfulness.py`, implemented 2026-07-30).
+- [x] Add a pure source-side follow-selectivity ranking primitive with
+  duplicate-resistant support, conservative effective-degree diagnostics, and
+  explicit uncalibrated score semantics
+  (`src/graph/source_selectivity.py`,
+  `scripts/verify_source_selectivity.py`, implemented 2026-07-30).
+- Compare source-selective ranking against raw distinct-seed support only after
+  30 real scoped judgments permit a frozen development/holdout split. Report
+  Recall@K, precision@K, reciprocal rank, degree/community strata, and
+  sensitivity to `1 / degree` versus log-inverse, capped, learned, and
+  time-decayed weighting.
 - Freeze new `src/data/community_gold/` modules and schema expansion until at
   least 30 real, scoped judgments exist. Product work may wire the existing
   versioned store, but it must not create another persistence substrate or feed
@@ -645,6 +655,10 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Developer Experience
 
+- Make `scripts/verify_personal_ontology_docs.py` bootstrap the project root
+  when invoked directly, matching its documented script-style usage. The
+  2026-07-30 source-selectivity checkpoint found that module invocation passes
+  21/21 while direct invocation raises `ModuleNotFoundError: scripts`.
 - Pin a supported Node version for frontend CI/developer parity and retire the
   conditional graph-explorer test `Storage` shim once Vitest/jsdom no longer
   conflicts with Node 26 experimental web storage.
