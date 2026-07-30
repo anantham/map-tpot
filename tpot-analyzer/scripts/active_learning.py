@@ -1,15 +1,17 @@
 """Active learning orchestrator — ties together fetch, context, ensemble labeling, and rollup.
 
 CLI entry point for running active learning rounds:
-  Round 1: select top-N accounts by info_value, fetch tweets, label with 3-model ensemble
+  Round 1: accept explicit accounts, fetch tweets, label with 3-model ensemble
   Round 2: targeted search for ambiguous accounts from round 1
   Measure: rollup bits, insert as seeds, report metrics
 
 Usage:
-    .venv/bin/python3 -m scripts.active_learning --round 1 --top 50 --budget 2.50
-    .venv/bin/python3 -m scripts.active_learning --round 2 --budget 5.0
+    .venv/bin/python3 -m scripts.active_learning --round 1 --accounts alice,bob --budget 2.50
+    .venv/bin/python3 -m scripts.active_learning --round 1 --accounts-file handles.txt --archive-only
     .venv/bin/python3 -m scripts.active_learning --measure
-    .venv/bin/python3 -m scripts.active_learning --round 1 --top 3 --dry-run
+
+Automatic selection from ``frontier_ranking`` is quarantined until a versioned
+and evaluated replacement exists.
 
 This file is the ORCHESTRATOR. Phase-specific helpers live in
 `scripts/_active_learning_helpers/`. They're re-exported below so existing
@@ -52,6 +54,9 @@ from scripts._active_learning_helpers._reporting import (
     _extract_top_community,
     log_model_agreement,
     profile_results,
+)
+from scripts._active_learning_helpers.frontier_quarantine import (
+    reject_unverified_frontier_ranking,
 )
 
 logger = logging.getLogger(__name__)
@@ -228,7 +233,7 @@ def main():
     )
     parser.add_argument(
         "--top", type=int, default=50,
-        help="Number of top accounts to process (default: 50)",
+        help="Historical automatic-selection limit; currently quarantined",
     )
     parser.add_argument(
         "--budget", type=float, default=5.0,
@@ -285,6 +290,9 @@ def main():
     if not args.round and not args.measure:
         parser.error("Must specify --round or --measure")
 
+    if args.round and not args.accounts and not args.accounts_file:
+        reject_unverified_frontier_ranking("active_learning automatic selection")
+
     if not args.db_path.exists():
         logger.error("Database not found: %s", args.db_path)
         sys.exit(1)
@@ -303,7 +311,7 @@ def main():
     # Round execution
     round_num = args.round
 
-    # Select accounts — three modes: --accounts, --accounts-file, or frontier_ranking
+    # Select explicit accounts. The legacy automatic branch fails closed above.
     if args.accounts:
         handles = [h.strip().lstrip("@") for h in args.accounts.split(",") if h.strip()]
         accounts = select_accounts_by_handle(conn, handles)
@@ -321,6 +329,8 @@ def main():
         accounts = select_accounts_by_handle(conn, handles)
         logger.info("Selected %d accounts from file %s", len(accounts), args.accounts_file)
     else:
+        # This branch remains unreachable until a verified replacement ranking
+        # is wired; retain the selection code for that future contract.
         # Resolve ego account_id if provided
         ego_id = None
         if args.ego:

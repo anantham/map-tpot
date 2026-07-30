@@ -195,3 +195,106 @@ The 2026-07-26 frozen solver audit also falsified the documented iteration
 plumbing and dangling-mass conservation contracts. The frozen bundle remains a
 control artifact, not evidence that the runtime satisfies every algorithmic
 claim above. Repair and version the solver before publishing a replacement.
+
+## Amendment — 2026-07-30: independent display bands fail closed
+
+### Issue
+
+The historical `account_band` classifier applied
+
+```
+H_bad(x) = -Σ x_i log(x_i) / log(K)
+```
+
+directly to independent-mode PPR Lift values. Lift is non-negative but
+unbounded and does not sum to one. Therefore `H_bad` is not Shannon entropy:
+it changes when the same affinities are expressed at a different scale and can
+be negative or greater than one. The specialist rule then ran after the bridge
+rule and overwrote it, although the independent-propagation design described a
+specialist as one high signal and a bridge as two or more high signals.
+
+The stored `account_band` table is also not bound to an NPZ digest, propagation
+mode, taxonomy, or run ID. Its single creation timestamp
+(`2026-04-09T03:12:20Z`) corresponds to an archived propagation run, while the
+active independent artifact is newer. Public export combined those stale band
+rows with the newer Lift matrix.
+
+### Decision
+
+Independent-mode display-band classification is undefined and fails closed:
+
+- `classify_bands` refuses to create `account_band` rows from an independent
+  artifact;
+- public-site export refuses every unbound `account_band` table, including
+  one paired with a valid but potentially unrelated classic artifact, and
+  continues only with the safer classified-row fallback;
+- `rank_frontier` refuses every unbound `account_band` table at its reusable
+  loader boundary, in addition to rejecting zero-valued independent
+  uncertainty and synthetic `none` Lift;
+- `analyze_frontier_confidence` refuses to relabel compositional Lift spread
+  as confidence or apply probability thresholds to independent scores;
+- automatic `active_learning` selection and frontier-ranked following fetches
+  refuse the unversioned `frontier_ranking` table at both CLI and reusable
+  selection-function boundaries; explicit curator-selected handles remain
+  available and do not inherit its score/community metadata;
+- topic-search ingestion stores raw tweets/profiles but no longer writes an
+  artificial ranking score; its verifier exports an inspectable handles file
+  for explicit selection;
+- the historical band-driven username resolver refuses standalone
+  `account_band` selection before database/network work because it has no
+  compatible artifact to validate;
+- classic-mode display-band generation remains available only as a local
+  historical diagnostic, not calibrated membership or uncertainty; current
+  export/ranking consumers reject its rows until exact artifact binding
+  exists;
+- the hosted/exported specialist, bridge, frontier, and faint labels are
+  quarantined legacy metadata until regenerated under an evaluated contract.
+
+This amendment does not introduce an artifact-provenance schema. Because the
+current table cannot prove exact digest/run/taxonomy/threshold/method binding,
+all of its rows are rejected at consumer boundaries. A future classic band
+export may be restored only after that receipt exists and is verified at read
+time.
+
+The shared entropy primitive now first normalizes each non-negative row,
+`p_i = x_i / Σx`, and then computes `-Σ p_i log(p_i) / log(K)`. It is bounded
+and invariant to a positive rescaling of the row. A zero row returns zero by
+computational convention and must be caught by a separate evidence/abstention
+gate; it must never be interpreted as high certainty.
+
+This mathematical repair does **not** define independent display bands.
+Compositional entropy measures relative spread, not evidence amount,
+membership probability, posterior uncertainty, or correctness. The solver's
+entropy over its full output, the old band entropy over community-only columns,
+and other confidence/concentration heuristics are distinct consumers and must
+not silently share semantics.
+
+### Evidence and falsifiers
+
+On active artifact SHA-256 prefix `1d12f3371205260d` (298,347 accounts, 16
+community Lift columns), the historical calculation ranged from `-1190.18` to
+`1.97559`; 30,434 rows fell outside `[0,1]`. All 6,964 stored specialists had
+negative entropy, and 16,065 stored rows were negative overall. Correct
+row-normalized entropy ranged from `0` to `0.975667` and was unchanged by a
+7x scale transformation.
+
+Deleting only the historical entropy predicate changed zero current band
+assignments, so that predicate contributed no information to the active
+classifier. Substituting corrected entropy while retaining the unvalidated
+`0.70` threshold changed 1,793 assignments: 659 specialist-to-bridge and 1,134
+specialist-to-frontier. That is a taxonomy decision, not a safe numerical
+patch.
+
+Independent display bands may be restored only if a registered method:
+
+1. defines mutually coherent specialist/bridge semantics and zero-row
+   handling;
+2. binds every output to the exact NPZ digest, mode, taxonomy, thresholds, and
+   method version;
+3. beats Lift plus seed-neighbor baselines on frozen development judgments and
+   an untouched holdout using retrieval and calibration metrics;
+4. remains stable under score rescaling, seed perturbation, topology snapshots,
+   and reasonable threshold changes.
+
+If corrected entropy provides no stable holdout gain, it should remain absent
+from banding rather than being retained for mathematical ornament.

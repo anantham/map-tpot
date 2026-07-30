@@ -195,7 +195,7 @@ def npz_file(tmp_path):
     memberships[5] = [0.6, 0.3, 0.1]
     # Exemplar nodes also appear in NPZ (their band memberships come from community_account)
     memberships[6] = [0.95, 0.0, 0.05]   # acct-1
-    memberships[7] = [0.8, 0.6, 0.0]     # acct-2
+    memberships[7] = [0.6, 0.4, 0.0]     # acct-2
     memberships[8] = [0.03, 0.0, 0.97]   # acct-3 (low weight)
     memberships[9] = [0.0, 0.9, 0.1]     # acct-4
 
@@ -212,8 +212,10 @@ def npz_file(tmp_path):
     npz_path = tmp_path / "community_propagation.npz"
     np.savez(
         str(npz_path),
+        mode=np.array("classic"),
         memberships=memberships,
         abstain_mask=abstain_mask,
+        labeled_mask=np.zeros(n_nodes, dtype=np.bool_),
         node_ids=node_ids,
         community_ids=community_ids,
         community_names=community_names,
@@ -727,6 +729,33 @@ class TestRunExport:
         assert acct1["bio"] == "builds stuff"
         assert acct1["followers"] == 1000
 
+    def test_classified_fallback_populates_community_members(
+        self, community_db, npz_file, parquet_file, tmp_path, config,
+    ):
+        from scripts.export_public_site import run_export
+
+        output_dir = tmp_path / "output"
+        run_export(
+            data_dir=tmp_path,
+            output_dir=output_dir,
+            config=config,
+            db_path=community_db,
+        )
+        data = json.loads((output_dir / "data.json").read_text())
+        builders = next(
+            community
+            for community in data["communities"]
+            if community["id"] == "comm-a"
+        )
+        handles = {
+            member["username"]
+            for member in [
+                *builders["featured_members"],
+                *builders["all_members"],
+            ]
+        }
+        assert {"alice", "bob"}.issubset(handles)
+
     def test_nan_followers_becomes_none(
         self, community_db, npz_file, parquet_file, tmp_path, config,
     ):
@@ -778,7 +807,7 @@ class TestRunExport:
             assert handle == handle.lower(), f"Handle '{handle}' is not lowercase"
 
     def test_works_without_npz(self, community_db, parquet_file, tmp_path, config):
-        """When NPZ doesn't exist, export classified only (no propagated)."""
+        """Unbound bands are suppressed before an NPZ is needed."""
         from scripts.export_public_site import run_export
 
         output_dir = tmp_path / "output"
@@ -788,15 +817,33 @@ class TestRunExport:
             config=config,
             db_path=community_db,
         )
-        data = json.loads((output_dir / "data.json").read_text())
-        # Should still have communities and classified accounts
-        assert len(data["communities"]) == 2
-        assert len(data["accounts"]) > 0
-        # Search should only have classified handles
         search = json.loads((output_dir / "search.json").read_text())
-        assert isinstance(search, dict)
+        assert search
+        assert {entry["tier"] for entry in search.values()} == {"classified"}
 
-    def test_search_includes_band_handles(
+    def test_unbound_bands_fallback_with_independent_artifact(
+        self, community_db, npz_file, parquet_file, tmp_path, config,
+    ):
+        """The production independent artifact cannot block safe fallback."""
+        with np.load(npz_file, allow_pickle=False) as artifact:
+            payload = {key: artifact[key] for key in artifact.files}
+        payload["mode"] = np.array("independent")
+        np.savez(npz_file, **payload)
+
+        from scripts.export_public_site import run_export
+
+        output_dir = tmp_path / "output"
+        run_export(
+            data_dir=tmp_path,
+            output_dir=output_dir,
+            config=config,
+            db_path=community_db,
+        )
+        search = json.loads((output_dir / "search.json").read_text())
+        assert search
+        assert {entry["tier"] for entry in search.values()} == {"classified"}
+
+    def test_search_suppresses_unbound_band_handles(
         self, community_db, npz_file, parquet_file, tmp_path, config,
     ):
         from scripts.export_public_site import run_export
@@ -809,12 +856,13 @@ class TestRunExport:
             db_path=community_db,
         )
         search = json.loads((output_dir / "search.json").read_text())
-        # "eve" is node-0, specialist band
-        assert "eve" in search
-        # "alice" is exemplar (acct-1)
+        # "eve" exists only through the unbound legacy band table.
+        assert "eve" not in search
+        # The safer classified-only fallback keeps raw seed rows available.
         assert "alice" in search
+        assert search["alice"]["tier"] == "classified"
 
-    def test_specialist_entry_shape(
+    def test_unbound_band_tiers_do_not_enter_public_export(
         self, community_db, npz_file, parquet_file, tmp_path, config,
     ):
         from scripts.export_public_site import run_export
@@ -827,13 +875,10 @@ class TestRunExport:
             db_path=community_db,
         )
         search = json.loads((output_dir / "search.json").read_text())
-        eve = search.get("eve")
-        assert eve is not None
-        assert eve["tier"] == "specialist"
-        assert "memberships" in eve
-        assert len(eve["memberships"]) > 0
+        assert search
+        assert {entry["tier"] for entry in search.values()} == {"classified"}
 
-    def test_exemplar_search_entry_shape(
+    def test_classified_fallback_search_entry_shape(
         self, community_db, npz_file, parquet_file, tmp_path, config,
     ):
         from scripts.export_public_site import run_export
@@ -848,7 +893,7 @@ class TestRunExport:
         search = json.loads((output_dir / "search.json").read_text())
         alice = search.get("alice")
         assert alice is not None
-        assert alice["tier"] == "exemplar"
+        assert alice["tier"] == "classified"
         assert "memberships" in alice
 
 
@@ -859,9 +904,8 @@ class TestRunExport:
 class TestExportIntegration:
     """Edge-case integration tests for the export pipeline."""
 
-    def test_classified_takes_precedence_over_propagated(self, tmp_path, config):
-        """If an account appears as both classified (NMF/bits) and propagated,
-        the search index should show tier='classified', not 'propagated'."""
+    def test_unbound_band_rows_do_not_enter_search_index(self, tmp_path, config):
+        """A valid classic NPZ cannot legitimize unrelated band rows."""
         from scripts.export_public_site import run_export
 
         # Build a full DB with all tables needed by compute_confidence
@@ -959,8 +1003,10 @@ class TestExportIntegration:
         npz_path = tmp_path / "community_propagation.npz"
         np.savez(
             str(npz_path),
+            mode=np.array("classic"),
             memberships=memberships,
             abstain_mask=abstain_mask,
+            labeled_mask=np.zeros(n_nodes, dtype=np.bool_),
             node_ids=node_ids,
             community_ids=community_ids,
             community_names=community_names,
@@ -989,13 +1035,12 @@ class TestExportIntegration:
 
         search = json.loads((output_dir / "search.json").read_text())
 
-        # alice (acct-1) should be exemplar (seed), not overwritten by propagated
+        # The classified-only fallback preserves the raw seed row.
         assert "alice" in search
-        assert search["alice"]["tier"] == "exemplar"
+        assert search["alice"]["tier"] == "classified"
 
-        # zara (node-x) should be specialist (propagated with good signal)
-        assert "zara" in search
-        assert search["zara"]["tier"] == "specialist"
+        # zara exists only through the unbound legacy band table.
+        assert "zara" not in search
 
     def test_threshold_gate_filters_low_weight(self, community_db, tmp_path, config):
         """Accounts whose max community weight is below abstain_threshold (0.10 by
@@ -1018,6 +1063,7 @@ class TestExportIntegration:
         npz_path = tmp_path / "propagation.npz"
         np.savez(
             str(npz_path),
+            mode=np.array("classic"),
             memberships=memberships,
             abstain_mask=abstain_mask,
             node_ids=node_ids,
@@ -1057,6 +1103,7 @@ class TestExportIntegration:
         npz_path = tmp_path / "propagation.npz"
         np.savez(
             str(npz_path),
+            mode=np.array("classic"),
             memberships=memberships,
             abstain_mask=abstain_mask,
             node_ids=node_ids,

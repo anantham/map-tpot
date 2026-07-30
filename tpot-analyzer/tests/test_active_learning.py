@@ -1,8 +1,11 @@
 """Tests for the active learning orchestrator."""
 import sqlite3
 import pytest
+import scripts.active_learning as active_learning
+from scripts._active_learning_helpers._account_selection import (
+    _select_accounts_from_unverified_frontier as _select_unverified_accounts,
+)
 from scripts.active_learning import (
-    select_accounts,
     profile_results,
     log_model_agreement,
     run_round_1,
@@ -25,6 +28,13 @@ def _setup_orchestrator_db(tmp_path):
     return conn
 
 
+def test_unverified_frontier_selector_is_not_publicly_reexported():
+    assert not hasattr(
+        active_learning,
+        "_select_accounts_from_unverified_frontier",
+    )
+
+
 def test_select_accounts_excludes_holdout(tmp_path):
     conn = _setup_orchestrator_db(tmp_path)
     conn.execute("INSERT INTO frontier_ranking VALUES ('a1','frontier',10.0,'c1',0.5,5,0,'')")
@@ -33,7 +43,7 @@ def test_select_accounts_excludes_holdout(tmp_path):
     conn.execute("INSERT INTO profiles VALUES ('a1','user1','')")
     conn.execute("INSERT INTO profiles VALUES ('a2','holdout_user','')")
     conn.commit()
-    accounts = select_accounts(conn, top_n=10, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=10, round_num=1)
     account_ids = [a["account_id"] for a in accounts]
     assert "a1" in account_ids
     assert "a2" not in account_ids
@@ -49,7 +59,7 @@ def test_select_accounts_respects_enriched_dedup(tmp_path):
             f"VALUES ('t{i}','a1','user1','text','last_tweets','')"
         )
     conn.commit()
-    accounts = select_accounts(conn, top_n=10, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=10, round_num=1)
     assert len(accounts) == 0
 
 
@@ -64,7 +74,7 @@ def test_select_accounts_allows_topic_seed_only_accounts(tmp_path):
     )
     conn.commit()
 
-    accounts = select_accounts(conn, top_n=10, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=10, round_num=1)
     assert [a["account_id"] for a in accounts] == ["a1"]
 
 
@@ -73,7 +83,7 @@ def test_select_accounts_resolves_username(tmp_path):
     conn.execute("INSERT INTO frontier_ranking VALUES ('a1','frontier',10.0,'c1',0.5,5,0,'')")
     conn.execute("INSERT INTO resolved_accounts VALUES ('a1','resolved_user','')")
     conn.commit()
-    accounts = select_accounts(conn, top_n=10, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=10, round_num=1)
     assert accounts[0]["username"] == "resolved_user"
 
 
@@ -81,7 +91,7 @@ def test_select_accounts_skips_no_username(tmp_path):
     conn = _setup_orchestrator_db(tmp_path)
     conn.execute("INSERT INTO frontier_ranking VALUES ('a1','frontier',10.0,'c1',0.5,5,0,'')")
     conn.commit()
-    accounts = select_accounts(conn, top_n=10, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=10, round_num=1)
     assert len(accounts) == 0
 
 
@@ -92,7 +102,7 @@ def test_select_accounts_ordered_by_info_value(tmp_path):
     conn.execute("INSERT INTO profiles VALUES ('a1','user1','')")
     conn.execute("INSERT INTO profiles VALUES ('a2','user2','')")
     conn.commit()
-    accounts = select_accounts(conn, top_n=10, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=10, round_num=1)
     assert accounts[0]["account_id"] == "a2"  # higher info_value first
 
 
@@ -121,7 +131,7 @@ def test_select_accounts_excludes_in_holdout_flag(tmp_path):
     conn.execute("INSERT INTO frontier_ranking VALUES ('a1','frontier',10.0,'c1',0.5,5,1,'')")
     conn.execute("INSERT INTO profiles VALUES ('a1','user1','')")
     conn.commit()
-    accounts = select_accounts(conn, top_n=10, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=10, round_num=1)
     assert len(accounts) == 0
 
 
@@ -132,7 +142,7 @@ def test_select_accounts_prefers_profiles_over_resolved(tmp_path):
     conn.execute("INSERT INTO profiles VALUES ('a1','profile_user','')")
     conn.execute("INSERT INTO resolved_accounts VALUES ('a1','resolved_user','')")
     conn.commit()
-    accounts = select_accounts(conn, top_n=10, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=10, round_num=1)
     assert accounts[0]["username"] == "profile_user"
 
 
@@ -145,7 +155,7 @@ def test_select_accounts_respects_top_n(tmp_path):
         )
         conn.execute(f"INSERT INTO profiles VALUES ('a{i}','user{i}','')")
     conn.commit()
-    accounts = select_accounts(conn, top_n=3, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=3, round_num=1)
     assert len(accounts) == 3
     assert accounts[0]["info_value"] == 10.0
 
@@ -160,7 +170,7 @@ def test_select_accounts_skips_any_enriched(tmp_path):
         "VALUES ('t0','a1','user1','text','last_tweets','')"
     )
     conn.commit()
-    accounts = select_accounts(conn, top_n=10, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=10, round_num=1)
     assert len(accounts) == 0  # skipped — already has enriched tweets
 
 
@@ -179,7 +189,7 @@ def test_select_accounts_skips_mixed_topic_seed_and_normal_fetch(tmp_path):
     )
     conn.commit()
 
-    accounts = select_accounts(conn, top_n=10, round_num=1)
+    accounts = _select_unverified_accounts(conn, top_n=10, round_num=1)
     assert accounts == []
 
 

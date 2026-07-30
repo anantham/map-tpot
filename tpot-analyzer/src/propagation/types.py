@@ -60,8 +60,8 @@ class PropagationConfig:
 @dataclass
 class PropagationResult:
     """Full output of multi-class propagation."""
-    memberships: np.ndarray           # (n_nodes, K+1) soft memberships, rows sum to 1
-    uncertainty: np.ndarray           # (n_nodes,) combined uncertainty [0, 1]
+    memberships: np.ndarray           # (n_nodes, K+1); simplex in classic, raw Lift in independent
+    uncertainty: np.ndarray           # (n_nodes,) classic uncertainty; zero placeholder in independent
     entropy: np.ndarray               # (n_nodes,) normalized entropy [0, 1]
     abstain_mask: np.ndarray          # (n_nodes,) bool — below confidence
     community_ids: list[str]          # K community UUIDs (columns 0..K-1)

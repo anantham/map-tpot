@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Four-band classification: exemplar / specialist / bridge / frontier / unknown.
+"""Classic-mode display bands: exemplar / specialist / bridge / frontier.
 
 Reads community_propagation.npz and classifies every account into one of
-four meaningful bands (plus unknown) based on membership vector shape.
+four legacy display bands (plus unknown) based on membership vector shape.
+Independent Lift artifacts fail closed because their specialist/bridge
+thresholds and precedence have not been validated.
 
 Band definitions (applied in priority order, highest wins):
 
   exemplar   — seed accounts with human curation (labeled_mask = True)
-  specialist — max community weight >= 0.30, normalized entropy < 0.70
+  specialist — max community weight >= 0.30, legacy partial-mass entropy < 0.70
   bridge     — 2+ communities >= 0.15, none_weight < 0.40
   frontier   — max community weight >= 0.08 (some signal, but uncertain)
   unknown    — abstained OR max weight < 0.08 (no meaningful signal)
@@ -22,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import math
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -36,27 +37,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from src.config import DEFAULT_ARCHIVE_DB
+from src.propagation.bands import (
+    classify_bands,
+    compute_normalized_entropy,
+    propagation_artifact_mode,
+)
 
 DEFAULT_DB_PATH = DEFAULT_ARCHIVE_DB
 DEFAULT_NPZ_PATH = ROOT / "data" / "community_propagation.npz"
-
-# ── Band thresholds ──────────────────────────────────────────────────────────
-# Classic mode (zero-sum, memberships sum to 1.0)
-SPECIALIST_MIN_WEIGHT = 0.30
-SPECIALIST_MAX_ENTROPY = 0.70
-BRIDGE_MIN_WEIGHT = 0.15
-BRIDGE_MIN_COMMUNITIES = 2
-BRIDGE_MAX_NONE = 0.40
-FRONTIER_MIN_WEIGHT = 0.08
-
-# Independent mode (PPR Lift scores, no upper bound)
-INDEPENDENT_SPECIALIST_MIN_WEIGHT = 5.0
-INDEPENDENT_SPECIALIST_MAX_ENTROPY = 0.70
-INDEPENDENT_BRIDGE_MIN_WEIGHT = 2.5
-INDEPENDENT_BRIDGE_MIN_COMMUNITIES = 2
-INDEPENDENT_BRIDGE_MAX_NONE = 999.0  # None is just another community's lift
-INDEPENDENT_FRONTIER_MIN_WEIGHT = 1.5
-
 
 # ── Schema ───────────────────────────────────────────────────────────────────
 
@@ -87,7 +75,7 @@ def load_propagation(npz_path: Path) -> dict:
     if missing:
         raise ValueError(f"NPZ missing keys: {missing}")
 
-    is_independent = "seed_neighbor_counts" in data
+    mode = propagation_artifact_mode(data)
     result = {
         "memberships": data["memberships"],       # (N, K+1) — K communities + none
         "abstain_mask": data["abstain_mask"],      # (N,) bool
@@ -95,101 +83,12 @@ def load_propagation(npz_path: Path) -> dict:
         "node_ids": data["node_ids"],              # (N,) str
         "community_names": data["community_names"],  # (K,) str
         "uncertainty": data.get("uncertainty", np.zeros(len(data["node_ids"]))),
-        "independent_mode": is_independent,
+        "mode": mode,
+        "independent_mode": mode == "independent",
     }
-    if is_independent:
+    if mode == "independent":
         result["seed_neighbor_counts"] = data["seed_neighbor_counts"]
     return result
-
-
-def compute_normalized_entropy(community_weights: np.ndarray) -> np.ndarray:
-    """Compute normalized entropy H/log(K) for each row over K community columns.
-
-    Only considers the 15 community columns (not the none column).
-    Clips to avoid log(0). Returns array of shape (N,).
-    """
-    K = community_weights.shape[1]
-    # Clip small values to avoid log(0)
-    p = np.clip(community_weights, 1e-12, None)
-    log_p = np.log(p)
-    # Zero out contributions from near-zero entries
-    mask = community_weights > 1e-10
-    h = -np.sum(np.where(mask, p * log_p, 0.0), axis=1)
-    return h / math.log(K)
-
-
-def classify_bands(prop: dict) -> dict:
-    """Classify every account into one of 5 bands.
-
-    Detects independent mode (raw scores) vs classic mode (zero-sum) and
-    uses calibrated thresholds for each.
-
-    Returns dict with arrays: band, top_community_idx, top_weight, entropy, none_weight.
-    """
-    N = len(prop["node_ids"])
-    K = len(prop["community_names"])
-    comm_weights = prop["memberships"][:, :K]     # (N, K) community columns
-    none_weight = prop["memberships"][:, -1]      # (N,) none column
-    labeled = prop["labeled_mask"]
-    abstain = prop["abstain_mask"]
-    is_independent = prop.get("independent_mode", False)
-
-    # Select thresholds based on mode
-    if is_independent:
-        spec_min = INDEPENDENT_SPECIALIST_MIN_WEIGHT
-        spec_max_ent = INDEPENDENT_SPECIALIST_MAX_ENTROPY
-        bridge_min = INDEPENDENT_BRIDGE_MIN_WEIGHT
-        bridge_min_comms = INDEPENDENT_BRIDGE_MIN_COMMUNITIES
-        bridge_max_none = INDEPENDENT_BRIDGE_MAX_NONE
-        frontier_min = INDEPENDENT_FRONTIER_MIN_WEIGHT
-        logger.info("Using independent mode thresholds (spec=%.3f, bridge=%.3f, frontier=%.3f)",
-                     spec_min, bridge_min, frontier_min)
-    else:
-        spec_min = SPECIALIST_MIN_WEIGHT
-        spec_max_ent = SPECIALIST_MAX_ENTROPY
-        bridge_min = BRIDGE_MIN_WEIGHT
-        bridge_min_comms = BRIDGE_MIN_COMMUNITIES
-        bridge_max_none = BRIDGE_MAX_NONE
-        frontier_min = FRONTIER_MIN_WEIGHT
-
-    max_weight = comm_weights.max(axis=1)
-    top_idx = comm_weights.argmax(axis=1)
-    entropy = compute_normalized_entropy(comm_weights)
-    n_above_bridge = (comm_weights >= bridge_min).sum(axis=1)
-
-    # In independent mode, use seed_neighbor_counts for bridge detection
-    # A real bridge needs 2+ communities with both score AND seed neighbors
-    if is_independent and "seed_neighbor_counts" in prop:
-        snc = prop["seed_neighbor_counts"]
-        # Count communities where BOTH score >= threshold AND snc >= 1
-        bridge_qualified = (comm_weights >= bridge_min) & (snc >= 1)
-        n_above_bridge = bridge_qualified.sum(axis=1)
-
-    # Start with unknown, then apply bands in ascending priority
-    band = np.full(N, "unknown", dtype="U12")
-
-    # Frontier
-    frontier_mask = ~abstain & (max_weight >= frontier_min) & ~labeled
-    band[frontier_mask] = "frontier"
-
-    # Bridge
-    bridge_mask = ~labeled & ~abstain & (n_above_bridge >= bridge_min_comms) & (none_weight < bridge_max_none)
-    band[bridge_mask] = "bridge"
-
-    # Specialist
-    specialist_mask = ~labeled & ~abstain & (max_weight >= spec_min) & (entropy < spec_max_ent)
-    band[specialist_mask] = "specialist"
-
-    # Exemplar: seed accounts (always wins)
-    band[labeled] = "exemplar"
-
-    return {
-        "band": band,
-        "top_community_idx": top_idx,
-        "top_weight": max_weight,
-        "entropy": entropy,
-        "none_weight": none_weight,
-    }
 
 
 def fetch_degrees(conn: sqlite3.Connection, node_ids: np.ndarray) -> np.ndarray:

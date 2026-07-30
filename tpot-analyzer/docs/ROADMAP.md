@@ -18,8 +18,20 @@ These items were built but not tracked in the original Phase 4-8 roadmap below. 
 
 ### Label Propagation + Bands
 - [x] Harmonic label propagation on 189K-node archive follow graph (`propagate_community_labels.py`)
-- [x] Four-band classification: exemplar / specialist / bridge / frontier / unknown (`classify_bands.py`)
-- [x] Frontier ranking by information value for enrichment prioritization (`rank_frontier.py`)
+- [x] Preserve the historical classic-mode four-band classifier as an
+  explicitly uncalibrated display heuristic (`classify_bands.py`).
+- [x] Quarantine independent-Lift bands and fail closed in classification,
+  public export, frontier ranking, automatic active-learning selection, and
+  frontier-ranked following/band-resolution acquisition after EXP-024
+  falsified their entropy, precedence, and artifact-coherence contracts
+  (2026-07-30). Topic searches now hand off an explicit inspectable handles
+  file instead of assigning an artificial rank.
+- [ ] Define and validate independent specialist/bridge semantics on frozen
+  development judgments and an untouched holdout; do not regenerate
+  `account_band` unless they beat Lift-plus-seed-neighbor baselines.
+- [ ] Replace the historical frontier information-value formula before it can
+  steer acquisition; the active independent artifact has zero uncertainty and
+  synthetic `none` Lift is not `p_none`.
 - [x] Seed eligibility with concentration-based weighting
 
 ### Labeling System
@@ -54,7 +66,12 @@ round” checklist as an approved spend plan.
 
 ### Public Site
 - [x] maptpot.vercel.app — deployed, 8,429 searchable accounts
-- [x] Export: four-band system, community descriptions, iconography
+- [x] Historical export: four-band metadata, community descriptions,
+  iconography. Independent band export is now blocked; the already hosted
+  labels remain quarantined legacy metadata, not current findings.
+- [ ] Publish a replacement export only after every band row is bound to an
+  exact propagation digest, mode, taxonomy, method version, and evaluation
+  receipt.
 - [x] Community detail pages with spotlights + all-members sidebar
 - [x] Card generation with community iconography
 - [x] Gallery, share-to-X, card regeneration
@@ -87,6 +104,10 @@ round” checklist as an approved spend plan.
 
 ## Testing Coverage
 
+- Split the inherited 855-line `tests/test_pipeline_e2e.py` scenario chain
+  into phase-scoped fixtures/tests before expanding it again. Slice 4 changed
+  one public export assertion only; broad decomposition was intentionally
+  deferred so the safety fix did not become a test-harness refactor.
 - Replace `public-site/src/App.test.jsx`'s copied card-opacity/message helper
   formulas with rendered public-component behavior tests; the copied formulas
   can pass while production semantics change.
@@ -553,9 +574,10 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   implemented 2026-02-17).
 - Add active-learning queueing (uncertainty sampling) so users can label
   highest-entropy accounts first and improve TPOT boundary quality over time.
-- Add an archive-first active-learning selector that intersects
-  `frontier_ranking` with locally archived `tweets` so the LLM can label
-  "what they talk about" before any paid fetch path is considered.
+- Replace the quarantined automatic active-learning selector with a
+  receipt-bound, archive-first policy that ranks from raw evidence and
+  intersects candidates with locally archived `tweets` before any paid fetch
+  is considered. Do not reuse unversioned `frontier_ranking` rows.
 - Add embedding jobs for extension-captured tweet text and feed-exposure
   recency weighting so TPOT membership scores can use content semantics with
   ranking-bias normalization.
@@ -572,6 +594,23 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Design a Lift-aware TPOT relevance model for `independent` propagation or
   retain an explicitly versioned classic probability model. Do not feed
   independent Lift rows into the current `1 - p_none` probability equation.
+- Bind any future `account_band` and `frontier_ranking` artifact to the exact
+  NPZ digest, propagation mode, community taxonomy, thresholds, method
+  version, and source snapshot. Current consumers reject all unbound band rows,
+  including rows paired with a valid but unrelated classic artifact; restore
+  them only after version-skewed joins can be rejected at read time.
+- Replace `rank_frontier.py`'s hardcoded 15-community slice with
+  artifact-derived dimensionality when the ranker is redesigned; add a
+  regression whose top signal is in the final active community column.
+- Decide whether compositional Lift entropy adds stable retrieval value over
+  max Lift, affinity margin, and seed-neighbor counts. Treat zero-evidence
+  rows as undefined/abstained and delete entropy from banding if the holdout
+  shows no gain.
+- Add an explicit score-mode contract to
+  `src/communities/cluster_colors.py`. Its ADR-013 rendering formula still
+  treats synthetic `none` Lift as `p_none` and independent zero uncertainty
+  as confidence; reject independent artifacts until a Lift-aware rendering
+  contract has behavioral tests.
 - Fix and behaviorally verify directed-PPR solver contracts before producing a
   replacement bundle: plumb `PropagationConfig.max_iter`/`tolerance`, conserve
   dangling-node mass, remove or implement unused parameters, and version the
@@ -583,7 +622,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   is planned rather than autonomous. The 2026-07-28 audit also separated raw
   from working-graph counts, producer-specific edge views, heuristic edge
   weights, like ambiguity, provider/compute cost, and unregistered legacy
-  measurements.
+  measurements. The 2026-07-30 amendment also marks independent specialist,
+  bridge, frontier, and faint labels as stale quarantined metadata after
+  EXP-024 falsified their entropy and artifact-binding contracts.
 - Register and ablate producer-specific typed-edge views. NMF currently uses
   follow + retweet + optional like blocks, while propagation has a different
   eight-type weighting table. Test edge direction, time decay, polarity/context,
@@ -758,6 +799,25 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   generation transport, and React hook orchestration. Keep the browser/server
   prompt contracts behaviorally aligned while their ESM/CommonJS packaging
   remains separate.
+- Decompose `tpot-analyzer/scripts/_export_helpers/_community_extractors.py`
+  (556 LOC after the 2026-07-30 fail-closed guard) into artifact compatibility,
+  username resolution, membership extraction, and band-account assembly.
+  Keep the compatibility guard at the orchestration boundary during the split.
+- Decompose `tpot-analyzer/scripts/active_learning.py` (over 420 LOC after the
+  2026-07-30 spend guard) into CLI/account-policy orchestration and round
+  execution. Keep automatic-selection rejection at the public selection API
+  and spend boundary until a receipt-bound policy replaces it.
+- Decompose `tpot-analyzer/scripts/fetch_tweets_for_account.py` (631 LOC after
+  the 2026-07-30 source-aware staleness fix) into provider transport, archive
+  loading, persistence, and freshness policy. Preserve the contract that
+  topic-search context does not count as a completed account enrichment.
+- Split `tpot-analyzer/tests/test_export_public_site.py` (over 1,100 LOC) by
+  export contract (communities, propagated handles, bands, and orchestration)
+  without weakening its fail-closed artifact fixtures.
+- Decompose `tpot-analyzer/public-site/src/About.jsx` (1,080 LOC after the
+  2026-07-30 copy-only truthfulness amendment) by methodology section. Preserve
+  the behavioral copy contract that independent display bands are quarantined
+  legacy metadata.
 - Decompose `tpot-analyzer/src/shadow/enricher.py` (2449 LOC) into orchestration, retry/backoff, state management, and API dispatch modules (<300 LOC each); current file mixes all four concerns.
 - Decompose `tpot-analyzer/src/shadow/selenium_worker.py` (2173 LOC) into browser control, HTML parsing, and network handling modules (<300 LOC each); tightly coupled to enricher — decompose both together.
 - Decompose `tpot-analyzer/src/data/shadow_store.py` (1252 LOC) into focused store modules by table domain (<300 LOC each); currently mixes multi-table CRUD with business logic.

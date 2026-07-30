@@ -2,7 +2,106 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-30 (named-seed coverage and path-dependence triage)*
+*Last updated: 2026-07-30 (independent-Lift entropy and band quarantine)*
+
+---
+
+## EXP-024: Does independent-Lift entropy support the displayed account bands?
+
+**Date:** 2026-07-30
+
+**Question:** Is the entropy used by `classify_bands` a valid, useful
+concentration measure for unbounded independent PPR Lift? Are the stored
+specialist/bridge/frontier labels compatible with the active propagation
+artifact, and can they safely steer public export or acquisition?
+
+**Hypotheses:**
+
+1. A quantity advertised as normalized entropy lies in `[0,1]` and is
+   invariant when every affinity in a row is multiplied by the same positive
+   constant.
+2. The entropy predicate changes at least one active band; otherwise it adds
+   no information to the classifier.
+3. Two or more qualified high community signals are not overwritten as a
+   specialist merely because their absolute Lift scale is large.
+4. Stored bands and their downstream memberships come from the same
+   propagation run.
+5. Replacing the bad calculation with mathematically normalized entropy is a
+   numerical repair that preserves classifications.
+
+**Method:** Opened the active propagation NPZ and archive database read-only.
+The selected NPZ has SHA-256 prefix `1d12f3371205260d`, mode `independent`,
+298,347 rows, and 16 community Lift columns plus synthetic `none`. Reproduced
+the historical formula `-Σx log(x)/log(K)`, compared it with
+`p=x/Σx; -Σp log(p)/log(K)`, applied a 7x scale transformation, and inspected
+stored entropy/count/timestamp rows. Recomputed the historical classifier in
+memory under three counterfactuals: deleting its entropy predicate, swapping
+in correct compositional entropy, and examining bridge/specialist overlap. No
+NPZ, database, public export, ranking, or API state was written.
+
+**Result:** **All five hypotheses were falsified. Independent display bands
+are undefined and are now fail-closed.**
+
+- Historical “entropy” ranged from `-1190.1798` to `1.9756`; 30,434 rows were
+  outside `[0,1]`. Rescaling a synthetic `[10,2,0]` row to `[5,1,0]` changed
+  it from `-22.2209` to `-7.3249`.
+- Correct row-normalized entropy ranged from `0` to `0.975667`, with zero
+  values outside `[0,1]` and maximum delta `0` after multiplying the artifact
+  by seven.
+- Removing the historical entropy predicate changed exactly zero active
+  bands. It was computationally present but empirically inert.
+- Correcting only entropy changed 1,793 bands: 659 specialist-to-bridge and
+  1,134 specialist-to-frontier. Therefore a silent formula swap is a
+  classification/taxonomy change that requires evaluation.
+- A synthetic row with two equal high affinities satisfies the bridge rule but
+  is overwritten by the later specialist rule. On the active artifact, 900
+  rows satisfy both the corrected specialist predicate and the independent
+  bridge predicate.
+- Stored counts are bridge `1,451`, exemplar `361`, frontier `10,018`,
+  specialist `6,964`, and unknown `279,553`. All stored specialists have
+  negative entropy; 16,065 stored rows are negative overall.
+- Every stored row was created at `2026-04-09T03:12:20Z`, matching an archived
+  propagation run. The active NPZ is a newer run and recomputes different
+  counts (`9,721` frontier, `7,096` specialist, `279,718` unknown). Public
+  export was combining version-skewed band and affinity artifacts.
+- Independent propagation uncertainty in the active artifact is identically
+  zero. `rank_frontier` additionally treated synthetic `none` Lift as if
+  `1-none_weight` were a probability factor and hardcoded 15 of 16
+  communities. Its existing ranking cannot be a valid information-value
+  acquisition policy.
+- The local database contains 8,727 unversioned `frontier_ranking` rows.
+  Automatic `active_learning` selection and the paid frontier-following fetch
+  both consumed that table directly, so guarding only `rank_frontier.py`
+  would not stop an already-materialized stale ranking from steering spend.
+
+**Lesson:** Correct mathematics is necessary but not sufficient. Entropy of a
+row-normalized Lift composition measures relative spread; it does not measure
+evidence amount, membership probability, posterior uncertainty, or whether a
+person is a bridge. Thresholds and precedence encode ontology decisions.
+Artifact identity is also load-bearing: even a valid classifier cannot be
+paired with a different propagation run.
+
+**Action taken:** Centralized a bounded, scale-invariant entropy primitive;
+made independent `classify_bands` fail loudly; rejected every unbound
+`account_band` consumer even when paired with a valid classic artifact; made
+public export suppress those rows and use its classified-only fallback; also
+blocked the historical frontier-confidence analysis from
+relabeling Lift spread as confidence; blocked every current automatic or paid
+consumer of the already-materialized frontier table while preserving explicit
+handle selection; required explicit propagation mode and coherent
+node/community dimensions at band-consumer boundaries; retained classic-mode
+bands as legacy heuristics; added behavioral regressions and
+`scripts/verify_independent_band_entropy.py`; and corrected the public About
+copy to call loaded bands quarantined legacy metadata. Existing SQLite and
+hosted rows were not deleted or rewritten.
+
+**Next step / falsification contract:** After at least 30 real task-scoped
+judgments permit a frozen development/holdout split, compare explicit
+specialist/bridge methods against Lift plus seed-neighbor baselines. Require
+precision/recall@K, calibration where a probability is claimed, seed/topology
+stability, threshold sensitivity, and exact artifact provenance. Restore a
+band only if it adds stable holdout value; otherwise delete the concept from
+the retrieval path.
 
 ---
 
@@ -1070,6 +1169,14 @@ same evaluations on both frozen and refreshed snapshots.
 **Lesson:** Topic-seed search hits are contextual preload data, not proof that an account has already gone through the account-level fetch/label loop. Dedup has to respect fetch provenance, not just table presence.
 
 **Next step:** Run `scripts/verify_topic_seed_ingestion.py` against the real `archive_tweets.db` after the next topic-search batch to confirm staged-author counts and round-1 eligibility on production data.
+
+**Supersession (2026-07-30):** EXP-024 showed that `frontier_ranking` is
+unversioned and its active independent-mode information-value inputs are
+invalid. The automatic handoff above is therefore quarantined. Topic searches
+now store parsed tweets and resolvable profiles without assigning the
+artificial `99.0` rank. Run the verifier with `--handles-output`, inspect the
+result, and pass that file explicitly to `active_learning --accounts-file`.
+Existing historical ranking rows remain intact but are ignored.
 
 ---
 

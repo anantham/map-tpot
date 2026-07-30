@@ -482,8 +482,10 @@ export default function About({ meta, onNavigate }) {
             </h2>
 
             <p>
-              The {classifiedStr} seed accounts are well-classified. We must also classify the
-              other ~200,000 accounts in the network.
+              The {classifiedStr} historical seed rows combine NMF-derived assignments,
+              LLM-ensemble additions, and curator review. They are not a fully human-labeled or
+              validated golden set. The legacy propagation attempted to extend those starting
+              labels to roughly 200,000 other accounts.
             </p>
             <p>
               Community labels spread outward using Directed Personalized PageRank (PPR). We simulate a
@@ -507,11 +509,15 @@ export default function About({ meta, onNavigate }) {
               belongs to the community.
             </p>
             <p>
-              Lift and entropy help determine the displayed band. Card intensity uses a separate
-              heuristic graph-support score, driven primarily by observed classified seed
-              neighbors. Neither quantity is a calibrated membership probability or uncertainty
-              interval. The map currently shows {(byBand.bridge || 0).toLocaleString()} bridge
-              accounts connecting different scenes.
+              The currently loaded public export still carries historical display-band labels.
+              They came from an older propagation artifact whose independent-Lift entropy formula
+              was scale-dependent, and the labels are now quarantined legacy metadata. The
+              current independent-Lift path refuses to regenerate or re-export those bands until
+              specialist/bridge semantics beat simpler baselines on frozen judgments. The classic
+              legacy export is also not provenance-bound to an exact propagation run, so the
+              current exporter suppresses every existing band row and falls back to
+              classified-only seed rows. Card intensity is a separate uncalibrated rendering
+              heuristic.
             </p>
             <p>
               The graph explorer also exposes a separate Gaussian random-field harmonic solver.
@@ -532,7 +538,7 @@ export default function About({ meta, onNavigate }) {
           <section className="about-section">
             <h2>
               <span className="about-stage-num">&#x2194;</span>
-              Most TPOT Members Are Bridges
+              Historical Bridge Labels Are Not Findings
             </h2>
 
             <p>
@@ -552,9 +558,11 @@ export default function About({ meta, onNavigate }) {
               justify excluding a person whose observed activity concentrates on meditation.
             </p>
             <p>
-              {(byBand.bridge || 0).toLocaleString()} accounts show up as bridges because these
-              people receive bridge-like scores under the current heuristics. Blended aesthetics
-              on a card render those model outputs; they do not verify a person&rsquo;s identity.
+              The loaded export contains {(byBand.bridge || 0).toLocaleString()} historical rows
+              labeled &ldquo;bridge&rdquo;. Those rows predate the active Lift artifact and were
+              produced with invalid entropy math, so their blended card aesthetics are preserved
+              only as quarantined legacy metadata. They do not verify overlap, belonging, or
+              identity.
             </p>
           </section>
 
@@ -603,13 +611,13 @@ export default function About({ meta, onNavigate }) {
 
             <h3>Graph evidence weakens when support is sparse</h3>
             <p>
-              Support increases with observed classified seed neighbors and may also use
-              concentration and entropy heuristics. Sparse support makes a placement faint;
-              this is not a calibrated distance law. Evidence coverage is observed outgoing
-              follow edges divided by expected follows when that denominator is known and
-              positive. The numerator and denominator must also refer to a compatible source,
-              snapshot generation, and as-of time. Otherwise coverage is unknown rather than
-              0% or 100%.
+              Observed classified seed neighbors can provide graph support, but the historical
+              display bands also mixed in invalid independent-Lift entropy and are quarantined.
+              Sparse support is not a calibrated distance law. Evidence coverage is observed
+              outgoing follow edges divided by expected follows when that denominator is known
+              and positive. The numerator and denominator must also refer to a compatible source,
+              snapshot generation, and as-of time. Otherwise coverage is unknown rather than 0%
+              or 100%.
             </p>
 
             <h3>AI labeling makes mistakes</h3>
@@ -746,11 +754,11 @@ export default function About({ meta, onNavigate }) {
                     <td>{classifiedStr}</td>
                   </tr>
                   <tr>
-                    <td>Specialist + Bridge + Frontier</td>
+                    <td>Historical specialist + bridge + frontier labels</td>
                     <td>{((byBand.specialist || 0) + (byBand.bridge || 0) + (byBand.frontier || 0)).toLocaleString()}</td>
                   </tr>
                   <tr>
-                    <td>Faint (weak graph support)</td>
+                    <td>Historical faint labels</td>
                     <td>{(byBand.faint || 0).toLocaleString()}</td>
                   </tr>
                   <tr>
@@ -844,9 +852,11 @@ export default function About({ meta, onNavigate }) {
 
             <p>
               The intended system should actively propose where additional evidence would be
-              most useful instead of passively waiting for data. Existing frontier rankings
-              are heuristic baselines; ADR 022 specifies the holdout, receipts, budget gates,
-              and randomized audit required before claiming value-of-information optimization.
+              most useful instead of passively waiting for data. The historical frontier ranking
+              is currently blocked because its stored rows are unversioned and its active
+              independent-Lift uncertainty and &ldquo;none&rdquo; terms are invalid. ADR 022
+              specifies the holdout, receipts, budget gates, and randomized audit required before
+              claiming value-of-information optimization.
             </p>
             <p>
               The planned policy ranks typed actions—such as reviewing an existing tweet or
@@ -921,32 +931,34 @@ export default function About({ meta, onNavigate }) {
             <div className="about-tier">
               <span className="about-badge about-badge--color">Specialist</span>
               <p>
-                One affinity clears the current Lift/entropy display thresholds. This is strong
-                graph evidence under the current run, not confirmed belonging.
+                A historical display label from the stale band artifact. It is quarantined legacy
+                metadata, not current strong graph evidence or confirmed belonging.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--bridge">Bridge</span>
               <p>
-                Multiple community signals clear the current thresholds. This may represent real
-                overlap or unresolved ambiguity; their cards blend those aesthetics.
+                A historical display label whose old threshold and precedence rules were not
+                validated. It does not establish real overlap; blended cards retain the legacy
+                aesthetic only.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--gray">Frontier</span>
               <p>
-                Frontier accounts have weaker or diffuse observed graph evidence. Grayscale card.
-                Candidates for investigation.
+                A historical display label, not an information-value ranking. These grayscale
+                cards may still suggest accounts to inspect, but the label cannot steer paid
+                acquisition.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--gray">Faint</span>
               <p>
-                Barely visible in the network. Present in the graph but below the graph-support
-                threshold. These accounts remain searchable, but receive dim cards.
+                A historical fallback label from the stale band export. It does not establish
+                weak support or graph distance; dim cards retain legacy presentation only.
               </p>
             </div>
 
@@ -970,8 +982,9 @@ export default function About({ meta, onNavigate }) {
             <h2>This Is One Map, Not <em>The</em> Map</h2>
 
             <p>
-              This map starts from my perspective. It relies on the ~1,400 accounts I follow,
-              the {classifiedStr} seeds I classified, and the boundaries I drew.
+              This map starts from my perspective. Its inputs include the ~1,400 accounts I
+              follow and {classifiedStr} historical seed rows assembled from NMF, LLM-ensemble,
+              and curator inputs; its names and boundaries also reflect my editorial choices.
             </p>
             <p>
               A contemplative practitioner would draw the meditation scene at higher resolution.
@@ -985,14 +998,13 @@ export default function About({ meta, onNavigate }) {
                 community archive
               </a>{' '}
               is TPOT. Uploading data represents an act of transparency rather than a membership
-              card. The pipeline filters for this: accounts whose follow patterns don&rsquo;t
-              concentrate in any community receive lower graph-affinity or support scores.
+              card. The historical pipeline attempted to filter for this using graph affinity and
+              support heuristics, but its independent display bands are now quarantined.
             </p>
             <p>
-              TPOT is a meta-community. It is not one single thing, but a collection of
-              roughly 16 overlapping social tribes. A &ldquo;Bridge Account&rdquo; is someone
-              who straddles three or more of these scenes—a connector who prevents the network
-              from fragmenting into isolated silos.
+              TPOT can be viewed as a meta-community rather than one single thing. Conceptually, a
+              &ldquo;bridge account&rdquo; would straddle several scenes and connect them. That is
+              a useful retrieval target, not something the historical band label has established.
             </p>
             <p>
               In one legacy comparison, 82% of listed TPOT reference accounts received different

@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
-"""Fetch tweets by semantic topic to seed active learning.
+"""Fetch tweets by semantic topic and return explicit review candidates.
 
-Runs searches for nuanced AI Safety and Alignment topics, dumping the tweets into `enriched_tweets`
-and inserting the authors into `frontier_ranking` with an artificially high info_value
-so the active learning ensemble naturally grades them next run.
+Search results are stored in ``enriched_tweets`` and authors in ``profiles``.
+They are deliberately not inserted into the quarantined ``frontier_ranking``
+table. Review/export the returned handles and pass them explicitly to
+``scripts.active_learning``.
 """
 from __future__ import annotations
 
 import argparse
-import collections
 import logging
 import os
 import sqlite3
 import sys
-from datetime import datetime, timezone
 
 from scripts.fetch_tweets_for_account import (
     BudgetExhaustedError,
@@ -43,11 +42,9 @@ def run_topic_fetch(
     api_key: str,
     budget: float,
     queries: list[str] = DEFAULT_QUERIES,
-) -> None:
-    now = datetime.now(timezone.utc).isoformat()
+) -> list[str]:
     total_tweets = 0
-    total_new_authors = 0
-    
+
     unique_authors: dict[str, dict[str, str]] = {}
 
     for query in queries:
@@ -116,14 +113,11 @@ def run_topic_fetch(
             logger.exception("Error executing search `%s`: %s", query, e)
             continue
             
-    # Stage authors into frontier_ranking so active learning picks them up
+    # Preserve resolvable identities without assigning a score or queue rank.
     if unique_authors:
-        logger.info("Staging %d unique generic authors into frontier_ranking.", len(unique_authors))
-        new_authors = 0
         for author_id, author in unique_authors.items():
             username = author["username"]
             bio = author.get("bio", "")
-            # Ensure they are in profiles
             conn.execute(
                 """
                 INSERT INTO profiles (account_id, username, bio)
@@ -137,26 +131,24 @@ def run_topic_fetch(
                 """,
                 (author_id, username, bio),
             )
-            
-            # Upsert into frontier_ranking with a 99.0 info_value
-            conn.execute("""
-                INSERT INTO frontier_ranking (
-                    account_id, band, info_value, top_community, top_weight, degree, in_holdout, created_at
-                ) VALUES (?, 'topic_seed', 99.0, 'AI-Safety', 1.0, 1, 0, ?)
-                ON CONFLICT(account_id) DO UPDATE SET 
-                    info_value = MAX(info_value, excluded.info_value),
-                    band = 'topic_seed'
-            """, (author_id, now))
-            
-            new_authors += 1
-                
         conn.commit()
-        total_new_authors = new_authors
-        
-    logger.info(
-        "Finished topic ingestion. Stored %d new tweets and staged %d authors for active learning.",
-        total_tweets, total_new_authors
+
+    handles = sorted(
+        (author["username"] for author in unique_authors.values()),
+        key=str.casefold,
     )
+    logger.info(
+        "Finished topic ingestion. Stored %d new tweets and found %d explicit "
+        "review candidates. No frontier ranking was written.",
+        total_tweets,
+        len(handles),
+    )
+    if handles:
+        logger.info(
+            "Run scripts.verify_topic_seed_ingestion --handles-output "
+            "<path> before passing that file to active_learning."
+        )
+    return handles
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")

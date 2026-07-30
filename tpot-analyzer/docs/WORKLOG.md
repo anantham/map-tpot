@@ -1,5 +1,192 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 4 — Independent-Band Quarantine (2026-07-30)
+
+- [2026-07-30 18:55 IST] **Falsified independent-Lift entropy and blocked its
+  stale bands from classification, export, and acquisition ranking (Codex
+  GPT-5 with three read-only computational-peer audits)**
+    - **Hypotheses, predictions, confidence, fallback**
+        - `H-E1` (`0.99`): normalized entropy must be finite, bounded in
+          `[0,1]`, and invariant to positive row scaling. A negative, >1, or
+          scale-dependent result falsifies the implementation.
+        - `H-E2` (`0.65`): correcting row normalization will preserve current
+          specialist/bridge/frontier assignments. Any changed assignment makes
+          it a taxonomy change requiring held-out evaluation.
+        - `H-E3` (`0.80`): the entropy predicate contributes information to
+          active banding. Removing it without changing a band falsifies this.
+        - `H-E4` (`0.90`): stored bands and active membership affinities share
+          one propagation run. Timestamp/count skew falsifies this.
+        - Predicted safe outcome: centralize valid compositional entropy but
+          fail closed for independent display bands rather than inventing new
+          thresholds. Fallback: if a compatible evaluated band contract
+          already existed, bind it to the exact artifact receipt; none was
+          found.
+    - **Investigation loop**
+        - Attempt 1/3:
+            - hypothesis: the current calculation is Shannon entropy over Lift.
+            - test: reproduce it on the active NPZ, apply a 7x scale transform,
+              and add synthetic scale/bounds/negative-input regressions.
+            - result: rejected — historical values ranged
+              `-1190.1798..1.9756`, with 30,434 outside `[0,1]`; the RED suite
+              failed 4/4 for the intended reasons.
+        - Attempt 2/3:
+            - refined hypothesis: correct row normalization is a
+              behavior-preserving numerical fix.
+            - test: compare current bands with corrected entropy and with the
+              entropy predicate removed.
+            - result: rejected — correction changes 1,793 bands, while deleting
+              the predicate changes zero. Specialist precedence also
+              overwrites qualified bridges.
+        - Attempt 3/3:
+            - final hypothesis: blocking new classification is sufficient.
+            - test: trace `account_band` through public export and
+              `rank_frontier`, compare its creation timestamp/counts with the
+              active NPZ, and add downstream regressions.
+            - result: rejected — stale SQLite rows bypassed the classifier,
+              public export joined them to a newer NPZ, and the ranker used
+              synthetic `none` Lift as `1-p_none`. Both consumers now share the
+              fail-closed mode guard.
+    - **Changes (files + why)**
+        - `src/propagation/entropy.py:1-43` adds one scale-invariant,
+          non-negative row-entropy primitive with explicit zero-row
+          convention.
+        - `src/propagation/bands.py` owns classic thresholds, requires an
+          explicit artifact mode plus coherent node/community dimensions,
+          raises the descriptive independent-mode exception, and preserves
+          pure historical classic classification.
+        - `src/propagation/engine.py:24-33` delegates solver entropy to the
+          shared primitive instead of clipping every Lift above one.
+        - `scripts/classify_bands.py:1-212` becomes a thin classic-only
+          persistence CLI and shrinks below the 300-LOC gate.
+        - `scripts/_export_helpers/_community_extractors.py` first validates
+          the supplied propagation artifact, then rejects every existing
+          unbound `account_band` table even when the artifact is valid classic
+          mode. `scripts/export_public_site.py` catches only that named
+          quarantine error, logs it, and emits the safer classified-only
+          fallback. This inherited 556-LOC helper and 388-LOC orchestrator
+          remain decomposition debt; the safety patch does not broaden their
+          refactor.
+        - `scripts/rank_frontier.py` rejects both unsupported propagation
+          artifacts and every unbound band table at its reusable loader
+          boundary before zero uncertainty, synthetic `none` Lift, or
+          version-skewed classic rows can steer API acquisition.
+        - `scripts/analyze_frontier_confidence.py:15-31,61` rejects the same
+          artifact before compositional entropy can be called confidence or
+          combined with probability-like thresholds.
+        - `scripts/_active_learning_helpers/frontier_quarantine.py`,
+          `_account_selection.py`, `scripts/active_learning.py`, and
+          `scripts/fetch_following_for_frontier.py` reject every current
+          `frontier_ranking`-dependent automatic acquisition entry point
+          before a database/API-key/spend path runs. Explicit handles remain
+          available and receive no stale score or community metadata. The
+          separate zero-outbound following selector remains an unvalidated
+          coverage heuristic and is not claimed as an information-value
+          policy.
+        - `scripts/fetch_topic_seeds.py` now stores parsed tweets/profiles
+          without writing an artificial `frontier_ranking` score;
+          `scripts/verify_topic_seed_ingestion.py --handles-output` creates an
+          inspectable explicit-handle handoff instead. EXP-006 is additively
+          marked superseded.
+        - `scripts/fetch_tweets_for_account.py` adds a source-exclusion option
+          to the existing freshness check, and
+          `_account_selection.select_accounts_by_handle` ignores
+          topic-search-only rows while still suppressing fresh account-level
+          enrichment. It also normalizes `@` prefixes and deduplicates resolved
+          account IDs before work can be scheduled.
+        - `scripts/verify_active_learning.py` now recommends only explicit
+          reviewed handles and no longer presents the quarantined automatic
+          selector or historical automatic seed promotion as next actions.
+        - `scripts/resolve_band_usernames.py` rejects its standalone
+          `account_band` selection before database/network work. Its old
+          Supabase resolver remains as migration evidence, not an advertised
+          executable utility.
+        - `src/propagation/types.py:61-66` corrects the result contract:
+          independent rows are raw Lift and uncertainty is a zero placeholder,
+          not a simplex plus measured uncertainty.
+        - `tests/test_propagation_entropy.py` covers scale/bounds, >1 Lift
+          preservation, overflow-safe finite Lift, negative input, and exact
+          classic tiny-weight compatibility. `tests/test_band_classification.py`
+          covers explicit mode, artifact dimensions/masks, classifier, export,
+          ranker, and analysis fail-closed behavior. Both new modules remain
+          below 300 LOC; falsifiers were observed red before implementation.
+        - `tests/test_account_band_quarantine.py` adds the release-review
+          falsifiers: a valid but unrelated classic artifact cannot legitimize
+          SQLite band rows, and direct ranker-loader callers cannot bypass the
+          guard. `tests/test_export_public_site.py` and the end-to-end export
+          assertion now require classified-only fallback output. The inherited
+          855-LOC ordered `tests/test_pipeline_e2e.py` scenario is recorded for
+          decomposition rather than expanded.
+        - `tests/test_acquisition_frontier_quarantine.py` covers the CLI,
+          reusable account-selection API, frontier-follow selection,
+          band-username resolution, and the manual-handle escape hatch.
+          `tests/test_fetch_topic_seeds.py` covers the explicit handles-file
+          handoff. Historical ranking-query regressions remain isolated behind
+          a private helper until a replacement policy exists.
+        - `scripts/verify_independent_band_entropy.py:1-248` provides the
+          required read-only ✓/✗ verifier with hashes, counts, entropy ranges,
+          scale delta, legacy table metrics, boundaries, and next action.
+        - `public-site/src/About.jsx` calls hosted specialist, bridge,
+          frontier, and faint labels stale quarantined metadata rather than
+          current findings; it describes the seeds as mixed NMF,
+          LLM-ensemble, and curator inputs and explains that current export
+          suppresses every unbound band row. `About.truthfulness.test.jsx`
+          protects those copy contracts. The roughly 1,080-LOC About monolith
+          was warned and recorded as debt; this slice makes copy-only edits.
+        - `docs/adr/018-propagation-engine-and-confidence.md` receives an
+          additive 2026-07-30 decision amendment; `docs/EXPERIMENT_LOG.md`
+          records EXP-024; `docs/ROADMAP.md`, `docs/index.md`, and `README.md`
+          remove current/shipped claims and preserve historical documents as
+          explicitly superseded evidence.
+    - **Measured result**
+        - Active artifact: SHA-256 prefix `1d12f3371205260d`, independent mode,
+          298,347 accounts, 16 community columns.
+        - Correct entropy range: `0..0.975667`; values outside `[0,1]`: `0`;
+          maximum delta after 7x scaling: `0`.
+        - Stored table: 298,347 rows, 16,065 negative entropy rows; all 6,964
+          stored specialists are negative. Counts and timestamp identify an
+          older run than the active NPZ.
+        - No real band, SQLite, NPZ, JSON export, hosted site, ranking,
+          Community Gold judgment, API request, or paid acquisition was
+          created or changed.
+        - The active database's 8,727 existing `frontier_ranking` rows remain
+          intact but cannot drive current automatic selection or
+          frontier-ranked following fetches.
+    - **Verification**
+        - RED: `tests/test_band_classification.py` → 4/4 expected failures
+          before the entropy and classifier changes; downstream export and
+          ranker tests each then failed for “did not raise” before their
+          guards.
+        - GREEN: final entropy/band/acquisition/topic/fetch/export tranche →
+          `111 passed`.
+        - Full offline Python non-Selenium/non-Supabase suite (explicitly
+          excluding the unmarked live `test_connection.py`) → `1,503 passed,
+          2 skipped`; warnings are the existing SciPy sparse-mutation warning.
+          The three live connection tests skip cleanly without credentials
+          when rerun with network access.
+        - Full public-site suite → `212 passed`; production Vite build passed.
+        - About truthfulness focused contract → `1 passed`.
+        - Real-data read-only verifier → `6/6` checks passed, including the
+          unbound-consumer boundary, and printed all metrics above.
+        - Documentation verifiers → docs hygiene `9/9`; personal-ontology
+          documentation `21/21`.
+        - Independent review also found that ADR-013 cluster coloring treats
+          synthetic independent `none` Lift and zero uncertainty as
+          probability/confidence. That separate rendering-contract repair is
+          recorded in `docs/ROADMAP.md`; cluster visuals were not silently
+          changed in this banding slice.
+        - Final adversarial release review found three P2 gaps and each was
+          falsified and closed: unrelated classic artifacts could legitimize
+          unbound bands; a private legacy frontier selector was re-exported by
+          the public orchestrator; and About called mixed-source seeds
+          well-classified/human-classified. The follow-up review also found
+          that classified fallback rows were searchable but excluded from
+          community member lists; a page-level RED regression reproduced the
+          empty communities, and the exporter now includes only direct
+          `classified`/`exemplar` seed rows while still excluding all
+          propagated band tiers. Final band/export/active-learning/E2E tranche
+          passed `96/96`, About truthfulness passed `1/1`, public site passed
+          `212/212`, and the production Vite build passed.
+
 ## Raw-First Retrieval Slice 3 — Named-Seed Coverage Triage (2026-07-30)
 
 - [2026-07-30 18:30 IST] **Implemented a zero-spend, read-only Dharma seed
