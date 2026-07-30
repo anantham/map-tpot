@@ -129,14 +129,29 @@ def main():
     # Next steps
     print("\n--- Next Steps ---")
     if "enriched_tweets" not in tables:
-        print("  1. Run: .venv/bin/python3 -m scripts.active_learning --round 1 --top 3 --dry-run")
+        print(
+            "  1. Choose reviewed handles, then run: "
+            ".venv/bin/python3 -m scripts.active_learning --round 1 "
+            "--accounts <handle1,handle2> --dry-run"
+        )
     elif et_count == 0:
-        print("  1. Run: .venv/bin/python3 -m scripts.active_learning --round 1 --top 3 --budget 1.0")
+        print(
+            "  1. Choose reviewed handles, then run archive-first: "
+            ".venv/bin/python3 -m scripts.active_learning --round 1 "
+            "--accounts <handle1,handle2> --archive-only"
+        )
     elif llm_seeds == 0:
-        print("  1. Run: .venv/bin/python3 -m scripts.active_learning --measure")
+        print(
+            "  1. Review accumulated labels. Automatic seed promotion via "
+            "--measure is historical and not an approved next action."
+        )
     else:
         print("  1. Run: .venv/bin/python3 -m scripts.verify_holdout_recall")
         print("  2. Review labels and decide on Round 2")
+    print(
+        "  Automatic frontier_ranking selection is quarantined; use only "
+        "explicit --accounts/--accounts-file inputs."
+    )
     print()
 
     conn.close()

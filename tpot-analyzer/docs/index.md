@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-07-28
+Last reviewed: 2026-07-30
 
 ## Start Here
 
@@ -84,7 +84,7 @@ Last reviewed: 2026-07-28
 - [ADR 021: Independent Overlapping Membership and Evidence Semantics](adr/021-independent-overlapping-membership-and-evidence-semantics.md) (Accepted, 2026-07-26)
 - [ADR 020: Graph Artifact Compatibility](adr/020-graph-artifact-compatibility.md) (Accepted, 2026-07-26)
 - [ADR 019: Versioned Research Data and Artifact Manifests](adr/019-versioned-research-data-and-artifact-manifests.md) (Accepted, 2026-07-26)
-- [ADR 018: Propagation Engine and Confidence Scoring](adr/018-propagation-engine-and-confidence.md) (Accepted decision; amended 2026-07-28; current solver contracts falsified pending repair; confidence/rerun-range interpretation superseded by ADR 021)
+- [ADR 018: Propagation Engine and Confidence Scoring](adr/018-propagation-engine-and-confidence.md) (Accepted decision; amended 2026-07-28 and 2026-07-30; current solver contracts remain falsified, and independent display bands now fail closed after invalid entropy and artifact skew were measured)
 - [ADR 017: Multi-View Account Descriptor](adr/017-multi-view-account-descriptor.md) (Revised; graph-only membership claims partially superseded by ADR 021)
 - [ADR 016: Four-Part Epistemic Architecture](adr/016-four-part-epistemic-architecture.md)
 - [ADR 015: Data Pipeline Architecture](adr/015-data-pipeline-architecture.md) (Accepted, 2025-09-05)
@@ -107,7 +107,7 @@ Last reviewed: 2026-07-28
 
 | Document | Notes |
 |----------|-------|
-| [Session 8 Handover](HANDOVER_SESSION8.md) | Comprehensive state — 18+ commits, Tier A+B, propagation fix |
+| [Session 8 Handover](HANDOVER_SESSION8.md) | Historical implementation state; four-band counts and export guidance are superseded by ADR 018's 2026-07-30 fail-closed amendment |
 | [Session 8 Ideas Inventory](SESSION8_IDEAS_INVENTORY.md) | 70+ ideas captured during session 8 |
 | [Iconography System](TPOT_TAROT_ICONOGRAPHY_v2.md) | Community tarot/symbol system for card generation |
 | [Vision](VISION.md) | Product vision and distribution model |
@@ -133,6 +133,12 @@ Last reviewed: 2026-07-28
   note for current backend entrypoint guidance.
 - `docs/tasks/` contains implementation task briefs and design plans; many are
   historical and should be cross-checked against current code/worklog.
+- `docs/PROPAGATION_ANALYSIS.md`,
+  `docs/SESSION10_IDEAS_INVENTORY.md`, and the four-band sections of
+  `docs/HANDOVER_SESSION8.md` preserve March 2026 experiment/history. Their
+  raw-score thresholds, “naturally calibrated” claim, band counts, and export
+  instructions are superseded by ADR 018's 2026-07-30 amendment and EXP-024;
+  do not use them to regenerate or publish independent-Lift bands.
 - Older `docs/plans/` and `docs/archive/` entries may be historical. The
   2026-07-26 personal-ontology plan and its
   [refactor ledger](plans/2026-07-26-personal-ontology-refactor-ledger.md) are

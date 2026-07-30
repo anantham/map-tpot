@@ -398,15 +398,30 @@ def load_archive_tweets(
 STALE_TTL_DAYS = 30
 
 
-def is_stale(conn: sqlite3.Connection, account_id: str, ttl_days: int = STALE_TTL_DAYS) -> bool:
+def is_stale(
+    conn: sqlite3.Connection,
+    account_id: str,
+    ttl_days: int = STALE_TTL_DAYS,
+    ignored_fetch_sources: tuple[str, ...] = (),
+) -> bool:
     """Check if an account's enriched tweets are stale (older than ttl_days).
 
     Returns True if account has no enriched tweets, or if the most recent
-    fetch is older than ttl_days. Returns False if recently fetched.
+    fetch is older than ttl_days. Returns False if recently fetched. Sources
+    listed in ``ignored_fetch_sources`` do not count as account enrichment.
     """
+    query = "SELECT MAX(fetched_at) FROM enriched_tweets WHERE account_id = ?"
+    params: tuple[object, ...] = (account_id,)
+    if ignored_fetch_sources:
+        placeholders = ",".join("?" for _ in ignored_fetch_sources)
+        query += (
+            " AND COALESCE(fetch_source, '') NOT IN "
+            f"({placeholders})"
+        )
+        params = (account_id, *ignored_fetch_sources)
     row = conn.execute(
-        "SELECT MAX(fetched_at) FROM enriched_tweets WHERE account_id = ?",
-        (account_id,),
+        query,
+        params,
     ).fetchone()
     if not row or not row[0]:
         return True  # never fetched

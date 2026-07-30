@@ -779,14 +779,14 @@ class TestPipelineEndToEnd:
         search = json.loads(search_path.read_text())
         assert isinstance(search, dict)
 
-        # Core handles should be in search as exemplars
+        # Core handles remain searchable through the classified-only fallback.
         assert "alice" in search
         assert "bob" in search
         assert "carol" in search
         assert "dave" in search
 
-        # Exemplar entries should have tier
-        assert search["alice"]["tier"] == "exemplar"
+        # No unbound legacy band tier may leak into the public export.
+        assert {entry["tier"] for entry in search.values()} == {"classified"}
 
         # Total searchable should be at least the 4 core accounts
         assert data["meta"]["counts"]["total_searchable"] >= 4

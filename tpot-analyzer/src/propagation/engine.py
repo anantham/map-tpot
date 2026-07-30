@@ -25,21 +25,13 @@ import numpy as np
 import scipy.sparse as sp
 
 from src.config import DEFAULT_ARCHIVE_DB
+from src.propagation.entropy import normalized_row_entropy
 from src.propagation.types import PropagationConfig, PropagationResult
 
 
 def multiclass_entropy(memberships: np.ndarray) -> np.ndarray:
-    """Shannon entropy of each row, normalized to [0, 1] by log2(n_classes)."""
-    n_classes = memberships.shape[1]
-    p = np.clip(memberships, 1e-10, 1.0)
-    # Normalize rows to sum to 1 for entropy calculation
-    row_sums = p.sum(axis=1, keepdims=True)
-    row_sums = np.where(row_sums > 0, row_sums, 1.0)
-    p = p / row_sums
-    
-    raw_entropy = -np.sum(p * np.log2(p), axis=1)
-    max_entropy = np.log2(n_classes)
-    return raw_entropy / max_entropy if max_entropy > 0 else raw_entropy
+    """Scale-invariant Shannon entropy of each row, normalized to [0, 1]."""
+    return normalized_row_entropy(memberships)
 
 
 def compute_ppr(

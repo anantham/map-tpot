@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rank frontier + bridge accounts by information value for API enrichment.
+"""Quarantined historical frontier/bridge API-enrichment ranker.
 
 Scores accounts by how much we'd learn from enriching them (fetching their
 full profile, tweets, likes). The formula balances model uncertainty,
@@ -12,7 +12,11 @@ Formula:
     - sqrt(degree):  enough connections to matter (sqrt dampens hubs)
     - (1 - none_weight): high "none" accounts are less interesting
 
-tpot_directory_holdout accounts are EXCLUDED from enrichment entirely.
+The stored ``account_band`` rows have no exact artifact receipt, so this
+script now fails closed before ranking. The formula below documents historical
+behavior only; it must not steer acquisition until redesigned and evaluated.
+
+tpot_directory_holdout accounts were EXCLUDED from enrichment entirely.
 They are the validation set; enriching them would contaminate recall metrics.
 Cat 2 holdout accounts (directory-only, not archive) must never be enriched
 before the final recall evaluation.
@@ -41,6 +45,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from src.config import DEFAULT_ARCHIVE_DB
+from src.propagation.bands import (
+    reject_unbound_account_band_table,
+    require_supported_band_artifact,
+)
 
 DEFAULT_DB_PATH = DEFAULT_ARCHIVE_DB
 DEFAULT_NPZ_PATH = ROOT / "data" / "community_propagation.npz"
@@ -69,6 +77,7 @@ def load_propagation(npz_path: Path) -> dict:
     propagation output, not untrusted external data.
     """
     data = np.load(str(npz_path), allow_pickle=True)  # own cached data, safe
+    require_supported_band_artifact(data)
     return {
         "memberships": data["memberships"],
         "uncertainty": data["uncertainty"],
@@ -79,6 +88,7 @@ def load_propagation(npz_path: Path) -> dict:
 
 def load_band_data(conn: sqlite3.Connection) -> dict:
     """Load account_band table into dict keyed by account_id."""
+    reject_unbound_account_band_table("frontier ranking")
     cur = conn.cursor()
     cur.execute("SELECT account_id, band, top_community, top_weight, degree FROM account_band")
     result = {}
