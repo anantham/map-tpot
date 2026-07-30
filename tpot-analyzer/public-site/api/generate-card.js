@@ -9,10 +9,18 @@
  */
 
 const { getKv, getBlobPut } = require("./_lib");
+const { buildLegacyCardPrompt } = require("./_legacyCardPrompt");
 
 const MODEL = "google/gemini-2.5-flash-image";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_ABORT_TIMEOUT_MS = 45000;
+
+let ICONOGRAPHY = null;
+try {
+  ICONOGRAPHY = require("../config/community_iconography.json").communities;
+} catch {
+  // The prompt helper falls back to names, descriptions, and colors.
+}
 
 function resolveAbortTimeoutMs() {
   const raw = parseInt(process.env.CARD_GENERATION_TIMEOUT_MS || "", 10);
@@ -132,7 +140,13 @@ module.exports = async function handler(req, res) {
   }
 
   // --- 5. Build prompt ---
-  const prompt = buildPrompt({ handle, bio, communities, tweets });
+  const prompt = buildLegacyCardPrompt({
+    handle,
+    bio,
+    communities,
+    tweets,
+    iconography: ICONOGRAPHY,
+  });
   console.log("[generate-card] Prompt assembled", {
     requestId,
     handle: handle.toLowerCase(),
@@ -337,124 +351,3 @@ module.exports = async function handler(req, res) {
     });
   }
 };
-
-/**
- * TPOT Tarot Iconography — maps community short_name to visual identity.
- * Each community has a mascot, sigil, motif, colors, and layering rules.
- * Community fractions become art direction weights, not labels.
- */
-let ICONOGRAPHY = null;
-try {
-  ICONOGRAPHY = require("../config/community_iconography.json").communities;
-} catch {
-  // Fallback: generic prompt if config not found at build time
-}
-
-function getIconography(community) {
-  if (!ICONOGRAPHY) return null;
-  return ICONOGRAPHY[community.short_name] || null;
-}
-
-/**
- * Build the image-generation prompt from card data.
- *
- * Uses the TPOT Tarot Iconography system: primary community = mascot energy +
- * dominant colors + elemental vibe. Secondary = accent elements the figure
- * "holds" or "wears". Tertiary = background texture only.
- * The viewer FEELS community membership intuitively — no labels, no charts.
- */
-function buildPrompt({ handle, bio, communities, tweets }) {
-  const sorted = [...communities].sort((a, b) => b.weight - a.weight);
-  const primary = sorted[0];
-  const secondary = sorted[1];
-  const tertiary = sorted[2];
-
-  const pIcon = getIconography(primary);
-  const sIcon = secondary ? getIconography(secondary) : null;
-  const tIcon = tertiary ? getIconography(tertiary) : null;
-
-  let prompt = `Generate a collectible tarot-style card image.
-
-SUBJECT: @${handle}
-${bio ? `BIO: ${bio}` : ""}
-`;
-
-  // === PRIMARY COMMUNITY — full visual treatment ===
-  if (pIcon) {
-    prompt += `
-PRIMARY COMMUNITY (${Math.round(primary.weight * 100)}%): ${primary.name}
-  Mascot energy: ${pIcon.mascot}
-  Sigil: ${pIcon.sigil}
-  Color palette: ${pIcon.color_names}
-  Elemental vibe: ${pIcon.elemental_vibe}
-  Visual treatment: ${pIcon.card_integration}
-  Flag/motif pattern: ${pIcon.flag_motif}
-`;
-  } else {
-    prompt += `
-PRIMARY COMMUNITY (${Math.round(primary.weight * 100)}%): ${primary.name}
-  Spirit: ${(primary.description || primary.name).slice(0, 200)}
-  Color: ${primary.color}
-`;
-  }
-
-  // === SECONDARY COMMUNITY — accent treatment ===
-  if (secondary && secondary.weight >= 0.10) {
-    if (sIcon) {
-      prompt += `
-SECONDARY COMMUNITY (${Math.round(secondary.weight * 100)}%): ${secondary.name}
-  Accent elements: ${sIcon.accent_when_secondary}
-  Color accents: ${sIcon.color_names}
-  Sigil detail: ${sIcon.sigil}
-`;
-    } else {
-      prompt += `
-SECONDARY COMMUNITY (${Math.round(secondary.weight * 100)}%): ${secondary.name}
-  Spirit: ${(secondary.description || secondary.name).slice(0, 200)}
-  Color accent: ${secondary.color}
-`;
-    }
-  }
-
-  // === TERTIARY COMMUNITY — background texture only ===
-  if (tertiary && tertiary.weight >= 0.10) {
-    if (tIcon) {
-      prompt += `
-TERTIARY COMMUNITY (${Math.round(tertiary.weight * 100)}%): ${tertiary.name}
-  Background texture: ${tIcon.texture_when_tertiary}
-`;
-    }
-  }
-
-  if (tweets && tweets.length > 0) {
-    prompt += `
-REPRESENTATIVE TWEETS (these reveal the person's voice and interests):
-${tweets.slice(0, 3).map((t, i) => `  ${i + 1}. ${t.slice(0, 200)}`).join("\n")}
-`;
-  }
-
-  prompt += `
-VISUAL REQUIREMENTS:
-- Vertical 2:3 tarot card, ornate border, dark background
-- The primary community's mascot energy, colors, and elemental vibe should DOMINATE the composition
-- Secondary community appears as subtle accents the figure "holds" or "wears"
-- Tertiary community is background texture or border pattern only
-- The viewer should FEEL the community membership intuitively — no labels, no charts
-- Use the tweets and bio to personalize within the community's visual language
-- Mystical/arcane aesthetic: sacred geometry, constellation maps, subtle glow
-
-TEXT ON CARD (keep minimal):
-- The handle "@${handle}" at top or bottom
-- NO other text. No quotes, no community names, no descriptions, no paragraphs
-- Let the imagery speak. The card is a portrait, not an infographic.
-
-CRITICAL CONSTRAINTS:
-- Do NOT include real human faces or photographs
-- Use abstract symbols, cosmic imagery, stylized avatars
-- NO walls of text, NO labels beyond the handle
-- The card should be visually striking enough to share on social media
-
-Style: premium collectible trading card, digital art, high contrast, rich saturated colors`;
-
-  return prompt;
-}

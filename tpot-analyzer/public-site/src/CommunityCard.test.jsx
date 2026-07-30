@@ -147,7 +147,7 @@ describe('CommunityCard', () => {
       expect(labels[1].textContent).toBe('Core TPOT')
     })
 
-    it('shows percentage for each community', () => {
+    it('shows an explicitly legacy decimal score for each community', () => {
       render(
         <CommunityCard
           handle="alice"
@@ -158,7 +158,8 @@ describe('CommunityCard', () => {
         />
       )
 
-      expect(screen.getByText('65%')).toBeTruthy()
+      expect(screen.getByText('0.650')).toBeTruthy()
+      expect(screen.queryByText('65%')).toBeNull()
     })
 
     it('uses grayscale colors for non-classified', () => {

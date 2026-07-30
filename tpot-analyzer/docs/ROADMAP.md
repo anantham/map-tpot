@@ -3,7 +3,7 @@
 Living backlog of follow-on work items. Update this document as new ideas,
 coverage gaps, or UX improvements surface.
 
-*Last updated: 2026-07-28*
+*Last updated: 2026-07-30*
 
 ---
 
@@ -475,6 +475,17 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Features & Analysis
 
+- [x] Quarantine legacy community scores at every primary presentation boundary:
+  internal list/editor, public card/evidence/community page, downloaded card,
+  generated-card prompt, homepage/gallery/fullscreen art, tweet share, and
+  OpenGraph metadata now use decimal legacy scores, bounded within-card relative
+  geometry, or rank-only names with an adjacent “not membership probabilities”
+  caveat
+  (`scripts/verify_legacy_community_truthfulness.py`, implemented 2026-07-30).
+- Freeze new `src/data/community_gold/` modules and schema expansion until at
+  least 30 real, scoped judgments exist. Product work may wire the existing
+  versioned store, but it must not create another persistence substrate or feed
+  research-note labels through the legacy unbound route.
 - Implement ADR 021's independently overlapping, user-scoped affiliation,
   observable-competence, and publicly expressed participation-interest heads.
   Keep style descriptors and evidence coverage separate; call outputs
@@ -546,7 +557,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   Exemplar NMF/bits shares, classic simplex rows, and independent PPR Lift
   values currently share one `weight` field; the UI must format factor share,
   probability, Lift, and future affinity differently before those producers
-  can be mixed without ambiguity.
+  can be mixed without ambiguity. The 2026-07-30 truthfulness patch removes the
+  generic percentage/probability affordance, but producer-specific export
+  metadata remains unimplemented.
 - Benchmark soft group membership with time-split and topology-split holdouts:
   compare harmonic/GRF, directed PPR, degree-corrected block-model or mixed
   membership baselines, and graph+semantic late fusion. Report uncertainty,
@@ -635,6 +648,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Pin a supported Node version for frontend CI/developer parity and retire the
   conditional graph-explorer test `Storage` shim once Vitest/jsdom no longer
   conflicts with Node 26 experimental web storage.
+- Split `public-site/src/CommunityCard.test.jsx` (325 LOC after the 2026-07-30
+  semantics assertion update) into score-semantics and presentation-behavior
+  files without duplicating fixtures.
 - [x] Add clean-checkout toolchain pins, a non-deploying
   `make verify-baseline`, and a read-only assumption-baseline verifier that
   reports Git state, lock hashes, data-copy independence, hashes, SQLite
@@ -665,7 +681,15 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   The historical `src/api/cluster_routes.py` path no longer exists, but
   `src/api/cluster/state.py` remains 630 LOC and mixes state loading, caching,
   membership wiring, and hierarchy concerns.
-- Decompose `tpot-analyzer/public-site/api/generate-card.js` (421 LOC) into request validation, OpenRouter client, cache/budget helpers, and prompt-construction modules so timeout and observability changes stop accumulating in one serverless file.
+- Finish decomposing `tpot-analyzer/public-site/api/generate-card.js` (353 LOC
+  after extracting the rank-only legacy prompt) into request validation,
+  OpenRouter client, and cache/budget helpers so timeout and observability
+  changes stop accumulating in one serverless file.
+- Finish decomposing `tpot-analyzer/public-site/src/GenerateCard.jsx` (345 LOC
+  after extracting the rank-only legacy prompt) into cache persistence,
+  generation transport, and React hook orchestration. Keep the browser/server
+  prompt contracts behaviorally aligned while their ESM/CommonJS packaging
+  remains separate.
 - Decompose `tpot-analyzer/src/shadow/enricher.py` (2449 LOC) into orchestration, retry/backoff, state management, and API dispatch modules (<300 LOC each); current file mixes all four concerns.
 - Decompose `tpot-analyzer/src/shadow/selenium_worker.py` (2173 LOC) into browser control, HTML parsing, and network handling modules (<300 LOC each); tightly coupled to enricher — decompose both together.
 - Decompose `tpot-analyzer/src/data/shadow_store.py` (1252 LOC) into focused store modules by table domain (<300 LOC each); currently mixes multi-table CRUD with business logic.

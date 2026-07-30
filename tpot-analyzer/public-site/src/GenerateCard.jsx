@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { buildCardRequest } from "./cardPrompt";
+import { buildLegacyCardPrompt } from "./legacyCardPrompt";
 
 const MODEL = "google/gemini-2.5-flash-image";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -108,69 +109,6 @@ function incrementGenCount() {
     localStorage.setItem(GEN_COUNT_KEY, String(count));
     return count;
   } catch { return 0; }
-}
-
-/**
- * Build the image generation prompt text.
- * Duplicated from the serverless function for the BYOK path —
- * simpler than trying to share code between Vercel functions and Vite client.
- */
-function buildPromptText({ handle, bio, communities, tweets }) {
-  const sorted = [...communities].sort((a, b) => b.weight - a.weight);
-  const primary = sorted[0];
-  const secondary = sorted[1];
-
-  let prompt = `Generate a collectible tarot-style card image.
-
-SUBJECT: @${handle}
-${bio ? `BIO: ${bio}` : ""}
-
-PRIMARY COMMUNITY (${Math.round(primary.weight * 100)}%): ${primary.name}
-  Spirit: ${(primary.description || primary.name).slice(0, 200)}
-  Color: ${primary.color}
-`;
-
-  if (secondary) {
-    prompt += `
-SECONDARY COMMUNITY (${Math.round(secondary.weight * 100)}%): ${secondary.name}
-  Spirit: ${(secondary.description || secondary.name).slice(0, 200)}
-  Color: ${secondary.color}
-`;
-  }
-
-  if (tweets && tweets.length > 0) {
-    prompt += `
-REPRESENTATIVE TWEETS (these reveal the person's voice and interests):
-${tweets.slice(0, 3).map((t, i) => `  ${i + 1}. ${t.slice(0, 200)}`).join("\n")}
-`;
-  }
-
-  prompt += `
-VISUAL REQUIREMENTS:
-- Vertical 2:3 tarot card, ornate border, dark background
-- Primary color: ${primary.color} (${primary.name})
-${secondary ? `- Secondary accent: ${secondary.color} (${secondary.name})` : ""}
-- The card should visually EMBODY what this person cares about
-- Use the tweets and bio to choose symbolic imagery (not literal illustrations)
-- Example: an ML researcher → neural network constellations, data streams as rivers
-- Example: a contemplative practitioner → mandalas, meditation geometry, inner light
-- Example: a builder/founder → forges, architectures, crystalline structures
-- Mystical/arcane aesthetic: sacred geometry, constellation maps, subtle glow
-
-TEXT ON CARD (keep minimal):
-- The handle "@${handle}" at top or bottom
-- NO other text. No quotes, no community names, no descriptions, no paragraphs
-- Let the imagery speak. The card is a portrait, not an infographic.
-
-CRITICAL CONSTRAINTS:
-- Do NOT include real human faces or photographs
-- Use abstract symbols, cosmic imagery, stylized avatars
-- NO walls of text, NO labels beyond the handle
-- The card should be visually striking enough to share on social media
-
-Style: premium collectible trading card, digital art, high contrast, rich saturated colors`;
-
-  return prompt;
 }
 
 /**
@@ -322,7 +260,7 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
       let isCached = false;
       if (byokKey) {
         // Direct call with user's key
-        const prompt = buildPromptText(cardRequest);
+        const prompt = buildLegacyCardPrompt(cardRequest);
         url = await generateDirect(byokKey, prompt, controller.signal);
       } else {
         // Serverless path — force=true when regenerating to bust server cache
