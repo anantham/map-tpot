@@ -2,7 +2,99 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-30 (source-side selectivity arithmetic)*
+*Last updated: 2026-07-30 (Research Notes inbox synthetic contract)*
+
+---
+
+## EXP-022: Can messy takes become an honest raw-evidence review queue?
+
+**Date:** 2026-07-30
+
+**Question:** Can a curator paste informal account notes and inspect only
+locally available raw profile/tweet evidence without seeing legacy community
+recommendations or accidentally creating a false frozen-evidence claim?
+
+**Hypothesis:** A separate Research Notes preview can preserve the first-seen
+source line, hide legacy memberships, expose mutable-archive staleness, reject
+caller-supplied frame binding, and keep draft `IN` / `OUT` / `ABSTAIN`
+judgments session-only until the server can supply both a canonical task and
+snapshot-addressed evidence. The stronger product hypothesis is that an
+eventual evidence-and-correction flow will make real curation cheap and
+motivating enough to reach 30 scoped judgments.
+
+**Method:** Wrote behavior-first API, parser, client, and React contracts using
+temporary SQLite and mocked fetches. The tests exercise curator
+authentication, case-insensitive profile lookup, an explicit response
+allowlist, invalid limits, explicit `frameId` rejection, capture-time
+provenance, messy-text parsing and deduplication, session-only drafts, dossier
+retry, mutable-client-target rejection, and unsafe profile-link rejection. A
+disposable local database with two representative accounts was rendered in the
+in-app browser for a visual pass. No real archive row, study, judgment, model,
+API, or paid acquisition was used.
+
+**Result:** **The synthetic interface contract is confirmed; the real curation
+and learning hypotheses remain untested.**
+
+- The mandatory verifier checks 23 backend contracts and 19 focused frontend
+  tests in addition to static fail-closed boundaries.
+- The graph-explorer suite passed 759/759 tests and its production build
+  succeeded. Scoped ESLint completed with zero warnings.
+- Operation is always visibly `Unbound preview`; no frontend write function
+  exists, the save control is disabled, and pasted notes remain session-only.
+- The raw API returns `source=mutable_local_archive`,
+  `snapshotBound=false`, and profile/tweet capture times. It rejects every
+  `frameId` instead of attaching frozen metadata to current rows.
+- Client-supplied target labels/questions were removed. The preview states that
+  the canonical target must later come from the frozen server task.
+
+**Assumptions and falsifiers:**
+
+- A pasted X handle or profile/tweet-author URL is assumed to identify the
+  intended account. Alias changes and numeric/`shadow:*` reconciliation are not
+  solved. Misidentification in a reviewed sample falsifies this parsing path.
+- A profile plus at most 20 recent authored posts is assumed to be enough for
+  an initial judgment. Replies, likes, quote context, network neighbors,
+  deleted posts, contemporaneous news, and off-platform investigation are not
+  yet assembled. High abstention or frequent external investigation falsifies
+  that dossier sufficiency assumption.
+- Content presence is evidence, not proof of competence, affiliation,
+  endorsement, Kegan stage, simulacrum level, or durable intent. Those require
+  separately defined targets and observable criteria.
+- The preview is intentionally mutable and makes no historical cutoff claim.
+  Real activation is falsified until the route reads an immutable snapshot or
+  the server recomputes a context receipt against snapshot-addressed evidence.
+- A real task label and question must be derived from the immutable task
+  definition; editable environment strings are not sufficient.
+- A real retry needs an idempotency key. A lost response must not create a fake
+  superseding correction.
+- Cumulative progress must be independent of hidden evaluation roles. A
+  before/after `purpose=training` count would leak allocation membership and is
+  deliberately absent.
+- The product hypothesis is falsified if curators cannot reach 30 scoped
+  judgments with acceptable time per account, correction rate, and abstention,
+  or if a frozen development evaluation shows no improvement over the
+  zero-label retrieval baseline.
+
+**Lesson:** The smallest truthful UI is currently a raw dossier preview, not a
+label writer. An initial synthetic write path was removed after adversarial
+review showed that mutable rows could be mislabeled as snapshot-bound, mutable
+client text could contradict the immutable task, and training-only progress
+could reveal withheld roles. There is no real target, frame, saved judgment,
+measured labeling cost, or prediction update. The next scientific work is
+gathering and reviewing real takes, not adding Community Gold modules.
+
+**Data stored:** UI/API code under `graph-explorer/src/researchNotes/`,
+`graph-explorer/src/ResearchNotesInbox.jsx`, and
+`src/api/routes/research_notes.py`; synthetic contracts under
+`tests/test_research_notes_routes.py` and graph-explorer tests; human verifier
+at `scripts/verify_research_notes_inbox.py`. The visual fixture lived only in a
+disposable `/tmp` SQLite database.
+
+**Next step:** Continue collecting takes toward 30, define one narrow target
+and its observable boundary, then add server-derived task semantics,
+snapshot-addressed evidence, role-independent progress, and idempotent writes
+before enabling real saves. Measure review time, abstention, correction, and
+held-out retrieval gain rather than counting labels alone.
 
 ---
 
