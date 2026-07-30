@@ -1,5 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { getCachedVersions } from './GenerateCard'
+import LegacyMapNotice from './LegacyMapNotice'
+import {
+  formatLegacyScore,
+  relativeLegacyWidths,
+} from './legacyCommunitySemantics'
 
 export default function CommunityCard({
   handle,
@@ -66,17 +71,22 @@ export default function CommunityCard({
   }, [fullscreen, goPrevVersion, goNextVersion])
 
   // Resolve community names and colors, sort by weight descending
-  const bars = (memberships || [])
+  const sortedBars = (memberships || [])
     .map(m => {
       const community = communityMap.get(m.community_id)
       return {
         name: community?.name || m.community_name || 'Unknown',
         color: community?.color || '#666',
         weight: m.weight,
-        pct: Math.round(m.weight * 100),
+        score: formatLegacyScore(m.weight),
       }
     })
     .sort((a, b) => b.weight - a.weight)
+  const relativeWidths = relativeLegacyWidths(sortedBars.map(bar => bar.weight))
+  const bars = sortedBars.map((bar, index) => ({
+    ...bar,
+    relativeWidth: relativeWidths[index],
+  }))
 
   // Tilt-on-hover handlers (only active when AI image is shown)
   const handleMouseMove = useCallback((e) => {
@@ -121,6 +131,7 @@ export default function CommunityCard({
             {displayName && (
               <div className="card-ai-display-name">{displayName}</div>
             )}
+            <LegacyMapNotice />
             <div className="card-ai-communities">
               {bars.map((bar, i) => (
                 <div className="card-ai-community-row" key={i}>
@@ -129,7 +140,7 @@ export default function CommunityCard({
                     style={{ backgroundColor: useColor ? bar.color : '#555' }}
                   />
                   <span className="card-ai-community-name">{bar.name}</span>
-                  <span className="card-ai-community-pct">{bar.pct}%</span>
+                  <span className="card-ai-community-pct">{bar.score}</span>
                 </div>
               ))}
             </div>
@@ -166,6 +177,7 @@ export default function CommunityCard({
                   </span>
                 )}
               </div>
+              <LegacyMapNotice />
             </div>
 
             {hasMultipleVersions && (
@@ -202,6 +214,8 @@ export default function CommunityCard({
         <p className="card-bio">{bio}</p>
       )}
 
+      <LegacyMapNotice />
+
       <div className="card-bars">
         {bars.map((bar, i) => {
           return (
@@ -211,14 +225,14 @@ export default function CommunityCard({
                 <div
                   className="bar-fill"
                   style={{
-                    width: `${bar.pct}%`,
+                    width: `${bar.relativeWidth}%`,
                     backgroundColor: useColor ? bar.color : '#555',
                     opacity: signalOpacity,
                   }}
                 />
               </div>
               <div className="bar-value-group">
-                <span className="bar-pct">{bar.pct}%</span>
+                <span className="bar-pct">{bar.score}</span>
               </div>
             </div>
           )

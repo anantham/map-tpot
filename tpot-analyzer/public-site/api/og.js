@@ -43,14 +43,14 @@ module.exports = async function handler(req, res) {
     ? communities
         .sort((a, b) => b.weight - a.weight)
         .slice(0, 3)
-        .map(c => `${c.name} (${Math.round(c.weight * 100)}%)`)
+        .map(c => c.name)
         .join(", ")
     : null;
 
   const title = `@${handle} — ${SITE_NAME}`;
   const description = communityText
-    ? `${communityText}. Discover which corners of TPOT you belong to.`
-    : `Find out which TPOT communities @${handle} belongs to.`;
+    ? `Legacy exploratory map: ${communityText}. Uncalibrated; not membership probabilities.`
+    : `Explore @${handle} in the legacy TPOT map. Hypotheses, not membership probabilities.`;
   const cardUrl = `${SITE_URL}/?handle=${encodeURIComponent(handle)}`;
 
   // Use the card-image endpoint as og:image (serves actual PNG bytes)

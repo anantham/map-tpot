@@ -327,12 +327,12 @@ export default function App() {
       {showHome && (
         <div className="hero">
           <h1 className="hero-title">{data.meta.site_name}</h1>
-          <p className="hero-tagline">Discover which corners of TPOT you belong to</p>
+          <p className="hero-tagline">Explore a legacy map of TPOT affinities — hypotheses, not membership probabilities</p>
 
           <SearchBar onResult={handleResult} />
 
           <div className="community-showcase">
-            <p className="showcase-label">{communities.length} communities mapped</p>
+            <p className="showcase-label">Legacy groups shown: {communities.length}</p>
             <div className="showcase-tags">
               {communities.map(c => (
                 <a

@@ -1,4 +1,18 @@
 import { useCallback } from 'react'
+import {
+  roundRect,
+  selectTopLegacyScores,
+  truncateText,
+} from './cardCanvas'
+import {
+  AI_CARD_HEIGHT,
+  AI_CARD_WIDTH,
+  drawAiCard,
+} from './cardDownloadAi'
+import {
+  formatLegacyScore,
+  relativeLegacyWidths,
+} from './legacyCommunitySemantics'
 
 const CARD_W = 600
 const CARD_PAD = 24
@@ -6,27 +20,28 @@ const BAR_H = 28
 const BAR_GAP = 8
 const BAR_LABEL_W = 240
 const BAR_TRACK_W = 240
-const BAR_PCT_W = 60
 const CORNER_R = 12
-
-// AI card dimensions (2:3 ratio)
-const AI_CARD_W = 600
-const AI_CARD_H = 900
 
 export default function CardDownload({ handle, displayName, tier, memberships, communityMap, aiImageUrl }) {
   const isClassified = tier === 'classified'
 
-  const bars = (memberships || [])
+  const sortedBars = (memberships || [])
     .map(m => {
       const community = communityMap.get(m.community_id)
       return {
         name: community?.name || m.community_name || 'Unknown',
         color: community?.color || '#666',
-        weight: m.weight,
-        pct: Math.round(m.weight * 100),
+        weight: Number.isFinite(Number(m.weight)) ? Number(m.weight) : 0,
+        score: formatLegacyScore(m.weight),
       }
     })
     .sort((a, b) => b.weight - a.weight)
+  const relativeWidths = relativeLegacyWidths(sortedBars.map(bar => bar.weight))
+  const bars = sortedBars.map((bar, index) => ({
+    ...bar,
+    relativeWidth: relativeWidths[index],
+  }))
+  const { displayed: displayBars, omittedCount } = selectTopLegacyScores(bars)
 
   /**
    * Download with AI image: load the image, composite with gradient overlay + text.
@@ -34,8 +49,8 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
   const downloadAiCard = useCallback(async () => {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
-    canvas.width = AI_CARD_W
-    canvas.height = AI_CARD_H
+    canvas.width = AI_CARD_WIDTH
+    canvas.height = AI_CARD_HEIGHT
 
     // Load AI image
     const img = new Image()
@@ -47,102 +62,22 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
       img.src = aiImageUrl
     })
 
-    // Draw image (cover the canvas)
-    const imgAspect = img.width / img.height
-    const canvasAspect = AI_CARD_W / AI_CARD_H
-    let drawW, drawH, drawX, drawY
-
-    if (imgAspect > canvasAspect) {
-      // Image is wider — fit height, crop sides
-      drawH = AI_CARD_H
-      drawW = AI_CARD_H * imgAspect
-      drawX = (AI_CARD_W - drawW) / 2
-      drawY = 0
-    } else {
-      // Image is taller — fit width, crop top/bottom
-      drawW = AI_CARD_W
-      drawH = AI_CARD_W / imgAspect
-      drawX = 0
-      drawY = (AI_CARD_H - drawH) / 2
-    }
-
-    // Clip to rounded rect
-    ctx.beginPath()
-    roundRect(ctx, 0, 0, AI_CARD_W, AI_CARD_H, CORNER_R)
-    ctx.clip()
-
-    ctx.drawImage(img, drawX, drawY, drawW, drawH)
-
-    // Gradient overlay at bottom
-    const gradient = ctx.createLinearGradient(0, AI_CARD_H * 0.55, 0, AI_CARD_H)
-    gradient.addColorStop(0, 'rgba(10, 14, 39, 0)')
-    gradient.addColorStop(0.3, 'rgba(10, 14, 39, 0.6)')
-    gradient.addColorStop(1, 'rgba(10, 14, 39, 0.95)')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, AI_CARD_W, AI_CARD_H)
-
-    // Text overlay
-    let y = AI_CARD_H - 180
-
-    // Handle
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, sans-serif'
-    ctx.fillText(`@${handle}`, CARD_PAD, y)
-    y += 32
-
-    // Display name
-    if (displayName && isClassified) {
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
-      ctx.font = '18px -apple-system, BlinkMacSystemFont, sans-serif'
-      ctx.fillText(displayName, CARD_PAD, y)
-      y += 28
-    }
-
-    y += 8
-
-    // Community labels
-    for (const bar of bars) {
-      // Color dot
-      ctx.fillStyle = isClassified ? bar.color : '#555'
-      ctx.beginPath()
-      ctx.arc(CARD_PAD + 6, y - 4, 5, 0, Math.PI * 2)
-      ctx.fill()
-
-      // Name
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
-      ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif'
-      ctx.fillText(bar.name, CARD_PAD + 18, y)
-
-      // Percentage
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
-      ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif'
-      const pctText = `${bar.pct}%`
-      const pctWidth = ctx.measureText(pctText).width
-      ctx.fillText(pctText, AI_CARD_W - CARD_PAD - pctWidth, y)
-
-      y += 22
-    }
-
-    // Golden border
-    ctx.strokeStyle = 'rgba(212, 175, 55, 0.5)'
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    roundRect(ctx, 1.5, 1.5, AI_CARD_W - 3, AI_CARD_H - 3, CORNER_R)
-    ctx.stroke()
-
-    // Footer
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'
-    ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif'
-    ctx.textAlign = 'right'
-    ctx.fillText('maptpot.vercel.app', AI_CARD_W - CARD_PAD, AI_CARD_H - 16)
-    ctx.textAlign = 'left'
+    drawAiCard({
+      ctx,
+      image: img,
+      handle,
+      displayName,
+      isClassified,
+      displayBars,
+      omittedCount,
+    })
 
     // Download
     const link = document.createElement('a')
     link.download = `ingroup-${handle}.png`
     link.href = canvas.toDataURL('image/png')
     link.click()
-  }, [handle, displayName, isClassified, bars, aiImageUrl])
+  }, [handle, displayName, isClassified, displayBars, omittedCount, aiImageUrl])
 
   /**
    * Download fallback bar-chart card (existing behavior).
@@ -155,7 +90,8 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
     const headerH = 60
     const nameH = displayName && isClassified ? 28 : 0
     const barsStartY = CARD_PAD + headerH + nameH
-    const barsH = bars.length * (BAR_H + BAR_GAP)
+    const scoreRowCount = displayBars.length + (omittedCount > 0 ? 1 : 0)
+    const barsH = scoreRowCount * (BAR_H + BAR_GAP)
     const footerH = 40
     const noteH = !isClassified ? 36 : 0
     const totalH = barsStartY + barsH + noteH + footerH + CARD_PAD
@@ -177,8 +113,8 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
     ctx.stroke()
 
     // Accent line at top for classified
-    if (isClassified && bars.length > 0) {
-      ctx.strokeStyle = bars[0].color
+    if (isClassified && displayBars.length > 0) {
+      ctx.strokeStyle = displayBars[0].color
       ctx.lineWidth = 3
       ctx.beginPath()
       ctx.moveTo(CARD_PAD, CARD_PAD + 2)
@@ -204,11 +140,11 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
     y += 8 // spacing before bars
 
     // Bars
-    for (const bar of bars) {
+    for (const bar of displayBars) {
       const barX = CARD_PAD
       const labelX = barX
       const trackX = barX + BAR_LABEL_W + 8
-      const pctX = trackX + BAR_TRACK_W + 8
+      const scoreX = trackX + BAR_TRACK_W + 8
 
       // Label
       ctx.fillStyle = '#ccc'
@@ -222,17 +158,25 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
       ctx.fill()
 
       // Track fill
-      const fillW = Math.max(4, (bar.pct / 100) * BAR_TRACK_W)
-      ctx.fillStyle = isClassified ? bar.color : '#555'
-      ctx.beginPath()
-      roundRect(ctx, trackX, y + 4, fillW, BAR_H - 8, 4)
-      ctx.fill()
+      const fillW = (bar.relativeWidth / 100) * BAR_TRACK_W
+      if (fillW > 0) {
+        ctx.fillStyle = isClassified ? bar.color : '#555'
+        ctx.beginPath()
+        roundRect(ctx, trackX, y + 4, fillW, BAR_H - 8, 4)
+        ctx.fill()
+      }
 
-      // Percentage
+      // Legacy uncalibrated score
       ctx.fillStyle = '#999'
       ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif'
-      ctx.fillText(`${bar.pct}%`, pctX, y + 18)
+      ctx.fillText(bar.score, scoreX, y + 18)
 
+      y += BAR_H + BAR_GAP
+    }
+    if (omittedCount > 0) {
+      ctx.fillStyle = '#777'
+      ctx.font = 'italic 12px -apple-system, BlinkMacSystemFont, sans-serif'
+      ctx.fillText(`+${omittedCount} additional legacy scores`, CARD_PAD, y + 18)
       y += BAR_H + BAR_GAP
     }
 
@@ -244,6 +188,11 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
       ctx.fillText('Based on network position. Contribute data for full color.', CARD_PAD, y + 14)
       y += 36
     }
+
+    ctx.fillStyle = '#777'
+    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText('LEGACY EXPLORATORY MAP · NOT MEMBERSHIP PROBABILITIES', CARD_PAD, y + 6)
 
     // Footer
     y += 8
@@ -258,7 +207,7 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
     link.download = `ingroup-${handle}.png`
     link.href = canvas.toDataURL('image/png')
     link.click()
-  }, [handle, displayName, tier, bars, isClassified])
+  }, [handle, displayName, tier, displayBars, omittedCount, isClassified])
 
   const handleDownload = useCallback(() => {
     if (aiImageUrl) {
@@ -276,26 +225,4 @@ export default function CardDownload({ handle, displayName, tier, memberships, c
       Download your card
     </button>
   )
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.moveTo(x + r, y)
-  ctx.lineTo(x + w - r, y)
-  ctx.arcTo(x + w, y, x + w, y + r, r)
-  ctx.lineTo(x + w, y + h - r)
-  ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
-  ctx.lineTo(x + r, y + h)
-  ctx.arcTo(x, y + h, x, y + h - r, r)
-  ctx.lineTo(x, y + r)
-  ctx.arcTo(x, y, x + r, y, r)
-  ctx.closePath()
-}
-
-function truncateText(ctx, text, maxW) {
-  if (ctx.measureText(text).width <= maxW) return text
-  let truncated = text
-  while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxW) {
-    truncated = truncated.slice(0, -1)
-  }
-  return truncated + '...'
 }

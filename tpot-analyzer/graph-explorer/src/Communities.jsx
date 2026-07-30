@@ -19,6 +19,8 @@ import {
 } from './communitiesApi'
 import { searchAccounts } from './accountsApi'
 import AccountDeepDive from './AccountDeepDive'
+import LegacyMapNotice from './LegacyMapNotice'
+import { formatLegacyScore, formatLegacySource } from './legacyCommunitySemantics'
 
 
 function CommunityList({ communities, selectedId, onSelect }) {
@@ -29,7 +31,7 @@ function CommunityList({ communities, selectedId, onSelect }) {
     }}>
       <div style={{ padding: '0 12px 8px', fontSize: 11, fontWeight: 700,
         color: '#64748b', textTransform: 'uppercase' }}>
-        Communities ({communities.length})
+        Legacy groups ({communities.length})
       </div>
       {communities.map(c => (
         <button
@@ -108,7 +110,7 @@ function MemberTable({ members, onSelectAccount, showFollowOnly,
             <tr style={{ borderBottom: '1px solid var(--panel-border, #1e293b)',
               color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
               <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600 }}>Account</th>
-              <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, width: 60 }}>Weight</th>
+              <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, width: 90 }}>Legacy score</th>
               <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, width: 60 }}>Source</th>
             </tr>
           </thead>
@@ -137,7 +139,7 @@ function MemberTable({ members, onSelectAccount, showFollowOnly,
                   )}
                 </td>
                 <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                  {(m.weight * 100).toFixed(0)}%
+                  {formatLegacyScore(m.weight)}
                 </td>
                 <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                   <span style={{
@@ -145,7 +147,7 @@ function MemberTable({ members, onSelectAccount, showFollowOnly,
                     background: m.source === 'human' ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.15)',
                     color: m.source === 'human' ? '#22c55e' : '#94a3b8',
                   }}>
-                    {m.source === 'human' ? 'HUMAN' : 'NMF'}
+                    {formatLegacySource(m.source)}
                   </span>
                 </td>
               </tr>
@@ -153,7 +155,7 @@ function MemberTable({ members, onSelectAccount, showFollowOnly,
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={3} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
-                  {members.length === 0 ? 'No members' : 'No matches'}
+                  {members.length === 0 ? 'No accounts' : 'No matches'}
                 </td>
               </tr>
             )}
@@ -331,7 +333,7 @@ export default function Communities({ ego: defaultEgo, initialAccountId }) {
   if (loading) return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center',
       justifyContent: 'center', color: '#64748b' }}>
-      Loading communities...
+      Loading legacy groups...
     </div>
   )
 
@@ -345,9 +347,9 @@ export default function Communities({ ego: defaultEgo, initialAccountId }) {
         padding: '10px 16px', borderBottom: '1px solid var(--panel-border, #1e293b)',
         display: 'flex', alignItems: 'center', gap: 12,
       }}>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Communities</h2>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Legacy Map Groups</h2>
         <div style={{ fontSize: 12, color: '#64748b' }}>
-          {communities.length} communities · {communities.reduce((s, c) => s + c.member_count, 0)} members
+          {communities.length} legacy {communities.length === 1 ? 'group' : 'groups'} · {communities.reduce((s, c) => s + c.member_count, 0)} account placements
         </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
@@ -368,6 +370,8 @@ export default function Communities({ ego: defaultEgo, initialAccountId }) {
           {egoAccountId && <span style={{ color: '#22c55e', fontSize: 11 }}>✓</span>}
         </div>
       </div>
+
+      <LegacyMapNotice />
 
       {error && (
         <div style={{
@@ -589,7 +593,7 @@ export default function Communities({ ego: defaultEgo, initialAccountId }) {
                     </span>
                   )}
                   <span style={{ fontSize: 11, color: '#64748b' }}>
-                    {selectedCommunity.member_count} members
+                    {selectedCommunity.member_count} accounts in legacy view
                   </span>
                 </div>
                 <div style={{
@@ -637,7 +641,7 @@ export default function Communities({ ego: defaultEgo, initialAccountId }) {
             {membersLoading ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center',
                 justifyContent: 'center', color: '#64748b' }}>
-                Loading members...
+                Loading accounts...
               </div>
             ) : (
               <MemberTable

@@ -1964,3 +1964,42 @@
     - **Verification**
         - `cd tpot-analyzer/public-site && node -e "require('./api/generate-card.js'); console.log('generate-card-loaded')"` → module loads successfully.
         - `cd tpot-analyzer/public-site && npm run build` → successful Vite production build after adding `functions.maxDuration`.
+
+- [2026-07-30 14:40 IST] **Raw-first retrieval Slice 0: quarantine legacy membership claims (Codex GPT-5)**
+    - **Hypothesis**
+        - Adjacent caveats, decimal score formatting, and honest producer names can preserve the legacy map as a baseline without presenting mixed `weight` values as calibrated community-membership probabilities.
+        - Predicted outcome: no primary internal, public, download, tweet-share, or OpenGraph surface emits a bare membership-like percentage.
+        - Confidence: `0.90`.
+        - Fallback: hide legacy numeric values entirely if any context-free probability affordance remains.
+    - **RED diagnostic**
+        - Focused public contracts produced 11 expected failures among 62 tests before implementation: cards, evidence, community page, tweet share, and OpenGraph metadata all reproduced the old percentage/belonging language.
+        - The graph pure-function contract initially had no implementation module. A separate first run exposed worktree dependency-resolution friction; `--configLoader runner` allowed the existing clean-clone dependencies to be reused without writing into their read-only cache.
+    - **Changes (files + why)**
+        - `graph-explorer/src/legacyCommunitySemantics.js:1-14` and `LegacyMapNotice.jsx:1-25`: centralize decimal formatting, exact source labels, and the adjacent legacy-map caveat; a visual pass increased light-theme contrast.
+        - `graph-explorer/src/Communities.jsx:22-23,113-150,374`: rename `Weight` to `Legacy score`, remove rendered percentages, preserve actual producer names, and show the always-visible caveat.
+        - `graph-explorer/src/AccountDeepDive.jsx:14-15,22,94,122,262-338`: rename the editor, use the API's native `0..1` scale, preserve source names, and keep the caveat beside editable legacy scores.
+        - `public-site/src/legacyCommunitySemantics.js:1-20` and `LegacyMapNotice.jsx:1-25`: define public decimal/caveat semantics and normalize mixed-scale values to bounded, explicitly within-card relative geometry.
+        - `public-site/src/CommunityCard.jsx:3-89,127-235`: render decimal legacy scores, use relative bar lengths instead of `weight * 100`, and carry the caveat in fallback, AI-image, and fullscreen branches.
+        - `public-site/src/EvidenceSummary.jsx:38-40,123`: label the highest placement as an uncalibrated decimal legacy affinity while retaining the separately named historical heuristic metadata.
+        - `public-site/src/CommunityPage.jsx:4-5,59,119-177`: replace “weight” and prototypical-member claims with legacy-score/exploratory-example language and an adjacent caveat.
+        - `public-site/src/App.jsx:327-336` and `CardGallery.jsx:103-213`: replace homepage belonging copy and keep the caveat beside cached art in both gallery and fullscreen contexts.
+        - `public-site/src/styles.css:566-624`: reserve viewport height for the fullscreen caveat and bound the notice beside short-viewport art.
+        - `public-site/src/EvidenceSummary.jsx:31-157`: remove the hidden `weight * 100 >= 5` bridge/community-count inference, report only legacy row count/order, and describe supporting accounts as legacy-labeled rather than members.
+        - `public-site/src/shareText.js:1-14` and `public-site/api/og.js:41-53`: share ranked names without numbers, explicitly deny membership-probability meaning, and avoid the contradictory “Find your ingroup” call to action.
+        - `public-site/src/CardDownload.jsx:1-228`, `cardDownloadAi.js:1-118`, and `cardCanvas.js:1-58`: cap exports at three ranked scores plus an omission count, reserve a tested caveat/footer area, normalize visible bars within-card, and decompose AI canvas rendering so the React component remains below 300 LOC.
+        - `public-site/src/legacyCardPrompt.js:1-72`, `GenerateCard.jsx:14,263`, `public-site/api/_legacyCardPrompt.js:1-108`, and `api/generate-card.js:12,143-149`: replace score percentages, score thresholds, and “community membership” art direction with top-three rank-only exploratory motifs and explicit methodological constraints.
+        - Focused semantics tests updated/added across `graph-explorer/src/legacyCommunitySemantics.test.js`, `AccountDeepDive.legacyScores.test.jsx`, `Communities.truthfulness.test.jsx`, and public card, gallery, homepage, prompt, evidence, community-page, share, download-layout, and OpenGraph contracts.
+        - `scripts/verify_legacy_community_truthfulness.py:1-299`: add the required human-readable verifier with ✓/✗ checks over 18 production surfaces plus 31 executable adversarial contracts.
+    - **Verification**
+        - The first focused RED tranche produced 11 expected public failures across 62 tests. Independent review then held the commit after finding unbounded bar geometry, clipped 15-score exports, membership language in both generated-card prompts, and context-free fullscreen art.
+        - The second RED tranche reproduced `7333%` geometry from score `73.3335`, 4/4 prompt failures, missing fullscreen notices, and unconstrained export rows.
+        - `cd graph-explorer && npx vitest run src --configLoader runner` → `746/746` passed; the suite retains pre-existing verbose canvas logs and React `act(...)` warnings.
+        - `cd public-site && npm test` → `211/211` passed.
+        - `cd graph-explorer && npm run build -- --configLoader runner` and `cd public-site && npm run build` → both production builds succeeded. The graph build retains its pre-existing large-chunk/dynamic-import warnings.
+        - `python3 scripts/verify_legacy_community_truthfulness.py` → 18 production surfaces, 52 required markers, 31 forbidden patterns, and 31 executable contracts checked; all passed.
+        - In-app browser visual pass at the isolated worktree dev server → caveat is adjacent to the table, “Legacy score” is visible, and the light-theme warning is readable after the contrast adjustment. The API was deliberately left unconfigured, so the preview showed no real rows and did not open or migrate the production database.
+    - **Scope and debt**
+        - No Community Gold schema/module was added, no data changed, no paid API was called, and nothing was deployed.
+        - The mounted `Communities.jsx` (661 LOC) and `AccountDeepDive.jsx` (540 LOC) remain pre-existing monolith debt already tracked in `docs/ROADMAP.md`; this slice only added imports/labels/notices and did not attempt a mixed refactor.
+        - `public-site/src/CommunityCard.test.jsx` remains inherited 325-LOC debt after changing the old percentage assertion; its fixture-preserving split is tracked separately in `docs/ROADMAP.md`.
+        - Prompt extraction reduced `GenerateCard.jsx` from 407 to 345 LOC and `api/generate-card.js` from 460 to 353 LOC, but both remain inherited decomposition debt; the client remainder is now explicitly tracked alongside the existing server item.

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getAllCachedCards, cacheCard } from './GenerateCard'
+import LegacyMapNotice from './LegacyMapNotice'
 import './card-gallery.css'
 
 function GalleryCardImage({ src, alt, onClick }) {
@@ -103,6 +104,7 @@ export default function CardGallery({ onMemberClick, onBack, galleryMode = 'all'
       <p className="gallery-subtitle">
         {loading ? 'Loading...' : `${cards.length} card${cards.length !== 1 ? 's' : ''} generated`}
       </p>
+      <LegacyMapNotice />
 
       {/* Mode toggle */}
       {cards.length > 0 && (
@@ -207,6 +209,7 @@ export default function CardGallery({ onMemberClick, onBack, galleryMode = 'all'
                 {fsIndex + 1} / {cards.length}
               </span>
             </div>
+            <LegacyMapNotice />
           </div>
 
           {cards.length > 1 && (

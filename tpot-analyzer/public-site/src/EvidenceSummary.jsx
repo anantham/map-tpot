@@ -10,6 +10,7 @@
  *   evidence.notable_followers: [{handle, community}]
  *   sampleTweets: [tweet_text, ...]
  */
+import { formatLegacyScore } from './legacyCommunitySemantics'
 
 export default function EvidenceSummary({
   tier,
@@ -35,7 +36,7 @@ export default function EvidenceSummary({
       return {
         name: community?.name || 'Unknown',
         weight: m.weight,
-        pct: Math.round(m.weight * 100),
+        score: formatLegacyScore(m.weight),
         neighbors: m.seed_neighbors || 0,
       }
     })
@@ -77,10 +78,10 @@ export default function EvidenceSummary({
   const tierDesc = {
     exemplar: 'Seed account with richer local evidence; exact source coverage varies by account.',
     classified: 'Seed account with richer local evidence; exact source coverage varies by account.',
-    specialist: 'Strong relative affinity to one community in the current graph.',
-    bridge: 'Straddles multiple communities — a connector between scenes.',
-    frontier: 'Inferred from network position. Fewer direct connections to classified accounts.',
-    faint: 'Barely visible in the network. Present but below the display threshold.',
+    specialist: 'Legacy display band from score concentration; not a verified specialist label.',
+    bridge: 'Legacy display band from score spread; not a verified bridge or connector label.',
+    frontier: 'Legacy display band inferred from network position and sparse classified-neighbor evidence.',
+    faint: 'Legacy display band below its historical display threshold.',
   }
 
   // Group notable follows by community
@@ -119,11 +120,9 @@ export default function EvidenceSummary({
       {/* Community placement */}
       {topBar && (
         <p className="evidence-line">
-          Highest displayed affinity: {topBar.name} (score {topBar.pct}%).
-          {bars.filter(b => b.pct >= 5).length >= 3 ? (
-            <span className="evidence-bridge-label"> (TPOT Bridge Account)</span>
-          ) : null}
-          {bars.length > 1 && ` Connected to ${bars.filter(b => b.pct >= 5).length} communities.`}
+          Highest displayed legacy affinity: {topBar.name} (uncalibrated score {topBar.score}).
+          {bars.length > 1
+            && ` ${bars.length} legacy score rows are present; compare their ordering only.`}
         </p>
       )}
 
@@ -143,7 +142,7 @@ export default function EvidenceSummary({
       {/* Seed neighbors by community */}
       {Object.keys(sncMap).length > 0 && (
         <div className="evidence-section">
-          <p className="evidence-section-title">Community members who follow this person:</p>
+          <p className="evidence-section-title">Legacy-labeled accounts who follow this person:</p>
           <div className="evidence-neighbor-list">
             {bars.filter(b => b.neighbors > 0).map((bar) => (
               <span key={bar.name} className="evidence-neighbor-chip">
@@ -157,7 +156,7 @@ export default function EvidenceSummary({
       {/* Notable follows */}
       {notableFollows.length > 0 && (
         <div className="evidence-section">
-          <p className="evidence-section-title">Follows these community members:</p>
+          <p className="evidence-section-title">Follows these legacy-labeled accounts:</p>
           <div className="evidence-account-list">
             {Object.entries(followsByCommunity).slice(0, 4).map(([comm, handles]) => (
               <div key={comm} className="evidence-account-group">
@@ -175,7 +174,7 @@ export default function EvidenceSummary({
       {/* Notable followers */}
       {notableFollowers.length > 0 && (
         <div className="evidence-section">
-          <p className="evidence-section-title">Followed by these classified accounts:</p>
+          <p className="evidence-section-title">Followed by these legacy-labeled accounts:</p>
           <div className="evidence-account-list">
             {Object.entries(followersByCommunity).slice(0, 4).map(([comm, handles]) => (
               <div key={comm} className="evidence-account-group">
@@ -213,7 +212,7 @@ export default function EvidenceSummary({
       {tier !== 'exemplar' && tier !== 'classified'
         && heuristicSignal != null && heuristicSignal < 0.15 && (
         <p className="evidence-line evidence-line--improve">
-          Based on network position only. Tweet analysis would sharpen this.
+          This legacy view uses network position; content evidence is not represented here.
         </p>
       )}
     </div>

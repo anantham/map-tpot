@@ -2,7 +2,7 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-28 (personal-ontology Slice 1 final falsifiers)*
+*Last updated: 2026-07-30 (legacy community presentation falsifier)*
 
 ---
 
@@ -167,6 +167,81 @@ environment setup.
 **Next step:** Pin a supported Node version for CI/developer parity or remove
 the shim after Vitest/jsdom no longer expose the Node 26 conflict. The runtime
 still emits an experimental-webstorage warning before setup executes.
+
+---
+
+## EXP-020: Do primary UI and sharing surfaces imply calibrated membership?
+
+**Date:** 2026-07-30
+
+**Question:** Can the quarantined legacy community map remain inspectable
+without presenting its mixed `weight` values as membership probabilities?
+
+**Hypothesis:** Adjacent caveats, decimal score formatting, and exact producer
+labels should remove the probability claim without hiding the legacy ranking.
+The change is falsified if a primary internal list, public card, community
+page, downloaded card, tweet share, or OpenGraph description still emits a
+bare membership-like percentage.
+
+**Method:** Added rendered and pure-function contracts before implementation.
+The first RED run produced 11 expected public failures across 62 focused tests;
+the graph helper initially failed at module resolution because it did not
+exist. After the first implementation passed, an independent adversarial review
+rejected it: generated-card prompts still said “community membership,”
+downloaded cards could collide with the caveat when an account had the observed
+maximum of 15 scores, cached/fullscreen art lost its surrounding caveat, and bar
+geometry still assumed `weight` was bounded by one. The active export contains
+23,575 values above one across 6,103 accounts, with a maximum of `73.3335`.
+
+Added a second RED tranche for those falsifiers. It reproduced `7333%` geometry
+for `73.3335`, four prompt failures across both client and server paths, missing
+fullscreen context, and unconstrained export rows. Replaced magnitude geometry
+with within-card relative widths, capped downloads at three ranked rows plus an
+explicit omission count, reserved canvas space for the caveat, changed both
+image prompts to rank-only exploratory motifs without numeric magnitudes, and
+carried the caveat onto the homepage, gallery, and fullscreen views, with
+viewport space reserved for the fullscreen note. The final verifier statically
+inspects 18 production surfaces and executes 31 adversarial contracts in both
+frontend projects.
+
+**Result:** **Confirmed for the checked presentation surfaces; this does not
+validate the underlying community assignments.**
+
+- Human verifier: 18 production surfaces, 52 required markers, 31 forbidden
+  patterns, and 31 executable contracts passed.
+- Full graph-explorer suite: 746/746 passed; full public-site suite: 211/211
+  passed. Both production builds completed.
+- Legacy values now render as decimals such as `0.650`, accompanied by
+  “not membership probabilities.” Share text and OpenGraph metadata publish
+  rank-ordered names without numbers.
+- Source badges preserve actual source names rather than mapping every
+  non-human producer to NMF.
+- Bar lengths are explicitly relative within each card and are bounded at 100%
+  of the available track even for mixed-scale scores. They are not score
+  percentages.
+- Generated art receives only rank-ordered legacy affinity motifs and an
+  explicit instruction that they are uncalibrated, not membership
+  probabilities, and not verified facts.
+- Downloaded cards show at most three ranked scores, report how many additional
+  scores were omitted, and reserve a tested gap before their embedded caveat.
+- Evidence copy no longer derives a “Bridge Account” or community count from
+  the invalid `weight * 100 >= 5` threshold; it reports row count and tells the
+  reader to compare ordering only.
+- A browser visual pass caught insufficient light-theme warning contrast; the
+  banner now uses the active text color at semibold weight and remained adjacent
+  to the score table.
+- No deployment, external write, API call, or data mutation occurred.
+
+**Lesson:** A mathematically careful About page cannot repair a misleading
+number, bar, or generated image at the point of use. “Invisible” geometry and
+model prompts are also claims: both leaked the same invalid probability
+assumption even after visible copy was repaired. A single legacy `weight` field
+cannot support producer-specific semantics, so generic probability formatting
+must remain disabled until the export carries method metadata.
+
+**Next step:** Test raw-follow source-selective retrieval against unweighted
+support, then evaluate Recall@K only after real held-out judgments exist.
+Retain the legacy map as a labeled baseline, not a calibrated result.
 
 ---
 

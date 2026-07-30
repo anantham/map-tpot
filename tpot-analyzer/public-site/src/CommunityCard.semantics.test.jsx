@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import CommunityCard from './CommunityCard'
 
@@ -7,6 +7,80 @@ vi.mock('./GenerateCard', () => ({
 }))
 
 describe('CommunityCard evidence semantics', () => {
+  it('labels fallback-card values as legacy scores, not membership probabilities', () => {
+    render(
+      <CommunityCard
+        handle="alice"
+        tier="classified"
+        memberships={[{ community_id: 1, weight: 0.65 }]}
+        communityMap={new Map([[1, { id: 1, name: 'Core TPOT', color: '#ff0' }]])}
+        confidence={0.5}
+      />
+    )
+
+    expect(screen.getByText(/Legacy exploratory factor\/affinity scores/i)).toBeTruthy()
+    expect(screen.getByText(/not membership probabilities/i)).toBeTruthy()
+    expect(screen.getByText('0.650')).toBeTruthy()
+    expect(screen.queryByText('65%')).toBeNull()
+  })
+
+  it('uses bounded within-card relative widths for mixed-scale legacy scores', () => {
+    const { container } = render(
+      <CommunityCard
+        handle="alice"
+        tier="classified"
+        memberships={[
+          { community_id: 1, weight: 73.3335 },
+          { community_id: 2, weight: 2 },
+        ]}
+        communityMap={new Map([
+          [1, { id: 1, name: 'First', color: '#ff0' }],
+          [2, { id: 2, name: 'Second', color: '#0ff' }],
+        ])}
+      />
+    )
+
+    const widths = [...container.querySelectorAll('.bar-fill')]
+      .map(node => Number.parseFloat(node.style.width))
+
+    expect(widths[0]).toBe(100)
+    expect(widths[1]).toBeCloseTo(2.7273, 4)
+    expect(Math.max(...widths)).toBeLessThanOrEqual(100)
+  })
+
+  it('keeps the caveat and decimal score on AI-image cards', () => {
+    render(
+      <CommunityCard
+        handle="alice"
+        tier="classified"
+        memberships={[{ community_id: 1, weight: 0.65 }]}
+        communityMap={new Map([[1, { id: 1, name: 'Core TPOT', color: '#ff0' }]])}
+        confidence={0.5}
+        aiImageUrl="/alice.png"
+      />
+    )
+
+    expect(screen.getByText(/not membership probabilities/i)).toBeTruthy()
+    expect(screen.getByText('0.650')).toBeTruthy()
+    expect(screen.queryByText('65%')).toBeNull()
+  })
+
+  it('keeps the legacy-map caveat beside an AI image in fullscreen', () => {
+    const { container } = render(
+      <CommunityCard
+        handle="alice"
+        tier="classified"
+        memberships={[{ community_id: 1, weight: 0.65 }]}
+        communityMap={new Map([[1, { id: 1, name: 'Core TPOT', color: '#ff0' }]])}
+        aiImageUrl="/alice.png"
+      />
+    )
+
+    fireEvent.click(container.querySelector('.card-ai-container'))
+
+    expect(screen.getAllByText(/not membership probabilities/i)).toHaveLength(2)
+  })
+
   it('does not render an unregistered interval as a confidence interval', () => {
     const communityMap = new Map([
       [1, { id: 1, name: 'Core TPOT', color: '#ff0' }],

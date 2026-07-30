@@ -147,7 +147,7 @@ describe('ShareButton tweet text', () => {
     [4, { id: 4, name: 'Highbies', color: '#f0f' }],
   ])
 
-  it('includes top 3 communities with percentages', () => {
+  it('ranks the top 3 communities without publishing membership-like percentages', () => {
     const memberships = [
       { community_id: 1, weight: 0.5 },
       { community_id: 2, weight: 0.3 },
@@ -155,28 +155,31 @@ describe('ShareButton tweet text', () => {
       { community_id: 4, weight: 0.05 },
     ]
     const text = buildShareText(memberships, communityMap)
-    expect(text).toContain('My current TPOT map scores:')
-    expect(text).toContain('50% Core TPOT')
-    expect(text).toContain('30% LLM Whisperers')
-    expect(text).toContain('15% Qualia')
+    expect(text).toContain('My current legacy TPOT map ranks:')
+    expect(text).toContain('Core TPOT')
+    expect(text).toContain('LLM Whisperers')
+    expect(text).toContain('Qualia')
     expect(text).not.toContain('Highbies') // 4th community excluded
-    expect(text).toContain('Find your ingroup')
+    expect(text).not.toContain('%')
+    expect(text).toContain('not membership probabilities')
+    expect(text).toContain('Explore the legacy map')
+    expect(text).not.toContain('Find your ingroup')
   })
 
   it('returns generic text when no memberships', () => {
     const text = buildShareText([], communityMap)
-    expect(text).toBe('Find which TPOT communities you belong to →')
+    expect(text).toBe('Explore the legacy TPOT community map — hypotheses, not membership probabilities →')
   })
 
   it('returns generic text when memberships is null', () => {
     const text = buildShareText(null, communityMap)
-    expect(text).toBe('Find which TPOT communities you belong to →')
+    expect(text).toBe('Explore the legacy TPOT community map — hypotheses, not membership probabilities →')
   })
 
   it('handles missing communities in map gracefully', () => {
     const memberships = [{ community_id: 999, weight: 0.5 }]
     const text = buildShareText(memberships, communityMap)
     // community_id 999 not in map → filtered out → generic text
-    expect(text).toBe('Find which TPOT communities you belong to →')
+    expect(text).toBe('Explore the legacy TPOT community map — hypotheses, not membership probabilities →')
   })
 })
