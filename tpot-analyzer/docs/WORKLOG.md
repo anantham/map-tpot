@@ -1,5 +1,86 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 1 — Source Selectivity (2026-07-30)
+
+- [2026-07-30 15:32 IST] **Implemented and tested the minimal
+  source-side selectivity primitive (Codex GPT-5 with a computational-peer
+  implementation pass)**
+    - **Hypotheses and falsifiers**
+        - `H1` (`0.95`): distinct seed follows weighted by
+          `1 / max(observed_out_degree, claimed_following_count)` should make a
+          selective seed contribute more than a broad seed. Duplicate
+          inflation, seed/self handling, invalid claims, nondeterminism, or
+          hidden normalization would falsify the arithmetic contract.
+        - `H2` (`0.55`): source-selective ranking should improve held-out
+          Recall@K over raw distinct-seed support. A time/topology-split
+          comparison showing no stable gain, or worse precision/reciprocal
+          rank, falsifies it. This remains untested until 30 real scoped
+          judgments support a frozen development/holdout split.
+    - **Scope correction**
+        - The first peer implementation reached 556 lines across a library,
+          loaders, tests, and verifier while remaining synthetic-only. It was
+          held rather than accepted. The retained slice is 269 lines total:
+          104 implementation, 94 behavioral tests, and 71 human verifier.
+          It adds no schema, adapter, API, UI, or new Community Gold module.
+    - **Changes (files + current line ranges)**
+        - `src/graph/source_selectivity.py:1-104` ranks non-seed candidates,
+          deduplicates observations, uses the larger observed/claimed degree,
+          and returns explicit per-seed degree-unknown/coverage diagnostics.
+        - `tests/test_source_selectivity.py:1-94` covers discrimination,
+          duplicate resistance, seed/self behavior, fallback semantics,
+          determinism, and the fact that the signal can exceed one.
+        - `scripts/verify_source_selectivity.py:1-71` prints four explicit
+          ✓/✗ checks, concrete counts/scores, the semantic boundary, and the
+          next held-out comparison.
+        - `docs/EXPERIMENT_LOG.md` EXP-021 records the method, real diagnostic,
+          assumptions, falsifiers, negative result, and next step.
+        - `docs/ROADMAP.md` marks the primitive complete while keeping
+          comparative retrieval validation open.
+    - **Read-only real-data diagnostic**
+        - Four named seeds yielded two usable neighborhoods: RomeoStevens76
+          538 observed / 667 claimed, TVachaW 10 / 2,182, while SuttaSlime and
+          realityacid108 remained degree-unknown in the following view.
+        - The scorer returned 542 candidates. Five accounts supported by both
+          usable seeds led at `0.001957546`, but raw support ranked the same
+          five first. This validates operational arithmetic only; it is not
+          evidence of improved retrieval or any community membership.
+        - The diagnostic used a read-only point-in-time local SQLite view but
+          did not freeze its query, output artifact, or database hash. The
+          counts are provisional and must not be treated as reproducible
+          evidence. It made no API, network, model, label, or database write.
+    - **Verification**
+        - Focused and adjacent graph behavior: 11/11 passed across
+          `test_source_selectivity.py`, `test_observation_model.py`, and
+          `test_graph_builder.py`.
+        - The first direct verifier run failed with `ModuleNotFoundError: src`
+          despite the tests passing. Adding the same direct-execution project
+          root bootstrap used by existing verifiers made the advertised
+          invocation pass 4/4. This was an invocation defect, not a scoring
+          failure.
+        - Documentation hygiene passed 9/9 and `git diff --check` was clean at
+          the documentation checkpoint.
+        - Personal-ontology documentation contracts passed 21/21 via module
+          invocation. Direct script invocation exposed a pre-existing
+          `ModuleNotFoundError: scripts`; fixing that unrelated verifier is
+          recorded under Developer Experience rather than mixed into this
+          commit.
+        - Independent adversarial review found no mathematical implementation
+          blocker, then caught an untested ranking tie-break, ambiguous
+          `unknown` semantics, and overconfident diagnostic provenance. Exact
+          score/support/account ordering is now tested; the field is
+          `degree_unknown`; and the live counts are explicitly provisional.
+    - **Assumptions and fallback**
+        - Follows are treated as equal units of attention; seed correlation,
+          time, typed engagement, stance, missing-not-at-random coverage, and
+          durable numeric/`shadow:*` identity reconciliation are not modeled.
+        - The score is unbounded and is not a probability, confidence, interval,
+          or membership.
+        - No production caller consumes the primitive yet. The next coverage
+          slice must use it or it remains an experimental phantom consumer.
+        - If held-out retrieval does not improve, retain raw support and test
+          log-inverse/capped weighting or typed evidence without changing the
+          holdout. No paid acquisition is justified by this result.
+
 ## Personal-Ontology Slice 1 — Evaluation Integrity (2026-07-26)
 
 - [2026-07-28 12:13 IST] **Independent final release verification

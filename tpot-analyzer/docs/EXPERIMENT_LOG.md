@@ -2,7 +2,88 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-30 (legacy community presentation falsifier)*
+*Last updated: 2026-07-30 (source-side selectivity arithmetic)*
+
+---
+
+## EXP-021: Does source-side selectivity recover niche candidates?
+
+**Date:** 2026-07-30
+
+**Question:** Does a follow from a selective seed carry more useful retrieval
+signal than a follow from a seed that follows thousands of accounts?
+
+**Hypothesis:** For each distinct seed-to-candidate follow, adding
+`1 / max(observed_out_degree, claimed_following_count)` will rank candidates
+supported by selective seeds above candidates supported only by broad seeds.
+The scientific hypothesis is stronger: this ranking will improve held-out
+Recall@K over unweighted distinct-seed support.
+
+**Method:** Wrote behavior-first synthetic tests for duplicate observations,
+self-follows, seed-to-seed follows, missing or invalid claimed counts,
+determinism, and scores above one. The implementation exposes both the
+uncalibrated score and per-seed degree diagnostics. An initial 556-line design
+was rejected before integration because it added loaders and synthetic
+infrastructure without a real consumer; the retained implementation, tests,
+and verifier total 269 lines.
+
+Then ran the pure scorer read-only against a point-in-time local
+`data/archive_tweets.db` view of stored `account_following` edges and
+`user_profile_cache` counts, using four named seeds: RomeoStevens76, TVachaW,
+SuttaSlime, and realityacid108. The diagnostic did not freeze an output
+artifact or database hash. No API, network, model, label, or database write was
+used. Its account counts are therefore provisional observations, not a
+reproducible empirical result.
+
+**Result:** **The arithmetic hypothesis is confirmed; the retrieval hypothesis
+is not yet tested.**
+
+- RomeoStevens76 had 538 observed outgoing targets and a claimed count of 667,
+  so each stored follow contributed `1/667 = 0.001499250`.
+- TVachaW had 10 observed targets and a claimed count of 2,182, so each
+  contributed `1/2182 = 0.000458295`.
+- SuttaSlime and realityacid108 had neither stored outgoing targets nor a valid
+  claimed count in this view and remained explicitly `degree_unknown`.
+- The run produced 542 candidates. Five accounts supported by both covered
+  seeds led with `0.001957546` and raw support two:
+  `strangestloop`, `5matthewdub`, `taijitu_sees`, `vyakart`, and `AlexKrusz`.
+- Raw-support ranking placed the same five accounts first. With four seeds,
+  only two usable neighborhoods, and no frozen labels, this run supplies no
+  evidence of a Recall@K improvement.
+
+**Assumptions and falsifiers:**
+
+- A stored directed follow is treated as one unit of attention, despite unknown
+  recency, provenance, endorsement, list maintenance, or account compromise.
+- Seed evidence is added as if sources were independent; correlated seeds can
+  overcount one social neighborhood.
+- `1 / degree` is a proposed discrimination function, not a derived optimum.
+  Log-inverse, capped, learned, and time-decayed alternatives remain viable.
+- `max(observed, claimed)` prevents partial capture from making a seed look more
+  selective than either available count implies, but claimed counts can be
+  stale and edge coverage is missing-not-at-random.
+- Numeric and `shadow:*` identities are not reconciled in this primitive.
+- The score is unbounded and is not membership, probability, confidence, or a
+  confidence interval.
+- The retrieval claim is falsified if time/topology-split held-out Recall@K,
+  precision@K, or reciprocal rank fails to improve over raw distinct support,
+  or if gains disappear across degree and community strata.
+
+**Lesson:** Source selectivity is cheap and operational on current edges, but
+current named-seed coverage is too sparse to validate discoverability. The
+honest output today is a ranking signal plus coverage diagnostics, not a
+community assignment.
+
+**Data stored:** Code in `src/graph/source_selectivity.py`; behavioral tests in
+`tests/test_source_selectivity.py`; human verifier in
+`scripts/verify_source_selectivity.py`. The real-data run was diagnostic only
+and wrote no artifact or database row. Its provisional counts must be rerun
+against an identified frozen snapshot before use as comparative evidence.
+
+**Next step:** Collect 30 real scoped judgments, freeze a development/holdout
+split, reconcile seed identities, and compare source-selective ranking with raw
+support on the same candidate universe. Do not tune the discrimination
+function on the terminal holdout.
 
 ---
 
