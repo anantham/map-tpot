@@ -1,5 +1,108 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 2 — Research Notes Inbox (2026-07-30)
+
+- [2026-07-30 16:07 IST] **Implemented and synthetically verified the blind
+  paste-and-review thin slice (Codex GPT-5 with three implementation peers and
+  an independent adversarial review)**
+    - **Hypothesis, prediction, confidence, fallback**
+        - `H1` (`0.90`): messy notes can become a deduplicated review queue
+          whose dossier contains only allowlisted raw evidence and no legacy
+          recommendations. A leaked community/weight/role field, lost source
+          line, or unsafe profile URL falsifies it.
+        - `H2` (`0.95`): preview mode can fail closed by rejecting `frameId`,
+          refusing all writes, ignoring mutable client target text, and naming
+          current SQLite evidence as mutable and not snapshot-bound. Any
+          enabled save, frozen-evidence wording, or hidden-role-dependent
+          progress falsifies it.
+        - `H3` (`0.45`): the surface will make real curation motivating and
+          cheap enough to reach 30 judgments. Synthetic behavior cannot confirm
+          this; review time, abstention, correction rate, and held-out retrieval
+          change will. If the dossier is insufficient, add the smallest
+          evidence view justified by observed abstentions rather than another
+          substrate.
+    - **RED / GREEN evidence**
+        - Parser contracts began with 3 expected failures; the retained parser
+          passes 3/3.
+        - Dossier API contracts began with 7 expected failures; focused backend
+          and adjacent auth/integrity contracts now pass 23/23.
+        - App/API wiring began with 4 expected failures and inbox behavior with
+          3 expected failures. The retained focused frontend tranche passes
+          19/19.
+        - Direct visual inspection exposed a context-free network error; a RED
+          regression now requires the failing handle. An adversarial link test
+          then reproduced unsafe `javascript:` website rendering and singular
+          count errors; both are fixed and green.
+        - Independent review falsified the first synthetic write design:
+          mutable current rows were labeled as frame-bound, editable
+          environment text could contradict the immutable task, a
+          training-readable count leaked hidden role membership, and retry was
+          not idempotent. RED contracts now require explicit frame rejection,
+          session-only drafts, and no client-defined target; the write path and
+          its unused client helpers were removed.
+    - **Changes (files + current line ranges)**
+        - `src/api/routes/research_notes.py:1-180` adds one curator-only,
+          read-only dossier endpoint with explicit profile/tweet fields and
+          capture times, mutable-source metadata, strict limits, and explicit
+          rejection of unimplemented frame binding.
+        - `src/api/server.py:32,161` registers the dossier blueprint.
+        - `tests/test_research_notes_routes.py:1-202` exercises auth, blind raw
+          payloads, descriptive missing-account errors, invalid limits, capture
+          provenance, and mandatory frame rejection using temporary SQLite.
+        - `graph-explorer/src/researchNotes/parseResearchNotes.js:1-41` parses
+          handles and X/Twitter profile or tweet-author URLs, preserves the
+          first source line, and deduplicates case-insensitively.
+        - `graph-explorer/src/researchNotes/researchNotesApi.js:1-31` fetches an
+          authenticated dossier and retains account context in network errors.
+        - `graph-explorer/src/researchNotes/RawDossier.jsx:1-102` renders only
+          the allowlisted profile and authored posts, with safe external links,
+          capture times, mutable/snapshot status, and a no-recommendations
+          boundary.
+        - `graph-explorer/src/researchNotes/useResearchNotesInbox.js:1-81`
+          owns only the session queue, raw evidence loading, dossier retry, and
+          draft fields. It contains no persistence call.
+        - `graph-explorer/src/ResearchNotesInbox.jsx:1-140` and
+          `ResearchNotesInbox.css:1-266` provide the two-pane paste, dossier,
+          draft judgment, error, session-only warning, and responsive layout.
+        - `graph-explorer/src/App.jsx` mounts `?view=research-notes` as a
+          top-level view without accepting reviewer/target semantics from
+          environment configuration.
+        - `scripts/verify_research_notes_inbox.py:1-192` prints 8 explicit
+          ✓/✗ checks, file sizes, the no-real-data boundary, and the next gate.
+        - `docs/EXPERIMENT_LOG.md` EXP-022 records the method, falsifiers,
+          synthetic-only result, and snapshot provenance limitation.
+        - `docs/ROADMAP.md` marks the blind thin slice shipped while retaining
+          snapshot-addressed evidence, real activation, and UX measurement as
+          open work.
+    - **Verification**
+        - `scripts/verify_research_notes_inbox.py` under the project dependency
+          environment: 8/8 checks passed; 23 backend and 19 frontend contracts.
+          A first invocation under a bare UV interpreter failed descriptively
+          because that interpreter did not include pytest; rerunning under the
+          project venv passed and did not alter code or data.
+        - Graph explorer: 759/759 tests passed; scoped ESLint passed with zero
+          warnings; production Vite build succeeded with inherited dynamic
+          import and bundle-size warnings.
+        - In-app browser: pasted two accounts, confirmed deduplication,
+          queue switching, raw dossier rendering, and disabled preview save
+          against a disposable fixture database. No real archive DB was opened.
+    - **Scope, assumptions, and debt**
+        - No schema, Community Gold module, real ontology/frame/role/judgment,
+          prediction, API fetch, paid acquisition, or deployment was added.
+        - A profile plus up to 20 authored posts is not assumed to prove
+          competence, affiliation, endorsement, Kegan stage, simulacrum level,
+          or durable intent. Those remain separately defined targets.
+        - The endpoint reads current local rows and says so; it cannot accept a
+          frame. Real saving remains gated on a server-derived canonical task,
+          snapshot-addressed evidence/context verification, an idempotency key,
+          and role-independent cumulative progress.
+        - The first combined inbox component crossed 300 LOC during
+          implementation and was split into presentation, controller, raw
+          dossier, parser, and transport modules before integration. No new
+          production file exceeds 300 LOC. Adversarial simplification reduced
+          the route from 268 to 180 LOC, controller from 266 to 81 LOC, and
+          backend test from 299 to 202 LOC.
+
 ## Raw-First Retrieval Slice 1 — Source Selectivity (2026-07-30)
 
 - [2026-07-30 15:32 IST] **Implemented and tested the minimal

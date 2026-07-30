@@ -500,9 +500,24 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   observable-competence, and publicly expressed participation-interest heads.
   Keep style descriptors and evidence coverage separate; call outputs
   affinities until task-specific calibration passes.
-- Extend the existing Community Gold account deep-dive into a blind,
-  save/resume dossier with immutable corrections and visible development-set
-  learning; do not create a parallel labeling store.
+- [x] Add a separate blind Research Notes thin slice that parses messy account
+  notes, shows allowlisted raw profile/authored-post evidence with capture
+  times, and keeps `IN` / `OUT` / `ABSTAIN` drafts session-only while clearly
+  identifying the source as mutable and not snapshot-bound
+  (`graph-explorer/src/ResearchNotesInbox.jsx`,
+  `src/api/routes/research_notes.py`,
+  `scripts/verify_research_notes_inbox.py`; synthetic-only, implemented
+  2026-07-30). The API explicitly rejects `frameId`; no real write path exists.
+- Add real Research Notes save/resume only after the server derives the target
+  label/question from the immutable task, serves snapshot-addressed dossier
+  evidence, verifies the full context receipt on write, accepts an idempotency
+  key, and exposes role-independent cumulative progress. Never use
+  `purpose=training` count deltas as curator progress because they reveal
+  withheld evaluation roles.
+- Measure Research Notes review time, abstention, correction frequency,
+  external-investigation frequency, and progress-to-30. Use those observations
+  to decide whether the next dossier view should add replies, likes, quote
+  context, network neighbors, or contemporaneous context.
 - Implement ADR 022's typed observe/interpret/judge action policy, beginning
   with the existing frontier heuristic as a baseline and the USD 0
   retrospective mask/reveal tranche.
@@ -632,6 +647,11 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Capture an immutable source manifest (path-independent snapshot ID, size,
   timestamps, deep hash, and query receipt) before reusing EXP-017's
   point-in-time Community Gold counts.
+- Make bound Research Notes dossiers snapshot-addressed, or recompute and
+  verify their full dossier-context hash server-side during judgment writes.
+  The 2026-07-30 thin slice queries mutable local rows, labels them as such,
+  rejects frame binding, and has no write path. Do not enable real saves while
+  old snapshot metadata could describe post-cutoff backfills or edits.
 - Add an artifact registry that proves evidence/context/model/method/calibration
   artifacts exist and are mutually compatible; format-valid hashes alone are
   not provenance.
@@ -685,7 +705,11 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Wire the currently orphaned Community Gold React modules only after
   decomposing the live `Communities.jsx` and `AccountDeepDive.jsx` path and
   adding a blind dossier mode that cannot reveal model/group recommendations
-  before judgment.
+  before judgment. Before mounting them, add `withCuratorAuth` to
+  `graph-explorer/src/communityGoldApi.js`; every corresponding backend route
+  is curator-protected while the current orphaned client sends no token. This
+  auth repair was discovered during the 2026-07-30 preview slice and kept out
+  of that commit because the preview has no Community Gold consumer.
 - Decompose `tpot-analyzer/graph-explorer/src/GraphExplorer.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterCanvas.jsx` into smaller components/hooks (<300 LOC each) to keep debugging manageable.
 - Decompose `tpot-analyzer/graph-explorer/src/ClusterView.jsx` (1,464 LOC in the
