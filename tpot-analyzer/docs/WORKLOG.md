@@ -1,5 +1,159 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 3 — Named-Seed Coverage Triage (2026-07-30)
+
+- [2026-07-30 18:30 IST] **Implemented a zero-spend, read-only Dharma seed
+  coverage and acquisition-cost report (Codex GPT-5 with three read-only
+  computational-peer audits)**
+    - **Hypotheses, predictions, confidence, fallback**
+        - `H-C1` (`0.95`): a versioned seed panel can pin the intended numeric
+          identities without silently accepting conflicting handle lookups.
+          Any conflicting numeric ID is surfaced while the panel remains
+          authoritative.
+        - `H-C2` (`0.80`): explicit direct/inverse archive and shadow following
+          views contain a nonempty stored-key neighborhood for each of the four
+          named Dharma seeds. A zero union falsifies this; unavailable sources
+          make the union partial but do not erase observed rows.
+        - `H-C3` (`0.40`): the later local follow rows can be attributed to a
+          provider, fetch run, and time. Missing row-level source/run/time
+          fields falsify this.
+        - `H-C4` (`0.90` arithmetic; `0.45` retrieval quality):
+          source-selectivity can rank current candidates, but improvement over
+          raw support requires future frozen development/holdout judgments.
+        - Predicted outcome: use current local evidence before spending API
+          credits; price only complete refreshes, never a locally inferred
+          gap. Fallback: if every neighborhood remained sparse, price a
+          seed-specific acquisition tranche; if provenance remained unknown,
+          keep rows usable only as explicitly unattributed observations.
+    - **Investigation loop**
+        - Attempt 1/3:
+            - hypothesis: EXP-021's `538/10/0/0` diagnostic represents current
+              named-seed coverage.
+            - test: compare independent project-root and sibling archive
+              databases by inode, table counts, per-seed target digests, and
+              candidate universe.
+            - result: rejected — database selection changed stored-key unions
+              from `735/225/1/2` to `957/2,323/226/58` and candidates from
+              `894` to `3,305`.
+        - Attempt 2/3:
+            - refined hypothesis: the public Community Archive REST topology
+              can independently close the four current follow lists.
+            - test: inspect current public account profiles and direct/inverse
+              following/follower table counts without paid requests.
+            - result: rejected for topology closure — profiles were current,
+              but public relationship rows were absent or partial for three
+              seeds. The canonical Parquet tweet snapshot was still refreshed
+              and deep-verified at zero cost.
+        - Attempt 3/3:
+            - final hypothesis: the active local database is sufficient for a
+              zero-cost ranking but cannot prove acquisition provenance.
+            - test: inspect schema, rowid batches, stale fetch-state/log rows,
+              shadow metadata, and run the query-time report with explicit
+              paths and pinned SQLite read snapshots.
+            - result: confirmed for operational retrieval; falsified for
+              provenance. The later batch has no provider, fetch time, or run
+              ID and is labeled only as unattributed SQLite evidence.
+    - **Changes (files + why)**
+        - `data/evals/dharma_seed_coverage_panel.json:1-39` pins the four
+          user-named probes and timestamped Community Archive profile-count
+          receipts; these are retrieval seeds, not exhaustive membership
+          labels.
+        - `data/manifests/twitterapiio_price_card_20260730.json:1-40` freezes
+          the verified credits/USD, endpoint pagination, minimum-call, and
+          item-tier assumptions used by the cost estimator.
+        - `src/evaluation/seed_coverage_contract.py:1-200` validates panels,
+          computes page-tier full-refresh cost, compares receipts/digests, and
+          derives explicit falsification results.
+        - `src/evaluation/seed_coverage_io.py:1-192` handles JSON/database
+          receipts, missing-table semantics, and identity/name lookup.
+        - `src/evaluation/seed_coverage_content.py:1-95` deep-verifies and
+          caches one immutable Parquet content/reply projection per process so
+          path comparison does not scan the same 920 MB snapshot twice.
+        - `src/evaluation/seed_coverage_follow.py:1-108` keeps direct/inverse
+          sources separate, constructs the stored-key union, preserves shadow
+          provenance, and canonicalizes known seed aliases for ranking.
+        - `src/evaluation/seed_coverage.py:1-177` pins read snapshots before
+          receipts/queries, orchestrates the adapters, invokes the existing
+          source-selectivity primitive, and states that scores are uncalibrated.
+        - `tests/test_seed_coverage.py:1-240`,
+          `tests/test_seed_coverage_contract.py:1-100`, and
+          `tests/test_seed_coverage_io.py:1-31` behaviorally cover price tiers,
+          concurrent-writer WAL snapshot isolation, source
+          separation/deduplication, known seed-alias exclusion, pinned identity
+          conflicts, content/ranking semantics, comparison receipts/digests,
+          derived attribution status, and missing-table `unavailable`
+          behavior. RED-first truthfulness fixes renamed shadow direct/inverse
+          following and removed non-comparable claim-versus-union ratios.
+        - `scripts/verify_seed_coverage_triage.py:1-189` prints explicit
+          implementation checks and falsification statuses,
+          seed metrics, ranked candidates, path dependence, cost, boundaries,
+          and next steps; JSON output is no-clobber.
+        - `data/evals/dharma_seed_coverage_report_20260730.json` freezes the
+          historical query-time result and input receipts. Its SQLite inputs
+          are explicitly mutable; the report is not an immutable source
+          snapshot and cannot be exactly regenerated after their WALs advance.
+        - `docs/EXPERIMENT_LOG.md` adds EXP-023 and an additive EXP-021
+          amendment; `docs/ROADMAP.md` records the candidate-review surface,
+          canonical data root, edge extract, ingestion provenance, shadow
+          orientation, and typed-edge follow-ups.
+    - **Data and cost receipts**
+        - Community Archive snapshot
+          `20260730T045247Z-4913d0183e39`: 8,511,975 tweets, 34,917 accounts,
+          newest event `2026-07-30T04:24:20Z`, SHA-256
+          `24843080391b664ed8a138cd65362a4c65756c95459858e19aca98ed7e87e471`.
+        - Named-seed stored-key unions: RomeoStevens76 `957`, TVachaW `2,323`,
+          realityacid108 `226`, SuttaSlime `58`. Mixed-time aliases mean these
+          are neither current-follow counts nor completeness denominators.
+        - Latest-snapshot authored rows: `14,542/290/7/1`; incoming non-self
+          reply rows: `2,947/360/6/47`.
+        - Source-selective candidate count: `3,305`; top row
+          `danielbrottman` is supported by all four seeds. No precision or
+          membership conclusion is drawn before held-out review.
+        - Verified full-refresh quote: 3,571 credits, USD `0.03571`; actual
+          twitterapi.io spend: USD `0`. The report itself makes no network
+          request; the earlier public Community Archive refresh also cost USD
+          `0`.
+    - **Verification and limitations**
+        - Behavior-first contracts began with expected `NotImplementedError`
+          failures. The WAL snapshot regression then reproduced visibility of
+          a writer commit after `BEGIN` but before the first read; the retained
+          reader pins a real SELECT snapshot and the concurrent-writer test is
+          green.
+        - `pytest tests/test_seed_coverage.py
+          tests/test_seed_coverage_contract.py
+          tests/test_seed_coverage_io.py tests/test_source_selectivity.py
+          tests/test_archive_snapshot.py
+          tests/test_archive_snapshot_validation.py
+          tests/test_snapshot_comparison.py -q` → `33 passed`.
+        - Final real-data verifier → 4/4 implementation checks passed;
+          H-C1/H-C2/H-C4 were not falsified, H-C3 was falsified; 3,305
+          candidates; path deltas `+222/+2,098/+225/+56`; full-refresh quote
+          USD `0.03571`. The builder exposes local paths only and does not
+          execute acquisition; spend is recorded separately as an operational
+          USD `0` observation, not inferred by the verifier.
+        - `python -m py_compile` across all Slice 3 modules/tests and
+          `git diff --check` passed.
+        - `scripts/verify_docs_hygiene.py` → `9/9`; module invocation of
+          `scripts.verify_personal_ontology_docs` → `21/21`.
+        - The regenerated report timestamp is generated after its database
+          receipts and queries; it postdates every recorded DB/WAL mtime.
+        - All SQLite opens use `mode=ro` and `PRAGMA query_only=ON`; WAL
+          visibility and concurrent-writer snapshot isolation are tested.
+          Deep snapshot verification runs before opening the database read
+          snapshots. Missing tables report `unavailable`, not observed zero.
+        - A peer audit confirmed price arithmetic, artifact hashes, no secrets,
+          and current shadow-row interpretation. It also caught the mutable-WAL
+          reproducibility boundary, ambiguous shadow field names, and a
+          mixed-union delta name; all are now explicit.
+        - Current `shadow_edge` producer code and row metadata support the
+          following interpretation used here, but reference documentation
+          contradicts itself. Historical writer/version audit remains debt.
+        - No logical database row/schema write, model inference, paid X
+          request, Community Gold schema/module, UI, or deployment is part of
+          this slice. Opening the WAL databases read-only created normal
+          SQLite runtime sidecars (a 0-byte WAL and 32 KiB SHM) beside the
+          selected sibling database.
+
 ## Raw-First Retrieval Slice 2 — Research Notes Inbox (2026-07-30)
 
 - [2026-07-30 16:07 IST] **Implemented and synthetically verified the blind
