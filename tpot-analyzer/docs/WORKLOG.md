@@ -1,5 +1,66 @@
 # Worklog - TPOT Analyzer
 
+## Off-platform evidence channel + selectivity weighting (2026-07-30)
+
+- [2026-07-30 17:50 IST] **Bio-link resolution, vision ensemble, selectivity
+  scoring (Claude Opus 5)**
+    - **Why**
+        - `profiles.website` was populated for 230 of 26,098 rows, read in exactly
+          one place (`src/communities/preview.py:33`) and never fetched. Accounts
+          whose substance lives off-platform were invisible to all three existing
+          channels.
+        - Operator goal shifted to sourcing attendees for an interface-alignment
+          programme, which made *who vouched for a candidate* matter more than how
+          many did.
+    - **Added**
+        - `src/enrichment/site_features.py` — pure HTML → features (images,
+          outbound links, feeds, interstitial redirect targets).
+        - `src/enrichment/site_classify.py` — auditable scoring into 12 site types;
+          abstains as `unknown` rather than guessing.
+        - `src/enrichment/vision.py` — local ollama ensemble; trust gates on
+          independent agreement, not self-reported confidence.
+        - `src/propagation/selectivity.py` — selectivity-weighted co-following;
+          direction never symmetrised.
+        - `scripts/resolve_bio_links.py`, `scripts/caption_site_images.py`,
+          `scripts/build_bio_link_review.py`.
+        - `scripts/fetch_following_for_frontier.py` — new `--handles` mode for
+          seeds the graph has never observed (graph-ranked modes structurally
+          cannot reach them).
+        - Tables `bio_link_profile` (composite PK, gzipped HTML cache) and
+          `bio_link_image_verdict`.
+    - **Defects found and fixed (all with red-first regression tests)**
+        - `urljoin` raised `ValueError` on unbalanced-bracket hrefs, killing a
+          230-page run at item 119. The regression test immediately exposed a
+          *second* unguarded call site; all URL parsing now routes through
+          `safe_host`.
+        - HTML entities left undecoded corrupted 201 image URLs and 23 identity
+          links. Repaired offline from the HTML cache via `--reclassify` — zero
+          refetching.
+        - `resolve_tco_url` labelled every failure "t.co did not resolve" when in
+          most cases t.co resolved fine and the *destination* failed. Replaced with
+          a two-stage probe reporting `resolve:` and `fetch:` separately;
+          `resolved_url` is now recorded even when the fetch fails.
+        - URL regex excluded `)`, so the paren-balancing branch beneath it was
+          unreachable.
+    - **Verification**
+        - Backend `1,417 passed, 5 skipped`. ~70 new tests across
+          `tests/test_bio_links.py` and `tests/test_selectivity.py`.
+    - **Known defects NOT fixed (carried forward)**
+        - `scripts/insert_seeds.py` still applies `abs()` at 9 sites, stranding
+          **488** pieces of negative evidence; `account_community_bits` holds
+          **0** negative rows. This is the largest available source of the OUT
+          labels the evaluation floor requires.
+        - **145** `new-community-signal:*` tags (Psychonauts, Somatic-Coaching,
+          Post-Rationalist, Contemplative-Alignment) have no consumer.
+        - `scripts/classify_bands.py:157` computes entropy on unbounded Lift.
+        - `docs.github.com` inflates the GitHub identity-link count by ~60%.
+        - The operator ranks inside their own candidate list; no self-exclusion.
+        - Nothing reads `bio_link_profile` or `bio_link_image_verdict` yet —
+          this commit adds capability, not a consumer.
+    - **Data acquired**
+        - 40 operator-named accounts resolved; ~61k following edges; **$0.35**.
+        - See EXP-019 and EXP-020.
+
 ## Personal-Ontology Slice 1 — Evaluation Integrity (2026-07-26)
 
 - [2026-07-28 12:13 IST] **Independent final release verification
