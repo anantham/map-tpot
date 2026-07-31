@@ -8,7 +8,7 @@
   "official_sources": [
     "https://twitterapi.io/pricing",
     "https://docs.twitterapi.io/api-reference/endpoint/get_user_followings",
-    "https://docs.twitterapi.io/api-reference/endpoint/get_user_info",
+    "https://docs.twitterapi.io/api-reference/endpoint/get_user_by_username",
     "https://docs.twitterapi.io/api-reference/endpoint/get_user_last_tweets"
   ],
   "user_info": {

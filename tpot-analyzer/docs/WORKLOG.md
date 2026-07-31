@@ -1,5 +1,25 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 5B — Provenance-Link Correction (2026-07-31)
+
+- [2026-07-31 20:45 IST] **Re-hashed the still-unexecuted plan after its
+  profile-documentation slug proved noncanonical (Codex GPT-5)**
+    - Prediction (`0.90`): the endpoint and prices would remain unchanged but
+      the official source identity and every downstream semantic hash would
+      change. Fallback: preserve prior private plans as superseded and make no
+      request until preflight recognizes only the corrected hash.
+    - Official references confirmed `/twitter/user/info` with a `data` object
+      and top-level `tweets` for recent posts, but the canonical profile page is
+      `get_user_by_username`, not the stored `get_user_info` slug.
+    - `data/manifests/twitterapiio_price_card_20260730.json` and its pinning
+      test now bind semantic SHA-256 `eab5a081…`; no price changed.
+    - The replacement mode-0600 plan is `2470a84f…`, still 26 maximum calls,
+      3,846 reserved credits, and USD 0.03846. The `3c66b735…` plan was retained
+      as superseded alongside `f352851e…`; all remain unexecuted.
+    - EXP-029 and the focused pretrial protocol record the falsifier and
+      downstream invalidation. Focused acquisition tests pass 30/30; paid spend
+      remains USD 0.
+
 ## Raw-First Retrieval Slice 5A — Telemetry-Reserve Correction (2026-07-31)
 
 - [2026-07-31 20:05 IST] **Superseded the unexecuted dossier plan after a

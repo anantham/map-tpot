@@ -75,14 +75,14 @@ requires a new pre-answer panel manifest.
 
 The credential-free plan uses price card
 `twitterapiio-2026-07-30`, semantic SHA-256
-`f795e1704f5d8bb0337f1d1deb3e81276750a98dd4485dac7285ff6f2f9dd2bb`.
+`eab5a0810df86593164562636d82f616947984c79a67ce9a32eccfe13d2a9ab2`.
 Its revised maximum is 26 calls: 24 evidence calls plus two before/after
 balance checks, 12 profiles, 240 tweets, 3,846 reserved credits, or USD
 0.03846 under a USD 0.05 hard cap. The balance endpoint has no published
 endpoint-specific price, so its 30-credit share is explicitly conservative
 and unverified. Plan SHA-256 is
-`3c66b7353e393bb0b266000261204345bfce2031dbc617301e5ae600bc07fd56`;
-it supersedes the unexecuted `f352851e…` plan.
+`2470a84f7cb1867b26577118d0df42731c17accb7c8fe941ea8f971c9681d3a4`;
+it supersedes the unexecuted `f352851e…` and `3c66b735…` plans.
 The plan says `authorizes_execution=false`; this amendment records the design,
 not a paid call.
 
