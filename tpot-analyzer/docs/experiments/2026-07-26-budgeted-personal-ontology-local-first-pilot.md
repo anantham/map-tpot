@@ -70,45 +70,13 @@ The first run may narrow to two groups if the timing calibration shows that four
 cannot obtain minimum positive/negative coverage within the human ceiling. That
 choice must be made before fitting or test inspection.
 
-## Formative Dharma boundary pretrial (registered 2026-07-31)
+## Formative Dharma boundary pretrial
 
-Before freezing the first real ontology task, run a non-confirmatory,
-zero-spend pretrial over 12 purposively selected accounts from the dated takes
-snapshot. Its purpose is to test whether the human can answer two proposed
-questions consistently and whether they encode meaningfully different
-boundaries. Its session drafts are not Community Gold and must not train or
-score a model.
-
-The two questions are fixed as:
-
-1. **Retrieval relevance:** “Should this person be surfaced when searching for
-   people relevant to Dharma, meditation, or jhāna community-building?”
-2. **Social affiliation:** “Based on public evidence, is this person socially
-   affiliated with the Dharma community as Aditya uses that term?”
-
-Use four likely positive controls, six boundary cases, and two likely
-negatives selected before answer reveal from the private takes snapshot. Put
-their ordered account IDs, strata, and digest in a private run manifest rather
-than this repository. Shuffle within each of two passes and hide the first-pass
-answer during the second. Record `IN`/`OUT`/`ABSTAIN`, elapsed review time,
-whether external investigation was needed, and the evidence note.
-
-The proposed task split survives this pretrial only if at least two of 12
-accounts receive different non-abstain answers across the two questions. If
-fewer than two differ, there is weak evidence that separate targets buy useful
-resolution and the questions should be revised or combined before schema work.
-If more than 25% of answers abstain, the dossier or definitions are inadequate;
-improve evidence/wording before interpreting disagreement. If either question
-has less than 75% exact repeat agreement across the two passes, do not freeze
-it as a task. Report disagreement, abstention, median time, external-search
-rate, and repeat agreement as descriptive counts only; this purposive panel
-does not estimate population prevalence or predictive performance.
-
-The retrieval question is a search-policy target, not
-`participation_interest`. The affiliation question may later bind to the
-existing `affiliation` target type. A distinct retrieval-relevance contract is
-considered only if the observed disagreement justifies it; this pretrial does
-not authorize an ontology/schema expansion.
+The two-pass wording/labelability test and its pre-data evidence amendment now
+live in the focused
+[Dharma Boundary Pretrial Protocol](2026-07-31-dharma-boundary-pretrial.md).
+That protocol is non-confirmatory, keeps all identities private, cannot create
+Community Gold, and must pass before freezing either proposed task.
 
 ## Evidence identities at registration
 

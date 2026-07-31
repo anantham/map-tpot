@@ -1,5 +1,88 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 5 — Formative Acquisition Planning (2026-07-31)
+
+- [2026-07-31 19:16 IST] **Falsified local-only dossier readiness and froze a
+  non-executing USD 0.05 acquisition plan (Codex GPT-5 with three
+  computational-peer audits)**
+    - **Hypotheses, predictions, confidence, fallback**
+        - `H-A1` (`0.70`): the private 12-account Dharma panel already has
+          comparable profile plus recent-post coverage. Expected: most
+          accounts have both locally; fewer than half falsifies readiness.
+        - `H-A2` (`0.95`): current provider prices permit one standardized
+          profile-plus-20-post dossier per account below USD 0.05. A stale or
+          malformed card, cap overflow, or unverifiable price identity
+          falsifies the plan.
+        - `H-A3` (`0.95`): planning can remain credential-free and incapable of
+          execution while pinning every target, action, reserve, price card,
+          selection manifest, and canonical plan hash. Any environment/API
+          access or `authorizes_execution=true` falsifies the separation.
+        - Fallback: do not reuse either legacy fetcher. If the plan cannot be
+          proved safe, continue with the visibly unbound UI and collect no
+          trial answers or paid evidence.
+    - **Investigation loop**
+        - Attempt 1/3: a read-only canonical-archive coverage query rejected
+          `H-A1`: 5/12 selected accounts have profiles and 1/12 has any local
+          authored tweets; the populated timeline is not a comparable current
+          dossier.
+        - Attempt 2/3: code and peer audits rejected both historical paid
+          fetchers for this run because their price assumptions, dry-run
+          boundary, cap granularity, response receipts, and provenance are not
+          safe enough for a new paid call.
+        - Attempt 3/3: current official pricing plus pure behavioral contracts
+          confirmed `H-A2` and `H-A3`. The exact fixed plan reserves USD
+          0.03816 below a USD 0.05 cap and contains no execution capability.
+    - **Changes (files + why)**
+        - `data/manifests/twitterapiio_price_card_20260730.json`: extend the
+          dated tracked card with official profile and recent-tweet prices and
+          endpoint identities; the semantic card hash is
+          `f795e1704f5d8bb0337f1d1deb3e81276750a98dd4485dac7285ff6f2f9dd2bb`.
+        - `src/evaluation/acquisition_manifest.py:1-124`: isolate shared
+          canonical JSON, handle, timestamp, exact-decimal cap, and self-hash
+          rules so neither action planner approaches the 300-LOC boundary.
+        - `src/evaluation/acquisition_plan_contract.py:1-186`: add the pure
+          followings plan contract, worst-case 398-credit page reserve, and
+          freshness/cap validation. It has no transport, credentials, or write
+          path.
+        - `src/evaluation/dossier_acquisition_plan.py:1-231`: add the pure
+          fixed profile/recent-tweet dossier planner with atomic actions,
+          selection-manifest binding, one-page bounds, deterministic target
+          ordering, and hard-cap failure.
+        - `tests/test_acquisition_plan_contract.py:1-168` and
+          `tests/test_dossier_acquisition_plan.py:1-144`: behaviorally cover
+          exact reserves, price/card drift, duplicates, invalid handles/pages,
+          stale/future prices, cap overflow, deterministic hashing, and the
+          non-execution flag. Dossier tests began against an intentional
+          `NotImplementedError` RED implementation.
+        - `scripts/verify_acquisition_plan_contract.py:1-214`: add the required
+          human-facing verifier; it reports costs, counts, hashes, historical
+          holdout overlap, local coverage, and the next gate without printing
+          private identities. Optional plan output is exclusive and mode 0600.
+        - `.gitignore`: exclude `data/private/`; the real panel and plan stay
+          local with mode 0600 and are not staged.
+        - `docs/EXPERIMENT_LOG.md` EXP-027, `docs/ROADMAP.md`,
+          `docs/experiments/2026-07-31-dharma-boundary-pretrial.md`, and ADR
+          022 record the falsification, plan / execute boundary, exact
+          pre-answer cost, and remaining receipt gate. The focused pretrial
+          extraction also returns the parent pilot below the 300-LOC gate.
+    - **Private receipts and measured result**
+        - Selection manifest SHA-256:
+          `ce680f1a88fb9d4b2dd1af169c1ce741eaca3e9d3dcaa83f834f6d1cbfdc83ce`;
+          12 accounts; `4/6/2` pre-answer strata; historical holdout overlap 0.
+        - Plan semantic SHA-256:
+          `f352851ed285493445bb2baecc3ef69714bc9db71ab945b3abe63b0c360fb8ab`;
+          24 maximum calls; 12 profiles; 240 tweets; 3,816 credits; USD
+          0.03816 under the USD 0.05 hard cap.
+        - `authorizes_execution=false`. No credential was read and actual
+          provider/OpenRouter spend remains USD 0.
+    - **Verification**
+        - Acquisition/dossier/seed price contracts → 33/33 passed.
+        - Real private-plan verifier → 6/6 passed and wrote only the ignored
+          mode-0600 plan.
+        - Python compilation and `git diff --check` passed; all new production
+          files remain under 300 LOC.
+
+
 ## Raw-First Retrieval Slice 4 — Independent-Band Quarantine (2026-07-30)
 
 - [2026-07-30 18:55 IST] **Falsified independent-Lift entropy and blocked its

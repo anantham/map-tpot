@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-07-30
+Last reviewed: 2026-07-31
 
 ## Start Here
 
@@ -119,6 +119,7 @@ Last reviewed: 2026-07-30
 | [Testing Methodology](TESTING_METHODOLOGY.md) | Primary testing guide |
 | [Frozen Membership and Discoverability Audit](experiments/2026-07-26-membership-discoverability-audit.md) | 2026-07-26 methods, falsifiers, results, limits, and reproduction commands |
 | [Budgeted Personal-Ontology Pilot](experiments/2026-07-26-budgeted-personal-ontology-local-first-pilot.md) | Planned local-first benchmark and USD 100 acquisition protocol; no spend authorized |
+| [Dharma Boundary Pretrial](experiments/2026-07-31-dharma-boundary-pretrial.md) | Fixed 12-account, two-pass formative wording test and pre-data evidence cap |
 | [Personal-Ontology Evaluation Methods](experiments/2026-07-26-personal-ontology-evaluation-methods.md) | Frozen universe, probability sampling, abstention, one-shot test, sequential inference, and benchmark contract |
 | [Test Audit](TEST_AUDIT.md) | Historical audit snapshot (see note below) |
 | [Test plans](test-plans/) | Feature-level testing plans |

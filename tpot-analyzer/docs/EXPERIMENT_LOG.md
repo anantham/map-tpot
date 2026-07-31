@@ -2,7 +2,58 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-31 (paired-probe review ergonomics)*
+*Last updated: 2026-07-31 (formative-dossier coverage and cost plan)*
+
+---
+
+## EXP-027: Can the formative Dharma panel start from local evidence alone?
+
+**Date:** 2026-07-31
+
+**Question:** Does the canonical local archive contain comparable recent
+profile-and-post dossiers for a fixed 12-account Dharma boundary panel, and if
+not, what is the fail-closed worst-case cost of standardizing those dossiers
+before any answer is revealed?
+
+**Hypothesis:** Most purposively selected accounts from the dated takes
+snapshot will already have a profile and recent authored posts locally, so the
+two-pass wording test can begin without an external observation. It is
+falsified if substantial panel coverage is absent or temporally incomparable.
+
+**Method:** Selected four likely-positive controls, six boundary cases, and two
+likely negatives into a private manifest before pretrial answers. Candidates
+present in the historical TPOT directory holdout were excluded. Queried the
+canonical SQLite archive in read-only mode for profile and tweet coverage.
+Then verified the current official twitterapi.io price card and built a
+credential-free, content-addressed plan for exactly one profile request and at
+most 20 recent tweets per account. The plan reserves the worst billable return
+for every action, is capped at USD 0.05, and explicitly cannot execute.
+
+**Result:** **FALSIFIED for local-only start; CONFIRMED for bounded planning.**
+Only 5/12 panel accounts have a local profile and only 1/12 has any local
+authored tweet row; the one populated timeline is historical rather than a
+comparable current dossier. Standardizing all 12 accounts requires at most 24
+requests, 12 profiles, and 240 returned tweets. At 18 credits/profile and 15
+credits/tweet, the worst-case reserve is 3,816 credits, or USD 0.03816. The
+private selection has zero overlap with the historical holdout table. The
+plan's semantic SHA-256 is
+`f352851ed285493445bb2baecc3ef69714bc9db71ab945b3abe63b0c360fb8ab`.
+
+**Lesson:** NMF is not the immediate blocker for this test; evidence coverage
+is. A tiny, fixed, pre-answer dossier fill is more informative than purchasing
+broad follow graphs before we know whether the proposed questions are stable.
+Uniformly materializing the same profile-plus-20-post view also avoids giving
+positive controls systematically richer evidence than boundary cases.
+
+**Data stored:** A mode-0600 private panel and plan under ignored
+`data/private/`; tracked pure pricing/planning contracts, tests, and verifier.
+No private identity, response body, credential, API request, database write,
+model call, human answer, or paid credit was created.
+
+**Next step:** Review and implement a receipt-producing executor that can run
+only this exact plan hash, then freeze the returned dossiers before the first
+answer. Any schema, identity, holdout, price, balance, or cap mismatch must stop
+without spending the next action's reserve.
 
 ---
 

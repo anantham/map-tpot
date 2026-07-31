@@ -265,3 +265,27 @@ Reconsider or replace the policy if:
   baseline for tweet-level simulacrum curation.
 - Supersedes the scientific acquisition policy in the 2026-03-23 Active
   Learning Loop spec. That document remains historical implementation context.
+
+## Amendment — Plan / execute boundary (2026-07-31)
+
+Before another paid action, acquisition is split into two artifacts:
+
+1. a credential-free, read-only plan that pins target/action identities, the
+   dated semantic price-card hash, worst-case integer-credit reserves, a hard
+   USD cap, input-manifest hashes, and its own canonical hash; and
+2. a separate executor that may run only an explicitly accepted plan hash and
+   must record balance-before/after, HTTP/schema status, cursor, returned and
+   usable counts, response hash, actual charge, and output snapshot identity
+   per action.
+
+A plan always contains `authorizes_execution=false`; possessing a valid plan
+does not itself authorize network or spend. Price, schema, identity, holdout,
+balance, reserve, or plan-hash drift stops before the next action. This closes
+the observed failure mode in which a nominal dry run performed paid identity
+lookups or a later page crossed an account-level cap.
+
+The first concrete plan targets only the formative ontology test: 12 fixed
+public profiles plus at most 20 recent tweets each, with a USD 0.03816
+worst-case reserve under a USD 0.05 cap. Broad relationship acquisition waits
+until the human questions and dossier evidence pass their registered
+labelability/repeatability gates.
