@@ -295,4 +295,5 @@ labelability/repeatability gates.
 The provider documents its balance endpoint but publishes no endpoint-specific
 price. The revised plan therefore reserves 15 credits for each of the required
 before/after checks without asserting that this is the actual charge. This
-supersedes plan `f352851e…` with `3c66b735…`: 3,846 credits (USD 0.03846).
+the current plan is `2470a84f…`: 3,846 credits (USD 0.03846); earlier unexecuted
+plans `f352851e…` and `3c66b735…` remain superseded.

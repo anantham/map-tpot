@@ -29,7 +29,7 @@ PRICE_CARD_PATH = (
     / "twitterapiio_price_card_20260730.json"
 )
 PINNED_PRICE_CARD_SHA256 = (
-    "f795e1704f5d8bb0337f1d1deb3e81276750a98dd4485dac7285ff6f2f9dd2bb"
+    "eab5a0810df86593164562636d82f616947984c79a67ce9a32eccfe13d2a9ab2"
 )
 
 
@@ -58,9 +58,14 @@ def _build(
 
 
 def test_plan_pins_card_and_reserves_worst_case_for_every_page() -> None:
-    manifest = _build()
+    card = _price_card()
+    manifest = _build(price_card=card)
 
-    assert worst_case_request_credits(_price_card()) == 398
+    assert worst_case_request_credits(card) == 398
+    assert (
+        "https://docs.twitterapi.io/api-reference/endpoint/"
+        "get_user_by_username"
+    ) in card["official_sources"]
     assert manifest["price_card"] == {
         "card_id": "twitterapiio-2026-07-30",
         "sha256": PINNED_PRICE_CARD_SHA256,

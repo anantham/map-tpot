@@ -2,7 +2,43 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-31 (balance-telemetry reserve correction)*
+*Last updated: 2026-07-31 (canonical profile-documentation binding)*
+
+---
+
+## EXP-029: Does the price card bind the canonical profile reference?
+
+**Date:** 2026-07-31
+
+**Question:** Is every source identity inside the dated price card still a
+retrievable canonical provider document before preflight treats its hash as
+authoritative?
+
+**Hypothesis:** The stored `get_user_info` documentation slug remains the
+provider's canonical profile reference. A different canonical slug in the
+official endpoint index falsifies that provenance identity even if the endpoint
+and price themselves are unchanged.
+
+**Method:** Reopened the official profile and last-tweets references, compared
+their published paths and response envelopes with the card, then pinned the
+canonical profile source string and semantic card hash in a behavioral test.
+
+**Result:** **SOURCE-IDENTITY HYPOTHESIS REJECTED; PRICES UNCHANGED.** The
+profile route is still `/twitter/user/info` at 18 credits, but its canonical
+documentation slug is `get_user_by_username`. Correcting only that source
+changes the semantic price-card SHA-256 to
+`eab5a0810df86593164562636d82f616947984c79a67ce9a32eccfe13d2a9ab2` and
+the unexecuted private plan SHA-256 to
+`2470a84f7cb1867b26577118d0df42731c17accb7c8fe941ea8f971c9681d3a4`.
+
+**Lesson:** Human-readable provenance is part of a content-addressed plan, not
+decoration. Correcting it must invalidate downstream hashes before execution.
+
+**Data stored:** The prior unexecuted private plans remain explicitly marked
+superseded. No credential, API response, model call, or paid credit was used.
+
+**Next step:** The live preflight may accept only plan `2470a84f…`, the revised
+card hash, the exact selection file hash, and zero historical-holdout overlap.
 
 ---
 
@@ -42,6 +78,9 @@ request, response, human answer, or paid credit was created.
 
 **Next step:** Permit an executor only for the revised exact plan hash and make
 schema, identity, balance, or cap drift stop before the next evidence action.
+
+**Supersession note:** EXP-029 replaced this still-unexecuted plan after fixing
+the canonical profile-documentation slug; its reserve and targets did not move.
 
 ---
 
