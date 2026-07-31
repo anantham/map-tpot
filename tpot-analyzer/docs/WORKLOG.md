@@ -444,6 +444,66 @@
           the route from 268 to 180 LOC, controller from 266 to 81 LOC, and
           backend test from 299 to 202 LOC.
 
+- [2026-07-31 18:45 IST] **Validated full-block import against the real takes
+  snapshot without activating gold writes (Codex GPT-5 with a read-only peer
+  audit)**
+    - **Hypothesis, prediction, confidence, fallback**
+        - `H1` (`0.95`): block boundaries can recover the intended subjects
+          and their complete rationale while treating handles inside evidence
+          as citations. Expected: 57 subjects, no `cisco`/`ai4bharat`, both
+          explicit co-subject/display-name cases present, and zero exact-span
+          mismatches. Fallback: retain the raw span and require explicit
+          curator confirmation for ambiguous block syntax rather than adding
+          handle-specific exceptions.
+    - **RED / GREEN evidence**
+        - The behavior-first fixture reproduced the old failure: employer
+          mentions on their own lines became separate queue subjects and the
+          surrounding rationale was split away.
+        - The first real-file probe still returned 59 rows, specifically
+          exposing that standalone mentions inside a continued bio need a
+          boundary condition. The refined rule requires a standalone mention
+          to begin at a blank/separator boundary or after a narrowly detected
+          display-name line.
+        - The retained parser returns 57 subjects on the dated 10,311-byte
+          snapshot, includes `meaningaligned` and `chrislakin`, excludes the
+          two employer citations, and has zero `sourceText !==
+          input.slice(sourceStart, sourceEnd)` mismatches.
+    - **Changes (files + why)**
+        - `graph-explorer/src/researchNotes/parseResearchNotes.js:10-184`:
+          replace line-only subject discovery with block-aware profile
+          boundaries, explicit co-subject handling, display-name retention,
+          and immutable source offsets/text separate from the editable note.
+        - `graph-explorer/src/researchNotes/parseResearchNotes.test.js:5-189`:
+          add behavioral falsifiers for exact source slicing, embedded and
+          standalone evidence citations, shared co-subject context, and
+          display-name-plus-handle blocks.
+        - `scripts/verify_research_notes_inbox.py:5,77-112,195-245`: add an
+          optional read-only `--takes-file`/`--expected-count` check that
+          prints snapshot hash, byte and subject counts, false-subject list,
+          and exact-span errors without copying private notes into the repo.
+        - `docs/EXPERIMENT_LOG.md` EXP-025 records the hypothesis, two-stage
+          falsification, dated snapshot receipt, and methodological lesson.
+        - `docs/ROADMAP.md` records account/question-keyed provisional drafts
+          and the safe paid-acquisition replacement as explicit follow-up.
+    - **Verification**
+        - Focused Vitest RED: 1/5 failed for the intended standalone-citation
+          reason; GREEN: 5/5 passed.
+        - `scripts/verify_research_notes_inbox.py --takes-file <private-file>
+          --expected-count 57` under the project dependency environment → 9/9
+          checks passed, including 23 backend contracts and the focused
+          frontend tranche.
+        - Snapshot receipt: SHA-256
+          `b9e9d616c0a79933f7f6a33dbf6cad0990e4ca1611fe48af5904a7d610e30cc0`;
+          10,311 bytes; 57 subjects; zero false employers; zero span errors.
+    - **Scope and debt**
+        - The private raw file remains outside git. No archive row, gold
+          judgment, ontology, task, frame, API request, paid credit, or public
+          artifact changed.
+        - The UI still has one draft shared across accounts; account/question
+          keyed provisional drafts are the next product slice. Real save stays
+          locked because evidence is mutable and unbound and retries are not
+          idempotent.
+
 ## Raw-First Retrieval Slice 1 — Source Selectivity (2026-07-30)
 
 - [2026-07-30 15:32 IST] **Implemented and tested the minimal
