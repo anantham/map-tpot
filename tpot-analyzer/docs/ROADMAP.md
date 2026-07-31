@@ -540,6 +540,17 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   `src/api/routes/research_notes.py`,
   `scripts/verify_research_notes_inbox.py`; synthetic-only, implemented
   2026-07-30). The API explicitly rejects `frameId`; no real write path exists.
+  The 2026-07-31 block-import amendment preserves exact source spans and the
+  full rationale, and recovered 57 intended subjects from the dated real takes
+  snapshot without promoting employer citations into subjects (EXP-025).
+- Add two clearly provisional Dharma boundary probes before gold activation:
+  retrieval relevance (“should this person be surfaced?”) and social
+  affiliation (“is this person part of the Dharma social group?”). Keep drafts
+  keyed by account and question so navigation cannot erase them. Run a
+  boundary-enriched 12-account, two-pass pilot; measure disagreement,
+  abstention, answer time, and repeat consistency. Do not misencode retrieval
+  relevance as `participation_interest`, and do not persist either probe as
+  gold until its task contract is approved.
 - Add real Research Notes save/resume only after the server derives the target
   label/question from the immutable task, serves snapshot-addressed dossier
   evidence, verifies the full context receipt on write, accepts an idempotency
@@ -834,3 +845,12 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Make the historical acquisition holdout guard fail closed when its schema is
   absent, and verify that behavior before any TwitterAPI.io or other paid
   enrichment action.
+- Replace both existing following fetchers before paid use. The replacement
+  must separate a credential-free/read-only hashed plan from execution; pin a
+  dated price card; reserve worst-case integer credits before every request;
+  reject handle/ID conflicts and holdout matches; store per-request response
+  hashes, cursors, balance receipts, dated snapshot edges, completeness, and
+  exact insertion counts. The 2026-07-31 audit found stale pricing/parameters,
+  pre-dry-run paid identity calls, account-level budget overruns, missing
+  receipts, and timeless union writes in the current paths. Start with a
+  maximum `$0.25` non-holdout microtrial rather than the available `$5` cap.

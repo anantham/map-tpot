@@ -2,7 +2,54 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-30 (independent-Lift entropy and band quarantine)*
+*Last updated: 2026-07-31 (real Research Notes block-import validation)*
+
+---
+
+## EXP-025: Can the real takes snapshot be imported without losing rationale or inventing subjects?
+
+**Date:** 2026-07-31
+
+**Question:** Does the line-oriented Research Notes parser preserve enough of
+the user's actual notes to support review, and does every extracted handle
+refer to an intended subject rather than an account merely cited inside the
+subject's bio or rationale?
+
+**Hypothesis:** Treating standalone profile references as block boundaries,
+keeping explicit co-subjects with the preceding claim, and storing exact
+source spans will recover the intended 57 subjects. It is falsified by a lost
+multi-paragraph rationale, by `@cisco` or `@ai4bharat` becoming subjects, by
+missing `meaningaligned` or `chrislakin`, or by any stored span that is not an
+exact slice of the input.
+
+**Method:** Added behavior-first parser cases for multi-paragraph blocks,
+standalone employer citations, a `same with @meaningaligned` co-subject, and a
+display-name-plus-handle header. Ran the old parser to establish the RED
+result, implemented block parsing with immutable `sourceStart`, `sourceEnd`,
+and `sourceText`, then ran the same parser read-only over the private takes
+snapshot. The private text was not copied into the repository.
+
+**Result:** **CONFIRMED for this dated snapshot.** The old parser returned 59
+subjects, reduced each note to one line, and incorrectly promoted `@cisco` and
+`@ai4bharat`. The amended parser returned 57 subjects, retained both explicit
+co-subject/display-name cases, produced zero false subjects from those cited
+employers, and produced zero source-span mismatches. The checked snapshot was
+10,311 bytes with SHA-256
+`b9e9d616c0a79933f7f6a33dbf6cad0990e4ca1611fe48af5904a7d610e30cc0`.
+
+**Lesson:** Handles inside evidence are not automatically labeling subjects.
+The import boundary is part of the methodology: exact immutable source
+provenance must remain separate from the editable investigation note. An
+explicit “same with” statement is a co-subject sharing context, not an empty
+one-line account block.
+
+**Data stored:** Parser code/tests and the optional read-only takes check in
+`scripts/verify_research_notes_inbox.py`. No raw takes content, database row,
+network response, or paid acquisition was stored.
+
+**Next step:** Add account- and question-keyed provisional drafts for the two
+Dharma boundary probes. Keep them out of Community Gold until a canonical
+task, snapshot-bound dossier, and idempotent scoped write exist.
 
 ---
 
