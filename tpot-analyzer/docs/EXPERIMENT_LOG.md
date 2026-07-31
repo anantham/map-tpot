@@ -2,7 +2,46 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-31 (formative-dossier coverage and cost plan)*
+*Last updated: 2026-07-31 (balance-telemetry reserve correction)*
+
+---
+
+## EXP-028: Does the dossier plan reserve every call needed for a receipt?
+
+**Date:** 2026-07-31
+
+**Question:** Can the first dossier plan honestly guarantee its USD 0.05 cap
+when its required before/after balance observations were not in the reserve?
+
+**Hypothesis:** The documented account-information endpoint is free telemetry,
+so excluding its two calls does not weaken the cap. It is falsified if no
+authoritative endpoint-specific price can be found, because “free” would then
+be an assumption rather than a verified bound.
+
+**Method:** Rechecked the provider's official pricing page and balance-endpoint
+reference, then added a boundary test at a 3,830-credit cap. The old planner's
+3,816-credit evidence-only reserve was predicted to pass that cap; a safe plan
+reserving two telemetry calls at one published 15-credit tweet-call minimum
+each was predicted to reject it.
+
+**Result:** **HYPOTHESIS REJECTED; PLAN SUPERSEDED BEFORE EXECUTION.** The
+official balance reference documents `GET /oapi/my/info` and
+`recharge_credits`, but not an endpoint-specific charge. The boundary test
+failed against the old implementation and passes after adding a clearly marked
+30-credit `conservative_unverified` telemetry reserve. The revised maximum is
+26 calls, 3,846 credits, or USD 0.03846. Its plan SHA-256 is
+`3c66b7353e393bb0b266000261204345bfce2031dbc617301e5ae600bc07fd56`.
+
+**Lesson:** Observability is part of the acquisition budget. An undocumented
+price must widen the reserve, not silently become zero. The executor's actual
+before/after balance delta will tell us whether the reserve was conservative.
+
+**Data stored:** The original private plan was retained as explicitly
+superseded; a new mode-0600 ignored plan was generated. No credential, network
+request, response, human answer, or paid credit was created.
+
+**Next step:** Permit an executor only for the revised exact plan hash and make
+schema, identity, balance, or cap drift stop before the next evidence action.
 
 ---
 

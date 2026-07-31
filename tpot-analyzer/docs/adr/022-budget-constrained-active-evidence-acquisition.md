@@ -289,3 +289,10 @@ public profiles plus at most 20 recent tweets each, with a USD 0.03816
 worst-case reserve under a USD 0.05 cap. Broad relationship acquisition waits
 until the human questions and dossier evidence pass their registered
 labelability/repeatability gates.
+
+## Amendment — Unpriced balance telemetry reserve (2026-07-31)
+
+The provider documents its balance endpoint but publishes no endpoint-specific
+price. The revised plan therefore reserves 15 credits for each of the required
+before/after checks without asserting that this is the actual charge. This
+supersedes plan `f352851e…` with `3c66b735…`: 3,846 credits (USD 0.03846).

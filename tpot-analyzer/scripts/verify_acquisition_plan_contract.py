@@ -160,10 +160,16 @@ def main(argv: list[str] | None = None) -> int:
         reservation = plan["reservation"]
         checks.append(_check(
             "Dossier reserve",
-            reservation["total_credits"] == 3816,
+            reservation["total_credits"] == 3846,
             f"{reservation['request_count']} calls; "
             f"{reservation['maximum_tweet_count']} tweets max; "
             f"${reservation['total_usd']}",
+        ))
+        checks.append(_check(
+            "Balance telemetry reserve",
+            plan["telemetry"]["pricing_status"] == "conservative_unverified"
+            and reservation["telemetry_reserve_credits"] == 30,
+            "2 calls; 30-credit conservative reserve; price unverified",
         ))
         checks.append(_check(
             "Plan cannot execute",
@@ -206,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     if passed != len(checks):
         print("Next: repair failed safety checks; do not authorize execution.")
         return 1
-    print("Next: review the private plan hash before building any executor or spending credits.")
+    print("Next: accept only the revised private plan hash in a fail-closed executor.")
     return 0
 
 
