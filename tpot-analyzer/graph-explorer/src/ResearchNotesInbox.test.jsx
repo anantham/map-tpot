@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ResearchNotesInbox from './ResearchNotesInbox'
@@ -81,15 +81,80 @@ describe('ResearchNotesInbox', () => {
 
     addAccounts('@alice clear dharma')
     await screen.findByText('Meditation and distributed systems.')
-    fireEvent.click(screen.getByRole('button', { name: 'IN' }))
+    const retrievalProbe = screen.getByRole('group', { name: /Probe A/i })
+    fireEvent.click(within(retrievalProbe).getByRole('button', { name: 'IN' }))
     fireEvent.change(screen.getByLabelText('Investigation note'), {
       target: { value: 'Practice history is explicit.' },
     })
 
     expect(screen.getByText('Unbound preview')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Draft judgment' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Provisional boundary probes' }))
+      .toBeInTheDocument()
     expect(screen.queryByText('Contradictory mutable label')).not.toBeInTheDocument()
     expect(screen.queryByText('Contradictory mutable question?')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save judgment' })).toBeDisabled()
+  })
+
+  it('keeps paired provisional answers and notes keyed to each account', async () => {
+    fetchResearchDossier.mockImplementation(({ handle }) => Promise.resolve({
+      ...UNBOUND_DOSSIER,
+      account: {
+        ...UNBOUND_DOSSIER.account,
+        accountId: `acct-${handle}`,
+        username: handle,
+      },
+    }))
+    render(<ResearchNotesInbox />)
+
+    addAccounts([
+      '@alice',
+      'Dharma teacher with explicit practice evidence.',
+      '',
+      '@bob',
+      'Meditation-adjacent builder; affiliation unclear.',
+    ].join('\n'))
+    await screen.findByText('Meditation and distributed systems.')
+
+    expect(screen.getByRole('heading', { name: 'Provisional boundary probes' }))
+      .toBeInTheDocument()
+    expect(screen.getByText(/These answers are allowed to disagree/i))
+      .toBeInTheDocument()
+
+    const retrievalProbe = screen.getByRole('group', { name: /Probe A/i })
+    const affiliationProbe = screen.getByRole('group', { name: /Probe B/i })
+    fireEvent.click(within(retrievalProbe).getByRole('button', { name: 'IN' }))
+    fireEvent.click(within(affiliationProbe).getByRole('button', { name: 'OUT' }))
+    fireEvent.change(screen.getByLabelText('Investigation note'), {
+      target: { value: 'Alice: useful to surface, but the social boundary is separate.' },
+    })
+
+    expect(screen.getByRole('button', { name: /@alice 2\/2 drafted/i }))
+      .toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /@bob/i }))
+    await screen.findByRole('heading', { name: '@bob' })
+    expect(screen.getByLabelText('Investigation note')).toHaveValue(
+      '@bob\nMeditation-adjacent builder; affiliation unclear.',
+    )
+    fireEvent.click(
+      within(screen.getByRole('group', { name: /Probe A/i }))
+        .getByRole('button', { name: 'ABSTAIN' }),
+    )
+    expect(screen.getByRole('button', { name: /@bob 1\/2 drafted/i }))
+      .toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /@alice/i }))
+    await screen.findByRole('heading', { name: '@alice' })
+    expect(
+      within(screen.getByRole('group', { name: /Probe A/i }))
+        .getByRole('button', { name: 'IN' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      within(screen.getByRole('group', { name: /Probe B/i }))
+        .getByRole('button', { name: 'OUT' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Investigation note')).toHaveValue(
+      'Alice: useful to surface, but the social boundary is separate.',
+    )
     expect(screen.getByRole('button', { name: 'Save judgment' })).toBeDisabled()
   })
 

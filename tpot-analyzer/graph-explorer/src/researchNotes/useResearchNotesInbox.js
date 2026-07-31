@@ -11,12 +11,18 @@ export function useResearchNotesInbox() {
   const [dossierLoading, setDossierLoading] = useState(false)
   const [dossierError, setDossierError] = useState(null)
   const [dossierAttempt, setDossierAttempt] = useState(0)
-  const [judgment, setJudgment] = useState(null)
-  const [note, setNote] = useState('')
+  const [drafts, setDrafts] = useState({})
 
   const selectedItem = useMemo(
     () => queue.find((item) => item.normalizedHandle === selectedKey) || null,
     [queue, selectedKey],
+  )
+  const selectedDraft = useMemo(
+    () => drafts[selectedKey] || {
+      judgments: {},
+      note: selectedItem?.note || '',
+    },
+    [drafts, selectedItem, selectedKey],
   )
 
   const addToQueue = useCallback(() => {
@@ -31,10 +37,27 @@ export function useResearchNotesInbox() {
     }
   }, [pasteText, queue, selectedKey])
 
-  useEffect(() => {
-    setJudgment(null)
-    setNote(selectedItem?.note || '')
-  }, [selectedItem])
+  const updateSelectedDraft = useCallback((update) => {
+    if (!selectedItem || !selectedKey) return
+    setDrafts((current) => {
+      const draft = current[selectedKey] || {
+        judgments: {},
+        note: selectedItem.note || '',
+      }
+      return { ...current, [selectedKey]: update(draft) }
+    })
+  }, [selectedItem, selectedKey])
+
+  const setProbeJudgment = useCallback((probeId, value) => {
+    updateSelectedDraft((draft) => ({
+      ...draft,
+      judgments: { ...draft.judgments, [probeId]: value },
+    }))
+  }, [updateSelectedDraft])
+
+  const setNote = useCallback((note) => {
+    updateSelectedDraft((draft) => ({ ...draft, note }))
+  }, [updateSelectedDraft])
 
   useEffect(() => {
     if (!selectedItem) {
@@ -66,16 +89,17 @@ export function useResearchNotesInbox() {
     dossier,
     dossierError,
     dossierLoading,
-    judgment,
-    note,
+    drafts,
+    note: selectedDraft.note,
     pasteText,
+    probeJudgments: selectedDraft.judgments,
     queue,
     retryDossier: () => setDossierAttempt((attempt) => attempt + 1),
     selectedItem,
     selectedKey,
-    setJudgment,
     setNote,
     setPasteText,
+    setProbeJudgment,
     setSelectedKey,
   }
 }

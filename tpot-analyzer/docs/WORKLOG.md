@@ -504,6 +504,76 @@
           locked because evidence is mutable and unbound and retries are not
           idempotent.
 
+- [2026-07-31 19:02 IST] **Added the paired Dharma boundary pretrial UI and
+  repaired evidence-review ergonomics (Codex GPT-5)**
+    - **Hypothesis, prediction, confidence, fallback**
+        - `H1` (`0.90`): separate account/question-keyed drafts can expose
+          retrieval relevance and social affiliation as distinct provisional
+          targets without creating schema or implying gold. Navigation loss,
+          one shared answer, enabled saving, or task-like certainty falsifies
+          it. Fallback: keep only a discussion mockup and revise the questions
+          before any persistent contract.
+        - `H2` (`0.75`): both questions can remain usable while reviewing a
+          20-post dossier. If the evidence pushes controls out of practical
+          reach, the layout fails even when its state tests pass. Fallback:
+          colocate evidence and controls rather than truncating evidence to
+          make the test pass.
+    - **RED / GREEN and visual evidence**
+        - The new two-account behavioral contract began with two expected
+          failures because no paired groups or account-keyed draft state
+          existed. The retained UI passes switching, disagreement, editable
+          note, queue progress, and disabled-save checks.
+        - The first live visual pass falsified `H2`: controls rendered several
+          screens below 20 long posts. A sticky side panel now keeps dossier
+          and probes co-present on desktop; below 1,150 px the controls stack
+          above evidence. A live read-only `nosilverv` dossier showed both
+          questions in the first viewport.
+        - The live session accepted retrieval `IN` plus affiliation `OUT` and
+          exposed `@nosilverv 2/2 drafted` with both buttons pressed. This is a
+          UI exercise, not a domain judgment or trial result; nothing was
+          persisted.
+    - **Changes (files + why)**
+        - `graph-explorer/src/researchNotes/useResearchNotesInbox.js:14-60,
+          87-104`: replace one navigation-reset draft with state keyed by
+          normalized account and probe ID while keeping notes per account.
+        - `graph-explorer/src/ResearchNotesInbox.jsx:12-25,65-99,125-179`:
+          render explicit retrieval/social-affiliation probes, disagreement
+          semantics, per-account progress, and non-gold/save-lock wording.
+        - `graph-explorer/src/ResearchNotesInbox.test.jsx`: add the public
+          two-account navigation/disagreement contract and flush dossier
+          transitions without React `act(...)` warnings.
+        - `graph-explorer/src/ResearchNotesInbox.css` and
+          `graph-explorer/src/researchNotes/ResearchNotesReview.css:1-113`:
+          extract review-control styles before the original stylesheet crossed
+          300 LOC; add sticky desktop co-presence and narrow-screen stacking.
+          Final files are 213 and 113 LOC.
+        - `scripts/verify_research_notes_inbox.py:180-205,256-260`: verify the
+          paired formative semantics and account/question-keyed draft markers;
+          the script remains below 300 LOC (264).
+        - `docs/experiments/2026-07-26-budgeted-personal-ontology-local-first-pilot.md:73-111`:
+          preregister the zero-spend 12-account/two-pass boundary pretrial,
+          exact questions, descriptive measures, and falsifiers without
+          publishing private panel identities.
+        - `docs/EXPERIMENT_LOG.md` EXP-026 records the visual falsification and
+          repair; `docs/ROADMAP.md` separates the shipped session UI from the
+          still-unrun formative pretrial.
+    - **Verification**
+        - Focused frontend tranche → 22/22 passed; scoped ESLint passed.
+        - Research Notes verifier with the private dated takes snapshot → 11/11
+          checks passed; adjacent backend/auth/integrity tranche → 23/23.
+        - Production Vite build passed (inherited dynamic-import and 500 kB
+          chunk warnings remain); docs hygiene → 9/9.
+        - In-app browser inspected the live local UI with the existing archive
+          opened through the dossier route's SQLite `mode=ro`/`query_only`
+          contract. No remote request or paid credit occurred.
+    - **Scope and next gate**
+        - Drafts remain browser-session-only and explicitly non-gold. The
+          protocol cannot run durably until timing/investigation capture and a
+          blinded second-pass receipt exist.
+        - Real saving still requires a canonical task, snapshot-bound context,
+          server-side context verification, idempotent retry, and role-neutral
+          progress. No Community Gold schema/module was added.
+
 ## Raw-First Retrieval Slice 1 — Source Selectivity (2026-07-30)
 
 - [2026-07-30 15:32 IST] **Implemented and tested the minimal
