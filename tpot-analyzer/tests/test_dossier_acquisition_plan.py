@@ -48,21 +48,39 @@ def _build(**overrides) -> dict:
     return build_dossier_acquisition_plan(**inputs)
 
 
-def test_twelve_standardized_dossiers_reserve_less_than_four_cents() -> None:
+def test_twelve_standardized_dossiers_reserve_evidence_and_balance_telemetry() -> None:
     plan = _build()
 
+    assert plan["schema_version"] == 2
     assert plan["kind"] == "twitterapiio-formative-dossier-plan"
     assert plan["authorizes_execution"] is False
     assert plan["selection_manifest_sha256"] == "a" * 64
+    assert plan["telemetry"] == {
+        "endpoint": "/oapi/my/info",
+        "kind": "balance",
+        "balance_field": "recharge_credits",
+        "request_count": 2,
+        "reserve_credits_per_request": 15,
+        "total_reserve_credits": 30,
+        "pricing_status": "conservative_unverified",
+        "reserve_basis": "one published tweet-call minimum per request",
+        "documentation_url": (
+            "https://docs.twitterapi.io/api-reference/endpoint/get_my_info"
+        ),
+    }
     assert plan["reservation"] == {
-        "request_count": 24,
+        "request_count": 26,
+        "evidence_request_count": 24,
+        "telemetry_request_count": 2,
         "profile_count": 12,
         "maximum_tweet_count": 240,
-        "total_credits": 3816,
-        "total_usd": "0.03816",
+        "evidence_credits": 3816,
+        "telemetry_reserve_credits": 30,
+        "total_credits": 3846,
+        "total_usd": "0.03846",
         "hard_cap_credits": 5000,
         "hard_cap_usd": "0.05",
-        "remaining_credits": 1184,
+        "remaining_credits": 1154,
     }
     assert all(target["target_reserve_credits"] == 318 for target in plan["targets"])
     assert len(plan["price_card"]["sha256"]) == 64
@@ -101,6 +119,11 @@ def test_each_target_declares_atomic_profile_and_tweet_actions() -> None:
 def test_cap_overflow_fails_closed_before_execution() -> None:
     with pytest.raises(AcquisitionPlanError, match="exceeds hard cap"):
         _build(hard_cap_usd="0.03")
+
+
+def test_unverified_balance_telemetry_reserve_counts_toward_hard_cap() -> None:
+    with pytest.raises(AcquisitionPlanError, match="exceeds hard cap"):
+        _build(hard_cap_usd="0.0383")
 
 
 @pytest.mark.parametrize("limit", [21, -1, True, "20"])

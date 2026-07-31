@@ -555,8 +555,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   and repeat consistency. Keep the private panel identities outside git and
   publish only its manifest digest and aggregate descriptive results. The
   pre-answer 4/6/2 panel is now frozen privately with zero historical-holdout
-  overlap, and its non-executing profile-plus-20-post plan reserves USD
-  0.03816 under a USD 0.05 cap (EXP-027). A receipt-producing executor and
+  overlap, and its revised non-executing profile-plus-20-post plan reserves USD
+  0.03846 under a USD 0.05 cap, including two conservatively priced balance
+  checks (EXP-027/028). A receipt-producing executor and
   immutable dossier snapshot remain required before pass one.
 - Add real Research Notes save/resume only after the server derives the target
   label/question from the immutable task, serves snapshot-addressed dossier

@@ -1,5 +1,33 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 5A — Telemetry-Reserve Correction (2026-07-31)
+
+- [2026-07-31 20:05 IST] **Superseded the unexecuted dossier plan after a
+  pricing assumption failed (Codex GPT-5)**
+    - **Hypothesis and falsifier:** assumed the documented balance endpoint was
+      free. Confidence was only `0.55`; absence of an authoritative price or a
+      hard-cap boundary that passed without reserving the calls would reject
+      it. Fallback was to spend nothing and widen the reserve.
+    - **RED:** at a 3,830-credit cap, the old evidence-only planner incorrectly
+      accepted 3,816 credits even though the required before/after balance
+      observations were outside its budget.
+    - **GREEN:** `src/evaluation/dossier_acquisition_plan.py:1-258` now emits a
+      schema-v2 plan with two explicit `conservative_unverified` telemetry
+      calls and counts their 30-credit reserve toward the hard cap.
+      `tests/test_dossier_acquisition_plan.py:1-167` covers the exact manifest
+      and boundary; `scripts/verify_acquisition_plan_contract.py:1-220` reports
+      evidence and telemetry separately.
+    - **Private receipt:** retained unexecuted plan `f352851e…` under an
+      explicitly superseded filename. The replacement mode-0600 plan is
+      `3c66b7353e393bb0b266000261204345bfce2031dbc617301e5ae600bc07fd56`:
+      26 maximum calls, 3,846 reserved credits, USD 0.03846 under the unchanged
+      USD 0.05 cap; holdout overlap remains zero and local coverage remains
+      5/12 profiles and 1/12 timelines.
+    - **Docs:** EXP-028 records the rejected assumption; ADR 022, ROADMAP, and
+      the pretrial protocol carry the additive correction.
+    - **Verification:** focused planner tests 12/12 and real private verifier
+      7/7. No API/OpenRouter call, credential read, response, or paid credit.
+
 ## Raw-First Retrieval Slice 5 — Formative Acquisition Planning (2026-07-31)
 
 - [2026-07-31 19:16 IST] **Falsified local-only dossier readiness and froze a

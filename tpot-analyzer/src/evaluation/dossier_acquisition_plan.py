@@ -18,6 +18,23 @@ from .acquisition_manifest import (
 
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+_BALANCE_TELEMETRY_REQUESTS = 2
+_BALANCE_TELEMETRY_RESERVE_PER_REQUEST = 15
+_BALANCE_TELEMETRY = {
+    "endpoint": "/oapi/my/info",
+    "kind": "balance",
+    "balance_field": "recharge_credits",
+    "request_count": _BALANCE_TELEMETRY_REQUESTS,
+    "reserve_credits_per_request": _BALANCE_TELEMETRY_RESERVE_PER_REQUEST,
+    "total_reserve_credits": (
+        _BALANCE_TELEMETRY_REQUESTS * _BALANCE_TELEMETRY_RESERVE_PER_REQUEST
+    ),
+    "pricing_status": "conservative_unverified",
+    "reserve_basis": "one published tweet-call minimum per request",
+    "documentation_url": (
+        "https://docs.twitterapi.io/api-reference/endpoint/get_my_info"
+    ),
+}
 
 
 def _nonnegative_int(value: Any, field: str) -> int:
@@ -179,9 +196,11 @@ def build_dossier_acquisition_plan(
             }
         )
     normalized_targets.sort(key=lambda target: target["handle"])
-    total_credits = sum(
+    evidence_credits = sum(
         target["target_reserve_credits"] for target in normalized_targets
     )
+    telemetry_credits = _BALANCE_TELEMETRY["total_reserve_credits"]
+    total_credits = evidence_credits + telemetry_credits
     if total_credits > cap_credits:
         raise AcquisitionPlanError(
             f"worst-case reserve {total_credits} credits exceeds hard cap "
@@ -198,9 +217,12 @@ def build_dossier_acquisition_plan(
         for action in target["actions"]
         if action["kind"] == "recent_tweets"
     )
-    request_count = sum(len(target["actions"]) for target in normalized_targets)
+    evidence_request_count = sum(
+        len(target["actions"]) for target in normalized_targets
+    )
+    request_count = evidence_request_count + _BALANCE_TELEMETRY["request_count"]
     manifest = {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "twitterapiio-formative-dossier-plan",
         "mode": "plan_only",
         "authorizes_execution": False,
@@ -213,11 +235,16 @@ def build_dossier_acquisition_plan(
             "verified_at": format_time(card["verified_at"]),
         },
         "policy": {"max_price_age_days": max_price_age_days},
+        "telemetry": dict(_BALANCE_TELEMETRY),
         "targets": normalized_targets,
         "reservation": {
             "request_count": request_count,
+            "evidence_request_count": evidence_request_count,
+            "telemetry_request_count": _BALANCE_TELEMETRY["request_count"],
             "profile_count": profile_count,
             "maximum_tweet_count": maximum_tweet_count,
+            "evidence_credits": evidence_credits,
+            "telemetry_reserve_credits": telemetry_credits,
             "total_credits": total_credits,
             "total_usd": credits_to_usd(
                 total_credits,
