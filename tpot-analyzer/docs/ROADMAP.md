@@ -553,7 +553,11 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Run the registered boundary-enriched 12-account, two-pass formative pretrial;
   measure disagreement, abstention, answer time, external-investigation rate,
   and repeat consistency. Keep the private panel identities outside git and
-  publish only its manifest digest and aggregate descriptive results.
+  publish only its manifest digest and aggregate descriptive results. The
+  pre-answer 4/6/2 panel is now frozen privately with zero historical-holdout
+  overlap, and its non-executing profile-plus-20-post plan reserves USD
+  0.03816 under a USD 0.05 cap (EXP-027). A receipt-producing executor and
+  immutable dossier snapshot remain required before pass one.
 - Add real Research Notes save/resume only after the server derives the target
   label/question from the immutable task, serves snapshot-addressed dossier
   evidence, verifies the full context receipt on write, accepts an idempotency
@@ -841,6 +845,13 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Infrastructure / Observability
 
+- [x] Add credential-free, read-only, self-hashed acquisition planning for
+  full followings pages and fixed formative dossiers. Pin a dated official
+  price card, selection-manifest digest, worst-case integer-credit reserve,
+  hard USD cap, and `authorizes_execution=false`; verify the real private plan
+  without printing identities (`src/evaluation/acquisition_plan_contract.py`,
+  `src/evaluation/dossier_acquisition_plan.py`, and
+  `scripts/verify_acquisition_plan_contract.py`, implemented 2026-07-31).
 - **API credit telemetry**: extend the acquisition receipt ledger and expose
   quoted worst-case versus actual provider usage before and after each action.
   The 2026-02-25 endpoint estimates formerly listed here are historical, not a
@@ -848,9 +859,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Make the historical acquisition holdout guard fail closed when its schema is
   absent, and verify that behavior before any TwitterAPI.io or other paid
   enrichment action.
-- Replace both existing following fetchers before paid use. The replacement
-  must separate a credential-free/read-only hashed plan from execution; pin a
-  dated price card; reserve worst-case integer credits before every request;
+- Replace both existing following fetchers before paid use. The planning half
+  is complete; the execution half must verify the exact plan hash, reserve
+  worst-case integer credits before every request;
   reject handle/ID conflicts and holdout matches; store per-request response
   hashes, cursors, balance receipts, dated snapshot edges, completeness, and
   exact insertion counts. The 2026-07-31 audit found stale pricing/parameters,

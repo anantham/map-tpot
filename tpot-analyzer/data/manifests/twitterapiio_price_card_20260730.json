@@ -7,8 +7,23 @@
   "credits_per_usd": 100000,
   "official_sources": [
     "https://twitterapi.io/pricing",
-    "https://docs.twitterapi.io/api-reference/endpoint/get_user_followings"
+    "https://docs.twitterapi.io/api-reference/endpoint/get_user_followings",
+    "https://docs.twitterapi.io/api-reference/endpoint/get_user_info",
+    "https://docs.twitterapi.io/api-reference/endpoint/get_user_last_tweets"
   ],
+  "user_info": {
+    "endpoint": "/twitter/user/info",
+    "credits_per_profile": 18,
+    "minimum_call_credits": 18,
+    "billing_basis": "profiles returned per call"
+  },
+  "user_last_tweets": {
+    "endpoint": "/twitter/user/last_tweets",
+    "maximum_page_size": 20,
+    "credits_per_tweet": 15,
+    "minimum_call_credits": 15,
+    "billing_basis": "tweets returned per call"
+  },
   "user_followings": {
     "endpoint": "/twitter/user/followings",
     "maximum_page_size": 200,

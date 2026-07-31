@@ -25,6 +25,7 @@ data/holdout_clusters.json
 data/test_subset.json
 data/test_write
 data/validation_results/
+data/private/
 
 # Test coverage
 .coverage
