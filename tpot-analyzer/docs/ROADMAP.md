@@ -543,14 +543,17 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   The 2026-07-31 block-import amendment preserves exact source spans and the
   full rationale, and recovered 57 intended subjects from the dated real takes
   snapshot without promoting employer citations into subjects (EXP-025).
-- Add two clearly provisional Dharma boundary probes before gold activation:
+- [x] Add two clearly provisional Dharma boundary probes before gold activation:
   retrieval relevance (“should this person be surfaced?”) and social
   affiliation (“is this person part of the Dharma social group?”). Keep drafts
-  keyed by account and question so navigation cannot erase them. Run a
-  boundary-enriched 12-account, two-pass pilot; measure disagreement,
-  abstention, answer time, and repeat consistency. Do not misencode retrieval
-  relevance as `participation_interest`, and do not persist either probe as
-  gold until its task contract is approved.
+  keyed by account and question so navigation cannot erase them
+  (`ResearchNotesInbox.jsx`, implemented session-only 2026-07-31). Do not
+  misencode retrieval relevance as `participation_interest`, and do not
+  persist either probe as gold until its task contract is approved.
+- Run the registered boundary-enriched 12-account, two-pass formative pretrial;
+  measure disagreement, abstention, answer time, external-investigation rate,
+  and repeat consistency. Keep the private panel identities outside git and
+  publish only its manifest digest and aggregate descriptive results.
 - Add real Research Notes save/resume only after the server derives the target
   label/question from the immutable task, serves snapshot-addressed dossier
   evidence, verifies the full context receipt on write, accepts an idempotency

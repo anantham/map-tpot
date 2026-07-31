@@ -2,7 +2,51 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-31 (real Research Notes block-import validation)*
+*Last updated: 2026-07-31 (paired-probe review ergonomics)*
+
+---
+
+## EXP-026: Can paired boundary judgments be made while reading a real dossier?
+
+**Date:** 2026-07-31
+
+**Question:** Does the Research Notes layout let the curator compare raw posts
+with separate retrieval-relevance and social-affiliation questions without
+losing drafts or mistaking formative answers for gold?
+
+**Hypothesis:** Two visibly separate `IN`/`OUT`/`ABSTAIN` probes, keyed by
+account and question, will preserve disagreement and remain usable beside the
+existing 20-post dossier. It is falsified if navigation erases an answer or
+note, the UI collapses both answers into one status, the labels look durable,
+or the questions are not reachable while inspecting evidence.
+
+**Method:** Added a behavior-first two-account navigation test, then inspected
+the live local UI against the existing read-only archive dossier for one public
+account. Selected different answers for the two probes and checked the queue
+status and `aria-pressed` state. No answer was persisted. The first and amended
+layouts were inspected at the same desktop viewport.
+
+**Result:** **PARTIALLY FALSIFIED, THEN REPAIRED.** State behavior passed: both
+answers and the edited note survived account switching, and the queue reported
+`2/2 drafted`. The first visual pass failed the reachability condition because
+20 long posts placed the questions several screens below the evidence. Moving
+review controls into a sticky side panel kept both the dossier and questions
+visible; narrower viewports stack the questions above the dossier. The UI
+continues to say `Unbound preview`, `session-only`, and `not gold labels`, and
+the save control remains disabled.
+
+**Lesson:** A correct state machine is not a usable labeling interface. The
+evidence and the action must be spatially co-present, especially when the
+dossier itself is long. Layout inspection is a required signal for this slice,
+not a cosmetic afterthought.
+
+**Data stored:** Session-only browser state plus source/tests. The local dossier
+route opened the existing SQLite archive read-only. No gold row, raw response
+artifact, external request, or paid credit was created.
+
+**Next step:** Run the registered 12-account/two-pass formative protocol after
+timing, external-investigation, and blinded-repeat capture exist. Do not infer
+task validity from this one UI exercise.
 
 ---
 

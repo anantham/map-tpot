@@ -1,4 +1,5 @@
 import './ResearchNotesInbox.css'
+import './researchNotes/ResearchNotesReview.css'
 import RawDossier from './researchNotes/RawDossier'
 import { useResearchNotesInbox } from './researchNotes/useResearchNotesInbox'
 
@@ -8,8 +9,27 @@ const JUDGMENTS = [
   { value: 'abstain', label: 'ABSTAIN' },
 ]
 
+const PROVISIONAL_PROBES = [
+  {
+    id: 'dharma-retrieval-relevance',
+    label: 'Probe A — Retrieval relevance',
+    question: 'Should this person be surfaced when searching for people relevant to Dharma, meditation, or jhāna community-building?',
+    hint: 'This tests a search policy. It does not claim that the person belongs to a social group.',
+  },
+  {
+    id: 'dharma-social-affiliation',
+    label: 'Probe B — Social affiliation',
+    question: 'Based on public evidence, is this person socially affiliated with the Dharma community as you use that term?',
+    hint: 'This tests a group boundary. It does not claim competence, intent, endorsement, or spiritual attainment.',
+  },
+]
+
 function plural(count, singular, pluralForm = `${singular}s`) {
   return count === 1 ? singular : pluralForm
+}
+
+function draftedProbeCount(draft) {
+  return Object.values(draft?.judgments || {}).filter(Boolean).length
 }
 
 export default function ResearchNotesInbox() {
@@ -47,22 +67,35 @@ export default function ResearchNotesInbox() {
               {inbox.queue.length}{' '}
               {plural(inbox.queue.length, 'account')} in queue
             </span>
-            <span>Session-only preview</span>
+            <span>
+              {Object.values(inbox.drafts).reduce(
+                (total, draft) => total + draftedProbeCount(draft),
+                0,
+              )}
+              /{inbox.queue.length * PROVISIONAL_PROBES.length} provisional answers
+            </span>
           </div>
           <nav className="research-notes-queue" aria-label="Research account queue">
-            {inbox.queue.map((item) => (
-              <button
-                type="button"
-                key={item.normalizedHandle}
-                className={
-                  item.normalizedHandle === inbox.selectedKey ? 'active' : ''
-                }
-                onClick={() => inbox.setSelectedKey(item.normalizedHandle)}
-              >
-                <span>@{item.handle}</span>
-                <span className="research-notes-queue-status">review</span>
-              </button>
-            ))}
+            {inbox.queue.map((item) => {
+              const drafted = draftedProbeCount(inbox.drafts[item.normalizedHandle])
+              const status = drafted
+                ? `${drafted}/${PROVISIONAL_PROBES.length} drafted`
+                : 'review'
+              return (
+                <button
+                  type="button"
+                  key={item.normalizedHandle}
+                  aria-label={`@${item.handle} ${status}`}
+                  className={
+                    item.normalizedHandle === inbox.selectedKey ? 'active' : ''
+                  }
+                  onClick={() => inbox.setSelectedKey(item.normalizedHandle)}
+                >
+                  <span>@{item.handle}</span>
+                  <span className="research-notes-queue-status">{status}</span>
+                </button>
+              )
+            })}
           </nav>
         </aside>
 
@@ -91,24 +124,35 @@ export default function ResearchNotesInbox() {
 
           {inbox.selectedItem && (
             <section className="research-notes-judgment">
-              <h2>Draft judgment</h2>
+              <h2>Provisional boundary probes</h2>
               <p className="research-notes-question">
-                A canonical target and question must come from a frozen task,
-                not editable client configuration.
+                These answers are allowed to disagree. That disagreement helps
+                test whether useful retrieval and social affiliation are
+                genuinely different targets.
               </p>
-              <div className="research-notes-judgment-options">
-                {JUDGMENTS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={inbox.judgment === option.value ? 'active' : ''}
-                    aria-pressed={inbox.judgment === option.value}
-                    onClick={() => inbox.setJudgment(option.value)}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
+              {PROVISIONAL_PROBES.map((probe) => (
+                <fieldset className="research-notes-probe" key={probe.id}>
+                  <legend>{probe.label}</legend>
+                  <p className="research-notes-question">{probe.question}</p>
+                  <p className="research-notes-probe-hint">{probe.hint}</p>
+                  <div className="research-notes-judgment-options">
+                    {JUDGMENTS.map((option) => {
+                      const active = inbox.probeJudgments[probe.id] === option.value
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={active ? 'active' : ''}
+                          aria-pressed={active}
+                          onClick={() => inbox.setProbeJudgment(probe.id, option.value)}
+                        >
+                          {option.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </fieldset>
+              ))}
               <label htmlFor="research-notes-investigation-note">
                 Investigation note
               </label>
@@ -119,8 +163,9 @@ export default function ResearchNotesInbox() {
                 onChange={(event) => inbox.setNote(event.target.value)}
               />
               <p className="research-notes-preview-warning">
-                This draft is session-only. Saving stays locked until the server
-                supplies both a canonical task and snapshot-addressed evidence.
+                These formative drafts are session-only and are not gold labels.
+                Saving stays locked until the server supplies a canonical task,
+                snapshot-addressed evidence, and safe retry semantics.
               </p>
               <div className="research-notes-actions">
                 <button

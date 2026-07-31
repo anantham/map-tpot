@@ -185,6 +185,21 @@ def _contract_checks() -> list[Check]:
             "canonical target must later come from a frozen server task",
         ),
         Check(
+            "Paired probes remain formative",
+            "dharma-retrieval-relevance" in inbox
+            and "dharma-social-affiliation" in inbox
+            and "allowed to disagree" in inbox
+            and "not gold labels" in inbox,
+            "retrieval relevance and social affiliation are visibly separate",
+        ),
+        Check(
+            "Drafts are account/question keyed",
+            "drafts[selectedKey]" in hook
+            and "judgments: { ...draft.judgments, [probeId]: value }" in hook
+            and "setProbeJudgment" in hook,
+            "navigation cannot collapse the two probes into one shared answer",
+        ),
+        Check(
             "App route is mounted",
             "'research-notes'" in app and "ResearchNotesInbox" in app,
             "?view=research-notes is a top-level view",
@@ -238,9 +253,9 @@ def main() -> int:
         print("Next: inspect the named failed contract before opening real data.")
         return 1
     print(
-        "Next: paste real takes in preview mode; add saving only after the "
-        "server supplies a canonical task, snapshot-addressed evidence, and "
-        "an idempotent write contract."
+        "Next: review the provisional paired questions with real takes; add "
+        "saving only after the server supplies a canonical task, snapshot-"
+        "addressed evidence, and an idempotent write contract."
     )
     return 0
 
