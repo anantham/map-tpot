@@ -1,5 +1,87 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 6B — Adversarial Pre-Spend Gate (2026-07-31)
+
+- [2026-07-31 21:33 IST] **Rejected first-pass live readiness and hardened the
+  private execution boundary (Codex GPT-5 with three computational-peer audits)**
+    - **Hypothesis (`0.85`):** the EXP-030 final receipt and no-retry path were
+      sufficient for one live run. Falsifiers were trackable private output,
+      paid evidence lost on interruption, renamed holdout leakage, false-green
+      dry preflight, unreplayable inputs, or a non-enforceable advertised cap.
+      Fallback remained zero spend and the unchanged unbound preview.
+    - The audit rejected readiness: output paths were unrestricted; safe
+      responses lived only in memory; holdout exclusion used handles only; the
+      mutable logical holdout and exact source files were not bundled; static
+      plan validation occurred after dry preflight; and provider billing has no
+      server-side dollar ceiling.
+    - `dossier_bundle_io.py` and `dossier_execution_bundle.py` now enforce the
+      resolved ignored private root, atomic exclusive fsynced 0600 artifacts,
+      exact source copies, a private logical holdout snapshot, and per-call
+      attempt/response/observation files before the executor proceeds.
+    - `dossier_http_transport.py`, `dossier_transport_contract.py`, and
+      `dossier_transport_observation.py` retain the fixed origin/allowlist and
+      no-retry behavior while durably recording credential-free JSON bodies;
+      rejected bodies retain only sanitized status/timing/byte hashes.
+    - `holdout_snapshot.py`, `dossier_execution_preflight.py`, and
+      `dossier_acquisition_executor.py` validate the full plan before credential
+      access, bind the 368-handle/288-ID logical exclusion set, and stop after a
+      matching profile ID before that target's tweets.
+    - The runner preserves receipt, raw records, and canonical evidence before
+      client close/transform, derives the snapshot ID from the frozen panel,
+      rejects wrong local reserves before bundle/key access, and keeps private
+      execution failures out of console output. Snapshot validation now rejects
+      tweet IDs duplicated across accounts.
+    - **Budget semantics:** 3,846 credits/USD 0.03846 is the pinned local reserve
+      for exactly 26 no-retry calls, not a provider-enforced billing ceiling;
+      the final balance measures any deviation after it occurs.
+    - **Verification:** 145/145 focused tests, synthetic verifier 6/6, real
+      private preflight, Python compilation, file-size gates, docs hygiene, and
+      `git diff --check` pass. Network, credential read, provider response,
+      database write, judgment, and spend remain zero.
+    - Broad local regression: 1,648 passed and two skipped. The only three
+      failures were pre-existing live Supabase calls in
+      `tests/test_connection.py`; that file is not marked `requires_supabase`
+      and failed DNS under restricted network. The isolation gap is recorded
+      in ROADMAP rather than hidden or changed in this feature commit.
+
+## Raw-First Retrieval Slice 6 — Fail-Closed Dossier Execution (2026-07-31)
+
+- [2026-07-31 21:15 IST] **Completed the zero-spend executor, evidence, and
+  snapshot chain (Codex GPT-5 with four computational-peer audits)**
+    - **Hypothesis (`0.90`):** exact artifact preflight plus an injected,
+      no-retry transport can turn one frozen plan into reproducible blind
+      dossiers while stopping on the first hash/schema/identity/cap mismatch.
+      Falsifiers were any unrecorded attempted call, retry, response-body leak
+      into the receipt, mutable evidence, holdout overlap, or accepted drift.
+      Fallback: keep the plan unexecuted and retain the unbound preview.
+    - `src/evaluation/dossier_execution_preflight.py:1-296` binds the real plan,
+      raw panel bytes, semantic price card, 4/6/2 strata, exact target intents,
+      and read-only historical holdout exclusion before credentials/network.
+    - `dossier_execution_contract.py`, `dossier_acquisition_executor.py`,
+      `dossier_executor_types.py`, and `dossier_response_contract.py` implement
+      exact acceptance, balance/action sequencing, strict provider envelopes,
+      canonical timestamps and decimal identities, attempted-call receipts,
+      descriptive sanitized failures, and no retries.
+    - `dossier_http_transport.py` fixes the provider origin, three endpoints,
+      parameter sets, timeout, credential redaction, and defensive private
+      response capture; it takes an injected key rather than reading one.
+    - `dossier_receipt_validation.py`, `dossier_evidence_artifact.py`,
+      `dossier_snapshot_transform.py`, and `src/data/research_notes_snapshot.py`
+      keep raw evidence private, reconcile every call/hash/balance, strip to
+      display fields, and build immutable per-account and snapshot hashes.
+    - Rejected an initial 298-LOC artifact module that met the numeric gate by
+      packing constants onto long lines. The final SRP split is 213/207 LOC;
+      this directly applies the project's Metric Gamer warning.
+    - `scripts/run_dossier_pretrial_acquisition.py:1-264` defaults to no-spend
+      preflight; live mode requires the exact total reserve, explicit env file,
+      and a new private 0700 directory, writing 0600 receipt/raw/evidence/
+      snapshot artifacts. `scripts/verify_dossier_pretrial_execution.py:1-197`
+      gives human-readable synthetic verification.
+    - **Verification:** 120/120 focused tests, synthetic verifier 6/6, real
+      private preflight 10/10 aggregate fields, Python compilation, file-size
+      gates, and `git diff --check` pass. No network, credential read, API
+      response, database write, human answer, or paid credit yet.
+
 ## Raw-First Retrieval Slice 5B — Provenance-Link Correction (2026-07-31)
 
 - [2026-07-31 20:45 IST] **Re-hashed the still-unexecuted plan after its
