@@ -1,7 +1,7 @@
 # Dharma Boundary Pretrial Protocol
 
 - Registered: 2026-07-31
-- Status: Planned; evidence acquisition and human passes not yet run
+- Status: Evidence acquisition halted fail-closed; human passes not run
 - Parent protocol:
   [Budgeted Personal-Ontology Pilot](2026-07-26-budgeted-personal-ontology-local-first-pilot.md)
 - Inferential status: formative and descriptive only
@@ -92,6 +92,40 @@ After the evidence is frozen, the pretrial permits no adaptive paid action.
 Every actual preparation charge requires request/response and balance receipts.
 For this run, “cap” therefore means the maximum locally scheduled exposure at
 the pinned price card, not a guarantee about provider billing behavior.
+
+## Evidence acquisition result (2026-08-01)
+
+The one authorized attempt remained bound to panel SHA-256 `ce680f1a…`, plan
+SHA-256 `2470a84f…`, and price-card SHA-256 `eab5a081…`. It stopped fail-closed
+after four HTTP-200 calls: before-balance telemetry, one validated profile, one
+rejected recent-tweets envelope, and after-balance telemetry. No retry,
+replacement, or content-adaptive request occurred, and balance telemetry
+measured zero credits debited.
+
+The rejected response placed 20 tweets under `data.tweets`; the strict parser
+required a top-level `tweets` list. Aggregate private checks found an object
+list, unique tweet IDs, and author identities consistently bound to the
+validated profile. Existing repository endpoint documentation and an older
+fetcher already describe this nested envelope, so the stop is registered as a
+local response-contract test gap rather than demonstrated provider drift or an
+account-level panel failure.
+
+The ignored private run directory
+`data/private/research-notes/dharma-boundary-pretrial-v1/run-20260801T045601Z-a4bb7a0/`
+retains the exact sources, logical holdout snapshot, preflight receipt, aborted
+execution receipt, self-hashed partial response artifact, and four durable
+attempt/response/observation triples. Its receipt hash is `2b128d5e…` and its
+partial-record artifact hash is `20f76028…`. No completed evidence artifact,
+dossier snapshot, human answer, gold judgment, or model output was created.
+
+This attempt must not be silently resumed. Before another live acquisition,
+the documented nested envelope needs behavior-first parser coverage, every
+post-network transform failure must use the private-safe console boundary, and
+the resulting live bundle must have a reusable privacy-safe verifier. A second
+paid attempt requires fresh explicit authorization under the no-retry promise.
+The panel manifest does not need replacement solely for this schema-contract
+failure; its registered replacement rule still applies to unavailable,
+protected, or identity-conflicted accounts.
 
 ## Completion boundary
 

@@ -1,5 +1,49 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 6C — First Live Dossier Attempt (2026-08-01)
+
+- [2026-08-01 10:36 IST] **Rejected live-completion readiness while confirming
+  the fail-closed boundary (Codex GPT-5 with three read-only peer audits)**
+    - **Hypothesis (`0.90`):** the committed exact-plan chain would turn its
+      first live responses into a completed blind dossier snapshot. Registered
+      falsifiers were any schema/identity mismatch, missing durable event,
+      retry, private console leak, or debit beyond the 3,846-credit local
+      reserve. Fallback was an immediate no-retry stop with private evidence.
+    - Executed plan `2470a84f…` once from commit `a4bb7a0`: frozen 12-account
+      4/6/2 panel, maximum 26 calls, 12 profiles plus at most 240 recent tweets,
+      and USD 0.03846 planned exposure. No panel, target, or action adapted to a
+      response.
+    - **Observed falsifier:** after the before-balance call and one validated
+      profile, the first recent-tweets HTTP-200 response was rejected. The
+      strict parser expected top-level `tweets`; the actual response used
+      `data.tweets`, which existing `docs/TWITTERAPI_ENDPOINTS.md` and
+      `scripts/fetch_tweets_for_account.py` already record. This is a local
+      schema-contract/test gap, not evidence of corrupt returned data.
+    - The captured nested list had 20 structurally valid, unique tweets; every
+      author identity bound to the validated profile. These are aggregate
+      integrity checks only, not content interpretation or a usable dossier.
+    - The abort path then made its reserved after-balance call and stopped:
+      four HTTP-200 requests total, four durable attempt/response/observation
+      triples, one validated profile action, one rejected tweet action, zero
+      retries/substitutions, and **0 measured credits debited**.
+    - Private output remained confined to the ignored mode-0700 run directory;
+      every file is mode 0600, with no symlinks or temporary files. Receipt
+      SHA-256 `2b128d5e…`, partial-record artifact SHA-256 `20f76028…`, and all
+      three frozen source byte hashes recomputed successfully. No completed
+      evidence artifact, snapshot, judgment, or model call exists.
+    - **Files recorded:** `docs/EXPERIMENT_LOG.md:1-69` (EXP-032) records the
+      falsified hypothesis and methodology;
+      `docs/experiments/2026-07-31-dharma-boundary-pretrial.md:3-129` records
+      the halted protocol state and private artifact provenance; and
+      `docs/ROADMAP.md:558-577` records the parser, privacy-boundary,
+      live-verifier, and reauthorization gates. This entry is
+      `docs/WORKLOG.md:3-46`. No new document or `docs/index.md` entry was
+      needed.
+    - **Next:** behavior-first support for the documented nested envelope,
+      private-safe post-network failures, and a reusable live-bundle verifier.
+      Do not rerun this attempt; any second paid attempt needs fresh explicit
+      authorization after local verification.
+
 ## Raw-First Retrieval Slice 6B — Adversarial Pre-Spend Gate (2026-07-31)
 
 - [2026-07-31 21:33 IST] **Rejected first-pass live readiness and hardened the

@@ -2,7 +2,68 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-31 (adversarial pre-spend hardening)*
+*Last updated: 2026-08-01 (first live dossier attempt)*
+
+---
+
+## EXP-032: Does the frozen dossier contract survive its first live response?
+
+**Date:** 2026-08-01
+
+**Question:** Can the exact 12-account dossier plan complete its first bounded
+live acquisition without a schema, identity, privacy, durability, or cost
+falsifier?
+
+**Hypothesis:** The 145 focused tests, six-check synthetic verifier, real dry
+preflight, and adversarial audit are sufficient for plan `2470a84f…` to produce
+a completed evidence artifact and blind snapshot. A rejected provider envelope,
+identity mismatch, missing durable event, retry, private console disclosure, or
+debit above the accepted local reserve falsifies it.
+
+**Method:** Executed the frozen plan once from commit `a4bb7a0` with its exact
+4/6/2 private panel, price card, 3,846-credit/USD 0.03846 local reserve, 26-call
+maximum, and no-retry transport. The executor persisted every attempt, full
+credential-free JSON response, and sanitized observation before proceeding.
+After its fail-closed stop, inspected only aggregate structure, hashes, modes,
+and booleans; no account identity, account/tweet ID, or post text was printed.
+
+**Result:** **COMPLETION HYPOTHESIS REJECTED; FAIL-CLOSED BOUNDARY CONFIRMED.**
+The run made four HTTP-200 calls: before-balance telemetry, one profile, one
+recent-tweets request, and after-balance telemetry. The profile validated. The
+recent-tweets response was durably captured but rejected because the new parser
+required a top-level `tweets` list while the provider returned `data.tweets`.
+This was not demonstrated provider drift: `docs/TWITTERAPI_ENDPOINTS.md` and
+the existing `fetch_tweets_for_account.py` already described and parsed the
+nested envelope. The captured list contained 20 structurally valid, uniquely
+identified tweets whose authors all bound to the validated profile; content was
+not interpreted.
+
+No retry, replacement, or adaptive action occurred. Before/after balance
+telemetry completed and measured **0 credits debited**. The private run retained
+four attempt/response/observation triples, a validated self-hashed aborted
+receipt (`2b128d5e…`), and a validated self-hashed partial-record artifact
+(`20f76028…`). It correctly produced no completed evidence artifact or dossier
+snapshot.
+
+**Lesson:** Synthetic HTTP-shaped fixtures are not enough when an existing
+repository contract already records the real envelope. Before live execution,
+the strict parser must be tested against the documented `data.tweets` shape,
+and legacy endpoint knowledge must be searched rather than guessed. Fail-closed
+execution limited this preventable error to one evidence request and preserved
+an auditable negative result.
+
+**Data stored:** Ignored mode-0700 private bundle
+`data/private/research-notes/dharma-boundary-pretrial-v1/run-20260801T045601Z-a4bb7a0/`
+with mode-0600 exact sources, holdout snapshot, preflight/aborted receipts,
+partial raw records, and four durable event triples. Git contains only this
+aggregate account-free report.
+
+**Next step:** Do not rerun this attempt. First add a behavior test and parser
+support for the observed nested envelope, make every post-network transform
+failure private-safe, and add a reusable privacy-safe live-bundle verifier. A
+second paid attempt requires fresh explicit authorization under the same
+no-retry promise; the panel need not change because no account was unavailable,
+protected, or identity-conflicted.
 
 ---
 
