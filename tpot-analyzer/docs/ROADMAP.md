@@ -566,8 +566,15 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   The provider does not expose a server-side dollar cap. A receipt-producing
   no-retry executor, real artifact
   preflight, private raw-evidence contract, and immutable dossier transform are
-  now implemented and adversarially verified (EXP-030/031); one exact live run
-  and snapshot-bound UI route remain required before pass one.
+  now implemented and adversarially verified (EXP-030/031). The first exact
+  live attempt stopped fail-closed after four HTTP-200 calls with zero measured
+  debit because the new parser guessed top-level `tweets` even though the
+  actual response and existing repository documentation use `data.tweets`
+  (EXP-032). Before any freshly authorized attempt: add behavior-first nested-
+  envelope coverage, wrap all post-network transform failures behind the
+  private-safe console boundary, and add a reusable privacy-safe verifier for
+  completed or aborted live bundles. A completed exact acquisition and
+  snapshot-bound UI route still remain required before pass one.
 - Add real Research Notes save/resume only after the server derives the target
   label/question from the immutable task, serves snapshot-addressed dossier
   evidence, verifies the full context receipt on write, accepts an idempotency
