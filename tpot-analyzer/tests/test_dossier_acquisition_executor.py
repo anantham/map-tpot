@@ -110,14 +110,14 @@ def test_executes_profile_then_tweets_with_sanitized_receipt() -> None:
             "status": "success",
         }),
         _response(200, {
-            "tweets": [
+            "data": {"tweets": [
                 {"id": "101", "text": "secret text", "author": {
                     "id": 42, "userName": "PilotAcct"
                 }},
                 {"id": 102, "text": "more text", "author": {
                     "id": "42", "userName": "pilotacct"
                 }},
-            ],
+            ]},
             "status": "success",
         }),
         _response(200, {"recharge_credits": 9_952}),

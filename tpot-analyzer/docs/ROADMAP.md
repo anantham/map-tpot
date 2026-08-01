@@ -104,6 +104,10 @@ round” checklist as an approved spend plan.
 
 ## Testing Coverage
 
+- Freeze generalized dossier-verifier work after EXP-033. Do not add another
+  verifier module or speculative tamper class before a concrete consumer or
+  observed failure requires it. Run the registered $0 ontology-boundary test
+  and $0 ranking bake-off first.
 - Mark `tests/test_connection.py` as `requires_supabase` or replace its live
   network calls with an explicit integration fixture. The nominal CI selector
   (`not requires_supabase`) still collected all three tests; under restricted
@@ -570,11 +574,13 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   live attempt stopped fail-closed after four HTTP-200 calls with zero measured
   debit because the new parser guessed top-level `tweets` even though the
   actual response and existing repository documentation use `data.tweets`
-  (EXP-032). Before any freshly authorized attempt: add behavior-first nested-
-  envelope coverage, wrap all post-network transform failures behind the
-  private-safe console boundary, and add a reusable privacy-safe verifier for
-  completed or aborted live bundles. A completed exact acquisition and
-  snapshot-bound UI route still remain required before pass one.
+  (EXP-032). Behavior-first nested-envelope coverage and the complete post-key
+  private-safe console boundary are now implemented (EXP-033). A generalized
+  bundle-verifier prototype was deliberately parked after its audit scope became
+  disproportionate to a four-call, zero-debit abort. Run the two registered $0
+  experiments and persist real judgments before reconsidering paid evidence. A
+  completed exact acquisition and snapshot-bound UI route remain possible later
+  only if those results show evidence coverage is the binding constraint.
 - Add real Research Notes save/resume only after the server derives the target
   label/question from the immutable task, serves snapshot-addressed dossier
   evidence, verifies the full context receipt on write, accepts an idempotency
@@ -789,6 +795,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Developer Experience
 
+- Treat the 300-LOC threshold as a diagnostic and human-review trigger, not an
+  automatic instruction to split unchanged scope across more modules. A useful
+  decomposition must name the responsibility or dependency edge it removes.
 - Make `scripts/verify_personal_ontology_docs.py` bootstrap the project root
   when invoked directly, matching its documented script-style usage. The
   2026-07-30 source-selectivity checkpoint found that module invocation passes

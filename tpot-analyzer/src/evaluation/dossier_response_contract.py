@@ -136,16 +136,21 @@ def parse_tweets(
     expected_handle: str,
     expected_account_id: str,
     maximum_returned: int,
-) -> tuple[int, dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     body = response_envelope(response, f"recent tweets @{expected_handle}")
     if body.get("status") != "success":
         raise AcquisitionExecutionError(
             f"recent tweets @{expected_handle} returned non-success provider status"
         )
-    tweets = body.get("tweets")
+    data = body.get("data")
+    if not isinstance(data, dict):
+        raise AcquisitionExecutionError(
+            f"recent tweets @{expected_handle} requires top-level data object"
+        )
+    tweets = data.get("tweets")
     if not isinstance(tweets, list):
         raise AcquisitionExecutionError(
-            f"recent tweets @{expected_handle} requires top-level tweets list"
+            f"recent tweets @{expected_handle} requires data.tweets list"
         )
     if len(tweets) > maximum_returned:
         raise AcquisitionExecutionError(
@@ -186,7 +191,7 @@ def parse_tweets(
             raise AcquisitionExecutionError(
                 f"recent tweets @{expected_handle} item {index} failed identity binding"
             )
-    return len(tweets), {
+    return tweets, {
         **response_receipt(response),
         "returned_count": len(tweets),
         "account_id": expected_account_id,

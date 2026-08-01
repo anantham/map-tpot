@@ -4,7 +4,13 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
+import sys
 from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.evaluation.dossier_acquisition_executor import (
     execute_dossier_acquisition_plan,
@@ -20,7 +26,6 @@ from src.evaluation.dossier_snapshot_transform import (
 )
 
 
-ROOT = Path(__file__).resolve().parents[1]
 PRICE_CARD = ROOT / "data/manifests/twitterapiio_price_card_20260730.json"
 
 
@@ -86,7 +91,7 @@ def _transport() -> _ReplayTransport:
         }, 2),
         _response({
             "status": "success",
-            "tweets": [
+            "data": {"tweets": [
                 {
                     "id": "101",
                     "text": "first private evidence text",
@@ -103,7 +108,7 @@ def _transport() -> _ReplayTransport:
                     "retweetCount": 0,
                     "author": {"id": "42", "userName": "pilotacct"},
                 },
-            ],
+            ]},
         }, 4),
         _response({"recharge_credits": 9_952}, 6),
     ])
@@ -190,7 +195,10 @@ def main() -> int:
     if not all(checks):
         print("Next: repair failed checks; do not call the provider.")
         return 1
-    print("Next: run the real credential-free preflight, then one exact no-retry plan.")
+    print(
+        "Next: verify any private live bundle separately; a new paid attempt "
+        "requires fresh explicit authorization."
+    )
     return 0
 
 

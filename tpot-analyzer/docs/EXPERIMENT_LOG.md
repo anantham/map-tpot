@@ -2,7 +2,58 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-08-01 (first live dossier attempt)*
+*Last updated: 2026-08-01 (minimal post-abort correction)*
+
+---
+
+## EXP-033: Does the minimal parser/privacy correction fix the observed defects?
+
+**Date:** 2026-08-01
+
+**Question:** Can the first live attempt's demonstrated defects be corrected
+without another provider call or an expanded evidence substrate?
+
+**Hypothesis:** Requiring `status=success`, an object `data`, and a list at
+`data.tweets` will accept the captured provider shape while rejecting the old
+top-level-only fixture. Enclosing the complete post-key region—including
+client close and diagnostic failure—behind fixed public output will prevent
+private handles or tweet text from reaching stdout/stderr.
+
+**Method:** Behavior-first tests reproduced both failures: the old parser
+rejected the documented nested envelope, and synthetic exception text exposed
+private sentinels. The parser now returns the list it validates, the snapshot
+transform consumes that list, and the live runner converts every post-key
+failure to fixed public text while private diagnostics retain only phase,
+exception class, and message SHA-256. The captured response was replayed
+offline through the corrected parser without printing identities or content.
+
+**Result:** **CONFIRMED LOCALLY; NO SECOND ACQUISITION ATTEMPT.** The corrected
+parser accepts all 20 captured tweet objects and rejects a top-level-only
+response. Value/runtime, client-close, and diagnostic-write failures emit fixed
+console text, call the executor once, and expose no sentinel. Focused tests and
+the synthetic six-check operator script pass: 57 targeted tests, 6/6 operator
+checks, and the hermetic suite at 1,655 passed / 2 skipped / 20 warnings. No
+credential, HTTP request,
+provider debit, judgment, or project inference-model call occurred.
+
+**Proportionality stop:** A generalized bundle-verifier prototype then entered
+an open-ended tamper-audit loop and was split repeatedly to satisfy the 300-LOC
+gate without reducing total scope. Human review rejected that direction: the
+four-call, zero-debit abort did not justify more integrity substrate while the
+project still had no durable human judgments. The prototype was parked rather
+than shipped. Further verifier work requires a concrete consumer or observed
+failure; file size is a review signal, not proof that coupling fell.
+
+**Lesson:** The synthetic fixture—not the provider—lied about the envelope.
+Repository contracts must outrank guessed fixtures. Safety work also needs a
+stake-proportional stopping rule, or adversarial verification becomes another
+way to avoid the human-in-the-loop retrieval problem.
+
+**Next step:** Run the registered $0 ontology-boundary test: surface its 12
+hard cases, collect the two frozen answers per case, and persist the first real
+judgments. Then run the registered $0 ranking bake-off against those judgments.
+Do not retry the paid plan unless those free results show that new evidence is
+the binding constraint and the user freshly authorizes it.
 
 ---
 
@@ -58,12 +109,11 @@ with mode-0600 exact sources, holdout snapshot, preflight/aborted receipts,
 partial raw records, and four durable event triples. Git contains only this
 aggregate account-free report.
 
-**Next step:** Do not rerun this attempt. First add a behavior test and parser
-support for the observed nested envelope, make every post-network transform
-failure private-safe, and add a reusable privacy-safe live-bundle verifier. A
-second paid attempt requires fresh explicit authorization under the same
-no-retry promise; the panel need not change because no account was unavailable,
-protected, or identity-conflicted.
+**Next step:** Do not rerun this attempt. EXP-033 records the parser and privacy
+correction and the decision not to ship a disproportionate generalized
+verifier. Return to the two registered $0 experiments and real judgments before
+reconsidering paid evidence. Any later retry still requires fresh explicit
+authorization; the panel need not change solely for this schema-contract stop.
 
 ---
 

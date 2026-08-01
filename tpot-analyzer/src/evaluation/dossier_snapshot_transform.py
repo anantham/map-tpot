@@ -136,7 +136,7 @@ def _profile_dossier(
         tweet_record = records[record_index]
         tweet_response = _response(tweet_record)
         try:
-            parse_tweets(
+            tweet_rows, _ = parse_tweets(
                 tweet_response,
                 expected_handle=handle,
                 expected_account_id=account_id,
@@ -144,7 +144,7 @@ def _profile_dossier(
             )
         except AcquisitionExecutionError as exc:
             raise DossierSnapshotTransformError(str(exc)) from exc
-        for index, tweet in enumerate(tweet_response.body["tweets"]):
+        for index, tweet in enumerate(tweet_rows):
             tweet_id = tweet["id"]
             if isinstance(tweet_id, int) and not isinstance(tweet_id, bool):
                 tweet_id = str(tweet_id)
