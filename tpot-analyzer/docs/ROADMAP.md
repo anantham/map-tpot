@@ -559,6 +559,15 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   (`ResearchNotesInbox.jsx`, implemented session-only 2026-07-31). Do not
   misencode retrieval relevance as `participation_interest`, and do not
   persist either probe as gold until its task contract is approved.
+- [x] Run a zero-cost, same-family model-provisional extraction over the 12
+  dated takes blocks before asking for 24 clicks (EXP-034). Exact agreement was
+  18/24, with 6 `REVIEW` and 6 consensus `ABSTAIN` slots; this rejects the
+  hypothesis that the notes alone resolve most accounts. Keep the private
+  artifact non-training and non-scoring.
+- Resolve the model pass's three reusable ontology questions once—bare
+  `dharma` as relevance versus affiliation, broad tantric/esoteric retrieval,
+  and the scope of `not dharma`—then propagate those semantics across the six
+  affected provisional slots. Do not turn this into six independent clicks.
 - Run the registered boundary-enriched 12-account, two-pass formative pretrial;
   measure disagreement, abstention, answer time, external-investigation rate,
   and repeat consistency. Keep the private panel identities outside git and

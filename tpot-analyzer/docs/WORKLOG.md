@@ -1,5 +1,51 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 6E — Model-Provisional Note Extraction (2026-08-01)
+
+- [2026-08-01 14:55 IST] **Used the existing takes to reduce the first human
+  gate to reusable ontology questions, without creating gold (Codex GPT-5 plus
+  one context-isolated reading)**
+    - **Hypothesis (`0.75`):** the dated takes alone would support both proposed
+      answers for 7–9 of 12 accounts, leaving at most 3–5 accounts for human
+      adjudication. More than 25% unresolved/abstaining slots or collapse of the
+      two questions would falsify that expectation. Fallback was a private
+      non-training artifact and grouped clarification, not paid acquisition or
+      another persistence module.
+    - Two same-family model readings used only the exact 10,311-byte takes
+      snapshot. The primary reading was explicitly unblinded because it had
+      already seen the panel strata; the context-isolated reading received only
+      the takes and 12 handles and was instructed not to inspect the panel,
+      protocol, logs, or strata. Exact agreement was required for a provisional
+      consensus label.
+    - **Result:** the confident-account prediction was rejected. The readings
+      agreed on 18/24 slots (`75%`), leaving 6 `REVIEW` slots and 6 consensus
+      `ABSTAIN` slots; only two accounts had two decisive consensus answers.
+      The ambiguity did not require 24 clicks, however: all six disagreements
+      collapse into three reusable rules—bare `dharma` shorthand, broad
+      tantric/esoteric retrieval, and the scope of `not dharma`.
+    - The private mode-0600 artifact
+      `data/private/research-notes/dharma-boundary-pretrial-v1/model-provisional-pass-20260801T091859Z.json`
+      binds the takes/panel/protocol/producer hashes, both rationales, exact
+      source-line ranges, consensus rule, and explicit `may_train=false`,
+      `may_score=false`, and `may_replace_human_pass=false` permissions. Its
+      SHA-256 is `081cdb6deb80fc2086fbaba1d847434c87f56b11456f81e303beb7ac6a5809cf`.
+    - **Verification:** JSON parse passed; 12/12 unique handles and 12/12 source
+      ranges matched the hashed takes; permissions are 0600; no network,
+      credential, external model API, database write, paid call, or spend
+      occurred. This same-family agreement is a robustness diagnostic, not
+      human reliability, ontology validation, or a ranking benchmark.
+      Docs hygiene passed 9/9 and personal-ontology documentation passed 21/21.
+      The existing inbox verifier passed its 23 backend tests, takes snapshot,
+      and 10/11 aggregate checks; its sole failed check was environmental—the
+      isolated worktree has no local Vitest binary. Two shared-runtime attempts
+      then stopped at dependency resolution before test execution. No frontend
+      source changed, and the loop was stopped rather than adding a repo symlink
+      or a fourth environment workaround.
+    - **Next:** resolve the three rule questions once, propagate those answers
+      across the six affected slots, and acquire/review evidence only for the
+      remaining true abstentions. Do not run the ranking bake-off against these
+      model-derived labels as if they were Aditya's judgments.
+
 ## Raw-First Retrieval Slice 6D — Minimal Post-Abort Correction (2026-08-01)
 
 - [2026-08-01 13:10 IST] **Fixed the demonstrated parser and privacy defects,

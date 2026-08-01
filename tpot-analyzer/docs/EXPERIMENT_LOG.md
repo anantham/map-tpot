@@ -2,7 +2,64 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-08-01 (minimal post-abort correction)*
+*Last updated: 2026-08-01 (model-provisional note extraction)*
+
+---
+
+## EXP-034: Can the dated takes replace 24 first-pass clicks?
+
+**Date:** 2026-08-01
+
+**Question:** Can two evidence-only model readings extract useful provisional
+answers to the Dharma retrieval and affiliation questions from the existing
+takes, while reducing rather than manufacturing human work?
+
+**Hypothesis:** The takes will support both answers confidently for 7–9 of 12
+accounts, leaving at most 3–5 accounts for human attention. More than 25% of
+slots ending in `ABSTAIN`/`REVIEW`, or no meaningful distinction between the
+two questions, falsifies that expectation. Confidence before the pass was
+`0.75`; fallback was to preserve uncertainty and group it by ontology rule.
+
+**Method:** A primary Codex reading and one context-isolated Codex peer reading
+classified the same 12 account blocks as `IN` / `OUT` / `ABSTAIN` on the two
+registered questions. Both used only the SHA-256-pinned dated takes; no profile,
+tweet dossier, panel stratum, network, or hosted-model API was supplied to the
+context-isolated reading. The primary reader had previously seen the strata and
+is therefore explicitly unblinded. Exact matching answers became provisional
+consensus; disagreements became `REVIEW` and were grouped by their underlying
+semantic rule. This is two readings from the same model family, not independent
+human annotation.
+
+**Result:** **THE CONFIDENT-ACCOUNT HYPOTHESIS WAS REJECTED; GROUPED REVIEW WAS
+SUPPORTED.** The readings agreed on 18/24 slots (`75%`). Consensus contained 8
+`IN`, 4 `OUT`, and 6 `ABSTAIN` slots; 6 more required review. Only two accounts
+had two decisive consensus answers. The six review slots reduce to three rule
+questions: whether bare `dharma` asserts affiliation, whether tantric/esoteric
+spirituality enters broad retrieval, and whether `not dharma` negates social
+affiliation. Thus the notes do not freeze either task, but human effort can be
+spent on three reusable semantics instead of re-entering 24 answers.
+
+Only one decisive consensus case currently separates retrieval (`IN`) from
+affiliation (`OUT`), so this model pass does not satisfy the registered human
+falsifier requiring two non-abstain divergences. The high unresolved rate also
+supports the narrower conclusion that the takes are summaries, not comparable
+public-evidence dossiers.
+
+**Data stored:** One ignored private mode-0600 JSON artifact, SHA-256
+`081cdb6deb80fc2086fbaba1d847434c87f56b11456f81e303beb7ac6a5809cf`,
+with exact source hashes/line ranges, both readings, grouped issues, and hard
+`may_train=false`, `may_score=false`, `may_replace_human_pass=false` flags. No
+gold judgment, schema row, external model call, paid API call, or spend exists.
+
+**Lesson:** The efficient unit of human attention is often an ontology rule,
+not an account-label click. A terse topical tag cannot silently become social
+affiliation, and model agreement cannot substitute for the personal boundary
+the system is intended to learn.
+
+**Next step:** Ask the three grouped rule questions once and propagate the
+answers across affected provisional slots. Then target evidence/review only at
+remaining abstentions. Do not use this artifact for the ranking bake-off or
+claim repeatability until actual human answers exist.
 
 ---
 
