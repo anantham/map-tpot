@@ -122,7 +122,7 @@ def test_profile_identity_mismatch_aborts_before_tweets_and_redacts_body() -> No
     assert "private" not in json.dumps(caught.value.receipt)
 
 
-def test_only_top_level_tweets_shape_and_bound_authors_are_accepted() -> None:
+def test_only_documented_nested_tweets_and_bound_authors_are_accepted() -> None:
     transport = ScriptedTransport([
         _response({"recharge_credits": 10_000}),
         _response(_profile()),
@@ -130,19 +130,20 @@ def test_only_top_level_tweets_shape_and_bound_authors_are_accepted() -> None:
         _response({"recharge_credits": 9_982}),
     ])
 
-    with pytest.raises(AcquisitionExecutionError, match="top-level tweets") as caught:
-        _execute(transport)
+    receipt = _execute(transport)
 
-    assert [item["status"] for item in caught.value.receipt["actions"]] == [
-        "validated",
-        "response_rejected",
+    assert [item["status"] for item in receipt["actions"]] == [
+        "validated", "validated",
     ]
-    assert "raw private post" not in json.dumps(caught.value.receipt)
+    assert "raw private post" not in json.dumps(receipt)
 
     mismatch = ScriptedTransport([
         _response({"recharge_credits": 10_000}),
         _response(_profile()),
-        _response({"tweets": [_tweet(author_id="99")], "status": "success"}),
+        _response({
+            "data": {"tweets": [_tweet(author_id="99")]},
+            "status": "success",
+        }),
         _response({"recharge_credits": 9_952}),
     ])
     with pytest.raises(AcquisitionExecutionError, match="identity binding"):
@@ -169,7 +170,7 @@ def test_observed_debit_over_cap_aborts_with_complete_sanitized_receipt() -> Non
     transport = ScriptedTransport([
         _response({"recharge_credits": 10_000}),
         _response(_profile()),
-        _response({"tweets": [_tweet()], "status": "success"}),
+        _response({"data": {"tweets": [_tweet()]}, "status": "success"}),
         _response({"recharge_credits": 4_000}),
     ])
 
@@ -187,7 +188,7 @@ def test_malformed_post_balance_is_not_retried_beyond_frozen_plan() -> None:
     transport = ScriptedTransport([
         _response({"recharge_credits": 10_000}),
         _response(_profile()),
-        _response({"tweets": [_tweet()], "status": "success"}),
+        _response({"data": {"tweets": [_tweet()]}, "status": "success"}),
         _response({"unexpected": 9_952}),
     ])
 
@@ -246,7 +247,7 @@ def test_profile_and_tweet_ids_must_be_decimal_strings() -> None:
         _response({"recharge_credits": 10_000}),
         _response(_profile()),
         _response({
-            "tweets": [{**_tweet(), "id": "tweet-101"}],
+            "data": {"tweets": [{**_tweet(), "id": "tweet-101"}]},
             "status": "success",
         }),
         _response({"recharge_credits": 9_952}),
@@ -279,13 +280,20 @@ def test_error_or_unavailable_profile_never_validates(body: dict, message: str) 
         _execute(transport)
 
 
-def test_error_tweet_status_never_validates() -> None:
+@pytest.mark.parametrize(
+    "body,message",
+    [
+        ({"data": {"tweets": [_tweet()]}, "status": "error"}, "provider status"),
+        ({"tweets": [_tweet()], "status": "success"}, "top-level data object"),
+    ],
+)
+def test_invalid_tweet_envelopes_never_validate(body: dict, message: str) -> None:
     transport = ScriptedTransport([
         _response({"recharge_credits": 10_000}),
         _response(_profile()),
-        _response({"tweets": [_tweet()], "status": "error"}),
+        _response(body),
         _response({"recharge_credits": 9_952}),
     ])
 
-    with pytest.raises(AcquisitionExecutionError, match="provider status"):
+    with pytest.raises(AcquisitionExecutionError, match=message):
         _execute(transport)

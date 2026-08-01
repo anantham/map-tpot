@@ -118,11 +118,13 @@ attempt/response/observation triples. Its receipt hash is `2b128d5e…` and its
 partial-record artifact hash is `20f76028…`. No completed evidence artifact,
 dossier snapshot, human answer, gold judgment, or model output was created.
 
-This attempt must not be silently resumed. Before another live acquisition,
-the documented nested envelope needs behavior-first parser coverage, every
-post-network transform failure must use the private-safe console boundary, and
-the resulting live bundle must have a reusable privacy-safe verifier. A second
-paid attempt requires fresh explicit authorization under the no-retry promise.
+This attempt must not be silently resumed. EXP-033 records behavior-first
+support for the documented nested envelope and a complete post-key private-safe
+console boundary. Human review rejected a generalized live-bundle verifier as
+disproportionate to this four-call, zero-debit abort; that prototype is parked,
+not a prerequisite for the next free experiment. Run the registered $0
+ontology-boundary and ranking tests before reconsidering acquisition. A second
+paid attempt still requires fresh explicit authorization under the no-retry promise.
 The panel manifest does not need replacement solely for this schema-contract
 failure; its registered replacement rule still applies to unavailable,
 protected, or identity-conflicted accounts.

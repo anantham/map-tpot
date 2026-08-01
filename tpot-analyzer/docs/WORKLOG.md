@@ -1,5 +1,43 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 6D — Minimal Post-Abort Correction (2026-08-01)
+
+- [2026-08-01 13:10 IST] **Fixed the demonstrated parser and privacy defects,
+  then stopped disproportionate verifier work (Codex GPT-5)**
+    - **Hypotheses:** confidence `0.98` that the documented `data.tweets`
+      nesting explained the rejection and `0.98` that unconstrained exception
+      text could disclose private values. Predicted REDs were the old envelope
+      error and visible handle/tweet sentinels; both occurred. Fallback was the
+      untouched aborted bundle, no retry, and no network/spend.
+    - `src/evaluation/dossier_response_contract.py:133-198` now validates and
+      returns the nested list; `dossier_snapshot_transform.py:107-167` consumes
+      that value. Nested behavior is covered in the modified dossier executor,
+      evidence, fail-closed, and snapshot tests and the six-check synthetic
+      operator script.
+    - `scripts/run_dossier_pretrial_acquisition.py:8-287` now encloses client
+      open, acquisition, persistence, transforms, diagnostics, and client close
+      in one fixed public-safe boundary. `dossier_private_diagnostics.py:1-45`
+      stores only phase, exception class, and message hash. Sentinel,
+      single-execution, close, diagnostic-write, and direct-entrypoint behavior
+      is covered by `tests/test_dossier_cli_private_boundary.py:1-112` and
+      `tests/test_dossier_script_entrypoints.py:1-35`.
+    - Offline replay accepted all 20 captured tweet objects without emitting
+      identity or content. No credential, HTTP call, debit, judgment, or project
+      inference-model call occurred in this correction.
+    - **Verification:** 57 targeted parser/privacy tests pass; the human-readable
+      synthetic script reports 6/6; hermetic regression reports 1,655 passed,
+      two skipped, and 20 existing sparse-matrix warnings. Docs hygiene,
+      compilation, and `git diff --check` pass.
+    - **Scope stop:** a generalized verifier prototype entered an open-ended
+      tamper loop and multiplied modules under the 300-LOC gate. Human review
+      correctly rejected that trade: it protected a four-call, zero-debit abort
+      while the corpus still had no durable judgments. The prototype is parked,
+      not shipped; the LOC gate is henceforth a review signal, not evidence of
+      lower coupling.
+    - **Next:** run the registered $0 ontology-boundary test, persist its first
+      real judgments, then run the $0 ranking bake-off. Paid retry remains later
+      and requires evidence that acquisition is binding plus fresh authorization.
+
 ## Raw-First Retrieval Slice 6C — First Live Dossier Attempt (2026-08-01)
 
 - [2026-08-01 10:36 IST] **Rejected live-completion readiness while confirming

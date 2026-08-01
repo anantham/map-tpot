@@ -5,10 +5,16 @@ import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 from typing import Any
 
 import httpx
 from dotenv import dotenv_values
+
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.evaluation.dossier_acquisition_executor import (
     execute_dossier_acquisition_plan,
@@ -26,12 +32,14 @@ from src.evaluation.dossier_execution_preflight import (
 )
 from src.evaluation.dossier_executor_types import AcquisitionExecutionError
 from src.evaluation.dossier_http_transport import TwitterApiIoHttpTransport
+from src.evaluation.dossier_private_diagnostics import (
+    record_post_network_failure,
+)
 from src.evaluation.dossier_snapshot_transform import (
     build_research_notes_snapshot_from_evidence,
 )
 
 
-ROOT = Path(__file__).resolve().parents[1]
 PRIVATE_ROOT = ROOT / "data" / "private"
 
 
@@ -170,69 +178,93 @@ def main(argv: list[str] | None = None) -> int:
         reservation = plan["reservation"]
         api_key = _load_key(args.env_file)
         executed_at = _now()
-        with httpx.Client(follow_redirects=False) as client:
-            raw_transport = TwitterApiIoHttpTransport(
-                api_key,
-                client=client,
-                journal=bundle,
-            )
-            transport = _ProgressTransport(
-                raw_transport,
-                total=reservation["request_count"],
-            )
-            try:
-                receipt = execute_dossier_acquisition_plan(
-                    plan=plan,
-                    expected_plan_sha256=args.expected_plan_sha256,
-                    accepted_max_credits=args.accepted_max_credits,
-                    accepted_max_usd=args.accepted_max_usd,
-                    executed_at=executed_at,
-                    transport=transport,
-                    frozen_holdout_account_ids=checked[
-                        "_frozen_holdout_account_ids"
-                    ],
+        phase = "client_open"
+        try:
+            with httpx.Client(follow_redirects=False) as client:
+                phase = "transport_setup"
+                raw_transport = TwitterApiIoHttpTransport(
+                    api_key,
+                    client=client,
+                    journal=bundle,
                 )
-            except AcquisitionExecutionError as error:
-                if error.receipt is not None:
-                    bundle.write_execution_receipt(error.receipt)
-                else:
-                    bundle.write_json("execution-error.json", {
-                        "schema_version": 1,
-                        "kind": "twitterapiio-dossier-private-error",
-                        "message": str(error),
-                    })
+                transport = _ProgressTransport(
+                    raw_transport,
+                    total=reservation["request_count"],
+                )
+                phase = "acquisition"
+                try:
+                    receipt = execute_dossier_acquisition_plan(
+                        plan=plan,
+                        expected_plan_sha256=args.expected_plan_sha256,
+                        accepted_max_credits=args.accepted_max_credits,
+                        accepted_max_usd=args.accepted_max_usd,
+                        executed_at=executed_at,
+                        transport=transport,
+                        frozen_holdout_account_ids=checked[
+                            "_frozen_holdout_account_ids"
+                        ],
+                    )
+                except AcquisitionExecutionError as error:
+                    phase = "persist_aborted_execution"
+                    if error.receipt is not None:
+                        bundle.write_execution_receipt(error.receipt)
+                    else:
+                        bundle.write_json("execution-error.json", {
+                            "schema_version": 1,
+                            "kind": "twitterapiio-dossier-private-error",
+                            "message": str(error),
+                        })
+                    records = raw_transport.response_records()
+                    bundle.write_response_records(
+                        filename="partial-response-records.json",
+                        plan_sha256=args.expected_plan_sha256,
+                        records=records,
+                        status="aborted",
+                    )
+                    raise _PrivateRunError(
+                        "acquisition stopped fail-closed; details are in the private "
+                        "bundle; no retry is allowed"
+                    ) from None
                 records = raw_transport.response_records()
+                phase = "persist_completed_execution"
+                bundle.write_execution_receipt(receipt)
                 bundle.write_response_records(
-                    filename="partial-response-records.json",
+                    filename="raw-response-records.json",
                     plan_sha256=args.expected_plan_sha256,
                     records=records,
-                    status="aborted",
+                    status="completed",
                 )
-                raise _PrivateRunError(
-                    "acquisition stopped fail-closed; details are in the private "
-                    "bundle; no retry is allowed"
-                ) from None
-            records = raw_transport.response_records()
-            bundle.write_execution_receipt(receipt)
-            bundle.write_response_records(
-                filename="raw-response-records.json",
-                plan_sha256=args.expected_plan_sha256,
-                records=records,
-                status="completed",
+                phase = "build_evidence"
+                evidence = build_dossier_evidence_artifact(
+                    plan=plan,
+                    receipt=receipt,
+                    records=records,
+                )
+                phase = "persist_evidence"
+                bundle.write_json("response-evidence.json", evidence)
+                phase = "build_snapshot"
+                snapshot = build_research_notes_snapshot_from_evidence(
+                    snapshot_id=checked["panel_run_id"],
+                    evidence_artifact=evidence,
+                    plan=plan,
+                    receipt=receipt,
+                )
+                phase = "persist_snapshot"
+                bundle.write_json("dossier-snapshot.json", snapshot)
+                phase = "client_close"
+        except _PrivateRunError:
+            raise
+        except Exception as error:
+            recorded = record_post_network_failure(bundle, phase, error)
+            detail = (
+                "private diagnostics are in the bundle"
+                if recorded
+                else "private diagnostics could not be persisted; the bundle may be incomplete"
             )
-            evidence = build_dossier_evidence_artifact(
-                plan=plan,
-                receipt=receipt,
-                records=records,
-            )
-            bundle.write_json("response-evidence.json", evidence)
-            snapshot = build_research_notes_snapshot_from_evidence(
-                snapshot_id=checked["panel_run_id"],
-                evidence_artifact=evidence,
-                plan=plan,
-                receipt=receipt,
-            )
-            bundle.write_json("dossier-snapshot.json", snapshot)
+            raise _PrivateRunError(
+                f"live processing stopped fail-closed; {detail}; "
+                "no retry is allowed"
+            ) from None
         print(
             "✓ completed: "
             f"debit={receipt['balance']['debited_credits']} credits; "

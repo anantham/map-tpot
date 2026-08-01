@@ -108,7 +108,7 @@ def execution_fixture() -> tuple[dict, dict, list[dict]]:
         }),
         _response(2, {
             "status": "success",
-            "tweets": [
+            "data": {"tweets": [
                 {
                     "id": "101",
                     "text": "first",
@@ -125,7 +125,7 @@ def execution_fixture() -> tuple[dict, dict, list[dict]]:
                     "retweetCount": 0,
                     "author": {"id": 42, "userName": "PilotAcct"},
                 },
-            ]
+            ]}
         }),
         _response(3, {"recharge_credits": 9_950}),
     ])
@@ -163,8 +163,8 @@ def test_build_is_canonical_private_deep_copied_and_verifiable() -> None:
         artifact, plan=plan, receipt=receipt
     ) == canonical_evidence_bytes(rebuilt, plan=plan, receipt=receipt)
 
-    records[2]["body"]["tweets"][0]["text"] = "mutated input"
-    assert artifact["records"][2]["body"]["tweets"][0]["text"] == "first"
+    records[2]["body"]["data"]["tweets"][0]["text"] = "mutated input"
+    assert artifact["records"][2]["body"]["data"]["tweets"][0]["text"] == "first"
 
 
 @pytest.mark.parametrize(
@@ -221,7 +221,7 @@ def test_tampered_artifact_or_external_receipt_is_rejected() -> None:
     artifact = build_dossier_evidence_artifact(
         plan=plan, receipt=receipt, records=records
     )
-    artifact["records"][2]["body"]["tweets"][0]["text"] = "forged"
+    artifact["records"][2]["body"]["data"]["tweets"][0]["text"] = "forged"
     with pytest.raises(DossierEvidenceArtifactError, match="artifact_sha256"):
         verify_dossier_evidence_artifact(artifact, plan=plan, receipt=receipt)
 

@@ -107,7 +107,7 @@ def test_never_falls_back_to_profile_top_level_url() -> None:
 
 def test_transform_rechecks_tweet_identity_with_executor_parser() -> None:
     plan, receipt, records = execution_fixture()
-    records[2]["body"]["tweets"][0]["author"]["id"] = "999"
+    records[2]["body"]["data"]["tweets"][0]["author"]["id"] = "999"
     _refresh_action_fingerprint(receipt, records, 1)
 
     with pytest.raises(DossierSnapshotTransformError, match="identity binding"):
@@ -120,11 +120,16 @@ def test_transform_rechecks_tweet_identity_with_executor_parser() -> None:
         (1, lambda body: body["data"].update(name=7), 0, "display name"),
         (
             2,
-            lambda body: body["tweets"][0].update(createdAt="not-a-time"),
+            lambda body: body["data"]["tweets"][0].update(createdAt="not-a-time"),
             1,
             "createdAt",
         ),
-        (2, lambda body: body["tweets"][0].update(likeCount=True), 1, "likeCount"),
+        (
+            2,
+            lambda body: body["data"]["tweets"][0].update(likeCount=True),
+            1,
+            "likeCount",
+        ),
         (
             1,
             lambda body: body["data"]["profile_bio"]["entities"]["url"].update(
