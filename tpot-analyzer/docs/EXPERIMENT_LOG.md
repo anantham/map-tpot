@@ -2,7 +2,109 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-07-31 (canonical profile-documentation binding)*
+*Last updated: 2026-07-31 (adversarial pre-spend hardening)*
+
+---
+
+## EXP-031: Does the first executor remain safe under adversarial interruption?
+
+**Date:** 2026-07-31
+
+**Question:** Is the synthetically green acquisition chain ready for its first
+paid call when privacy, process interruption, holdout renames, provider
+overbilling, and replay are treated as falsifiers rather than happy-path edge
+cases?
+
+**Hypothesis:** The EXP-030 executor is already safe to run because its final
+receipt, fixed plan, and no-retry transport are sufficient. It is falsified if
+private bodies can enter a trackable path, a paid response can disappear on
+process death, a renamed holdout account can pass by handle, dry preflight can
+green-light a malformed plan, or the advertised dollar cap is not enforceable.
+
+**Method:** Three computational peers independently traced the frozen inputs,
+HTTP boundary, receipts, raw evidence, and snapshot transform. Each finding was
+converted into a behavior-first regression. The corrected chain was then run
+through 145 focused tests, the six-check human verifier, and the real
+credential-free panel/archive preflight.
+
+**Result:** **INITIAL READINESS REJECTED; HARDENED CHAIN CONFIRMED LOCALLY.** The
+audit found all five registered falsifiers plus a cross-account duplicate-tweet
+gap. Output is now confined to resolved ignored `data/private`; exact inputs and
+logical holdout exclusions are copied before credential access; every attempt
+and credential-free JSON response is atomically fsynced per call; dry preflight
+validates the full plan; resolved provider IDs are checked against 288 frozen
+holdout IDs before tweets; and snapshot-wide tweet IDs are unique. The real
+read-only holdout snapshot contains 368 normalized handles and 288 IDs under
+logical SHA-256 `364cb3df…`, with panel overlap zero.
+
+The broader local suite passed 1,648 tests with two skips. Its only three
+failures were unmarked live Supabase connection tests under restricted DNS;
+that isolation debt is recorded separately rather than attributed to this
+experiment.
+
+The pricing audit also rejected one phrase, not the 26-call design:
+twitterapi.io exposes no provider-side dollar ceiling. The executor enforces a
+26-call no-retry schedule and a 3,846-credit local reserve at the pinned price
+card; final balance telemetry can detect, but cannot prevent, provider
+overbilling or an undisclosed balance-call price.
+
+**Lesson:** A final receipt is not crash durability, a handle is not a stable
+identity, and a local cost guard is not a provider billing guarantee. These
+distinctions belong in the executable boundary before the first paid datum.
+
+**Data stored:** Tracked code/tests/docs and read-only aggregate holdout facts.
+No credential, provider request/response, model call, human answer, or paid
+credit was used.
+
+**Next step:** Commit the hardened chain, then execute plan `2470a84f…` once.
+Any unavailable identity, holdout-ID collision, schema drift, journal failure,
+or other mismatch stops without a replacement or retry.
+
+---
+
+## EXP-030: Can the exact dossier plan reach a frozen snapshot fail-closed?
+
+**Date:** 2026-07-31
+
+**Question:** Before spending, can one independently accepted plan travel from
+local artifact preflight through HTTP-shaped responses, receipts, raw evidence,
+and a blind immutable dossier snapshot without retries, identity drift, hidden
+model fields, or an unrecorded paid attempt?
+
+**Hypothesis:** A small executor with an injected transport can stop before the
+next action on any hash, price-age, cap, holdout, schema, identity, timestamp,
+or response mismatch while retaining enough private evidence to reproduce the
+displayed dossier. Any silently accepted mutation, missing attempted-call
+receipt, retry, leaked post text in the receipt, or non-reproducible snapshot
+falsifies it.
+
+**Method:** Wrote behavior-first contracts for explicit plan acceptance,
+ordered calls, balance observations, profile/tweet identity, decimal X IDs,
+canonical timestamps, HTTP origin/parameter allowlists, response capture,
+receipt reconciliation, raw-evidence hashing, and snapshot transformation.
+Ran 120 focused tests and a six-check human verifier with fake responses. Then
+ran the filesystem/SQLite preflight against the actual private panel, revised
+price card, exact plan hash, and canonical archive in read-only mode.
+
+**Result:** **CONFIRMED SYNTHETICALLY; LIVE OUTCOME STILL UNKNOWN.** All 120
+tests and 6/6 verifier checks pass. The real credential-free preflight confirms
+12 panel and plan targets, 4/6/2 strata, 12 profile plus 12 recent-post calls,
+240 posts maximum, required holdout table present, and zero overlap. The
+executor has no retry path; reserves/logs an attempt before parsing; preserves
+sanitized per-call timestamps, response hashes, counts, and balance delta; and
+builds a content-addressed private evidence artifact plus blind snapshot.
+
+**Lesson:** The receipt and raw evidence are different artifacts. A sanitized
+receipt is safe to inspect but cannot reproduce a dossier; the separately
+private response artifact is what lets the display snapshot be recomputed.
+
+**Data stored:** Source, tests, and read-only aggregate preflight results only.
+The private plan remains unexecuted; no credential was read by the verifier and
+actual provider/OpenRouter spend remains USD 0.
+
+**Next step:** Commit this exact executable chain, then run plan `2470a84f…`
+once at its exact 3,846-credit (USD 0.03846) reserve. Unavailable identity,
+schema drift, or any other mismatch ends the run without replacement or retry.
 
 ---
 

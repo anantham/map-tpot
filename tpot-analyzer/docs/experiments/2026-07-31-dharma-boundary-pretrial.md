@@ -77,10 +77,12 @@ The credential-free plan uses price card
 `twitterapiio-2026-07-30`, semantic SHA-256
 `eab5a0810df86593164562636d82f616947984c79a67ce9a32eccfe13d2a9ab2`.
 Its revised maximum is 26 calls: 24 evidence calls plus two before/after
-balance checks, 12 profiles, 240 tweets, 3,846 reserved credits, or USD
-0.03846 under a USD 0.05 hard cap. The balance endpoint has no published
-endpoint-specific price, so its 30-credit share is explicitly conservative
-and unverified. Plan SHA-256 is
+balance checks, 12 profiles, 240 tweets, and a 3,846-credit (USD 0.03846)
+local reserve below the USD 0.05 planning ceiling. The executor can enforce
+the call count and stop before an unreserved action, but twitterapi.io exposes
+no provider-side dollar ceiling; balance telemetry detects rather than prevents
+unexpected billing. The balance endpoint also has no published endpoint price,
+so its 30-credit share is explicitly conservative and unverified. Plan SHA-256 is
 `2470a84f7cb1867b26577118d0df42731c17accb7c8fe941ea8f971c9681d3a4`;
 it supersedes the unexecuted `f352851e…` and `3c66b735…` plans.
 The plan says `authorizes_execution=false`; this amendment records the design,
@@ -88,6 +90,8 @@ not a paid call.
 
 After the evidence is frozen, the pretrial permits no adaptive paid action.
 Every actual preparation charge requires request/response and balance receipts.
+For this run, “cap” therefore means the maximum locally scheduled exposure at
+the pinned price card, not a guarantee about provider billing behavior.
 
 ## Completion boundary
 

@@ -3,7 +3,7 @@
 Living backlog of follow-on work items. Update this document as new ideas,
 coverage gaps, or UX improvements surface.
 
-*Last updated: 2026-07-30*
+*Last updated: 2026-07-31*
 
 ---
 
@@ -104,6 +104,11 @@ round” checklist as an approved spend plan.
 
 ## Testing Coverage
 
+- Mark `tests/test_connection.py` as `requires_supabase` or replace its live
+  network calls with an explicit integration fixture. The nominal CI selector
+  (`not requires_supabase`) still collected all three tests; under restricted
+  network they were the only failures while 1,648 local tests passed and two
+  were skipped on 2026-07-31.
 - Split the inherited 855-line `tests/test_pipeline_e2e.py` scenario chain
   into phase-scoped fixtures/tests before expanding it again. Slice 4 changed
   one public export assertion only; broad decomposition was intentionally
@@ -556,9 +561,13 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   publish only its manifest digest and aggregate descriptive results. The
   pre-answer 4/6/2 panel is now frozen privately with zero historical-holdout
   overlap, and its revised non-executing profile-plus-20-post plan reserves USD
-  0.03846 under a USD 0.05 cap, including two conservatively priced balance
-  checks (EXP-027/028). A receipt-producing executor and
-  immutable dossier snapshot remain required before pass one.
+  0.03846 below a local USD 0.05 planning ceiling, including two conservatively
+  priced balance checks and an exact 26-call no-retry ceiling (EXP-027/028).
+  The provider does not expose a server-side dollar cap. A receipt-producing
+  no-retry executor, real artifact
+  preflight, private raw-evidence contract, and immutable dossier transform are
+  now implemented and adversarially verified (EXP-030/031); one exact live run
+  and snapshot-bound UI route remain required before pass one.
 - Add real Research Notes save/resume only after the server derives the target
   label/question from the immutable task, serves snapshot-addressed dossier
   evidence, verifies the full context receipt on write, accepts an idempotency
@@ -569,6 +578,14 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   external-investigation frequency, and progress-to-30. Use those observations
   to decide whether the next dossier view should add replies, likes, quote
   context, network neighbors, or contemporaneous context.
+- Rebuild the formative two-pass ledger only after the UI is bound to the live
+  dossier snapshot. It must persist the pass-two transition, expose only the
+  active pass, bind every event to the run manifest, use real SHA-256 with a
+  cross-runtime fixture, seal the completed run, and test concurrent writes.
+- [x] Persist every paid attempt before HTTP and every credential-free JSON
+  response before continuing. Invalid/non-object/credential-echo responses
+  retain a private body-free observation with raw-byte hash when available;
+  never add an automatic retry to compensate (EXP-031).
 - Implement ADR 022's typed observe/interpret/judge action policy, beginning
   with the existing frontier heuristic as a baseline and the USD 0
   retrospective mask/reveal tranche.
