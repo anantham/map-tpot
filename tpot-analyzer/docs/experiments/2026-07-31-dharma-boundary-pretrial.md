@@ -1,7 +1,8 @@
 # Dharma Boundary Pretrial Protocol
 
 - Registered: 2026-07-31
-- Status: Evidence acquisition halted fail-closed; human passes not run
+- Status: Model-provisional note extraction complete; paid evidence remains
+  halted; human passes not run
 - Parent protocol:
   [Budgeted Personal-Ontology Pilot](2026-07-26-budgeted-personal-ontology-local-first-pilot.md)
 - Inferential status: formative and descriptive only
@@ -128,6 +129,29 @@ paid attempt still requires fresh explicit authorization under the no-retry prom
 The panel manifest does not need replacement solely for this schema-contract
 failure; its registered replacement rule still applies to unavailable,
 protected, or identity-conflicted accounts.
+
+## Model-provisional note extraction (2026-08-01)
+
+Before requesting 24 manual clicks, two same-family model readings classified
+the 12 existing takes blocks on the two fixed questions. This was a zero-cost
+evidence extraction, not either registered human pass: the primary reader had
+already seen the panel strata, the second reader was context-isolated from the
+panel and protocol, and both saw summaries rather than comparable public
+dossiers.
+
+The readings agreed on 18/24 slots. Six consensus slots abstained and six
+disagreed; only two accounts received two decisive consensus answers. The six
+disagreements nevertheless reduce to three reusable ontology questions: the
+affiliation meaning of bare `dharma`, the retrieval boundary around broad
+tantric/esoteric spirituality, and the affiliation scope of `not dharma`.
+EXP-034 records the method and negative result. The private mode-0600 artifact
+has SHA-256 `081cdb6deb80fc2086fbaba1d847434c87f56b11456f81e303beb7ac6a5809cf`.
+
+These provisional labels must not train or score a model, count as Aditya's
+judgments, satisfy the two-pass repeatability protocol, or authorize paid
+acquisition. The next human interaction should resolve the three shared rules
+once, not ask for 24 redundant clicks. Remaining abstentions then identify
+where richer evidence may actually be worth acquiring.
 
 ## Completion boundary
 
