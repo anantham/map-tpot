@@ -13,7 +13,10 @@ from flask import Blueprint, jsonify, request
 
 from src.api.curator_auth import curator_only
 from src.api.responses import error_response
-from src.config import DEFAULT_ARCHIVE_DB
+from src.config import DEFAULT_ARCHIVE_DB, get_snapshot_dir
+from src.data.account_tag_queries import AccountTagStoreError
+from src.data.follow_frontier_archive import TargetFrontierError
+from src.graph.target_follow_frontier import build_target_follow_frontier
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,8 @@ research_notes_bp = Blueprint(
 
 _DEFAULT_TWEET_LIMIT = 20
 _MAX_TWEET_LIMIT = 100
+_DEFAULT_FRONTIER_LIMIT = 20
+_MAX_FRONTIER_LIMIT = 100
 
 
 class DossierNotFoundError(ValueError):
@@ -57,6 +62,23 @@ def _parse_limit(raw: Optional[str]) -> int:
         raise ValueError(
             f"limit must be between 1 and {_MAX_TWEET_LIMIT}"
         )
+    return parsed
+
+
+def _required_query_param(name: str) -> str:
+    value = (request.args.get(name) or "").strip()
+    if not value:
+        raise ValueError(f"{name} query param is required")
+    return value
+
+
+def _parse_frontier_limit(raw: Optional[str]) -> int:
+    try:
+        parsed = int(raw or _DEFAULT_FRONTIER_LIMIT)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("limit must be an integer") from exc
+    if parsed < 1 or parsed > _MAX_FRONTIER_LIMIT:
+        raise ValueError(f"limit must be between 1 and {_MAX_FRONTIER_LIMIT}")
     return parsed
 
 
@@ -177,4 +199,39 @@ def get_dossier(handle: str):
         )
     except Exception as exc:  # pragma: no cover - defensive API boundary
         logger.exception("Unexpected Research Notes dossier failure: %s", exc)
+        return error_response("internal_error", status=500)
+
+
+@research_notes_bp.get("/frontier")
+@curator_only
+def get_target_frontier():
+    """Return an exact-tag follow ranking with observable diagnostics."""
+    try:
+        ego = _required_query_param("ego")
+        tag = _required_query_param("tag")
+        limit = _parse_frontier_limit(request.args.get("limit"))
+        archive_path = Path(os.getenv("ARCHIVE_DB_PATH", str(DEFAULT_ARCHIVE_DB)))
+        payload = build_target_follow_frontier(
+            tag_db_path=Path(get_snapshot_dir()) / "account_tags.db",
+            archive_db_path=archive_path,
+            ego=ego,
+            tag=tag,
+            limit=limit,
+        )
+        return jsonify(payload)
+    except ValueError as exc:
+        return error_response(str(exc))
+    except (
+        AccountTagStoreError,
+        TargetFrontierError,
+        FileNotFoundError,
+        sqlite3.DatabaseError,
+    ) as exc:
+        logger.error("Research Notes target frontier unavailable: %s", exc)
+        return error_response(
+            "Research Notes target frontier is unavailable; inspect the API log",
+            status=500,
+        )
+    except Exception as exc:  # pragma: no cover - defensive API boundary
+        logger.exception("Unexpected Research Notes frontier failure: %s", exc)
         return error_response("internal_error", status=500)

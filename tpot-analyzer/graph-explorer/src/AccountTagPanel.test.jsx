@@ -175,4 +175,48 @@ describe('AccountTagPanel', () => {
     expect(await waitFor(() => getByText('Dharma'))).toBeTruthy()
     expect(getByPlaceholderText('e.g. AI alignment')).not.toBeDisabled()
   })
+
+  it('requires one click to accept a source-backed proposal and reports the changed target', async () => {
+    const onTagChanged = vi.fn()
+    fetchAccountTags
+      .mockResolvedValueOnce({ tags: [], events: [] })
+      .mockResolvedValueOnce({
+        tags: [{ tag: 'Dharma', polarity: 1, updated_at: 'now' }],
+        events: [],
+      })
+    upsertAccountTag.mockResolvedValue({ status: 'ok' })
+
+    const { getByRole, getByText } = render(
+      <AccountTagPanel
+        ego="ego"
+        account={{ id: '123', username: 'alice' }}
+        suggestions={[{
+          tag: 'Dharma',
+          polarity: 'in',
+          kind: 'affiliation',
+          quote: 'explicit dharma practice',
+        }]}
+        onTagChanged={onTagChanged}
+      />
+    )
+
+    await waitFor(() => expect(getByText('Suggested from your Takes')).toBeTruthy())
+    expect(getByText('explicit dharma practice')).toBeTruthy()
+    fireEvent.click(getByRole('button', { name: 'Accept Dharma as IN' }))
+
+    await waitFor(() => {
+      expect(upsertAccountTag).toHaveBeenCalledWith({
+        ego: 'ego',
+        accountId: '123',
+        tag: 'Dharma',
+        polarity: 'in',
+        confidence: undefined,
+      })
+      expect(onTagChanged).toHaveBeenCalledWith({
+        action: 'set',
+        polarity: 'in',
+        tag: 'Dharma',
+      })
+    })
+  })
 })

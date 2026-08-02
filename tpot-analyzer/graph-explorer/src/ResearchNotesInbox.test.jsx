@@ -8,10 +8,16 @@ import {
   listDistinctTags,
   upsertAccountTag,
 } from './accountsApi'
-import { fetchResearchDossier } from './researchNotes/researchNotesApi'
+import {
+  fetchResearchDossier,
+  fetchResearchNotesSource,
+  fetchTagFrontier,
+} from './researchNotes/researchNotesApi'
 
 vi.mock('./researchNotes/researchNotesApi', () => ({
   fetchResearchDossier: vi.fn(),
+  fetchResearchNotesSource: vi.fn(),
+  fetchTagFrontier: vi.fn(),
 }))
 vi.mock('./accountsApi', () => ({
   deleteAccountTag: vi.fn(),
@@ -58,10 +64,60 @@ describe('ResearchNotesInbox', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     fetchResearchDossier.mockResolvedValue(UNBOUND_DOSSIER)
+    fetchResearchNotesSource.mockResolvedValue({
+      configured: false,
+      source: null,
+      suggestionsByHandle: {},
+    })
+    fetchTagFrontier.mockResolvedValue({
+      target: { ego: 'adityaarpitha', tag: 'Dharma', tagKey: 'dharma' },
+      status: 'insufficient',
+      reason: 'Need at least two positive anchors.',
+      anchors: {
+        positive: { count: 1, withFollowing: 1 },
+        negative: { count: 0, withFollowing: 0 },
+      },
+      candidates: [],
+      diagnostics: {
+        candidateCount: 0,
+        recovery: { eligible: 0, recovered: 0, fraction: null },
+      },
+    })
     fetchAccountTags.mockResolvedValue({ tags: [] })
     listDistinctTags.mockResolvedValue({ tags: ['Dharma', 'forecasting'] })
     upsertAccountTag.mockResolvedValue({ status: 'ok' })
     deleteAccountTag.mockResolvedValue({ status: 'deleted' })
+  })
+
+  it('reopens the configured Takes source and keeps extracted tags as proposals', async () => {
+    fetchResearchNotesSource.mockResolvedValue({
+      configured: true,
+      source: {
+        name: "aditya's takes",
+        text: '@alice\nexplicit dharma\n\n@bob\nboundary case',
+        sha256: 'takes-sha',
+        bytes: 52,
+        modifiedAt: '2026-08-02T00:00:00Z',
+      },
+      suggestionsByHandle: {
+        alice: [{
+          tag: 'Dharma',
+          polarity: 'in',
+          kind: 'affiliation',
+          quote: 'explicit dharma',
+        }],
+      },
+    })
+
+    render(<ResearchNotesInbox ego="adityaarpitha" />)
+
+    expect(await screen.findByText('2 accounts in queue')).toBeInTheDocument()
+    expect(screen.getByText(/loaded from aditya's takes/i)).toBeInTheDocument()
+    expect(await screen.findByText('Suggested from your Takes')).toBeInTheDocument()
+    expect(screen.getByText('explicit dharma')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Accept Dharma as IN' }))
+      .toBeInTheDocument()
+    expect(upsertAccountTag).not.toHaveBeenCalled()
   })
 
   it('turns messy notes into a manual evidence-and-tag queue', async () => {

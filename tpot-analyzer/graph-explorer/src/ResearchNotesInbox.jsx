@@ -3,7 +3,9 @@ import './researchNotes/ResearchNotesReview.css'
 import { useCallback, useState } from 'react'
 import AccountTagPanel from './AccountTagPanel'
 import RawDossier from './researchNotes/RawDossier'
+import WorkingTagImpact from './researchNotes/WorkingTagImpact'
 import { useResearchNotesInbox } from './researchNotes/useResearchNotesInbox'
+import { useWorkingTagSelection } from './researchNotes/useWorkingTagSelection'
 
 function plural(count, singular, pluralForm = `${singular}s`) {
   return count === 1 ? singular : pluralForm
@@ -14,12 +16,12 @@ function getWorkingIdentity({
   selectedItem,
 }) {
   if (!selectedItem) return null
-  const accountId = dossier?.account?.accountId
+  const accountId = dossier?.account?.accountId || selectedItem.accountId
   if (!accountId) return null
   return {
     account: {
       id: String(accountId),
-      username: dossier.account.username || selectedItem.handle,
+      username: dossier?.account?.username || selectedItem.handle,
     },
   }
 }
@@ -33,6 +35,12 @@ export default function ResearchNotesInbox({ ego = '' }) {
     dossier: inbox.dossier,
     selectedItem: inbox.selectedItem,
   })
+  const selectedHandle = inbox.selectedItem?.normalizedHandle || ''
+  const workingTag = useWorkingTagSelection({
+    selectedHandle,
+    suggestionsByHandle: inbox.suggestionsByHandle,
+  })
+
   const recordSelectedTagState = useCallback((tags) => {
     if (!activeEgo || !inbox.selectedItem) return
     const stateKey = `${activeEgo}:${inbox.selectedItem.normalizedHandle}`
@@ -44,7 +52,6 @@ export default function ResearchNotesInbox({ ego = '' }) {
       return next
     })
   }, [activeEgo, inbox.selectedItem])
-
   return (
     <main className="research-notes">
       <header className="research-notes-header">
@@ -68,6 +75,19 @@ export default function ResearchNotesInbox({ ego = '' }) {
           <p className="research-notes-curator-hint">
             Owns this personal tag extension; graph membership is not required.
           </p>
+          {inbox.sourceLoading && (
+            <p className="research-notes-source-state">Loading configured research source…</p>
+          )}
+          {inbox.source && (
+            <p className="research-notes-source-state">
+              Loaded from {inbox.source.name} · proposals remain unconfirmed
+            </p>
+          )}
+          {inbox.sourceError && (
+            <p className="research-notes-source-error">
+              Takes source unavailable: {inbox.sourceError}. Manual paste still works.
+            </p>
+          )}
           <label htmlFor="research-notes-paste">Paste accounts and notes</label>
           <textarea
             id="research-notes-paste"
@@ -88,7 +108,9 @@ export default function ResearchNotesInbox({ ego = '' }) {
               {inbox.queue.length}{' '}
               {plural(inbox.queue.length, 'account')} in queue
             </span>
-            <span>Manual queue · not disagreement-ranked</span>
+            <span>
+              {inbox.source ? 'Takes-backed queue · proposals only' : 'Manual queue · not disagreement-ranked'}
+            </span>
           </div>
           <nav className="research-notes-queue" aria-label="Research account queue">
             {inbox.queue.map((item) => {
@@ -169,7 +191,10 @@ export default function ResearchNotesInbox({ ego = '' }) {
                   key={`${activeEgo}:${identity.account.id}`}
                   ego={activeEgo}
                   account={identity.account}
+                  suggestions={workingTag.selectedSuggestions}
+                  onTagChanged={workingTag.tagChanged}
                   onTagStateLoaded={recordSelectedTagState}
+                  onVocabularyLoaded={workingTag.recordVocabulary}
                 />
               ) : (
                 <p className="research-notes-empty">
@@ -192,18 +217,30 @@ export default function ResearchNotesInbox({ ego = '' }) {
                 durable working extension; they are mutable and are not a frozen
                 evaluation set.
               </p>
-              <div className="research-notes-model-state">
-                <h2>Model position</h2>
-                <p>
-                  Unavailable: no target-scoped prediction has been run for
-                  this working tag extension.
-                </p>
-                <p>
-                  Legacy NMF percentages are intentionally not shown as soft
-                  membership. Until a compatible prediction exists, this queue
-                  remains manual rather than disagreement-ranked.
-                </p>
-              </div>
+              {workingTag.activeTag && activeEgo ? (
+                <WorkingTagImpact
+                  availableTags={workingTag.availableTags}
+                  ego={activeEgo}
+                  onReviewCandidate={inbox.addCandidate}
+                  onTagChange={workingTag.selectTag}
+                  revision={workingTag.revision}
+                  tag={workingTag.activeTag}
+                  tagKind={workingTag.activeTagKind}
+                />
+              ) : (
+                <div className="research-notes-model-state">
+                  <h2>Model position</h2>
+                  <p>
+                    Unavailable: no target-scoped prediction has been run for
+                    this working tag extension.
+                  </p>
+                  <p>
+                    Legacy NMF percentages are intentionally not shown as soft
+                    membership. Accept or add a tag to calculate its first
+                    selective-follow frontier.
+                  </p>
+                </div>
+              )}
             </section>
           )}
         </div>
