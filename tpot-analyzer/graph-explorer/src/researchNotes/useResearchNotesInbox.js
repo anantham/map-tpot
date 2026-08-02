@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { parseResearchNotes } from './parseResearchNotes'
-import { fetchResearchDossier } from './researchNotesApi'
+import {
+  fetchResearchDossier,
+  fetchResearchNotesSource,
+} from './researchNotesApi'
+
+function normalizedSuggestions(suggestionsByHandle) {
+  if (!suggestionsByHandle || typeof suggestionsByHandle !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(suggestionsByHandle).map(([handle, suggestions]) => [
+      handle.trim().replace(/^@/, '').toLowerCase(),
+      Array.isArray(suggestions) ? suggestions : [],
+    ]),
+  )
+}
 
 export function useResearchNotesInbox() {
   const [pasteText, setPasteText] = useState('')
@@ -14,6 +27,10 @@ export function useResearchNotesInbox() {
   const [dossierErrorKey, setDossierErrorKey] = useState(null)
   const [dossierAttempt, setDossierAttempt] = useState(0)
   const [drafts, setDrafts] = useState({})
+  const [source, setSource] = useState(null)
+  const [sourceLoading, setSourceLoading] = useState(true)
+  const [sourceError, setSourceError] = useState(null)
+  const [suggestionsByHandle, setSuggestionsByHandle] = useState({})
 
   const selectedItem = useMemo(
     () => queue.find((item) => item.normalizedHandle === selectedKey) || null,
@@ -37,6 +54,65 @@ export function useResearchNotesInbox() {
       setSelectedKey(combined[0].normalizedHandle)
     }
   }, [pasteText, queue, selectedKey])
+
+  const addCandidate = useCallback(({ accountId, username }) => {
+    const handle = String(username || '').trim().replace(/^@/, '')
+    if (!handle) return
+    const normalizedHandle = handle.toLowerCase()
+    setQueue((current) => {
+      const existing = current.find((item) => (
+        item.normalizedHandle === normalizedHandle
+      ))
+      if (existing) {
+        if (!accountId || existing.accountId) return current
+        return current.map((item) => (
+          item.normalizedHandle === normalizedHandle
+            ? { ...item, accountId: String(accountId) }
+            : item
+        ))
+      }
+      return [...current, {
+        accountId: accountId ? String(accountId) : null,
+        handle,
+        normalizedHandle,
+        note: `Surfaced by the target-scoped frontier for review.`,
+        sourceEnd: null,
+        sourceLine: `@${handle}`,
+        sourceStart: null,
+        sourceText: `@${handle}`,
+      }]
+    })
+    setSelectedKey(normalizedHandle)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    setSourceLoading(true)
+    setSourceError(null)
+    fetchResearchNotesSource()
+      .then((result) => {
+        if (cancelled) return
+        setSource(result?.configured ? result.source : null)
+        setSuggestionsByHandle(normalizedSuggestions(result?.suggestionsByHandle))
+        if (!result?.configured || typeof result?.source?.text !== 'string') return
+        setPasteText(result.source.text)
+        const parsed = parseResearchNotes(result.source.text)
+        setQueue((current) => (current.length > 0 ? current : parsed))
+      })
+      .catch((error) => {
+        if (!cancelled) setSourceError(error.message)
+      })
+      .finally(() => {
+        if (!cancelled) setSourceLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedKey && queue[0]) setSelectedKey(queue[0].normalizedHandle)
+  }, [queue, selectedKey])
 
   const updateSelectedDraft = useCallback((update) => {
     if (!selectedItem || !selectedKey) return
@@ -88,6 +164,7 @@ export function useResearchNotesInbox() {
   }, [dossierAttempt, selectedItem])
 
   return {
+    addCandidate,
     addToQueue,
     dossier: dossierKey === selectedKey ? dossier : null,
     dossierError: dossierErrorKey === selectedKey ? dossierError : null,
@@ -102,5 +179,9 @@ export function useResearchNotesInbox() {
     setNote,
     setPasteText,
     setSelectedKey,
+    source,
+    sourceError,
+    sourceLoading,
+    suggestionsByHandle,
   }
 }

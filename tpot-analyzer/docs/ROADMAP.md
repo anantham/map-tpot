@@ -426,8 +426,10 @@ the curation surface must not ask for an abstract boundary definition.
 - [x] **Extensional curation surface (2026-08-01)** — browse an account beside its posts and
   provenance, apply/remove several independent tags, show the current human
   tag state and append-only action history, and clearly label the extension as
-  mutable working data rather than gold. Queue order remains manual and model
-  position explicitly unavailable until target-scoped predictions exist. The
+  mutable working data rather than gold. Queue order remains manual. The first
+  slice left model position unavailable; EXP-037 now adds an exact-tag
+  selective-follow frontier and before/after display, explicitly not a soft
+  membership prediction. The
   curator identity is session-local and need not already be a graph node.
   Failed tag reads remain unknown, disable mutation, and provide Retry rather
   than appearing as an empty extension.
@@ -560,6 +562,14 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   explicit uncalibrated score semantics
   (`src/graph/source_selectivity.py`,
   `scripts/verify_source_selectivity.py`, implemented 2026-07-30).
+- [x] Connect the private Takes source to Research Notes and an exact
+  `(ego, tag)` source-selective frontier. The 2026-08-02 slice reopens 57
+  accounts with 115 source-bound model proposals, requires a curator click
+  before any tag write, refreshes the selected tag after set/remove, and shows
+  anchor/candidate/rank deltas plus observable stored-edge structure. Its score
+  is an uncalibrated retrieval ordering, not membership probability or evidence
+  that a social cluster exists (`EXP-037`,
+  `scripts/verify_research_notes_flywheel.py`).
 - [x] Run a zero-spend named-seed coverage triage against the latest
   deep-verified Community Archive tweet snapshot and explicit local follow
   views. The four Dharma seeds yielded 3,305 source-selective candidates, but
@@ -615,11 +625,12 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   family-resemblance categories are recognized from examples rather than
   necessary-and-sufficient definitions. Preserve EXP-034 as a negative result;
   do not propagate its model-derived answers into working tags or gold.
-- Replace the provisional probes with an evidence-first multi-tag workspace:
+- [x] Replace the provisional probes with an evidence-first multi-tag workspace:
   show the account's posts and provenance, current `IN` / `NOT IN` assignments,
   first-class removal, and action history. Do not show legacy NMF placement as
-  a model position. Until target-scoped predictions exist, explicitly report
-  model position and disagreement ranking as unavailable.
+  a model position. The initial 2026-08-01 slice reported model position as
+  unavailable; the 2026-08-02 amendment adds only an exact-tag selective-follow
+  ranking with explicit uncalibrated and missing-edge semantics.
 - Park the registered boundary-enriched 12-account, two-pass formative pretrial
   as historical methodology. If a later frozen-extension study reuses its
   evidence plan, measure disagreement, abstention, answer time,
@@ -659,6 +670,10 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   external-investigation frequency, and progress-to-30. Use those observations
   to decide whether the next dossier view should add replies, likes, quote
   context, network neighbors, or contemporaneous context.
+- Add typed reply, retweet, quote, like, and post-content evidence to the
+  working-tag frontier as separately reported and ablatable channels. Preserve
+  the selective-follow result as a baseline; do not collapse channels into one
+  confidence value until held-out calibration exists.
 - Rebuild the formative two-pass ledger only after the UI is bound to the live
   dossier snapshot. It must persist the pass-two transition, expose only the
   active pass, bind every event to the run manifest, use real SHA-256 with a

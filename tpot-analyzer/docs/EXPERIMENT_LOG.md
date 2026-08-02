@@ -2,7 +2,92 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-08-02 (extensional-tagging live QA)*
+*Last updated: 2026-08-02 (Takes-to-frontier feedback loop)*
+
+---
+
+## EXP-037: Can one reversible tag visibly change niche retrieval without inventing cluster confidence?
+
+**Date:** 2026-08-02
+
+**Question:** Can the existing Takes, durable working tags, and stored directed
+follow edges form a visible curator loop in which each `IN` / `NOT IN` decision
+changes an exact-tag candidate ranking and the observable evidence for shared
+structure, without using legacy NMF, paid acquisition, or a fake membership
+probability?
+
+**Hypotheses:** (`0.90`) the exact 57-account Takes snapshot can reopen
+automatically with source-bound model proposals while writing zero curator
+tags; (`0.72`) source-side selectivity can produce a useful first-channel
+ranking once anchors exist; and (`0.35`) the locally stored edges among a small
+Dharma seed set are dense enough to support even a provisional cohesion claim.
+Falsifiers were a proposal silently becoming human data, cross-tag anchor
+contamination, a click that did not refresh the same target, broad-following
+sources dominating selective ones, or missing edges being treated as observed
+non-edges. Fallback was the already working manual tag UI with model position
+left unavailable.
+
+**Method:** The authenticated local source route reads the 10,311-byte Takes
+file (`SHA-256 b9e9d616c0a79933f7f6a33dbf6cad0990e4ca1611fe48af5904a7d610e30cc0`)
+and a separate private proposal artifact bound to that hash. Its 115 suggestions
+are marked model-proposed/not-gold and cannot auto-write, train, or score. The
+frontier selects anchors by exact `(ego, tag_key)` and ranks candidate `c` by
+
+`sum(IN source follows c / effective source degree) - sum(NOT IN source follows c / effective source degree)`,
+
+where effective degree is conservative against stored-edge undercount when a
+claimed following total exists. The API separately reports anchor coverage,
+observed positive-to-positive directed links, observed positive-to-negative
+crossing, and missingness semantics. The browser retains the previous response
+so a successful set/remove can show anchor, candidate-universe, and rank deltas.
+All archive queries use a read-only transaction; no external model or social
+API was called.
+
+**Result:** **THE VISIBLE RANKING LOOP IS SUPPORTED; THE EARLY CLUSTER-EXISTENCE
+HYPOTHESIS IS REJECTED.** Live QA reopened 57/57 accounts and showed 115 inert
+proposals across seven tag kinds. With no real curator tags yet,
+`neo-buddhist` honestly displays `0 IN`, `0 NOT IN`, zero candidates, and
+`Insufficient evidence`; the first enabled proposal remains unclicked because
+only Aditya should convert it into a judgment. Behavior tests demonstrate that
+one accepted/removable tag refreshes the exact target and renders before/after
+anchor and rank movement.
+
+A read-only real-archive smoke using disposable anchors (RomeoStevens76 and
+TVacha as positive, SuttaSlime as negative) produced 542 positive-supported
+candidates and observed 548 stored outgoing edges across the two positive
+neighborhoods. Both positive neighborhoods had data, but the aggregate
+observed/effective degree ratio was only `0.192`, the negative neighborhood was
+uncovered, and there were zero observed directed links between the two positive
+anchors. The ranking can suggest whom to review; these data do not establish
+that the group exists as a cohesive graph cluster.
+
+**Verification:** 39 focused backend tests and 21 feedback-loop frontend tests
+pass after the final adversarial fixes; the complete graph-explorer suite passes
+761/761 and the production build succeeds. Human verifiers report runtime 7/7,
+frontier 5/5, and integrated flywheel 6/6. The latter confirms 57 handles, 115
+proposals, exact source hash, private no-store response, uncalibrated semantics,
+and zero tag/event mutation. Direct `python3` invocation initially falsified
+two verifier launcher assumptions (missing project import path and shell Python
+dependencies); both now locate the repo and canonical virtualenv themselves.
+
+**Lesson:** A judgment can immediately change a useful retrieval ordering
+before probability calibration is possible. That is not the same as increasing
+confidence that a cluster exists. Existence evidence requires multiple covered
+positive anchors, explicit negatives, observed inter-anchor structure, and
+eventually held-out recovery; missing edges must remain unknown. Source-side
+selectivity is a first channel, not the final community model.
+
+**Data stored:** Tracked code/tests/verifiers and the ignored mode-0600 proposal
+artifact (`SHA-256 e1c5fede4e980fb2f71f4bf2db8e8b62f7d7639f703c87bded190778e8ca7878`).
+The persistent working-tag store remains `current=0, events=0`. The real smoke
+used disposable tags. No gold row, paid response, API debit, model artifact, or
+external-data write was created.
+
+**Next step:** Aditya accepts/rejects proposals while reading the dossier; each
+click should show the exact observed delta. After several positives and
+explicit negatives exist for one affiliation tag, compare source-selective
+ranking against raw-support and then add typed engagement and content channels
+as separately ablatable evidence, not one opaque confidence number.
 
 ---
 

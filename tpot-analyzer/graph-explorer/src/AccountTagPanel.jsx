@@ -5,6 +5,7 @@ import {
   listDistinctTags,
   upsertAccountTag,
 } from './accountsApi'
+import TagSuggestions from './researchNotes/TagSuggestions'
 
 const polarityLabel = (polarity) => (polarity === 1 ? 'IN' : polarity === -1 ? 'NOT IN' : '—')
 
@@ -13,6 +14,8 @@ export default function AccountTagPanel({
   account,
   onTagChanged,
   onTagStateLoaded,
+  onVocabularyLoaded,
+  suggestions = [],
 }) {
   const accountId = account?.id
   const [loading, setLoading] = useState(false)
@@ -60,12 +63,15 @@ export default function AccountTagPanel({
     setVocabularyError(null)
     try {
       const res = await listDistinctTags({ ego })
-      setAvailableTags(Array.isArray(res) ? res : (res?.tags || []))
+      const nextTags = Array.isArray(res) ? res : (res?.tags || [])
+      setAvailableTags(nextTags)
+      onVocabularyLoaded?.(nextTags)
     } catch (err) {
       setVocabularyError(err.message || 'Failed to load existing tags')
       setAvailableTags([])
+      onVocabularyLoaded?.([])
     }
-  }, [ego])
+  }, [ego, onVocabularyLoaded])
 
   useEffect(() => {
     load()
@@ -80,25 +86,31 @@ export default function AccountTagPanel({
 
   const normalizedDraft = useMemo(() => tagDraft.trim(), [tagDraft])
 
-  const handleAdd = async () => {
-    if (!canMutate || !normalizedDraft) return
+  const saveTag = async ({ tag, polarity: nextPolarity }) => {
+    if (!canMutate || !tag) return false
     setLoading(true)
     setError(null)
     try {
       await upsertAccountTag({
         ego,
         accountId,
-        tag: normalizedDraft,
-        polarity,
+        tag,
+        polarity: nextPolarity,
       })
-      setTagDraft('')
       await Promise.all([load(), loadVocabulary()])
-      onTagChanged?.()
+      onTagChanged?.({ action: 'set', polarity: nextPolarity, tag })
+      return true
     } catch (err) {
       setError(err.message || 'Failed to save tag')
+      return false
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleAdd = async () => {
+    const saved = await saveTag({ tag: normalizedDraft, polarity })
+    if (saved) setTagDraft('')
   }
 
   const handleDelete = async (tag) => {
@@ -108,7 +120,7 @@ export default function AccountTagPanel({
     try {
       await deleteAccountTag({ ego, accountId, tag })
       await Promise.all([load(), loadVocabulary()])
-      onTagChanged?.()
+      onTagChanged?.({ action: 'remove', polarity: null, tag })
     } catch (err) {
       setError(err.message || 'Failed to delete tag')
     } finally {
@@ -137,6 +149,13 @@ export default function AccountTagPanel({
       {vocabularyError && (
         <div style={{ color: '#b91c1c', marginBottom: 8 }}>{vocabularyError}</div>
       )}
+      <TagSuggestions
+        disabled={!canMutate}
+        loading={loading}
+        onAccept={saveTag}
+        suggestions={suggestions}
+        tags={tags}
+      />
       {availableTags.length > 0 && (
         <div
           aria-label="Existing tag palette"

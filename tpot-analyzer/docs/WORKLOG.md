@@ -1,5 +1,76 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 6G — Visible Takes-to-Frontier Flywheel (2026-08-02)
+
+- [2026-08-02 13:40–16:06 IST] **Connected Aditya's existing notes to an
+  exact-tag, zero-spend feedback loop and kept cluster claims falsifiable
+  (Codex GPT-5 with runtime, source-import, frontier, and adversarial-review
+  peers)**
+    - **Hypotheses:** the local runtime could be made reproducible (`0.98`), all
+      57 Takes accounts could reopen with inert source-backed proposals
+      (`0.90`), and source-side selectivity could expose an immediate judgment
+      effect (`0.72`). A useful ranking was predicted before calibrated
+      membership; a cohesion claim required observed inter-anchor evidence.
+    - **Runtime (`scripts/dev_runtime.py:1-282`, `scripts/start_dev.sh:1-196`,
+      `scripts/wait_for_backend.sh:1-31`, `graph-explorer/vite.config.js:1-30`,
+      `src/api/server.py:1-190`):** resolve the canonical 11.35-GiB archive
+      read-only, keep tag state in this worktree, share one unprinted ephemeral
+      curator token between Flask and Vite, fix the UI at localhost:5184, and
+      fail clearly on missing paths/dependencies/occupied ports. Replaced only
+      the identified four-hour-old API process on port 5001 and launched the
+      repaired paired runtime.
+    - **Takes import (`src/api/routes/research_notes_source.py:1-217`,
+      `researchNotesApi.js:1-58`, `useResearchNotesInbox.js:1-187`):** the
+      authenticated private route returns exact text/hash/size/mtime plus 115
+      model-proposed, non-gold suggestions for 57/57 handles. It sets
+      `private, no-store`, validates the proposal artifact against the exact
+      source hash, and never writes a tag. Missing configuration remains an
+      explicit empty state and manual paste remains available.
+    - **Exact target (`src/data/account_tag_queries.py:1-84`,
+      `src/data/follow_frontier_archive.py:1-115`,
+      `src/graph/target_follow_frontier.py:1-267`,
+      `src/api/routes/research_notes.py:198-229`):** select anchors only by
+      `(ego, tag_key)`, contrast positive/negative source-selectivity support,
+      read one pinned archive transaction, and report coverage plus observed
+      reachability/pair/cross-boundary edges. Corrupt polarity, missing tag DB,
+      and archive failures fail closed. Missing edges remain unknown; status is
+      evidence availability, never cluster existence or probability.
+    - **Visible loop (`ResearchNotesInbox.jsx:1-250`,
+      `AccountTagPanel.jsx:1-257`, `TagSuggestions.jsx:1-67`,
+      `useWorkingTagSelection.js:1-72`, `WorkingTagImpact.jsx:1-219`):** reopen
+      Takes automatically, show each source quote and proposal type, require one
+      curator click for `IN` / `NOT IN`, refresh only that tag, retain the prior
+      response, and display anchor/candidate/rank movement. The active default
+      prefers a community-affiliation proposal. The screen explicitly labels
+      selective follows as the only current channel and shows observed
+      structure separately from uncomputed cluster confidence. Extracting the
+      tag selection/revision state reduced the coordinator from 300 to 250 LOC
+      at the feature seam.
+    - **Adversarial result / real smoke:** initial topology names implied
+      held-out recovery/cohesion and were rejected. Renamed them to observable
+      stored-edge facts, made claimed-degree fallback explicit, filtered
+      self-edges, and made missing/corrupt tag state fail closed. Disposable
+      RomeoStevens76 + TVacha positive and SuttaSlime negative anchors produced
+      542 candidates, but only `0.192` observed/effective positive-edge
+      coverage, no covered negative neighborhood, and zero observed positive
+      pair links. Ranking is useful; cluster existence is unsupported.
+    - **Verification:** backend focused regression `39 passed`; frontend
+      focused contract `21 passed`; full graph-explorer `761 passed`; Vite
+      production build succeeds; scoped ESLint and `git diff --check` pass.
+      Human scripts report runtime 7/7, frontier 5/5, and flywheel 6/6. The new
+      integrated verifier is read-only and found/fixed two entrypoint defects
+      before passing from plain `python3`.
+    - **Live state/scope:** browser is open on Research Notes with all 57 Takes
+      accounts. `@nicefryroll` selects `neo-buddhist`; with zero curator tags it
+      truthfully begins at zero anchors/candidates. No proposal was accepted on
+      Aditya's behalf. Persistent tag state remains `current=0, events=0`.
+      Spend is `$0`; no twitterapi.io, OpenRouter, remote social-data, or gold
+      write occurred.
+    - **Next:** Aditya supplies the first judgments by clicking proposals or
+      adding/removing tags. The UI will show the observed delta. After several
+      covered positives and explicit negatives, run a frozen ranking bake-off;
+      then add typed engagement and post-content channels as separable evidence.
+
 ## Raw-First Retrieval Slice 6F — Extensional Tagging Workspace (2026-08-01–02)
 
 - [2026-08-01 17:34–2026-08-02 11:16 IST] **Shipped the smallest evidence-first, reversible
