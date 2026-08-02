@@ -247,3 +247,49 @@ descriptor transfer across ontology versions.
 - Partially supersedes ADR 018's concentration/agreement interpretation as
   confidence. Its frozen engine remains a control.
 - Requires ADRs 019 and 020 provenance for every evidence and model generation.
+
+## Amendment: Extensional Working Tags (2026-08-01)
+
+- Status: Accepted by Aditya on 2026-08-01
+- Scope: Personal social tags before evaluation activation
+
+For personal social categories, an analyst may define a tag **extensionally**:
+the working meaning is demonstrated by the accounts they add, exclude, or
+remove while reading evidence. The product must not require an intensional
+necessary-and-sufficient definition before this work can begin, and the
+curation workflow must not present such a definition prompt. Free-form evidence
+notes may remain optional; they are not more authoritative than the reviewed
+examples.
+
+The working extension is mutable and multi-tag. Adding `IN`, adding `NOT IN`,
+and removing a prior assignment are distinct curator actions. Removal is a
+retraction, not negative evidence. The current projection may change for fast
+UI reads, but every action appends to an inspectable history so later
+corrections do not erase what the analyst previously believed.
+
+Evaluation requires a frozen extension. At an evaluation checkpoint, preserve
+the then-current member and explicit-nonmember sets as a named ontology version
+such as `dharma-v1`; later boundary changes create `dharma-v2`. Freezing does
+not stop continued working-tag edits and does not automatically promote every
+working event to gold. Admission to a study still follows the existing
+identity, role, evidence, and judgment contracts. Change between frozen
+versions is itself measured ontology drift, not silently rewritten history.
+
+No new `community_gold` schema/module is justified before at least 30 real,
+human, task-scoped judgments exist. Until then, working tags are curation
+signals, not a calibration or evaluation corpus.
+
+A displayed model position or disagreement-first queue must bind `ego`, the
+specific tag/ontology target, evidence snapshot, and model generation. The
+current GRF path aggregates every tag key for an ego and therefore cannot
+truthfully supply this view. Until a target-scoped producer exists, the UI must
+say that model position and disagreement ranking are unavailable; it may still
+show raw evidence and the human working-tag state. Legacy NMF community scores
+must not fill this gap.
+
+This amendment is falsified as a useful curation policy if repeated frozen
+extensions cannot support a sufficiently stable task even after drift is made
+visible, or if example-based review cannot produce enough explicit positives,
+negatives, and abstentions for evaluation. Those outcomes would motivate a
+different elicitation interface; they would not retroactively invent an
+intensional definition for the analyst.

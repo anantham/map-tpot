@@ -142,7 +142,13 @@ def test_anonymous_can_get_seeds_state(anon_client):
 # Blueprints whose mutating endpoints must require the curator token. New
 # blueprints that hold curator-owned writable resources should be added here
 # so the auto-discovery test below covers them.
-_CURATOR_BLUEPRINTS = {"branches", "communities", "community_gold", "community_gold_integrity"}
+_CURATOR_BLUEPRINTS = {
+    "account_tags",
+    "branches",
+    "communities",
+    "community_gold",
+    "community_gold_integrity",
+}
 # Standalone curator-owned mutating endpoints (single-blueprint writes that
 # don't live under a curator-prefixed blueprint).
 _EXTRA_CURATOR_ENDPOINTS = {"accounts.update_seeds", "graph.update_settings"}

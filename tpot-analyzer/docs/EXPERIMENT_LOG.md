@@ -2,7 +2,126 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-08-01 (model-provisional note extraction)*
+*Last updated: 2026-08-02 (extensional-tagging live QA)*
+
+---
+
+## EXP-036: Can the first extensional-tagging slice preserve honest state under review?
+
+**Date:** 2026-08-01–02
+
+**Question:** Can the evidence-first UI persist independent `IN` / `NOT IN`
+tags and removals without cross-account mutation, hidden provenance, or a false
+model-membership display?
+
+**Hypothesis (`0.78`):** Reusing the ego-scoped tag projection while appending
+an event for every successful set/remove would support the first local-curator
+slice. Predicted falsifiers were a removable tag that the route could not
+address, a response or mutation crossing accounts during navigation, an
+implicit human source, a removal without history, or legacy NMF rendered as a
+target-specific position. The fallback was to keep the UI non-writing and
+retain the documentation contract only.
+
+**Method:** Added behavior tests around temporary SQLite stores and the private
+tag routes, mounted the tag palette beside Research Notes evidence, reviewed
+the diff adversarially for identity/race/provenance failures, and exercised the
+production UI in a browser. Live QA read RomeoStevens76's dossier from the real
+local archive through a read-only connection while all tag writes went to an
+isolated temporary snapshot database. No external social-data, model, or paid
+API call was used. The lockfile dependency install may contact the npm registry
+and is recorded separately from research-data acquisition.
+
+**Result:** **INITIAL IMPLEMENTATION REJECTED; CORRECTED LOCAL SLICE
+SUPPORTED.** Review exposed ten concrete falsifiers: slash-containing tags
+could not be deleted; a slow request could paint or continue mutating the next
+account; queue rows hid existing tag state; handle fallback could silently
+switch to a numeric identity; verification writes could enter the curator's
+ego; missing source headers were mislabeled as human; and a non-string JSON tag
+raised an internal error instead of a validation response. Browser QA found the
+eighth: the ontology owner was wrongly required to be a node in the graph.
+Final privacy/state review found two more: legacy tag-summary and GRF routes
+still exposed tag-derived information anonymously, and failed tag reloads could
+look like empty writable state while curator-handle casing could split one
+ontology across keys. The corrected slice
+uses request invalidation plus identity-keyed panels, an archive-ID gate that
+prevents unresolved handle writes, isolated verifier egos, a required
+allowlisted source header, strict tag type validation, and a JSON-body removal
+route that preserves leading slashes. The curator identity is session-local and
+independent of graph membership; this UI canonicalizes its handle casing.
+Direct and derived tag reads require curator auth, and a failed current-state
+read clears cached queue state, disables mutation, and offers Retry. Set and
+remove actions are stored transactionally beside the current projection and
+shown in the UI. Model position is explicitly unavailable.
+
+**Verification:** 94 impacted backend tests and 121 expanded frontend tests
+pass. The frontend suite covers the tag UI, API clients, and derived private
+reads; the production build passes across 1,121 transformed modules; the
+human-readable Research Notes verifier passes 13/13 checks; and Python verifier
+compilation plus pure JavaScript syntax checks pass. After
+installing the lockfile-pinned worktree dependencies, browser QA loaded 20
+archived posts, set `Dharma: IN`, showed the current state and sourced event,
+removed it, returned the account to unclassified, and retained both events in
+the temporary history. The worktree's default archive file was zero bytes and
+the first cross-port attempt failed CORS; explicit archive/CORS configuration
+made both hidden runtime assumptions visible instead of silently accepting an
+empty dossier.
+
+**Lesson:** Extensional curation needs less ontology substrate but stronger
+identity and event semantics. Adversarial review was valuable because the
+first failures were ordinary product-integrity bugs, not reasons to build a
+more elaborate gold system.
+
+**Data stored:** Code, tests, documentation, and two disposable QA events in an
+isolated temporary database. The QA tag was removed from its current projection;
+its set/remove history remains only in that temporary store. No real working
+tag, project-database row, remote response, model artifact, API debit, or spend.
+
+**Next step:** Let the curator inspect the sandboxed surface, then connect an
+explicit persistent local tag store for real curation. Collect 30 real tags
+under stable archive IDs, add a queue-wide classification overview, and only
+then evaluate a target-scoped producer. Do not add Community Gold substrate in
+the meantime.
+
+---
+
+## EXP-035: Can extensional tags replace abstract boundary definitions honestly?
+
+**Date:** 2026-08-01
+
+**Question:** Can Aditya define social tags by adding/removing examples beside
+raw evidence without pretending a definition, model position, or evaluation
+set already exists?
+
+**Hypothesis (`0.80`):** Research Notes plus the ego/account/tag store can
+support a reversible multi-tag working extension without a new Community Gold
+schema. The current GRF cannot supply a tag-specific position because its
+anchors are not target-scoped. A store unable to represent independent tags,
+or an existing target-scoped producer, would falsify the respective claim.
+
+**Method:** Read the mounted inbox/dossier, tag UI/API/store, ADR 021, and GRF
+membership route; traced their identity, target, anchor, and cache keys against
+the proposed add/exclude/remove workflow. This was a read-only contract audit:
+no label, database/network access, or model run.
+
+**Result:** **WORKING-TAG PATH SUPPORTED; CURRENT MODEL DISPLAY REJECTED.** The
+tag surface represents independent ego/account/tag assignments and can pair a
+mutable projection with append-only action history. The dossier supplies the
+curator's evidence. By contrast, GRF anchor resolution sums every tag for an
+ego and carries no immutable target, so an unrelated tag can change a purported
+Dharma position. No compatible prediction means no principled disagreement
+queue yet.
+
+**Lesson:** The pre-evaluation learning object is a versioned-in-history
+extension, not a prose definition. Freeze `v1`, later `v2`, only for evaluation
+and measure their drift. Do not substitute a legacy score for missing
+target-scoped inference.
+
+**Data stored:** This documentation amendment only; no gold row/module, tag,
+model artifact, API call, or spend.
+
+**Next step:** Ship evidence-first multi-tag curation/history, collect 30 human
+examples, freeze the first extension, then test a target-scoped producer before
+enabling model position, disagreement ordering, or retrieval metrics.
 
 ---
 

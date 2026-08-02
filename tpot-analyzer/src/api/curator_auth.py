@@ -1,10 +1,10 @@
-"""Auth gate for curator-only mutating endpoints.
+"""Auth gate for curator-owned private reads and mutations.
 
 Fail-closed by design: if `TPOT_CURATOR_TOKEN` is not configured, mutating
 endpoints return 503 rather than silently accepting unauthenticated writes.
 This forces operators to set a secret before deploy and prevents the
 "forgot to configure auth" footgun that would otherwise expose the curator
-dataset to anonymous mutation.
+dataset to anonymous access or mutation.
 
 Usage:
     from src.api.curator_auth import curator_only
@@ -48,7 +48,7 @@ class CuratorUnauthorizedError(CuratorAuthError):
 
 
 def require_curator_auth(req: Request) -> None:
-    """Reject non-curator callers on mutating endpoints.
+    """Reject non-curator callers on curator-owned endpoints.
 
     Raises CuratorMisconfiguredError if TPOT_CURATOR_TOKEN is unset; this
     fails closed so a misconfigured deployment cannot silently accept writes.

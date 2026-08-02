@@ -63,6 +63,24 @@
   top: 0;
 }
 
+.research-notes-curator-input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.research-notes-curator-hint {
+  margin: 5px 0 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .research-notes-input {
   box-sizing: border-box;
   min-height: 150px;

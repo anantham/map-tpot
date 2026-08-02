@@ -14,7 +14,7 @@ vi.mock('./ClusterView', () => ({ default: () => null }))
 vi.mock('./Labeling', () => ({ default: () => null }))
 vi.mock('./Communities', () => ({ default: () => null }))
 vi.mock('./ResearchNotesInbox', () => ({
-  default: () => <h1>Research Notes Inbox</h1>,
+  default: ({ ego }) => <h1 data-ego={ego}>Research Notes Inbox</h1>,
 }))
 
 describe('App research notes route', () => {
@@ -29,7 +29,7 @@ describe('App research notes route', () => {
       screen.getByRole('heading', {
         name: 'Research Notes Inbox',
       }),
-    ).toBeInTheDocument()
+    ).toHaveAttribute('data-ego', 'adityaarpitha')
     expect(
       screen.getByRole('button', { name: 'Research Notes' }),
     ).toBeInTheDocument()

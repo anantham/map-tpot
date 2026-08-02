@@ -7,6 +7,7 @@ import time
 import numpy as np
 from flask import jsonify, request
 
+from src.api.curator_auth import curator_only
 from src.api.responses import error_response
 
 from src.api.cluster.state import (
@@ -27,6 +28,7 @@ MEMBERSHIP_RESPONSE_SCHEMA_VERSION = "account-membership-affinity-v1"
 
 
 @cluster_bp.route("/accounts/<account_id>/membership", methods=["GET"])
+@curator_only
 @_require_loaded
 def get_account_membership(account_id: str):
     """Return an uncalibrated TPOT affinity for one account using GRF anchors."""
