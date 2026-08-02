@@ -13,6 +13,9 @@ import src.api.cluster.state as cluster_routes
 from src.api.cluster import ClusterCache, cluster_bp
 from src.data.account_tags import AccountTagStore
 
+CURATOR_TOKEN = "membership-curator-token"
+CURATOR_AUTH = {"X-TPOT-Curator-Token": CURATOR_TOKEN}
+
 
 @dataclass
 class _MockSpectralResult:
@@ -25,6 +28,7 @@ class _MockSpectralResult:
 
 @pytest.fixture
 def membership_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask:
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
     app = Flask(__name__)
     app.register_blueprint(cluster_bp)
     app.config["TESTING"] = True
@@ -67,7 +71,10 @@ def test_membership_endpoint_rejects_when_engine_disabled(
 ) -> None:
     monkeypatch.setattr(cluster_routes, "_graph_settings", {"membership_engine": "off"}, raising=False)
     client = membership_app.test_client()
-    resp = client.get("/api/clusters/accounts/node_1/membership?ego=ego1")
+    resp = client.get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1",
+        headers=CURATOR_AUTH,
+    )
     assert resp.status_code == 400
     assert "membership_engine" in resp.get_json()["error"]
 
@@ -80,7 +87,10 @@ def test_membership_endpoint_requires_positive_and_negative_anchors(
     tag_store.upsert_tag(ego="ego1", account_id="node_0", tag="tpot", polarity=1)
 
     client = membership_app.test_client()
-    resp = client.get("/api/clusters/accounts/node_1/membership?ego=ego1")
+    resp = client.get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1",
+        headers=CURATOR_AUTH,
+    )
     assert resp.status_code == 400
     payload = resp.get_json()
     details = payload.get("details", payload)
@@ -97,7 +107,10 @@ def test_membership_endpoint_returns_uncalibrated_affinity_and_uses_cache(
     tag_store.upsert_tag(ego="ego1", account_id="node_2", tag="not_tpot", polarity=-1)
 
     client = membership_app.test_client()
-    first = client.get("/api/clusters/accounts/node_1/membership?ego=ego1")
+    first = client.get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1",
+        headers=CURATOR_AUTH,
+    )
     assert first.status_code == 200
     first_payload = first.get_json()
     assert first_payload["schemaVersion"] == "account-membership-affinity-v1"
@@ -115,7 +128,10 @@ def test_membership_endpoint_returns_uncalibrated_affinity_and_uses_cache(
     assert first_payload["anchorCounts"]["positive"] == 1
     assert first_payload["anchorCounts"]["negative"] == 1
 
-    second = client.get("/api/clusters/accounts/node_1/membership?ego=ego1")
+    second = client.get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1",
+        headers=CURATOR_AUTH,
+    )
     assert second.status_code == 200
     second_payload = second.get_json()
     assert second_payload["cacheHit"] is True
@@ -146,7 +162,8 @@ def test_membership_affinity_does_not_change_with_evidence_coverage(
     )
 
     response = membership_app.test_client().get(
-        "/api/clusters/accounts/node_0/membership?ego=ego1"
+        "/api/clusters/accounts/node_0/membership?ego=ego1",
+        headers=CURATOR_AUTH,
     )
 
     assert response.status_code == 200
@@ -184,7 +201,8 @@ def test_membership_coverage_is_unknown_without_expected_following(
     )
 
     response = membership_app.test_client().get(
-        "/api/clusters/accounts/node_1/membership?ego=ego1"
+        "/api/clusters/accounts/node_1/membership?ego=ego1",
+        headers=CURATOR_AUTH,
     )
 
     assert response.status_code == 200
@@ -197,3 +215,10 @@ def test_membership_coverage_is_unknown_without_expected_following(
         "expectedFollowing": None,
     }
     assert payload["evidence"]["coverage"] is None
+
+
+def test_membership_endpoint_rejects_anonymous_reads(membership_app: Flask) -> None:
+    response = membership_app.test_client().get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1"
+    )
+    assert response.status_code == 401

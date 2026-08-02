@@ -26,6 +26,7 @@ from src.api.routes.graph import graph_bp
 from src.api.routes.analysis import analysis_bp
 from src.api.routes.discovery import discovery_bp
 from src.api.routes.accounts import accounts_bp
+from src.api.routes.account_tags import account_tags_bp
 from src.api.routes.golden import golden_bp
 from src.api.routes.extension import extension_bp
 from src.api.routes.communities import communities_bp
@@ -155,6 +156,7 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     app.register_blueprint(analysis_bp)
     app.register_blueprint(discovery_bp)
     app.register_blueprint(accounts_bp)
+    app.register_blueprint(account_tags_bp)
     app.register_blueprint(golden_bp)
     app.register_blueprint(extension_bp)
     app.register_blueprint(communities_bp)

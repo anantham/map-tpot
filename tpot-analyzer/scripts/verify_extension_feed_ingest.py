@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
 from typing import Any, Optional, Tuple
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 
@@ -21,8 +22,9 @@ def _status(ok: bool, message: str) -> str:
     return f"{'✓' if ok else '✗'} {message}"
 
 
-def _http_json(url: str, *, method: str = "GET", body: Optional[dict] = None, timeout_s: float = 30.0) -> Tuple[int, Any]:
+def _http_json(url: str, *, method: str = "GET", body: Optional[dict] = None, extra_headers: Optional[dict[str, str]] = None, timeout_s: float = 30.0) -> Tuple[int, Any]:
     headers = {"Accept": "application/json"}
+    headers.update(extra_headers or {})
     payload = None
     if body is not None:
         headers["Content-Type"] = "application/json"
@@ -44,7 +46,12 @@ def _http_json(url: str, *, method: str = "GET", body: Optional[dict] = None, ti
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Verify extension feed ingestion APIs.")
     parser.add_argument("--base-url", default="http://localhost:5001", help="Backend base URL")
-    parser.add_argument("--ego", default="adityaarpitha", help="Ego scope for feed data")
+    parser.add_argument("--ego", default="verify_extension_feed", help="Isolated ego scope for verification data")
+    parser.add_argument(
+        "--curator-token",
+        default=os.getenv("TPOT_CURATOR_TOKEN", ""),
+        help="Curator token (defaults to TPOT_CURATOR_TOKEN)",
+    )
     parser.add_argument("--workspace-id", default="default", help="Workspace scope")
     parser.add_argument("--timeout-s", type=float, default=30.0, help="HTTP timeout in seconds")
     args = parser.parse_args(argv)
@@ -55,6 +62,10 @@ def main(argv: list[str]) -> int:
     account_id = f"verify_ext_account_{run_id}"
     tag_name = f"verify_ext_tag_{run_id}"
     now = _utc_iso()
+    tag_headers = {
+        "X-TPOT-Curator-Token": (args.curator_token or "").strip(),
+        "X-TPOT-Curation-Source": "verification_script",
+    }
 
     lines: list[str] = []
     checks_ok = True
@@ -212,10 +223,15 @@ def main(argv: list[str]) -> int:
         )
     )
 
+    if not tag_headers["X-TPOT-Curator-Token"]:
+        lines.append(_status(False, "Tag/purge check requires --curator-token or TPOT_CURATOR_TOKEN"))
+        print("\n".join(lines))
+        return 1
     tag_status, tag_payload = _http_json(
         f"{base}/api/accounts/{account_id}/tags?ego={args.ego}",
         method="POST",
         body={"tag": tag_name, "polarity": "in"},
+        extra_headers=tag_headers,
         timeout_s=args.timeout_s,
     )
     tag_ok = tag_status == 200 and isinstance(tag_payload, dict) and tag_payload.get("status") == "ok"
@@ -240,6 +256,22 @@ def main(argv: list[str]) -> int:
             f"POST /api/extension/feed_events/purge_by_tag accountCount={purge_payload.get('accountCount') if isinstance(purge_payload, dict) else None} status={purge_status}",
         )
     )
+
+    cleanup_status, cleanup_payload = _http_json(
+        f"{base}/api/accounts/{quote(account_id, safe='')}/tags?"
+        f"{urlencode({'ego': args.ego})}",
+        method="DELETE",
+        body={"tag": tag_name},
+        extra_headers=tag_headers,
+        timeout_s=args.timeout_s,
+    )
+    cleanup_ok = (
+        cleanup_status == 200
+        and isinstance(cleanup_payload, dict)
+        and cleanup_payload.get("status") in {"deleted", "not_found"}
+    )
+    checks_ok &= cleanup_ok
+    lines.append(_status(cleanup_ok, f"DELETE verification tag status={cleanup_status}"))
 
     lines.append("")
     lines.append("Next steps:")

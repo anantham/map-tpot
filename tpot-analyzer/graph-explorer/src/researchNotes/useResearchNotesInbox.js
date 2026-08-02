@@ -8,8 +8,10 @@ export function useResearchNotesInbox() {
   const [queue, setQueue] = useState([])
   const [selectedKey, setSelectedKey] = useState(null)
   const [dossier, setDossier] = useState(null)
+  const [dossierKey, setDossierKey] = useState(null)
   const [dossierLoading, setDossierLoading] = useState(false)
   const [dossierError, setDossierError] = useState(null)
+  const [dossierErrorKey, setDossierErrorKey] = useState(null)
   const [dossierAttempt, setDossierAttempt] = useState(0)
   const [drafts, setDrafts] = useState({})
 
@@ -19,7 +21,6 @@ export function useResearchNotesInbox() {
   )
   const selectedDraft = useMemo(
     () => drafts[selectedKey] || {
-      judgments: {},
       note: selectedItem?.note || '',
     },
     [drafts, selectedItem, selectedKey],
@@ -41,19 +42,11 @@ export function useResearchNotesInbox() {
     if (!selectedItem || !selectedKey) return
     setDrafts((current) => {
       const draft = current[selectedKey] || {
-        judgments: {},
         note: selectedItem.note || '',
       }
       return { ...current, [selectedKey]: update(draft) }
     })
   }, [selectedItem, selectedKey])
-
-  const setProbeJudgment = useCallback((probeId, value) => {
-    updateSelectedDraft((draft) => ({
-      ...draft,
-      judgments: { ...draft.judgments, [probeId]: value },
-    }))
-  }, [updateSelectedDraft])
 
   const setNote = useCallback((note) => {
     updateSelectedDraft((draft) => ({ ...draft, note }))
@@ -62,19 +55,29 @@ export function useResearchNotesInbox() {
   useEffect(() => {
     if (!selectedItem) {
       setDossier(null)
+      setDossierKey(null)
       setDossierError(null)
+      setDossierErrorKey(null)
       return undefined
     }
     let cancelled = false
     setDossier(null)
+    setDossierKey(null)
     setDossierLoading(true)
     setDossierError(null)
+    setDossierErrorKey(null)
     fetchResearchDossier({ handle: selectedItem.handle })
       .then((result) => {
-        if (!cancelled) setDossier(result)
+        if (!cancelled) {
+          setDossier(result)
+          setDossierKey(selectedItem.normalizedHandle)
+        }
       })
       .catch((error) => {
-        if (!cancelled) setDossierError(error.message)
+        if (!cancelled) {
+          setDossierError(error.message)
+          setDossierErrorKey(selectedItem.normalizedHandle)
+        }
       })
       .finally(() => {
         if (!cancelled) setDossierLoading(false)
@@ -86,20 +89,18 @@ export function useResearchNotesInbox() {
 
   return {
     addToQueue,
-    dossier,
-    dossierError,
+    dossier: dossierKey === selectedKey ? dossier : null,
+    dossierError: dossierErrorKey === selectedKey ? dossierError : null,
     dossierLoading,
     drafts,
     note: selectedDraft.note,
     pasteText,
-    probeJudgments: selectedDraft.judgments,
     queue,
     retryDossier: () => setDossierAttempt((attempt) => attempt + 1),
     selectedItem,
     selectedKey,
     setNote,
     setPasteText,
-    setProbeJudgment,
     setSelectedKey,
   }
 }

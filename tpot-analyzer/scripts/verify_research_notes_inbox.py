@@ -65,6 +65,10 @@ def _frontend_check() -> Check:
             "src/researchNotes/parseResearchNotes.test.js",
             "src/researchNotes/researchNotesApi.test.js",
             "src/researchNotes/RawDossier.test.jsx",
+            "src/accountsApi.test.js",
+            "src/accountTagsApi.test.js",
+            "src/data.membership.test.js",
+            "src/AccountTagPanel.test.jsx",
             "src/communityGoldApi.test.js",
             "src/ResearchNotesInbox.test.jsx",
             "src/App.researchNotes.test.jsx",
@@ -119,6 +123,10 @@ def _backend_check() -> Check:
             "-m",
             "pytest",
             "tests/test_research_notes_routes.py",
+            "tests/test_account_tags_store.py",
+            "tests/test_accounts_search_teleport_tags.py",
+            "tests/test_cluster_tag_summary.py",
+            "tests/test_cluster_membership_endpoint.py",
             "tests/test_curator_auth.py",
             "tests/test_community_gold_integrity_routes.py",
             "tests/test_community_gold_routes.py",
@@ -138,6 +146,10 @@ def _contract_checks() -> list[Check]:
         GRAPH / "src/researchNotes/useResearchNotesInbox.js"
     ).read_text()
     inbox = (GRAPH / "src/ResearchNotesInbox.jsx").read_text()
+    account_tags = (GRAPH / "src/AccountTagPanel.jsx").read_text()
+    accounts_api = (GRAPH / "src/accountsApi.js").read_text()
+    tag_route = (ROOT / "src/api/routes/account_tags.py").read_text()
+    tag_schema = (ROOT / "src/data/account_tag_schema.py").read_text()
     app = (GRAPH / "src/App.jsx").read_text()
     forbidden = (
         "canonicalMembership",
@@ -153,12 +165,12 @@ def _contract_checks() -> list[Check]:
             f"forbidden markers={leaks or 'none'}",
         ),
         Check(
-            "Preview save fails closed",
+            "Working tags use the existing durable surface",
             "recordStudyJudgment" not in hook
-            and "saveJudgment" not in inbox
-            and "disabled" in inbox
-            and "Saving stays locked" in inbox,
-            "no frontend write path exists; drafts remain session-only",
+            and "AccountTagPanel" in inbox
+            and "account={identity.account}" in inbox
+            and "Account tags" in account_tags,
+            "evidence review composes the existing ego-scoped tag editor",
         ),
         Check(
             "False binding is rejected",
@@ -178,31 +190,53 @@ def _contract_checks() -> list[Check]:
             "source, snapshot status, and capture times are rendered",
         ),
         Check(
-            "Client cannot define the task",
+            "No intensional definition is required",
             "studyConfig" not in hook
             and "targetQuestion" not in inbox
-            and "targetLabel" not in inbox,
-            "canonical target must later come from a frozen server task",
+            and "Provisional boundary probes" not in inbox
+            and "No first-principles definition is required" in inbox,
+            "the working category is defined extensionally by tagged accounts",
         ),
         Check(
-            "Paired probes remain formative",
-            "dharma-retrieval-relevance" in inbox
-            and "dharma-social-affiliation" in inbox
-            and "allowed to disagree" in inbox
-            and "not gold labels" in inbox,
-            "retrieval relevance and social affiliation are visibly separate",
+            "Model state is provenance-honest",
+            "no target-scoped prediction" in inbox
+            and "Legacy NMF percentages are intentionally not shown" in inbox
+            and "not disagreement-ranked" in inbox,
+            "manual order is explicit until comparable predictions exist",
         ),
         Check(
-            "Drafts are account/question keyed",
+            "Investigation notes are account keyed",
             "drafts[selectedKey]" in hook
-            and "judgments: { ...draft.judgments, [probeId]: value }" in hook
-            and "setProbeJudgment" in hook,
-            "navigation cannot collapse the two probes into one shared answer",
+            and "setNote" in hook
+            and "setProbeJudgment" not in hook,
+            "session notes survive account navigation without recreating probes",
+        ),
+        Check(
+            "Unresolved accounts cannot write tags",
+            "handle:${selectedItem.normalizedHandle}" not in inbox
+            and "Tagging stays locked until retry resolves a stable archive account ID." in inbox
+            and "Open @{inbox.selectedItem.handle} on X" in inbox,
+            "investigation stays available while writes wait for a durable archive ID",
+        ),
+        Check(
+            "Working tags are curator-private",
+            accounts_api.count("withCuratorAuth") >= 5,
+            "tag reads, writes, removal, and vocabulary requests carry curator auth",
+        ),
+        Check(
+            "Working-tag provenance fails closed",
+            "CURATION_SOURCE_HEADER" in accounts_api
+            and "human_curator_api" in accounts_api
+            and "is required for tag mutations" in tag_route
+            and "evidence_binding_status" in tag_schema,
+            "human UI, verification, and unbound evidence remain distinguishable",
         ),
         Check(
             "App route is mounted",
-            "'research-notes'" in app and "ResearchNotesInbox" in app,
-            "?view=research-notes is a top-level view",
+            "'research-notes'" in app
+            and "ResearchNotesInbox" in app
+            and "accountStatus.valid ? accountStatus.handle : ''" in app,
+            "?view=research-notes receives only the validated ego handle",
         ),
     ]
 
@@ -233,8 +267,11 @@ def main() -> int:
     failures = [check for check in checks if not check.passed]
     scoped_files = [
         ROOT / "src/api/routes/research_notes.py",
+        ROOT / "src/api/routes/account_tags.py",
+        ROOT / "src/data/account_tags.py",
         ROOT / "tests/test_research_notes_routes.py",
         GRAPH / "src/ResearchNotesInbox.jsx",
+        GRAPH / "src/AccountTagPanel.jsx",
         GRAPH / "src/researchNotes/useResearchNotesInbox.js",
     ]
     sizes = {path.name: len(path.read_text().splitlines()) for path in scoped_files}
@@ -246,16 +283,15 @@ def main() -> int:
     print(f"Metrics: file_lines={sizes}")
     print(
         "Boundary: tests use temporary SQLite; a supplied takes file is read-only "
-        "and is never copied into the repo. The default UI is preview-only. No "
-        "real judgment, API call, or acquisition occurs."
+        "and is never copied into the repo. Frontend checks mock all API writes; "
+        "no real tag, acquisition call, or external request occurs."
     )
     if failures:
         print("Next: inspect the named failed contract before opening real data.")
         return 1
     print(
-        "Next: review the provisional paired questions with real takes; add "
-        "saving only after the server supplies a canonical task, snapshot-"
-        "addressed evidence, and an idempotent write contract."
+        "Next: review real accounts in the manual queue, build the working tag "
+        "extension, then freeze a version before evaluating model retrieval."
     )
     return 0
 

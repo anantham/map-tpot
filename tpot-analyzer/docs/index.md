@@ -3,7 +3,7 @@
 This index separates actively maintained docs from historical/planning docs so
 contributors have a clear source of truth.
 
-Last reviewed: 2026-07-31
+Last reviewed: 2026-08-01
 
 ## Start Here
 
@@ -81,7 +81,7 @@ Last reviewed: 2026-07-31
 ### ADRs
 
 - [ADR 022: Budget-Constrained Active Evidence Acquisition](adr/022-budget-constrained-active-evidence-acquisition.md) (Accepted, 2026-07-26)
-- [ADR 021: Independent Overlapping Membership and Evidence Semantics](adr/021-independent-overlapping-membership-and-evidence-semantics.md) (Accepted, 2026-07-26)
+- [ADR 021: Independent Overlapping Membership and Evidence Semantics](adr/021-independent-overlapping-membership-and-evidence-semantics.md) (Accepted; amended 2026-08-01 with extensional working-tag, frozen-extension, and target-scoped-display boundaries)
 - [ADR 020: Graph Artifact Compatibility](adr/020-graph-artifact-compatibility.md) (Accepted, 2026-07-26)
 - [ADR 019: Versioned Research Data and Artifact Manifests](adr/019-versioned-research-data-and-artifact-manifests.md) (Accepted, 2026-07-26)
 - [ADR 018: Propagation Engine and Confidence Scoring](adr/018-propagation-engine-and-confidence.md) (Accepted decision; amended 2026-07-28 and 2026-07-30; current solver contracts remain falsified, and independent display bands now fail closed after invalid entropy and artifact skew were measured)

@@ -1,4 +1,8 @@
-import { API_BASE_URL } from './config'
+import {
+  API_BASE_URL,
+  CURATION_SOURCE_HEADER,
+  withCuratorAuth,
+} from './config'
 
 const jsonOrError = async (res, fallbackMessage) => {
   const text = await res.text()
@@ -44,33 +48,53 @@ export const fetchTeleportPlan = async ({ accountId, budget, visible }) => {
 export const fetchAccountTags = async ({ ego, accountId }) => {
   const params = new URLSearchParams()
   params.set('ego', ego)
-  const res = await fetch(`${API_BASE_URL}/api/accounts/${encodeURIComponent(accountId)}/tags?${params.toString()}`)
+  const res = await fetch(
+    `${API_BASE_URL}/api/accounts/${encodeURIComponent(accountId)}/tags?${params.toString()}`,
+    withCuratorAuth(),
+  )
   return jsonOrError(res, 'Failed to fetch account tags')
 }
 
 export const upsertAccountTag = async ({ ego, accountId, tag, polarity, confidence }) => {
   const params = new URLSearchParams()
   params.set('ego', ego)
-  const res = await fetch(`${API_BASE_URL}/api/accounts/${encodeURIComponent(accountId)}/tags?${params.toString()}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tag, polarity, confidence }),
-  })
+  const res = await fetch(
+    `${API_BASE_URL}/api/accounts/${encodeURIComponent(accountId)}/tags?${params.toString()}`,
+    withCuratorAuth({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        [CURATION_SOURCE_HEADER]: 'human_curator_api',
+      },
+      body: JSON.stringify({ tag, polarity, confidence }),
+    }),
+  )
   return jsonOrError(res, 'Failed to save tag')
 }
 
 export const deleteAccountTag = async ({ ego, accountId, tag }) => {
   const params = new URLSearchParams()
   params.set('ego', ego)
-  const res = await fetch(`${API_BASE_URL}/api/accounts/${encodeURIComponent(accountId)}/tags/${encodeURIComponent(tag)}?${params.toString()}`, {
-    method: 'DELETE',
-  })
+  const res = await fetch(
+    `${API_BASE_URL}/api/accounts/${encodeURIComponent(accountId)}/tags?${params.toString()}`,
+    withCuratorAuth({
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        [CURATION_SOURCE_HEADER]: 'human_curator_api',
+      },
+      body: JSON.stringify({ tag }),
+    }),
+  )
   return jsonOrError(res, 'Failed to delete tag')
 }
 
 export const listDistinctTags = async ({ ego }) => {
   const params = new URLSearchParams()
   params.set('ego', ego)
-  const res = await fetch(`${API_BASE_URL}/api/tags?${params.toString()}`)
+  const res = await fetch(
+    `${API_BASE_URL}/api/tags?${params.toString()}`,
+    withCuratorAuth(),
+  )
   return jsonOrError(res, 'Failed to list tags')
 }

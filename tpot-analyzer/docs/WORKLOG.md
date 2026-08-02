@@ -1,5 +1,102 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 6F — Extensional Tagging Workspace (2026-08-01–02)
+
+- [2026-08-01 17:34–2026-08-02 11:16 IST] **Shipped the smallest evidence-first, reversible
+  account-tagging loop without manufacturing model confidence (Codex GPT-5
+  with focused implementation, documentation, and adversarial-review peers)**
+    - **Hypothesis (`0.78`):** the existing ego/account/tag projection could
+      support multi-tag include/exclude/remove beside raw evidence if each
+      mutation also produced inspectable history. Slash tags, cross-account
+      async state, implicit provenance, identity switching, or a legacy score
+      presented as target-specific position were registered falsifiers;
+      fallback was the non-writing documentation contract.
+    - `graph-explorer/src/ResearchNotesInbox.jsx`, `AccountTagPanel.jsx`, and
+      `researchNotes/useResearchNotesInbox.js` now combine raw dossier evidence,
+      reusable tag palette, independent `IN` / `NOT IN` assignments,
+      first-class removal, queue classification state, and recent action
+      history. Model position is explicitly unavailable and the queue remains
+      manual until a target-scoped producer exists.
+    - `src/api/routes/account_tags.py` extracts the focused curator-private
+      route surface. `src/data/account_tags.py`, `account_tag_history.py`, and
+      `account_tag_schema.py` preserve the current projection while appending
+      transactional set/remove events, backfill legacy current rows once, and
+      expose source plus evidence-binding status. Mutations require an explicit
+      allowlisted curation source; UI writes declare human and verification
+      scripts declare verification.
+    - **Adversarial result:** the first implementation was rejected. Review
+      found slash-containing tags could not be removed, stale loads/mutations
+      could cross account navigation, queue rows hid tag state, handle fallback
+      could silently change identity, verifier writes could pollute the human
+      ego, absent provenance defaulted to human, and non-string tag JSON escaped
+      validation. The slice now uses request invalidation and identity-keyed
+      panels, an archive-ID gate that prevents unresolved handle writes,
+      isolated verifier egos, fail-closed provenance, strict tag type
+      validation, and a JSON-body removal route that preserves leading slashes.
+      Live browser QA found one further product falsifier: the ontology owner
+      was incorrectly required to be a graph node. Research Notes now accepts a
+      session-local curator identity independently of the active graph ego and
+      scopes loaded state by both curator and account.
+      Final privacy/state review found anonymous tag-summary/GRF derived reads,
+      curator casing that could split an extension, and failed reloads that
+      appeared empty and writable. Derived reads now require curator auth, this
+      UI canonicalizes the curator handle, and unknown tag state clears the
+      queue cache, locks mutation, and offers Retry.
+      Durable alias reconciliation remains required before any future
+      handle-only write path is allowed.
+    - **Verification:** 94 impacted Python tests and 121 expanded frontend
+      tests pass; the suite covers the curation panel, clients, and private
+      derived reads; the production Vite build passes with 1,121 transformed
+      modules; the Research Notes verifier passes 13/13 checks; verifier scripts
+      compile; and pure JS files plus documentation checks pass.
+      `npm ci` restored the lockfile-pinned worktree runtime. Live browser QA
+      loaded RomeoStevens76 plus 20 archived posts, displayed the empty current
+      extension and unavailable model position, then completed an add/remove
+      cycle with both sourced events retained in history.
+    - **Runtime findings:** the worktree-local archive path was an existing
+      zero-byte SQLite file, and the first frontend/backend port pairing was not
+      in the CORS allowlist. QA therefore used the real archive explicitly and
+      read-only, an isolated temporary snapshot/tag database, and an explicit
+      local CORS origin. `npm ci` reported 23 dependency advisories (2 low, 8
+      moderate, 11 high, 2 critical); no automatic audit fix was attempted.
+    - **Scope:** no real account was persistently tagged, no project database or
+      Community Gold schema was changed, and no external social-data, model, or
+      paid API call, retry, debit, or spend was used. `npm ci` was the only
+      dependency-network-capable step. The temporary QA tag was removed from the
+      current projection; only its set/remove history remains in the disposable
+      store. The 468-LOC live tagging verifier was safety-patched only; its
+      responsibility split is recorded as debt rather than disguised by more
+      module multiplication.
+    - **Next:** let the curator inspect the sandboxed surface, connect an
+      explicit persistent local tag store before lasting curation, add a
+      queue-wide classification overview, collect 30 human examples under
+      stable archive IDs, freeze `tag-v1`, and only then falsify a target-scoped
+      score producer and disagreement ordering.
+
+## Extensional Tagging Contract — Documentation Amendment (2026-08-01)
+
+- [2026-08-01 17:09 IST] **Reframed personal social tags as mutable examples,
+  with evaluation freezes instead of abstract definition gates (Codex GPT-5)**
+    - **Hypothesis/result:** Research Notes plus ego/account/tag state can
+      support reversible multi-tag curation without new gold schema; the
+      all-tag GRF cannot supply a target-specific position. Inspection
+      supported the first claim and rejected the second (EXP-035).
+    - **Decision:** no intensional definition prompt; preserve `IN`, `NOT IN`,
+      and removal history behind the mutable extension; freeze `v1`/`v2` only
+      for evaluation and measure drift. Working tags remain non-gold, no new
+      Community Gold module/schema is allowed before 30 human task-scoped
+      judgments, and model/disagreement views wait for target-scoped output.
+    - **Files:** ADR 021 appends the decision at lines 251–295;
+      `docs/ROADMAP.md` makes the UI/freeze/producer sequence active;
+      `docs/EXPERIMENT_LOG.md` records EXP-035; `docs/index.md` marks the
+      amendment. No new document was added.
+    - **Scope:** documentation only. No account was tagged, no Community Gold
+      row/module or model artifact was created, and no database, network, or
+      paid API was used.
+    - **Next:** ship the evidence-first add/exclude/remove workspace and its
+      history; collect 30 examples; freeze the first extension; then falsify a
+      target-scoped producer before model position or disagreement ordering.
+
 ## Raw-First Retrieval Slice 6E — Model-Provisional Note Extraction (2026-08-01)
 
 - [2026-08-01 14:55 IST] **Used the existing takes to reduce the first human

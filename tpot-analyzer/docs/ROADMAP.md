@@ -3,7 +3,7 @@
 Living backlog of follow-on work items. Update this document as new ideas,
 coverage gaps, or UX improvements surface.
 
-*Last updated: 2026-07-31*
+*Last updated: 2026-08-02*
 
 ---
 
@@ -195,7 +195,10 @@ round” checklist as an approved spend plan.
 - Add a Node dependency-security upgrade lane. The 2026-07-25 lockfile install
   reported 23 graph-explorer vulnerabilities (2 critical) and 4 high-severity
   public-site vulnerabilities; remediate through reviewed dependency upgrades,
-  not an unbounded `npm audit fix --force`.
+  not an unbounded `npm audit fix --force`. The graph-explorer count was
+  reproduced by a clean `npm ci` on 2026-08-02 (2 low, 8 moderate, 11 high, 2
+  critical); first separate direct from transitive and production-reachable
+  findings.
 - Add a CI assertion that local developer toolchain pins (`.python-version`,
   `.nvmrc`) stay aligned with workflow Python/Node versions.
 - Expand Selenium worker coverage to browser lifecycle + scrolling workflows once
@@ -401,23 +404,61 @@ clusters on held-out account labels (ADR 010). Gate: ARI improvement > 0.05.
 
 ## Phase 6: Community Visualization + Per-User Labeling (ADR 006, ADR 011)
 
-The product surface: users label exemplar accounts → see overlapping communities → explore
-their personal taxonomy over the shared embedding.
+The product surface: users define tags extensionally by adding, excluding, and
+removing exemplar accounts while reading evidence, then explore overlapping
+communities over the shared embedding. Free-form evidence notes are optional;
+the curation surface must not ask for an abstract boundary definition.
 
 ### What Already Exists
-- [x] `AccountTagStore` — per-ego, per-account tagging with polarity + confidence
-  (`src/data/account_tags.py`)
+- [x] `AccountTagStore` — per-ego, per-account current tags plus timestamped,
+  source-marked set/remove events (`src/data/account_tags.py` and focused helpers)
 - [x] `AccountTagPanel.jsx` — tag CRUD in graph explorer
 - [x] `AccountMembershipPanel.jsx` — uncalibrated GRF affinity, heuristic graph
-  uncertainty, and separate evidence coverage
-- [x] Tag CRUD API routes (`src/api/routes/accounts.py`)
-- [x] GRF membership scoring from anchor tags (`src/graph/membership_grf.py`)
+  uncertainty, and separate evidence coverage; retained only as an all-tag
+  legacy control, not a target-specific position
+- [x] Curator-private tag CRUD/API history routes
+  (`src/api/routes/account_tags.py`), including curator-authenticated derived
+  tag-summary and legacy GRF-affinity reads
+- [x] GRF membership scoring from anchor tags (`src/graph/membership_grf.py`),
+  currently unscoped across tag keys
 
 ### What's Missing
+- [x] **Extensional curation surface (2026-08-01)** — browse an account beside its posts and
+  provenance, apply/remove several independent tags, show the current human
+  tag state and append-only action history, and clearly label the extension as
+  mutable working data rather than gold. Queue order remains manual and model
+  position explicitly unavailable until target-scoped predictions exist. The
+  curator identity is session-local and need not already be a graph node.
+  Failed tag reads remain unknown, disable mutation, and provide Retry rather
+  than appearing as an empty extension.
+- [x] **Working-tag identity gate (2026-08-01)** — Research Notes permits a
+  durable tag write only after the dossier resolves a stable archive account
+  ID. A failed dossier retains an X investigation link and retry, but never
+  creates a `handle:*` tag that can disappear after reload. Any future
+  handle-only write path requires durable, reviewed alias reconciliation first.
+- [ ] **Queue-wide classification overview** — batch-load known tag state for
+  every queued/followed account so a fresh session can distinguish classified,
+  unclassified, and unresolved rows without visiting each one. Until then,
+  unvisited rows must say `tags not loaded`, never imply `review` or no tags.
+- [ ] **Canonical ego migration** — Research Notes lowercases newly typed X
+  handles, but the API/store still treat historical ego keys as exact strings.
+  Inventory and migrate case variants before enforcing server-wide
+  canonicalization, so existing extensions do not silently disappear.
+- [ ] **Remote/multi-client write hardening (deferred)** — before exposing
+  working-tag mutation beyond the local curator, add idempotency keys and SQL
+  immutability checks. Do not build that substrate while the only consumer is
+  the current local UI and the human corpus is still below 30.
+- [ ] **Frozen-extension checkpoint** — once at least 30 real human judgments
+  support evaluation, preserve the current positive/explicit-negative sets as
+  a named ontology version (`tag-v1`, then `tag-v2`) without stopping continued
+  working edits. Report membership additions/removals between versions as
+  ontology drift.
 - [ ] **Community score API** — given a user-defined tag (e.g., "woo"), return
   independent affinity scores for all 334 accounts. Keep them as affinities
   until each task passes held-out calibration; they are not a probability
-  distribution over accounts.
+  distribution over accounts. Bind anchors, cache, response, snapshot, and
+  model generation to that one target before exposing a model position or
+  disagreement-first review queue.
 - [ ] **Venn/overlap visualization** — accounts with high scores on multiple communities
   rendered as overlapping zones. Start with a 2D scatterplot colored by dominant community
   while encoding affinity, heuristic uncertainty, and known/unknown evidence
@@ -436,7 +477,9 @@ Uses the fingerprinted 334 as seeds to find latent community members in the broa
 follow graph.
 
 ### Dependency
-Requires Phase 5 fingerprints + Phase 6 community definitions.
+Requires Phase 5 fingerprints plus frozen Phase 6 tag extensions and
+target-scoped scores; it does not require a necessary-and-sufficient prose
+definition.
 
 ### Broader Graph Scoring
 - [ ] For accounts in follow graph but outside 334: fetch recent tweets via
@@ -534,9 +577,10 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   sensitivity to `1 / degree` versus log-inverse, capped, learned, and
   time-decayed weighting.
 - Freeze new `src/data/community_gold/` modules and schema expansion until at
-  least 30 real, scoped judgments exist. Product work may wire the existing
-  versioned store, but it must not create another persistence substrate or feed
-  research-note labels through the legacy unbound route.
+  least 30 real, human, task-scoped judgments exist. Product work may reuse the
+  existing working-tag store and event history, but it must not create another
+  persistence substrate, promote mutable tags directly to gold, or feed them
+  through the legacy unbound route.
 - Implement ADR 021's independently overlapping, user-scoped affiliation,
   observable-competence, and publicly expressed participation-interest heads.
   Keep style descriptors and evidence coverage separate; call outputs
@@ -558,19 +602,29 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   keyed by account and question so navigation cannot erase them
   (`ResearchNotesInbox.jsx`, implemented session-only 2026-07-31). Do not
   misencode retrieval relevance as `participation_interest`, and do not
-  persist either probe as gold until its task contract is approved.
+  persist either probe as gold until its task contract is approved. This is a
+  historical formative surface: the 2026-08-01 extensional-tagging amendment
+  supersedes abstract boundary questions as the active product workflow.
 - [x] Run a zero-cost, same-family model-provisional extraction over the 12
   dated takes blocks before asking for 24 clicks (EXP-034). Exact agreement was
   18/24, with 6 `REVIEW` and 6 consensus `ABSTAIN` slots; this rejects the
   hypothesis that the notes alone resolve most accounts. Keep the private
   artifact non-training and non-scoring.
-- Resolve the model pass's three reusable ontology questions once—bare
-  `dharma` as relevance versus affiliation, broad tantric/esoteric retrieval,
-  and the scope of `not dharma`—then propagate those semantics across the six
-  affected provisional slots. Do not turn this into six independent clicks.
-- Run the registered boundary-enriched 12-account, two-pass formative pretrial;
-  measure disagreement, abstention, answer time, external-investigation rate,
-  and repeat consistency. Keep the private panel identities outside git and
+- [x] Retire the proposed follow-up that asked Aditya to resolve three abstract
+  ontology rules from EXP-034. User review on 2026-08-01 established that these
+  family-resemblance categories are recognized from examples rather than
+  necessary-and-sufficient definitions. Preserve EXP-034 as a negative result;
+  do not propagate its model-derived answers into working tags or gold.
+- Replace the provisional probes with an evidence-first multi-tag workspace:
+  show the account's posts and provenance, current `IN` / `NOT IN` assignments,
+  first-class removal, and action history. Do not show legacy NMF placement as
+  a model position. Until target-scoped predictions exist, explicitly report
+  model position and disagreement ranking as unavailable.
+- Park the registered boundary-enriched 12-account, two-pass formative pretrial
+  as historical methodology. If a later frozen-extension study reuses its
+  evidence plan, measure disagreement, abstention, answer time,
+  external-investigation rate, and repeat consistency. Keep the private panel
+  identities outside git and
   publish only its manifest digest and aggregate descriptive results. The
   pre-answer 4/6/2 panel is now frozen privately with zero historical-holdout
   overlap, and its revised non-executing profile-plus-20-post plan reserves USD
@@ -586,16 +640,21 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   (EXP-032). Behavior-first nested-envelope coverage and the complete post-key
   private-safe console boundary are now implemented (EXP-033). A generalized
   bundle-verifier prototype was deliberately parked after its audit scope became
-  disproportionate to a four-call, zero-debit abort. Run the two registered $0
-  experiments and persist real judgments before reconsidering paid evidence. A
-  completed exact acquisition and snapshot-bound UI route remain possible later
-  only if those results show evidence coverage is the binding constraint.
-- Add real Research Notes save/resume only after the server derives the target
-  label/question from the immutable task, serves snapshot-addressed dossier
+  disproportionate to a four-call, zero-debit abort. Collect real working tags
+  and run the compatible $0 ranking bake-off after freezing an evaluation
+  extension; do this before reconsidering paid evidence.
+  Any resumed human study must use a frozen extension rather than demand an
+  intensional definition. A completed exact acquisition and snapshot-bound UI
+  route remain possible later only if those results show evidence coverage is
+  the binding constraint.
+- Add gold/evaluation Research Notes save/resume only after the server derives
+  the target label/question from the immutable task, serves snapshot-addressed dossier
   evidence, verifies the full context receipt on write, accepts an idempotency
   key, and exposes role-independent cumulative progress. Never use
   `purpose=training` count deltas as curator progress because they reveal
-  withheld evaluation roles.
+  withheld evaluation roles. This does not block reversible working-tag writes
+  through the ego-scoped tag surface, provided add/update/remove events remain
+  inspectable and the UI never labels them as gold.
 - Measure Research Notes review time, abstention, correction frequency,
   external-investigation frequency, and progress-to-30. Use those observations
   to decide whether the next dossier view should add replies, likes, quote
@@ -749,6 +808,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   exceeds current performance envelope.
 - Bundle verification scripts (`scripts/verify_*.py`) into a consolidated CLI
   entry point for Phase 2.
+- Decompose `scripts/verify_search_teleport_tagging.py` (468 LOC after its
+  2026-08-01 auth/provenance safety patch) by separating read-only graph checks
+  from isolated tag-state verification; do not grow the live verifier further.
 - Add housekeeping task to expire or refresh list snapshots that exceed
   `list_refresh_days` so cache stays accurate.
 - [x] Add frontend/backend API contract verifier (`scripts/verify_api_contracts.py`)
@@ -807,10 +869,22 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Treat the 300-LOC threshold as a diagnostic and human-review trigger, not an
   automatic instruction to split unchanged scope across more modules. A useful
   decomposition must name the responsibility or dependency edge it removes.
+- [x] Make each isolated worktree able to resolve the pinned graph-explorer test
+  runtime without borrowing a sibling checkout's `node_modules`. A clean
+  `npm ci` from `graph-explorer/package-lock.json` restored the runtime and the
+  extensional slice's expanded impacted suite passed 121/121 on 2026-08-02.
+- Fail fast when `ARCHIVE_DB_PATH` is absent, zero bytes, or lacks the expected
+  archive schema. Print the resolved path and remediation instead of letting a
+  worktree silently create or accept an empty SQLite database; live extensional
+  QA exposed this failure mode on 2026-08-02.
 - Make `scripts/verify_personal_ontology_docs.py` bootstrap the project root
   when invoked directly, matching its documented script-style usage. The
   2026-07-30 source-selectivity checkpoint found that module invocation passes
   21/21 while direct invocation raises `ModuleNotFoundError: scripts`.
+- `scripts/verify_research_notes_inbox.py` is now exactly 300 LOC. Do not append
+  another responsibility; if its next change is substantive, extract backend
+  and frontend execution behind one human-readable orchestrator rather than
+  splitting only to satisfy the metric.
 - Pin a supported Node version for frontend CI/developer parity and retire the
   conditional graph-explorer test `Storage` shim once Vitest/jsdom no longer
   conflicts with Node 26 experimental web storage.
@@ -828,6 +902,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - Decompose `docs/WORKLOG.md` and `docs/ROADMAP.md` into archived session
   slices or sub-docs; both are now >300 LOC and violate the repo's own
   working-set guidance for agents.
+- Split `docs/modules/data.md` (361 LOC after the 2026-08-01 account-tag contract
+  update) by moving durable annotation/tag stores into a focused module guide;
+  preserve the existing index link and do not split merely by line count.
 - Decompose `docs/EXPERIMENT_LOG.md` into an index plus dated experiment
   slices; it is also now >300 LOC and should not remain a growing monolith.
 - Recreate `docs/PROJECT_STRUCTURE.md` or correct the required-reading pointer

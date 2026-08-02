@@ -142,7 +142,9 @@ function App() {
         )}
         {currentView === 'research-notes' && (
           <div style={{ height: '100%' }}>
-            <ResearchNotesInbox />
+            <ResearchNotesInbox
+              ego={accountStatus.valid ? accountStatus.handle : ''}
+            />
           </div>
         )}
         {currentView === 'labeling' && (
