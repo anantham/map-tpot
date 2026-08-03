@@ -6,6 +6,56 @@
 
 ---
 
+## EXP-040: Two clicks later — prediction test and first ranking bake-off
+
+**Date:** 2026-08-03 (same evening as EXP-039)
+
+**Question:** EXP-039 preregistered: "Operator tags the core-dharma INs; both
+probes rise materially." The operator added exactly two (SuttaSlime — 58
+follows, hyper-selective; realityacid108 — 226). Did the probes rise, and does
+selectivity weighting beat raw seed-support (the ADR-022-adjacent falsifier:
+"if weighting does not reliably beat raw support, remove it")?
+
+**Setup:** 8 IN / 4 NOT-IN dharma anchors (93 events); universe 4,054; same
+canonical archive. Four rankings from one frontier result: contrast
+(selectivity, net), positiveScore (selectivity, no negative), net raw support,
+raw positive support.
+
+**Result — prediction CONFIRMED:**
+| method | RomeoStevens76 | TVachaW |
+|---|---|---|
+| EXP-039 baseline (6 anchors, contrast) | #779/3000 | #797/3000 |
+| contrast (selectivity, net) | **#79/4054** | **#80/4054** |
+| positiveScore (selectivity) | #69 | #84 |
+| net raw support | #22 | #66 |
+| **raw support (baseline)** | **#12** | #89 |
+
+Both probes moved from top ~26% to top ~2% on the preregistered metric —
+about 5.6 bits each against uniform placement. Two judgments from selective
+sources did that; the flywheel visibly turned.
+
+**Result — bake-off UPSET: raw support beat selectivity weighting for hub
+recovery** (rank-sum 101 vs 159). Mechanism, not mystery: SuttaSlime's 58
+follows each carry enormous selectivity weight, boosting its followees above
+Romeo — whom SuttaSlime does not follow (confirmed in EXP-038's edge list).
+Selectivity answers "distinctively dharma"; raw support answers "centrally
+dharma." Recovering famous members is the second question, so raw counting
+wins it by construction. Discovery of unknown accounts is the first question,
+and this probe pair cannot adjudicate it. n=2; no removal decision yet —
+but the weighting's advertised superiority is now 0-for-1 on its first
+measured endpoint and must win a discovery-endpoint test to stay.
+
+**Channel-coverage asymmetry (test #2 preview):** a content-only channel is
+structurally blind to TVachaW — zero authored tweets stored locally — while
+Romeo has 10,659. Channel comparisons must report coverage denominators or
+they measure the archive, not the method.
+
+**Next step:** Precision@20 on the contrast vs raw-support HEADS of the list
+(operator judges 20 unseen candidates from each, blind interleave) — the
+discovery endpoint the bake-off could not measure.
+
+---
+
 ## EXP-039: First live recovery probe — 91 real judgments, two withheld names
 
 **Date:** 2026-08-03
