@@ -293,3 +293,50 @@ visible, or if example-based review cannot produce enough explicit positives,
 negatives, and abstentions for evaluation. Those outcomes would motivate a
 different elicitation interface; they would not retroactively invent an
 intensional definition for the analyst.
+
+## Amendment: Inferred Attribute Hypotheses (2026-08-03)
+
+- Status: Accepted by Aditya (operator instruction, 2026-08-03 session:
+  "this project definitely needs us to infer… it's public data and it's going
+  to be contingent, we are maintaining a pluralistic attitude to ontologies")
+- Context: the applied mission (community-building outreach filtered by
+  geography, background, and interests) collided three times with this ADR's
+  blanket inference prohibition (founding voice memo's Kegan ask; 2026-08-01
+  flag; 2026-08-03 demographic request). Resolved consciously here rather than
+  eroded by exceptions.
+
+### Decision
+
+Attribute **hypotheses** may be inferred from public evidence, under the same
+epistemic contract as every other estimate in this ADR:
+
+- ego-scoped and versioned; contingent, never authoritative;
+- every inferred attribute records evidence spans, method/model generation,
+  and an uncertainty marker; abstention is the default under thin evidence;
+- **declared always outranks inferred** (a profile's own words beat any model);
+- correctable and superseding, like judgments; and
+- used for candidate filtering and human-read dossier context only — never as
+  a component of membership, competence, or interest scores.
+
+Permitted attribute classes: location/geography (declared or contextually
+inferred), language, activity timezone, profession/field, education level,
+**age band** and **income band** (both marked `sensitive: high-error`).
+
+Gender identity: recorded from **self-declaration only** (including bio
+pronouns, which are declarations). Not inferred from names or photos —
+retained as the one drafting deviation from the operator's request because
+misclassification is likeliest and most costly on precisely this project's
+pseudonymous population; the operator may strike this clause explicitly.
+
+Still excluded (unchanged, and reaffirmed): private belief, intelligence,
+developmental attainment, enlightenment, "Kegan stage", and any modeling of
+personal vulnerabilities — the psychological-diagnosis class that the
+project's own threat model (Interface Alignment) names as the adversary
+pattern.
+
+### Review clause
+
+Revert or narrow this amendment if operator-audited samples show high
+inferred-attribute error, or if attribute presence measurably harms candidate
+trust or recruiting outcomes. Inference errors discovered in review are
+logged like any other falsified claim.
