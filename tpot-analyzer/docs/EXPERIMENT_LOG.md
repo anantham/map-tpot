@@ -6,6 +6,64 @@
 
 ---
 
+## EXP-038: Does the dharma group exist as social structure, or only as a retrieval list?
+
+**Date:** 2026-08-03
+
+**Question:** EXP-037's smoke rejected the cluster-existence hypothesis (prior
+0.35) using two positive anchors on a database that lacked the 2026-07-30
+purchased edges. With all 10 known dharma positives and the canonical DB, is
+the group socially cohesive?
+
+**Hypotheses:** (0.6) direct follow edges among members exceed a few isolated
+links; (0.5) members share more common follows than degree-matched accounts;
+(0.4) typed engagement (likes/replies) is observable among members.
+
+**Method:** Read-only queries on the canonical archive DB (clean-main,
+purchased edges present). Members = the 10 explicit dharma positives from the
+takes. Direct cohesion over 72 observable ordered pairs (9 of 10 outgoing
+lists held; O1A2S3D protected). Shared-neighbor density vs 30 draws of
+size-matched random accounts with out-degree 50-2500 from the same DB.
+Engagement via `account_engagement_agg` member-to-member.
+
+**Result:**
+- **DIRECT COHESION STRONGLY SUPPORTED: 34 directed follow edges among
+  members — 47.2% of observable ordered pairs.** Every member with an
+  observable list follows several others. `danielbrottman` is followed by 7 of
+  9 observable members — converging with its 4/4 co-follow vote in the
+  2026-07-30 seed-cluster derivation, an independent channel.
+- This reverses EXP-037's cluster rejection, which was an artifact of the
+  stale DB (548 edges seen vs 2,934 present; negative anchor "uncovered" vs
+  58 edges present; 0 inter-anchor links vs 1).
+- **SHARED-NEIGHBOR TEST INCONCLUSIVE — the null was confounded.** Members
+  average 47.79 shared follows/pair vs 48.46 ± 20.52 for the "random"
+  baseline (z ≈ 0). But the baseline pool is accounts with stored outgoing
+  edges in OUR capture-biased DB — i.e. mostly the ~683 TPOT-adjacent
+  accounts whose lists we chose to fetch. The correct reading: dharma members
+  do not share more follows than other captured TPOT-adjacent accounts. A
+  clean null (uniform Twitter, or degree-matched outside the capture set)
+  does not exist locally and would need acquisition.
+- **CONVERSATION: coverage-limited, not absent.** Only 2 of 45 unordered
+  pairs observable (engagement capture requires archive opt-in). The one
+  observable dyad is reciprocal and heavy: danielbrottman<->RomeoStevens76,
+  306 likes + 49 replies combined.
+
+**Lesson:** The follow-graph cohesion of this group is real and dense, and the
+earlier rejection was a data-routing failure, not a property of the group. The
+capture-bias warning in ADR-022 is not hypothetical: it silently invalidated
+this experiment's own first-choice null. Any density claim must state which
+population its baseline was drawn from.
+
+**Data stored:** Read-only; no rows written. Queries inline in this entry's
+producing session; member IDs match `data/private/dharma-v1-holdout.json`.
+
+**Next step:** After the pilot tagging session, run the recovery probe (3
+withheld positives) against the frontier; test whether adding the 2026-07-30
+edges changes candidate ranking vs the stale-DB ordering; design an unconfounded
+shared-neighbor null before making any density claim public.
+
+---
+
 ## EXP-037: Can one reversible tag visibly change niche retrieval without inventing cluster confidence?
 
 **Date:** 2026-08-02
