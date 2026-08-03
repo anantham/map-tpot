@@ -6,6 +6,52 @@
 
 ---
 
+## EXP-042: The membrane inversion — from "who does the in-group watch" to "who watches the in-group"
+
+**Date:** 2026-08-03 (operator-directed reframe)
+
+**Reframe (operator's, verbatim in substance):** central members are famous
+exemplars — high-status, saturated, not the recruitment target. The target is
+the *membrane*: low-fame accounts whose defining evidence is their TASTE —
+"it's my taste in the central people that makes me worthy of discovery." The
+use case is community-building outreach (retreats, org recruiting) filtered by
+interest, skill, and geography.
+
+**Architectural consequence:** every prior result (EXP-037–041) ranked
+*targets of anchors' attention* — the center. The mission needs *sources of
+attention toward the center* — follower lists of central accounts, scored by
+taste concentration `central-follows / total-follows`, penalized by fame.
+This is where selectivity legitimately returns after EXP-041 falsified it as
+a voucher weight: as a candidate-side devotion measure, not a source-side
+weight. Two directions of the same edge; two different maths.
+
+**Zero-cost probe (before any new spend):** with only 3 of 10 central
+follower lists on hand, 368 accounts follow >=2 central; **150 unknown to the
+operator** (proxy: not in his following — imperfect, wild_and_empty leaked
+through). Archetype found: @ascetic_shadow — 7/10 central inside 317 total
+follows, 312 followers.
+
+**Authorized acquisition (operator, explicit):** typed-edge extraction from
+dumps ($0; 130 edges landed in `api_typed_edges`); silent-anchor follows
+($0.013 receipt; OortCloudAtlas 455, stephen_zerfas 390, BerkeleyAlembic 50,
+gwern 0 — protected or blocked); full central follower harvest; membrane
+profile resolution (~400); deeper anchor timelines; top-100 membrane
+timelines. Running detached (`omnibus.py`, $4.50 hard stop, receipts in
+`data/private/takes-history/omnibus.log`); output deck
+`membrane-deck-20260803.md`.
+
+**Validation criterion (operator's, now the system's):** "using this system I
+am able to discover great accounts that I didn't know." The membrane deck IS
+the Precision@20 instrument — judging it is simultaneously the discovery-
+endpoint test that EXP-041 could not run and the first real outreach list.
+
+**Known limits going in:** "unknown" proxied by non-following; follower
+harvests capped at 5k/account (fame-biased truncation for big centrals);
+gwern's list unavailable; membrane candidates' own following lists mostly
+unfetched, so taste denominators come from claimed counts, not observed edges.
+
+---
+
 ## EXP-041: Can the tagging workspace become the product without risking 93 real judgments?
 
 **Date:** 2026-08-03
@@ -23,28 +69,38 @@ retrieval score presented as calibrated model opinion falsifies the slice.
 
 **Method:** Behavior-first frontend tests encoded the operator's labels and
 workflow before the refactor. The first run rejected the old surface on 8/11
-new assertions for the expected reasons; a separate store test showed that a
-fully retracted tag disappeared from vocabulary. The implementation extracted
-the judgment state at the feature seam, added a stable historical vocabulary,
-and introduced one additive `tag_meta_notes` table plus authenticated read/
-append routes. A bounded verifier opened the real database with `mode=ro` and
-`query_only`, copied it through SQLite backup into a temporary directory, ran
-the schema initializer only there, and compared core row counts and digests.
+new assertions for the expected reasons; separate falsifiers reproduced a
+fully retracted tag disappearing from vocabulary, stale account/tag async
+results crossing identity switches, unsaved meta-note drafts disappearing,
+source edits taking down the queue, and manual queue state vanishing on
+remount. The implementation extracted judgment state at the feature seam,
+added stable historical vocabulary and browser-local scratch state, degraded
+stale proposals independently of current source text, and introduced one
+additive `tag_meta_notes` table plus authenticated read/append routes. A
+bounded verifier opened the real database with `mode=ro` and `query_only`,
+copied it through SQLite backup into a temporary directory, ran the schema
+initializer only there, and compared core row counts and digests.
 
 **Result:** Confirmed at the behavioral/storage-contract layer. The live read
 observed `93` current assignments, `93` events, `52` accounts, and `31` tags.
 The temporary migration retained `93/93` and identical core row digests while
 adding an empty note table; all quick checks passed. Focused tests passed `15`
-backend and `31` frontend cases. The integrated verifier passed `10/10`; spend
-was `$0`, with no network, model, external API, or live-database write.
+backend and `31` frontend cases before the final persistence/source falsifiers;
+the final bounded run passed `24` backend and `47` frontend cases. Full
+regressions passed `1,698` Python tests (5 skipped), `786` frontend tests, and
+the production build. The integrated verifier passed `10/10`; spend was `$0`,
+with no network, model, external API, or live-database write.
 
 **Lesson:** The useful safety boundary is proportional: protect real judgments
-with a read-only source and temp-copy migration test, while keeping reversible
-UI state cheap. Stable vocabulary must derive from history as well as current
-assignments, or retraction accidentally erases the operator's language.
+with a read-only source and temp-copy migration test, while making reversible
+scratch state cheap and refresh-safe. Stable vocabulary must derive from
+history as well as current assignments, or retraction accidentally erases the
+operator's language. Proposal validity is a separable claim: stale suggestions
+must not make the current source corpus unavailable.
 
-**Limitations:** Search is lexical rather than semantic; suggestion dismissal,
-pasted queue entries, and account investigation notes remain session-local;
+**Limitations:** Search is lexical rather than semantic; suggestion dismissal
+is browser-session scoped; pasted accounts and investigation notes are local
+to one browser rather than server-synced; proposal regeneration is external;
 the browser shows only recent tag-note history; and candidate surfacing remains
 an uncalibrated selective-follow retrieval diagnostic. Automated contracts do
 not replace live responsive-layout review.
