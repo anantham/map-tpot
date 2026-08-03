@@ -152,3 +152,5 @@ Last reviewed: 2026-08-01
 - Mark superseded docs here explicitly rather than leaving silent drift.
 - `docs/PROJECT_STRUCTURE.md` is referenced by `AGENTS.md` but missing; the
   active refactor ledger tracks the repair without inventing a replacement.
+
+- `product/2026-08-03-tagging-workspace-ux-feedback.md` — operator UX feedback on the tagging workspace, ordered P1–P3 (layout, polarity grouping, tag autocomplete, per-tag meta-notes). Recorded 2026-08-03, pre-implementation.
