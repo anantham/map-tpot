@@ -91,3 +91,19 @@ operator's action surface should hold the primary position.
   answer for now is abstain + investigation note; calibrated numbers are a
   model output later, checked against binary verdicts).
 - Any change to tag/event storage semantics beyond the P3 note table.
+
+## Addendum (2026-08-03 evening) — two live findings from the first real session
+
+1. **P1 bug — hash-mismatch blast radius.** Appending two accounts to the takes
+   file broke the ENTIRE `/api/research-notes/source` endpoint ("proposals do
+   not match the configured source"), taking the queue down with it. Fail-closed
+   is right for the *proposals*; it is wrong for the *queue and source text*.
+   Degrade gracefully: serve source + queue, mark proposals
+   `stale — bound to <old hash>`, offer regeneration. The operator's corpus
+   file must remain editable without breaking the workspace.
+2. **P1 gap — pasted queue additions are session-only.** "Add to queue" writes
+   React state only; refresh loses it. Either persist pasted additions to a
+   durable side store or append them to the takes file (with provenance
+   marker) after operator confirmation. Until then the operator loses work on
+   refresh, which violates the "every move durable" expectation the tag store
+   already meets.
