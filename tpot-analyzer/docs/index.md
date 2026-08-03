@@ -13,6 +13,7 @@ Last reviewed: 2026-08-01
 | [Playbook](PLAYBOOK.md) | End-to-end daily workflow (backend, frontend, verification) |
 | [Vision](VISION.md) | Applied mission, evidence semantics, product and publication boundaries |
 | [Publishing and Privacy Boundary](product/2026-07-26-publishing-and-privacy-boundary.md) | Publishable snapshot fields, local/remote disclosure, and private dossier boundary |
+| [Tagging Workspace UX Feedback](product/2026-08-03-tagging-workspace-ux-feedback.md) | Operator UX feedback, ordered P1–P3: layout, polarity grouping, autocomplete, per-tag meta-notes |
 | [Personal-Ontology Implementation Plan](plans/2026-07-26-personal-ontology-active-discovery-implementation.md) | Current thin-slice sequence and entry/exit gates |
 | [Worklog](WORKLOG.md) | Timestamped implementation history and rationale |
 | [Roadmap](ROADMAP.md) | Living backlog and future work |
@@ -153,4 +154,3 @@ Last reviewed: 2026-08-01
 - `docs/PROJECT_STRUCTURE.md` is referenced by `AGENTS.md` but missing; the
   active refactor ledger tracks the repair without inventing a replacement.
 
-- `product/2026-08-03-tagging-workspace-ux-feedback.md` — operator UX feedback on the tagging workspace, ordered P1–P3 (layout, polarity grouping, tag autocomplete, per-tag meta-notes). Recorded 2026-08-03, pre-implementation.
