@@ -1,3 +1,5 @@
+import { xProfileUrl } from './xProfileUrl'
+
 function formatDate(value) {
   if (!value) return 'date unavailable'
   const parsed = new Date(value)
@@ -62,7 +64,7 @@ export default function RawDossier({ dossier }) {
         </div>
         {account.username && (
           <a
-            href={`https://x.com/${encodeURIComponent(account.username)}`}
+            href={xProfileUrl(account.username || account.accountId)}
             target="_blank"
             rel="noreferrer"
           >
