@@ -2,7 +2,115 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-08-02 (Takes-to-frontier feedback loop)*
+*Last updated: 2026-08-03 (operator-centered tagging workspace)*
+
+---
+
+## EXP-041: Can the tagging workspace become the product without risking 93 real judgments?
+
+**Date:** 2026-08-03
+
+**Question:** Can the interface put extensional judgment at the center, make
+polarity and vocabulary state legible, and support a changing per-tag meaning
+without losing or silently rewriting the operator's existing click corpus?
+
+**Hypothesis (`0.86`):** Reordering the page to evidence → judgment →
+consequence → audit, splitting `IN` / `NOT IN`, adding inert/collapsible Takes
+suggestions and lexical fuzzy tag reuse, and appending versioned tag notes will
+reduce operator search cost without changing account-tag semantics. Any lost
+current/event row, auto-written suggestion, overwritten note version, or
+retrieval score presented as calibrated model opinion falsifies the slice.
+
+**Method:** Behavior-first frontend tests encoded the operator's labels and
+workflow before the refactor. The first run rejected the old surface on 8/11
+new assertions for the expected reasons; a separate store test showed that a
+fully retracted tag disappeared from vocabulary. The implementation extracted
+the judgment state at the feature seam, added a stable historical vocabulary,
+and introduced one additive `tag_meta_notes` table plus authenticated read/
+append routes. A bounded verifier opened the real database with `mode=ro` and
+`query_only`, copied it through SQLite backup into a temporary directory, ran
+the schema initializer only there, and compared core row counts and digests.
+
+**Result:** Confirmed at the behavioral/storage-contract layer. The live read
+observed `93` current assignments, `93` events, `52` accounts, and `31` tags.
+The temporary migration retained `93/93` and identical core row digests while
+adding an empty note table; all quick checks passed. Focused tests passed `15`
+backend and `31` frontend cases. The integrated verifier passed `10/10`; spend
+was `$0`, with no network, model, external API, or live-database write.
+
+**Lesson:** The useful safety boundary is proportional: protect real judgments
+with a read-only source and temp-copy migration test, while keeping reversible
+UI state cheap. Stable vocabulary must derive from history as well as current
+assignments, or retraction accidentally erases the operator's language.
+
+**Limitations:** Search is lexical rather than semantic; suggestion dismissal,
+pasted queue entries, and account investigation notes remain session-local;
+the browser shows only recent tag-note history; and candidate surfacing remains
+an uncalibrated selective-follow retrieval diagnostic. Automated contracts do
+not replace live responsive-layout review.
+
+**Next step:** Serve this revision in the paired local runtime, inspect one
+wide and one narrow layout, then perform one add/retract and one tag-note
+version cycle. Do not add another substrate before observing that workflow.
+
+---
+
+## EXP-041: Cross-validated hyperparameter sweep — selectivity is a point in a grid, and it loses
+
+**Date:** 2026-08-03 (operator-directed: "shuffle the holdout and rerun — you
+don't need me to sit and answer again and again")
+
+**Question:** Treat the ranking method as a hyperparameter family
+`w(source)=1/max(deg,floor)^alpha`, negatives weighted `lambda` — where
+**alpha=0 IS raw counting** and alpha=1 is the shipped selectivity weighting.
+Which config best recovers held-out members under leave-one-out CV over the
+operator's existing judgments (no new human labor)? And how many anchors are
+needed before extrapolation works (learning curve)?
+
+**Method:** LOO over each tag's IN set; score candidates from remaining
+anchors; metric = held-out member's percentile in the candidate ranking
+(lower better). Grid: alpha in {0, .5, 1} x floor in {1, 25} x lambda in
+{0, 1}. Learning curve: random anchor subsets of size k, 12 resamples.
+Channels: follow edges only (typed channels next; see coverage caveat).
+
+**Result — alpha=0 (raw counting) wins on BOTH tags, at every config:**
+
+| tag | best config | mean held-out pct | alpha=0.5 | alpha=1 |
+|---|---|---|---|---|
+| dharma (8/4) | alpha=0, lam=0 | **4.0%** | 8.9% | worse |
+| tpot (27/1) | alpha=0 | **0.7%** | 0.8% | worse |
+
+The negative-anchor term (lambda=1) slightly HURTS recovery on dharma
+(5.1% vs 4.0%) and is a wash on tpot — consistent with negatives sculpting
+distinctiveness/precision rather than member-recall.
+
+**Learning curve — the minimum-data answer:**
+
+| anchors k | dharma | tpot |
+|---|---|---|
+| 2 | 15.0% | 11.9% |
+| 3 | **5.5%** | 7.0% |
+| 5 | 6.1% | **3.9%** |
+| 7 | 4.9% | 3.2% |
+
+**~3 good examples boot a coherent niche; ~5-7 a broad culture.** Returns
+flatten fast — the binding constraint after that is candidate coverage and
+the discovery endpoint, not more same-kind labels.
+
+**Honest limits:** (1) This endpoint structurally favors alpha=0 — held-out
+positives are prominent-in-neighborhood accounts, i.e. hub recovery, the same
+confound as EXP-040. Selectivity's remaining case is the DISCOVERY endpoint
+(precision on novel candidates), measurable only by operator judgment
+(Precision@20 blind interleave, pending). If it loses there too, remove it
+per the standing falsifier. (2) n is small; grid coarse; single channel.
+(3) Typed channels (retweet/reply/quote/mention pairs — tables exist) are the
+next ablation, but engagement coverage exists mainly for archive opt-ins, so
+channel comparisons must report coverage denominators or they measure the
+archive, not the method (EXP-040 caveat, still binding).
+
+**Standing capability:** this harness reruns free on every future label
+batch — each new tag gets its sweep and learning curve without operator time.
+Only novel-candidate precision ever needs human eyes.
 
 ---
 
