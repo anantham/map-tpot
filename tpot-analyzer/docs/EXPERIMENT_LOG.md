@@ -6,6 +6,57 @@
 
 ---
 
+## EXP-039: First live recovery probe — 91 real judgments, two withheld names
+
+**Date:** 2026-08-03
+
+**Question:** With the operator's first real tag corpus (91 append-only events,
+31 tags, ego=adityaarpitha), does the dharma frontier recover the two clean
+withheld probes (RomeoStevens76, TVachaW; OortCloudAtlas was tagged and is
+burned as a probe)?
+
+**Setup:** tag db = worktree `account_tags.db` (snapshot preserved in
+`data/private/takes-history/`); archive = canonical clean-main DB. Realized
+dharma anchors: 6 IN (nosilverv, dthorson, danielbrottman, nickcammarata,
+OortCloudAtlas, harry_taussig), 4 NOT IN (Plus3Happiness, stephen_zerfas,
+BerkeleyAlembic, gwern). Note: the operator's realized anchor set differs from
+the planned pilot roster — the 7 planned core-dharma INs (SuttaSlime,
+realityacid108, psswordprotectd, BunyipAlex88962, O1A2S3D, wild_and_empty)
+remain untagged; anchors skew neo-buddhist-adjacent.
+
+**Result:** Universe 3,000; ranked by contrast (positive − negative
+selectivity mass). **RomeoStevens76 #779 (+4/−1), TVachaW #797 (+2/−0) — both
+recovered, top ~26–27%, ≈1 bit each against uniform. Weak recovery, with an
+identifiable mechanism, not a null result.** Romeo carries 4-of-6 positive
+support but is penalized by a negative-anchor follow (hub effect: contrast
+measures *distinctively* dharma, not *member*). TVachaW has only 2 vouchers
+(young account). Meanwhile the top-15 is qualitatively strong dharma content:
+FU_joehudson, IkkyusDen, wholebodyprayer, kathryndevaney, carmenleelau,
+patriciamou_, QualiaRI, relic_radiation — plus slatestarcodex at #13
+(celebrity leakage persists).
+
+**Boundary information surfaced:** the model ranks kathryndevaney (#7,
+Alembic-adjacent meditation researcher) while the operator tagged
+BerkeleyAlembic NOT IN — a live human-vs-frontier disagreement worth
+adjudication. gwern as dharma NOT-IN is the corpus's first hard near-miss
+negative pair.
+
+**Vocabulary sprawl confirmed (operator's own predicted failure mode):** 31
+distinct tags, 19 singletons, incl. interface-design vs interface-builder and
+meditation / meditation-coach / jhana / neo-buddhist / non-dualism as separate
+tags. Only dharma (6/4) and tpot (27/1) have usable anchor structure.
+
+**Lesson:** Recovery rank is a function of the anchor set actually created,
+not the one planned. Contrast's negative penalty makes the frontier answer
+"distinctively dharma", which suits retrieval of new candidates but
+under-ranks hub members. Report support counts beside contrast.
+
+**Next step:** Operator tags the 7 planned core-dharma INs (all taggable,
+none withheld); rerun the probe — prediction: both probes rise materially.
+Then run contrast-vs-raw-support as the first ranking-method comparison.
+
+---
+
 ## EXP-038: Does the dharma group exist as social structure, or only as a retrieval list?
 
 **Date:** 2026-08-03
