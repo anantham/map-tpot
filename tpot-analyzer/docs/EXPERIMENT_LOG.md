@@ -2,7 +2,70 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-08-03 (operator-centered tagging workspace)*
+*Last updated: 2026-08-04 (dharma-v1 freeze + membrane deck preregistration)*
+
+---
+
+## EXP-044: First frozen ontology version and preregistered sealed judgment
+
+**Date:** 2026-08-04 (freeze executed 2026-08-03 ~18:45 UTC, before any deck row was read)
+
+**What was frozen:** `dharma-v1` = the operator's working extension at tag-store
+event 93 — 8 IN / 4 NOT-IN, SHA-256 `3b76e111e3cf…`, recorded in the private
+store (`dharma-v1-freeze.json`, gitignored with all account-level data). First
+use of the ADR-021 amendment's freeze mechanism since it was accepted.
+
+**Why (the leak being closed):** the working extension drifts toward the
+system's own output — the operator mostly tags accounts the system surfaces,
+so `I(target; method outputs) > 0` grows over time and evaluation degenerates
+into the method grading itself. Separately, adaptive peeking had consumed
+every prior label: the EXP-039 probes were re-inspected across three
+experiments and are development data now. The membrane deck judgments are the
+only untouched sample in the project; the freeze + preregistration exist to
+keep them clean.
+
+**Preregistered (before first read; full text in private store):** judge top
+40 deck rows in listed order, IN/OUT/ABSTAIN + glad-found + already-known.
+P1: >=12 of first 20 unknown rows IN-or-glad-found. P2: taste%-ordering beats
+central-count-ordering on precision@20 (post-hoc, quasi-blind). P3: >=5 of
+150 rows India-plausible location (aggregate check suggests this will FAIL at
+2 — recorded anyway). P4: abstention <=30%.
+
+**Disclosed contaminations:** (a) the >=3-central deck cutoff was chosen
+after observing the >=2 population size (8,747); (b) predictions P1–P4 were
+shown to the judge before judging — direction of bias would inflate P1;
+protocol corrected going forward to judge-first-reveal-after.
+
+**Acquisition context (receipts in private log):** central follower harvest
+complete (~$0.34 + $0.24 + $0.52 across three chained jobs; ~$2.90 campaign
+total). Membrane at >=3 centrals: 2,996 accounts; deck = top 150 with
+taste%, fame, declared location, bio.
+
+**Next:** operator judgment session; then P1–P4 verdicts logged here as
+EXP-045 regardless of outcome.
+
+---
+
+## EXP-043: Geography from graph homophily — share fails, lift works
+
+**Date:** 2026-08-03 (commit delayed by tooling permissions; recorded now).
+Operator hypothesis: "I don't put my location in bio but my friends are all
+Indian — who I follow will tell you." Permitted under ADR-021's 2026-08-03
+inferred-attribute amendment.
+
+**Method:** neighbors = following ∪ followers; bucket neighbors' *declared*
+locations; compare candidate's India share to the corpus base rate (1.6% of
+5,514 located profiles). Validation on three known-Indian accounts, one with
+no declared location (the operator).
+
+**Result:** raw share FAILS (India never top-3 — cosmopolitan feeds, US-heavy
+capture). **Lift succeeds on all three:** adityaarpitha 57/838 = 6.8% = 4.2x
+(strongest tested, undeclared); cneuralnetwork 2.9x (declares Bangalore);
+sukanthoriginal 2.0x. Third instance of the session's law: absolute counts
+measure the corpus; ratios against the base rate measure the person.
+
+**Adopted rule:** emit `geo_hypothesis` only when located-neighbor count
+k >= 5 AND lift >= 2, with counts as evidence spans; otherwise abstain.
 
 ---
 
