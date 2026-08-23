@@ -816,6 +816,12 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Infrastructure & Tooling
 
+- [ ] **Make GitHub discover the CI workflow** — Actions is enabled, but
+  `gh workflow list` returned no workflows after the 2026-08-23 main push
+  because `test.yml` lives under `tpot-analyzer/.github/workflows/` instead of
+  repository-root `.github/workflows/`. Move or add a root workflow while
+  preserving the current project-directory detection and exact Python/Node 22
+  commands; confirm a real push run before calling hosted CI green.
 - [ ] **Retire the 2026-08-23 consolidation recovery assets deliberately** —
   choose a retention window, then use `verify_repository_consolidation.py`
   before removing any dated preservation ref, worktree, parked stash, bundle,

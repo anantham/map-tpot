@@ -53,6 +53,13 @@
       claims. Existing non-failing React `act(...)`, canvas debug, dynamic-
       import, chunk-size, and SciPy warnings remain visible and were not
       goodharted into this repository-only scope.
+    - **Hosted CI gap:** GitHub Actions is enabled, but `gh workflow list` is
+      empty and the pushed commit created no run. The only workflow file is
+      nested at `tpot-analyzer/.github/workflows/test.yml`, outside GitHub's
+      repository-root discovery path. All gate totals above are exact local
+      executions of that workflow's commands; this release does not claim a
+      hosted-green run. The repair is tracked in `docs/ROADMAP.md` rather than
+      silently expanding this consolidation into CI relocation.
     - **Disposition at this checkpoint:** the integration branch is green and
       54 commits ahead of the fetched `origin/main`. Only local `main` will be
       fast-forwarded and pushed. Recovery refs, worktrees, legacy quarantine,

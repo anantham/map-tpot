@@ -49,6 +49,11 @@ every snapshot path to the result and ran the exact CI commands from
   `23` frontend paths / `77` backend routes / `0` gaps, both cluster fixtures,
   Python `1,768 passed, 5 skipped`, public site `212/212`, graph explorer
   `791/791`, both production builds, and the tagging verifier `10/10`.
+- Hosted GitHub Actions is enabled, but `gh workflow list` is empty and no run
+  was created for the push because the workflow is stored at
+  `tpot-analyzer/.github/workflows/test.yml`, not the repository-root discovery
+  path. These results are therefore exact local CI-equivalent gates, not a
+  hosted-green claim.
 - A first API-contract run failed only because the sandbox denied its normal
   local log write; the same command with checkout write permission passed.
   Default Node 26 was rejected in favor of the CI-pinned Node 22 runtime.
@@ -59,9 +64,10 @@ intentional work from sync/generated residue without deleting either. Snapshot
 content equivalence matters more than making the snapshot commit itself an
 ancestor when the approved goal is coherent, tested commits.
 
-**Next step:** Fast-forward local `main`, push only `main`, verify the live
-remote OID, and retain the local recovery refs, bundle, worktrees, legacy
+**Next step:** Retain the local recovery refs, bundle, worktrees, legacy
 quarantine, and parked stash until a separate explicit retirement decision.
+Move or proxy the nested workflow into repository-root `.github/workflows/`
+before treating a future push as hosted-CI validated.
 
 ---
 
