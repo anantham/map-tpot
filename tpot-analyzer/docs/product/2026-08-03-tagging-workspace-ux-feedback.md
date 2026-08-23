@@ -107,3 +107,71 @@ operator's action surface should hold the primary position.
    marker) after operator confirmation. Until then the operator loses work on
    refresh, which violates the "every move durable" expectation the tag store
    already meets.
+
+## Implementation amendment (2026-08-03 night)
+
+The operator-centered slice now implements the requested evidence → judgment →
+consequence → audit sequence:
+
+- Evidence remains first in document order. The working extension occupies the
+  center action column on wide screens; the consequence view is right/below,
+  and the collapsed audit trail is last. Responsive layouts preserve that DOM
+  order rather than visually reordering the workflow with CSS.
+- Current assignments are split into named `IN` and `NOT IN` regions. Changing
+  polarity and retracting a judgment are distinct actions; color is not the
+  only polarity signal.
+- Takes suggestions remain inert, can be dismissed for the current session,
+  auto-collapse when resolved, and can be reopened. Dismissal never writes an
+  account tag.
+- The tag picker shows the existing curator vocabulary and performs exact,
+  prefix, substring, and bounded edit-distance matching. A retracted tag stays
+  in the vocabulary so minor spelling variants do not recreate it silently.
+- Each `(ego, tag_key)` can now hold an optional append-only working-intension
+  note. Saving a new meaning or explicitly clearing it appends a version; it
+  does not rewrite prior notes or enforce the prose as a membership rule.
+- "Current frontier" is now **Candidates this tag surfaces**. The separate
+  **Model opinion — none yet (needs more tags)** statement remains empty rather
+  than laundering the source-selective candidate order into calibrated soft
+  membership.
+- Pasted accounts and edited account notes now use a versioned browser-local
+  queue. They survive refresh/remount and retain manual/frontier provenance;
+  corrupt or full browser storage produces a visible warning and keeps the
+  current work in memory instead of crashing the review.
+- A Takes/proposal hash mismatch now quarantines only the stale suggestions.
+  Current source text and its full account queue remain available, the UI
+  shows the old/current receipt, and an explicit reload rechecks the source.
+  Proposal generation itself is not automated in this screen yet.
+
+### Data-safety and verification boundary
+
+`scripts/verify_tagging_workspace_ux.py` opens the live tag database through a
+SQLite `mode=ro` URI plus `query_only`, reports judgment/event counts and row
+digests, and runs the additive note-schema migration only on a consistent
+temporary backup. At the implementation checkpoint it observed `93` current
+assignments and `93` append-only events across `52` accounts and `31` tags;
+the temp migration preserved both core counts and digests. Focused contracts
+passed `24` backend and `47` frontend tests. The full repository checks passed
+`1,698` Python tests (5 skipped) and `786` frontend tests, plus a production
+build. The verifier spends `$0` and makes no network, model, or external API
+call.
+
+### Explicit limitations (not hidden behind the UI)
+
+- Search is lexical fuzzy matching, not semantic embedding similarity. It
+  helps with typos and near spellings but will not infer that two unrelated
+  words are synonyms.
+- Suggestion dismissal is scoped to the current browser session. Pasted queue
+  additions and account investigation notes survive refresh in browser-local
+  storage, but are not server-synced, versioned as judgments, or multi-device;
+  clearing browser data removes them.
+- Stale/invalid Takes suggestions are visibly quarantined, but proposal
+  regeneration remains an external step; **Reload Takes source** only refetches
+  and never claims to run a model or spend money.
+- The tag-note read returns recent history (currently at most 50 versions in
+  the route's default read), not an unbounded browser rendering.
+- Candidate movement is a source-selective follow-graph retrieval diagnostic.
+  It is not confidence, cluster existence, competence, affiliation, or a
+  calibrated probability.
+- The automated verifier covers storage and behavioral contracts. A curator
+  still needs to inspect the responsive layout in the live browser after the
+  current frontend/backend runtime serves this revision.

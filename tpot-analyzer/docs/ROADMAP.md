@@ -3,7 +3,7 @@
 Living backlog of follow-on work items. Update this document as new ideas,
 coverage gaps, or UX improvements surface.
 
-*Last updated: 2026-08-02*
+*Last updated: 2026-08-03*
 
 ---
 
@@ -438,6 +438,30 @@ the curation surface must not ask for an abstract boundary definition.
   ID. A failed dossier retains an X investigation link and retry, but never
   creates a `handle:*` tag that can disappear after reload. Any future
   handle-only write path requires durable, reviewed alias reconciliation first.
+- [x] **Operator-centered tagging workspace (2026-08-03)** — center the working
+  extension, separate `IN` from `NOT IN`, distinguish retraction from negative
+  judgment, collapse Takes suggestions and audit history, provide keyboard-
+  accessible lexical fuzzy tag reuse, retain retracted tags in the vocabulary,
+  and append versioned per-tag working-intension notes. Candidate surfacing and
+  unavailable model opinion remain explicitly separate
+  (`scripts/verify_tagging_workspace_ux.py`).
+- [x] **Durable Research Notes scratch state (2026-08-03)** — pasted queue
+  additions and per-account investigation notes use a versioned browser-local
+  store, survive refresh/remount, retain manual/frontier provenance, and
+  degrade visibly to in-memory state if browser storage is corrupt or full.
+  This is local scratch state, not server-synced or multi-device gold data.
+- [x] **Editable-Takes degradation path (2026-08-03)** — a proposal/source hash mismatch
+  must quarantine stale proposals without taking down source text or the
+  account queue. The UI shows the old/current receipt, suppresses suggestions,
+  and can reload the source after an external regeneration.
+- [ ] **Automated Takes-proposal regeneration** — expose a bounded, explicit
+  regeneration action only after its producer and cost boundary are defined.
+  Until then say plainly that regeneration happens outside the UI; a reload
+  button must not imply that it regenerated anything.
+- [ ] **Semantic tag-name suggestions (conditional)** — measure lexical search
+  failures on real curation first. Add local embedding similarity only if
+  substring/edit-distance search leaves material synonym-driven vocabulary
+  sprawl; never merge tags automatically.
 - [ ] **Queue-wide classification overview** — batch-load known tag state for
   every queued/followed account so a fresh session can distinguish classified,
   unclassified, and unresolved rows without visiting each one. Until then,

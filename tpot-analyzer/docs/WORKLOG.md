@@ -1,5 +1,71 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 6H — Operator-Centered Tagging Workspace (2026-08-03)
+
+- [2026-08-03 21:52 IST] **Moved the extensional judgment loop into the
+  operator's primary workspace while preserving 93 real click events (Codex
+  GPT-5 with focused storage and adversarial UX peers)**
+    - **Hypothesis / fallback:** confidence `0.86` that evidence → centered
+      judgment → consequence → collapsed audit reduces curation friction
+      without changing tag semantics. Lost rows, auto-written proposals,
+      overwritten note history, or a retrieval score shown as confidence were
+      falsifiers; fallback was to retain the existing mutation API and revert
+      presentation only.
+    - **Judgment surface (`graph-explorer/src/AccountTagPanel.jsx:1-152`,
+      `ResearchNotesInbox.jsx:1-209`, `researchNotes/AccountTagPanel.css:1-271`,
+      `ResearchNotesReview.css:1-137`):** centers the working extension on wide
+      screens, preserves evidence-first DOM order responsively, separates
+      named `IN` / `NOT IN` regions, exposes retraction independently, and puts
+      collapsed recent history last. Judgment loading/mutation moved into
+      `useAccountTagWorkspace.js:1-133`; the queue rail moved into
+      `ResearchNotesQueuePanel.jsx:1-89` at the actual feature seam rather than
+      being split only to satisfy line count.
+    - **Vocabulary and suggestions (`TagAutocomplete.jsx:1-96`,
+      `tagSearch.js:1-58`, `TagSuggestions.jsx:1-142`,
+      `src/data/account_tag_vocabulary.py:1-37`):** keyboard-accessible exact/
+      prefix/substring/edit-distance reuse, history-backed vocabulary that
+      survives full retraction, and collapsible Takes suggestions that remain
+      inert until explicit `IN` / `NOT IN` action. Dismissal is explicitly
+      browser-session scoped. Stale/invalid proposal artifacts are quarantined
+      without hiding edited Takes text or its queue; old/current source
+      receipts and the non-automated regeneration boundary are visible.
+    - **Refresh-safe scratch state (`manualResearchStore.js`,
+      `useManualResearchState.js`):** pasted accounts, frontier additions, and
+      account-note drafts use a versioned browser-local store with provenance,
+      merge without duplicate handles, survive remount, and fall back visibly
+      to in-memory state on malformed/quota-limited storage.
+    - **Working meaning (`TagMetaNote.jsx:1-112`,
+      `src/data/tag_meta_notes.py:1-141`, `account_tag_schema.py:1-95`,
+      `src/api/routes/account_tags.py:1-252`, `accountsApi.js:1-129`):** adds an
+      authenticated append-only note per canonical `(ego, tag_key)`. Blank save
+      is an explicit clear event; previous versions remain. The prose is a
+      curator reflection, never an enforced definition or stronger evidence
+      than the examples.
+    - **Consequence language (`WorkingTagImpact.jsx:1-234`):** replaces system
+      jargon with “Candidates this tag surfaces,” keeps “Model opinion — none
+      yet” separate, and hides graph method detail behind progressive
+      disclosure. No membership percentage or cluster-existence claim was
+      introduced.
+    - **Data safety (`scripts/verify_tagging_workspace_ux.py:1-297`):** the live
+      DB is opened with SQLite `mode=ro` plus `query_only`; schema initialization
+      runs only on a temporary consistent backup. Checkpoint observation was
+      `current=93`, `events=93`, `accounts=52`, `tags=31`; migration preserved
+      the two core counts and row digests and passed SQLite quick-check before
+      and after. The verifier does not call a network, model, or paid API.
+    - **Verification:** `python3 scripts/verify_tagging_workspace_ux.py` →
+      `10/10` checks; backend `24 passed`; frontend `47 passed`; `$0` spend.
+      Full regressions: Python `1,698 passed, 5 skipped`; graph explorer
+      `786 passed`; production build and scoped ESLint passed.
+      Initial behavior-first tests failed on the old workflow as predicted, and
+      the historical-vocabulary test first reproduced tag disappearance before
+      the extraction fixed it (EXP-041).
+    - **Known limits / next:** lexical fuzzy search is not semantic similarity;
+      suggestion dismissal is browser-session scoped; scratch state is local,
+      not server-synced; tag-note reads are bounded; proposal regeneration is
+      external; candidate ranking is uncalibrated retrieval. Serve the
+      revision, perform live wide/narrow QA, then test one add/retract and one
+      meta-note version cycle before adding model machinery.
+
 ## Raw-First Retrieval Slice 6G — Visible Takes-to-Frontier Flywheel (2026-08-02)
 
 - [2026-08-02 13:40–16:06 IST] **Connected Aditya's existing notes to an
