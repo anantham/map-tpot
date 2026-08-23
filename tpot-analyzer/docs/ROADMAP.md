@@ -821,8 +821,9 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   because `test.yml` lives under `tpot-analyzer/.github/workflows/` instead of
   repository-root `.github/workflows/`. The repair branch relocates it while
   preserving project-directory detection and exact Python/Node 22 commands,
-  adds both production builds and patch hygiene, and must still prove a real
-  PR run before requiring its observed checks and pull requests on `main`.
+  adds both production builds and patch hygiene. Push run `32629747636` and PR
+  run `32629769099` passed all three jobs; completion now requires merging PR #8
+  and requiring those observed checks and pull requests on `main`.
 - [ ] **Retire the 2026-08-23 consolidation recovery assets deliberately** —
   choose a retention window, then use `verify_repository_consolidation.py`
   before removing any dated preservation ref, worktree, parked stash, bundle,
