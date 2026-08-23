@@ -31,10 +31,13 @@ integrity verifier before editing the workflow.
 workflow change, with zero matches for all three immutable references. After
 pinning checkout `v7.0.1` (`3d3c42e…`), setup-node `v7.0.0` (`8207627…`), and
 setup-python `v7.0.0` (`5fda3b9…`), it passed `23/23`. All three releases declare
-the Node 24 action runtime. Hosted proof remains pending.
+the Node 24 action runtime. Push run `32630550537` and pull-request run
+`32630564140` each passed all three jobs. The annotation endpoint returned `0`
+for every one of the six hosted check runs; the former warning is absent.
+**Hypothesis confirmed.**
 
-**Next step:** Prove the same three jobs on a protected PR and inspect run
-annotations; merge only if they pass and the Node 20 warning is absent.
+**Next step:** Keep action references immutable and update each pin deliberately
+when official releases change; do not replace this with a floating major tag.
 
 ---
 
