@@ -1,5 +1,49 @@
 # Worklog - TPOT Analyzer
 
+## Hosted CI Discovery and Main Protection (2026-08-23)
+
+- [2026-08-23 14:08 IST] **Made the existing gate discoverable and added build
+  coverage; hosted proof is the remaining falsifier (Codex GPT-5)**
+    - **Hypothesis / fallback:** confidence `0.97` that Actions had no workflow
+      because `test.yml` was below the repository discovery root, not because
+      the existing test contract was invalid. A missing workflow, absent job,
+      failed production build, or status context that cannot be required on
+      `main` is a falsifier. Fallback is to leave branch protection unchanged
+      and repair the branch through the PR rather than bypass a failing check.
+    - **Workflow (`/.github/workflows/test.yml:1-105`):** relocated the existing
+      three-job contract to the repository root, retained Python 3.11 and Node
+      22, preserved the credential-free pytest selection and fixture/API/docs
+      checks, added both production builds, full checkout history, concurrency
+      cancellation, and read-only contents permission.
+    - **Verification (`scripts/verify_ci_discovery.py:1-153`):** the first valid
+      execution failed `2/5` discovery invariants exactly because the root
+      workflow was absent and the nested workflow remained. An earlier marker
+      scan falsely treated long documentation separators as conflicts; the
+      exact seven-character marker pattern fixed that verifier defect before
+      accepting the baseline. After relocation the gate passed `20/20`,
+      including workflow contracts, conflict markers, and working/staged patch
+      whitespace. The all-zero first-push SHA uses `HEAD^` rather than scanning
+      historical repository whitespace; PRs still compare against their exact
+      base SHA.
+    - **Local gate:** Louvain `2/2`; docs hygiene `9/9`; API contracts `23`
+      frontend paths / `77` backend routes / `0` gaps; both cluster fixtures;
+      Python `1,768 passed, 5 skipped`; public site `212/212`; graph explorer
+      `791/791`; both production builds green. Clean installs used cached Node
+      `22.23.1`. The existing 20 SciPy warnings, React `act(...)` warnings,
+      canvas debug output, dynamic-import notice, and chunk-size warning remain
+      visible rather than being suppressed in a CI-only change.
+    - **Hosted proof:** push run `32629747636` and pull-request run
+      `32629769099` both completed successfully at commit `97e71f1`; each ran
+      `Python (pytest)`, `public-site (vitest + build)`, and `graph-explorer
+      (vitest + build)`. The PR run completed those jobs in 1m41s, 30s, and 51s
+      respectively. This confirms discovery, both event triggers, the exact
+      check names, and successful clean hosted installs/builds—not merely local
+      equivalence.
+    - **Remaining gate:** merge PR #8 after its evidence-only follow-up run,
+      then require those three observed checks plus pull requests on `main`.
+      Administrator bypass remains enabled initially so an incorrect new rule
+      cannot lock maintainers out.
+
 ## Repository Preservation and Canonical-Main Consolidation (2026-08-23)
 
 - [2026-08-23 13:10–13:42 IST] **Preserved, classified, integrated, and verified

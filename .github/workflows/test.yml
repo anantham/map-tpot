@@ -4,12 +4,21 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   python:
     name: Python (pytest)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -29,15 +38,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r "${PROJECT_DIR}/requirements.txt"
+      - name: Verify CI discovery and patch hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python "${PROJECT_DIR}/scripts/verify_ci_discovery.py" --base "${BASE_SHA}"
       - name: Verify Louvain dependency contract
-        run: |
-          python "${PROJECT_DIR}/scripts/verify_louvain_dependency_contract.py"
+        run: python "${PROJECT_DIR}/scripts/verify_louvain_dependency_contract.py"
       - name: Verify docs hygiene
-        run: |
-          python "${PROJECT_DIR}/scripts/verify_docs_hygiene.py"
+        run: python "${PROJECT_DIR}/scripts/verify_docs_hygiene.py"
       - name: Verify frontend/backend API contracts
-        run: |
-          PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_api_contracts.py"
+        run: PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_api_contracts.py"
       - name: Verify clusters (fixture, granularity 25)
         run: |
           PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_clusters.py" \
@@ -47,16 +57,14 @@ jobs:
           PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_clusters.py" \
             --base-path "${PROJECT_DIR}/tests/fixtures/medium_graph/graph_snapshot" --granularity 40
       - name: Pytest (excluding selenium + supabase-dependent suites)
-        # `-m 'not selenium and not requires_supabase'` honours the markers
-        # declared in pytest.ini. Selenium tests need a real browser; the
-        # supabase tests need a network secret we don't expose in CI.
+        # These suites need a real browser or a network secret unavailable in CI.
         run: |
           PYTHONPATH="${PROJECT_DIR}" python -m pytest "${PROJECT_DIR}/tests" \
             -m 'not selenium and not requires_supabase' \
             -q --tb=short --maxfail=20
 
   public-site:
-    name: public-site (vitest)
+    name: public-site (vitest + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -72,9 +80,11 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Vitest
         run: npx vitest run --reporter=default
+      - name: Production build
+        run: npm run build
 
   graph-explorer:
-    name: graph-explorer (vitest)
+    name: graph-explorer (vitest + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -89,7 +99,7 @@ jobs:
       - name: Install
         run: npm ci --no-audit --no-fund
       - name: Vitest (unit suite only; skip e2e/playwright)
-        # graph-explorer includes Playwright e2e under ./e2e — those need
-        # a browser and run via `npx playwright test`. CI here covers the
-        # vitest unit suite under ./src.
+        # Playwright e2e needs a browser; this job covers Vitest under ./src.
         run: npx vitest run src --reporter=default
+      - name: Production build
+        run: npm run build
