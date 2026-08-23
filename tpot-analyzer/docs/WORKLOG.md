@@ -1,5 +1,63 @@
 # Worklog - TPOT Analyzer
 
+## Repository Preservation and Canonical-Main Consolidation (2026-08-23)
+
+- [2026-08-23 13:10–13:42 IST] **Preserved, classified, integrated, and verified
+  every intentional repository surface before the main push (Codex GPT-5)**
+    - **Hypothesis / fallback:** confidence `0.94` that both divergent commit
+      lines and the 51-path raw worktree snapshot could be consolidated without
+      importing legacy sync/generated residue. Any unique legacy file, missing
+      snapshot content, absent recovery asset, upstream drift, or failed gate
+      was a stop condition. Recovery remained the six dated refs plus the
+      standalone bundle; main stayed at `7cfb45f` throughout investigation.
+    - **Preservation:** recorded exact refs for community archive `00214b4`,
+      local-first `bb9a29e`, personal ontology `d1cd76b`, raw-first `81d844d`,
+      the 51-path tree `bf2e61f`, and parked stash `21e50c0`. The 54,913,504-byte
+      bundle verifies at SHA-256
+      `f3ac9c2543ea403f90ae71176da2b99c4878c48da4c0fba7a3a34d9b7667a86b`.
+    - **Legacy quarantine:** a read-only normalized content/history scan covered
+      all 1,362 dirty records: 705 are represented in preserved current/history
+      content and 657 are approved exclusions (653 `sync-conflict-*`, two
+      generated Community Archive snapshot files, two registered worktree
+      directories). Unique intentional residue is zero. The legacy checkout was
+      not reset, cleaned, pulled, merged, or deleted.
+    - **History integration:** `ab4204c` merges the 42-commit raw line;
+      `26d6375` merges five personal-only commits and unions the two append-only
+      conflicts (`docs/EXPERIMENT_LOG.md`, `docs/WORKLOG.md`). `014b081` repairs
+      the raw branch's `docs/index.md:156` trailing blank-line gate.
+    - **Snapshot decomposition:** `2fc2827` restores backend tag vocabulary and
+      meta-notes (`src/api/routes/account_tags.py:1-252`,
+      `src/data/account_tag_{schema,vocabulary}.py`, `account_tags.py:1-290`,
+      `tag_meta_notes.py:1-141`, and tests); `572e1aa` restores source-section
+      proposal binding (`research_notes_source.py:1-271`,
+      `research_notes_sections.py:1-100`, and tests); `0e8740f` restores the 36
+      graph-explorer workspace paths; `c7a8952` restores the product amendment,
+      roadmap/worklog record, and `verify_tagging_workspace_ux.py:1-297`.
+      Coverage is 48 byte-identical paths, two EOF-whitespace repairs, and one
+      ordered Worklog union: 51/51 represented.
+    - **Consolidation gate (`scripts/_repository_consolidation_checks.py:1-222`,
+      `scripts/verify_repository_consolidation.py:1-60`):** checks cleanliness,
+      conflicts, whitespace, exact refs/dispositions, snapshot equivalence,
+      stash exclusion, raw worktree hash, bundle hash/verification, live legacy
+      classification, and optional pushed equality. It reports concrete counts
+      and recovery-oriented next steps.
+    - **Verification:** Louvain `2/2`; docs hygiene `9/9`; API contracts `23`
+      frontend paths, `77` routes, `0` gaps; cluster fixtures at granularities
+      25 and 40; Python `1,768 passed, 5 skipped` with 20 existing SciPy sparse
+      warnings; public site `212/212`; graph explorer `791/791`; production
+      builds green; tagging/data-safety verifier `10/10`. Node gates used the
+      CI-pinned `22.23.1` after clean `npm ci` installs.
+    - **Environment findings:** the first API-contract attempt was blocked from
+      writing `logs/api.log` by the sandbox, then passed unchanged with normal
+      checkout write permission. Default Node 26 was not used for release
+      claims. Existing non-failing React `act(...)`, canvas debug, dynamic-
+      import, chunk-size, and SciPy warnings remain visible and were not
+      goodharted into this repository-only scope.
+    - **Disposition at this checkpoint:** the integration branch is green and
+      54 commits ahead of the fetched `origin/main`. Only local `main` will be
+      fast-forwarded and pushed. Recovery refs, worktrees, legacy quarantine,
+      bundle, and the parked prototype stash remain intentionally local.
+
 ## Raw-First Retrieval Slice 6H — Operator-Centered Tagging Workspace (2026-08-03)
 
 - [2026-08-03 21:52 IST] **Moved the extensional judgment loop into the
