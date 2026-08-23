@@ -816,6 +816,12 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Infrastructure & Tooling
 
+- [x] **Remove the GitHub action-runtime deprecation warning with immutable
+  releases** — PR #10 pins official Node 24 releases (checkout v7.0.1,
+  setup-node/setup-python v7.0.0) to full commit SHAs and extends
+  `verify_ci_discovery.py`. Push run `32630550537` and PR run `32630564140`
+  passed all three jobs; all six job annotation lists were empty (completed
+  2026-08-23).
 - [x] **Make GitHub discover and enforce the CI workflow** — PR #8 relocated
   `test.yml` to repository-root `.github/workflows/`, preserved Python 3.11 and
   Node 22 test contracts, and added both production builds plus patch hygiene.
