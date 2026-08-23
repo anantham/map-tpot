@@ -39,10 +39,14 @@
       respectively. This confirms discovery, both event triggers, the exact
       check names, and successful clean hosted installs/builds—not merely local
       equivalence.
-    - **Remaining gate:** merge PR #8 after its evidence-only follow-up run,
-      then require those three observed checks plus pull requests on `main`.
-      Administrator bypass remains enabled initially so an incorrect new rule
-      cannot lock maintainers out.
+    - **Completion:** PR #8 merged as `f5c12d2`; its `main` push run
+      `32630037099` also passed all three jobs. Live branch protection now
+      requires pull requests and strict/up-to-date, GitHub-Actions-bound
+      `Python (pytest)`, `public-site (vitest + build)`, and `graph-explorer
+      (vitest + build)` checks. Required approvals remain `0` for the solo
+      repository, administrator enforcement is initially off, and force pushes
+      plus branch deletion are disabled. This evidence-only record is being
+      delivered through a second PR so the installed rule governs it.
 
 ## Repository Preservation and Canonical-Main Consolidation (2026-08-23)
 
