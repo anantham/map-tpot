@@ -153,4 +153,3 @@ Last reviewed: 2026-08-01
 - Mark superseded docs here explicitly rather than leaving silent drift.
 - `docs/PROJECT_STRUCTURE.md` is referenced by `AGENTS.md` but missing; the
   active refactor ledger tracks the repair without inventing a replacement.
-
