@@ -2,7 +2,52 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-08-23 (repository preservation and canonical-main consolidation)*
+*Last updated: 2026-08-23 (hosted CI discovery and main protection)*
+
+---
+
+## EXP-046: Does relocating the existing gate make CI discoverable and enforceable?
+
+**Date:** 2026-08-23
+
+**Question:** Is the absence of GitHub Actions runs caused by the nested
+workflow path, and can the existing Python/Node contract be made discoverable
+while adding production-build and patch-integrity coverage?
+
+**Hypothesis:** Confidence `0.97` that moving `test.yml` to repository-root
+`.github/workflows/` will expose three stable status contexts. Expected local
+red signal: root workflow missing and nested workflow present. Expected green
+signal: the discovery verifier recognizes all three jobs and exact runtime,
+install, test, build, permission, history, and hygiene contracts. Hosted
+falsifiers are any missing workflow/run/job or any job that fails on a real PR.
+Fallback is to keep `main` unprotected, diagnose the PR branch, and never waive
+or rename a failing contract merely to make it mergeable.
+
+**Method:** Added a human-readable verifier first, ran it against the nested
+layout, corrected its conflict-marker matcher after it falsely matched long
+documentation separators, then relocated the workflow. Preserved Python 3.11,
+Node 22, credential-free pytest markers, API/docs/Louvain/cluster gates, and
+added both frontend production builds, read-only permissions, full history,
+concurrency cancellation, exact conflict markers, and changed-patch whitespace.
+
+**Result (local checkpoint):** The valid pre-move verifier passed `3/5`; only
+root-workflow presence and nested-workflow retirement failed. The post-move
+verifier passed `20/20`. Louvain passed `2/2`; docs hygiene `9/9`; API contracts
+found `23` frontend paths / `77` routes / `0` gaps; both cluster fixtures
+passed; Python passed `1,768` with `5` skipped; public site passed `212/212`;
+graph explorer passed `791/791`; both production builds passed under cached
+Node `22.23.1`. Existing non-failing warnings remain visible. Hosted PR results
+are still required before this experiment is confirmed.
+
+**Lesson so far:** A verifier must distinguish new-patch defects from tolerated
+historical formatting debt. An all-tree whitespace scan on a branch's first
+push would fail thousands of pre-existing lines, so the first-push case checks
+`HEAD^..HEAD`; pull requests use their exact base SHA and direct subsequent
+pushes use the event's prior SHA.
+
+**Next step:** Run the exact local matrix, prove all three contexts on a real
+PR, merge only if green, then require those observed contexts and pull requests
+on `main` while retaining administrator bypass during initial rollout.
 
 ---
 
