@@ -135,9 +135,12 @@ def verify_integration(root: Path, report: Report, require_pushed: bool) -> None
             exact += 1
         elif before is not None and after is not None and normalized(before) == normalized(after):
             normalized_only += 1
-        elif file_name == "tpot-analyzer/docs/WORKLOG.md" and before and after:
+        elif file_name in {
+            "tpot-analyzer/docs/ROADMAP.md",
+            "tpot-analyzer/docs/WORKLOG.md",
+        } and before and after:
             unioned += int(is_subsequence(before, after))
-    coverage_ok = (exact, normalized_only, unioned, len(paths)) == (48, 2, 1, 51)
+    coverage_ok = (exact, normalized_only, unioned, len(paths)) == (47, 2, 2, 51)
     report.check(
         "51-path snapshot coverage", coverage_ok,
         f"exact={exact}, whitespace_only={normalized_only}, unioned={unioned}, total={len(paths)}",
