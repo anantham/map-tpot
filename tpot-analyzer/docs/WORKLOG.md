@@ -32,10 +32,17 @@
       `22.23.1`. The existing 20 SciPy warnings, React `act(...)` warnings,
       canvas debug output, dynamic-import notice, and chunk-size warning remain
       visible rather than being suppressed in a CI-only change.
-    - **Remaining gate:** push this branch, confirm all three real GitHub check
-      contexts on a PR, then merge and require those observed checks plus pull
-      requests on `main`. Administrator bypass remains enabled initially so an
-      incorrect new rule cannot lock maintainers out.
+    - **Hosted proof:** push run `32629747636` and pull-request run
+      `32629769099` both completed successfully at commit `97e71f1`; each ran
+      `Python (pytest)`, `public-site (vitest + build)`, and `graph-explorer
+      (vitest + build)`. The PR run completed those jobs in 1m41s, 30s, and 51s
+      respectively. This confirms discovery, both event triggers, the exact
+      check names, and successful clean hosted installs/builds—not merely local
+      equivalence.
+    - **Remaining gate:** merge PR #8 after its evidence-only follow-up run,
+      then require those three observed checks plus pull requests on `main`.
+      Administrator bypass remains enabled initially so an incorrect new rule
+      cannot lock maintainers out.
 
 ## Repository Preservation and Canonical-Main Consolidation (2026-08-23)
 

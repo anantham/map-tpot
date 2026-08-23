@@ -36,8 +36,10 @@ verifier passed `20/20`. Louvain passed `2/2`; docs hygiene `9/9`; API contracts
 found `23` frontend paths / `77` routes / `0` gaps; both cluster fixtures
 passed; Python passed `1,768` with `5` skipped; public site passed `212/212`;
 graph explorer passed `791/791`; both production builds passed under cached
-Node `22.23.1`. Existing non-failing warnings remain visible. Hosted PR results
-are still required before this experiment is confirmed.
+Node `22.23.1`. Existing non-failing warnings remain visible. Hosted push run
+`32629747636` and pull-request run `32629769099` both succeeded at `97e71f1`;
+each exposed and passed exactly `Python (pytest)`, `public-site (vitest +
+build)`, and `graph-explorer (vitest + build)`. **Hypothesis confirmed.**
 
 **Lesson so far:** A verifier must distinguish new-patch defects from tolerated
 historical formatting debt. An all-tree whitespace scan on a branch's first
@@ -45,9 +47,9 @@ push would fail thousands of pre-existing lines, so the first-push case checks
 `HEAD^..HEAD`; pull requests use their exact base SHA and direct subsequent
 pushes use the event's prior SHA.
 
-**Next step:** Run the exact local matrix, prove all three contexts on a real
-PR, merge only if green, then require those observed contexts and pull requests
-on `main` while retaining administrator bypass during initial rollout.
+**Next step:** Merge PR #8 only after the evidence-only follow-up run is green,
+then require the three observed contexts and pull requests on `main` while
+retaining administrator bypass during initial rollout.
 
 ---
 
