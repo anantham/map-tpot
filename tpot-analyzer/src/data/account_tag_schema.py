@@ -59,6 +59,23 @@ def initialize_account_tag_schema(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         """
+        CREATE TABLE IF NOT EXISTS tag_meta_notes (
+            note_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ego TEXT NOT NULL CHECK (length(ego) > 0),
+            tag_key TEXT NOT NULL CHECK (length(tag_key) > 0),
+            tag_display TEXT NOT NULL CHECK (length(tag_display) > 0),
+            note TEXT NOT NULL CHECK (length(note) <= 10000),
+            source TEXT NOT NULL CHECK (length(source) > 0),
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tag_meta_notes_subject "
+        "ON tag_meta_notes(ego, tag_key, note_id)"
+    )
+    conn.execute(
+        """
         INSERT INTO account_tag_events (
             ego, account_id, tag_key, tag_display, action, polarity,
             confidence, source, evidence_binding_status, recorded_at

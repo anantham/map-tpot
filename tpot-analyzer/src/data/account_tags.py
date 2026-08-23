@@ -14,6 +14,7 @@ from src.data.account_tag_history import (
     list_events,
 )
 from src.data.account_tag_schema import initialize_account_tag_schema
+from src.data.account_tag_vocabulary import list_distinct_vocabulary
 
 logger = logging.getLogger(__name__)
 
@@ -81,18 +82,7 @@ class AccountTagStore:
         ]
 
     def list_distinct_tags(self, *, ego: str) -> List[str]:
-        with sqlite3.connect(self.db_path) as conn:
-            cur = conn.execute(
-                """
-                SELECT DISTINCT tag_display
-                FROM account_tags
-                WHERE ego = ?
-                ORDER BY tag_display ASC
-                """,
-                (ego,),
-            )
-            rows = cur.fetchall()
-        return [row[0] for row in rows]
+        return list_distinct_vocabulary(db_path=self.db_path, ego=ego)
 
     def list_account_ids_for_tag(self, *, ego: str, tag: str) -> List[str]:
         """Return account ids positively tagged with the provided tag."""
