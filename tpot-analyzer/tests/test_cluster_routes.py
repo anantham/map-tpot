@@ -34,14 +34,18 @@ from src.graph.hierarchy.models import (
     HierarchicalViewData,
 )
 
+CURATOR_TOKEN = "cluster-route-curator-token"
+CURATOR_AUTH = {"X-TPOT-Curator-Token": CURATOR_TOKEN}
+
 
 # =============================================================================
 # Fixtures
 # =============================================================================
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
     """Create Flask test app with cluster blueprint."""
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
     app = Flask(__name__)
     app.register_blueprint(cluster_bp)
     app.config["TESTING"] = True
@@ -509,7 +513,10 @@ class TestTagSummaryEndpoint:
     def test_503_when_not_initialized(self, client):
         """Returns 503 when spectral data not loaded."""
         with patch("src.api.cluster.state._spectral_result", None):
-            resp = client.get("/api/clusters/d_0/tag_summary")
+            resp = client.get(
+                "/api/clusters/d_0/tag_summary",
+                headers=CURATOR_AUTH,
+            )
             assert resp.status_code == 503
 
     def test_400_when_ego_missing(self, client, mock_spectral_result):
@@ -517,6 +524,9 @@ class TestTagSummaryEndpoint:
         mock_adjacency = sparse.eye(len(mock_spectral_result.node_ids), format="csr")
         with patch("src.api.cluster.state._spectral_result", mock_spectral_result), \
              patch("src.api.cluster.state._adjacency", mock_adjacency):
-            resp = client.get("/api/clusters/d_0/tag_summary")
+            resp = client.get(
+                "/api/clusters/d_0/tag_summary",
+                headers=CURATOR_AUTH,
+            )
             assert resp.status_code == 400
             assert "ego" in resp.get_json().get("error", "").lower()

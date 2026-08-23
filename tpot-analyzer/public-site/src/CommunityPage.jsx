@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import './community-page.css'
 import iconographyData from '../../config/community_iconography.json'
+import LegacyMapNotice from './LegacyMapNotice'
+import { formatLegacyScore } from './legacyCommunitySemantics'
 
 const ICONOGRAPHY = iconographyData.communities
 
@@ -54,7 +56,7 @@ function SpotlightCard({ member, communityColor, onMemberClick }) {
           </a>
           <div className="cp-spotlight-bio">{member.bio}</div>
         </div>
-        <div className="cp-spotlight-weight">weight {member.weight.toFixed(2)}</div>
+        <div className="cp-spotlight-weight">legacy score {formatLegacyScore(member.weight)}</div>
       </div>
       {tweetsWithTop.map(t => (
         <TweetCard
@@ -118,7 +120,7 @@ export default function CommunityPage({
           <h1 className="cp-hero-name">{community.name}</h1>
           <p className="cp-hero-desc">{community.description}</p>
           <div className="cp-hero-meta">
-            <span>{browseableCount} members</span>
+            <span>{browseableCount} accounts in legacy view</span>
             <span>·</span>
             <span>{featured.length} featured</span>
             <span>·</span>
@@ -128,6 +130,8 @@ export default function CommunityPage({
           </div>
         </div>
       </div>
+
+      <LegacyMapNotice />
 
       {/* Community Identity — banner image + tagline */}
       {(() => {
@@ -160,7 +164,7 @@ export default function CommunityPage({
         {/* Left column: spotlights */}
         {featured.length > 0 && (
           <div className="cp-spotlights">
-            <div className="cp-section-label">Prototypical Members</div>
+            <div className="cp-section-label">Exploratory Examples</div>
             {featured.map(m => (
               <SpotlightCard
                 key={m.username}
@@ -176,7 +180,7 @@ export default function CommunityPage({
         {allMembers.length > 0 && (
           <div className="cp-all-members">
             <div className="cp-section-label">
-              All Members · {browseableCount}
+              Other Accounts in Legacy Export · {browseableCount}
             </div>
             <div className="cp-member-list">
               {allMembers.map(m => (

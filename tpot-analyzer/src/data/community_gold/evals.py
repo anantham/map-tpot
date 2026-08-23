@@ -3,13 +3,21 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional
 
-import numpy as np
-
 from .artifacts import SnapshotArtifacts
 from .constants import SPLIT_NAMES
-from .metrics import macro_average, summarize_binary_metrics, tune_threshold
+from .evaluation_reporting import (
+    DIAGNOSTIC_METRICS_INTERPRETATION,
+    evaluate_method_result,
+)
+from .metrics import macro_average
 
 EVALUATION_METHODS = ("canonical_map", "nmf_seeded", "louvain_transfer", "train_grf")
+METHOD_SCORE_SEMANTICS = {
+    "canonical_map": "affinity",
+    "nmf_seeded": "simplex",
+    "louvain_transfer": "affinity",
+    "train_grf": "affinity",
+}
 
 
 class CommunityGoldEvaluationMixin:
@@ -26,6 +34,13 @@ class CommunityGoldEvaluationMixin:
             raise ValueError("split must be one of: train, dev, test")
         if train_split not in SPLIT_NAMES:
             raise ValueError("train_split must be one of: train, dev, test")
+        if train_split == split:
+            raise ValueError("train_split and split must be different")
+        if train_split != "train" or split != "dev":
+            raise ValueError(
+                "legacy evaluator is limited to train->dev diagnostics; "
+                "sealed test access requires the versioned study evaluator"
+            )
 
         requested_methods = list(methods or EVALUATION_METHODS)
         unknown = sorted(set(requested_methods) - set(EVALUATION_METHODS))
@@ -44,6 +59,7 @@ class CommunityGoldEvaluationMixin:
                 JOIN account_community_gold_split s ON s.account_id = ls.account_id
                 JOIN community c ON c.id = ls.community_id
                 WHERE ls.is_active = 1
+                  AND ls.identity_status = 'legacy_unbound'
                   AND ls.reviewer = ?
                   AND s.split IN (?, ?)
                 ORDER BY c.name ASC, ls.account_id ASC
@@ -92,6 +108,20 @@ class CommunityGoldEvaluationMixin:
                         "abstain": len(community["labels"][split]["abstain"]),
                     },
                 }
+                coverage_by_split = {}
+                for split_name, counts in sample_counts.items():
+                    labelable_count = counts["in"] + counts["out"]
+                    total_reviewed = labelable_count + counts["abstain"]
+                    coverage_by_split[split_name] = {
+                        "totalReviewed": total_reviewed,
+                        "labelableCount": labelable_count,
+                        "abstainCount": counts["abstain"],
+                        "labelabilityRate": (
+                            labelable_count / total_reviewed
+                            if total_reviewed
+                            else None
+                        ),
+                    }
                 for method in requested_methods:
                     score_result = self._score_method(
                         conn=conn,
@@ -103,12 +133,14 @@ class CommunityGoldEvaluationMixin:
                         train_binary_ids=train_binary_ids,
                         eval_binary_ids=eval_binary_ids,
                     )
-                    per_method[method] = self._evaluate_method_result(
+                    method_result = evaluate_method_result(
                         score_result=score_result,
                         community=community,
                         train_split=train_split,
                         eval_split=split,
                     )
+                    method_result["scoreSemantics"] = METHOD_SCORE_SEMANTICS[method]
+                    per_method[method] = method_result
 
                 results.append(
                     {
@@ -116,6 +148,7 @@ class CommunityGoldEvaluationMixin:
                         "communityName": community["communityName"],
                         "communityColor": community["communityColor"],
                         "sampleCounts": sample_counts,
+                        "coverageBySplit": coverage_by_split,
                         "methods": per_method,
                     }
                 )
@@ -128,6 +161,10 @@ class CommunityGoldEvaluationMixin:
                 if item["methods"][method]["available"] and item["methods"][method].get("metrics")
             ]
             summary[method] = {
+                "scoreSemantics": METHOD_SCORE_SEMANTICS[method],
+                "calibrated": False,
+                "probabilityMetricsAvailable": False,
+                "metricsInterpretation": DIAGNOSTIC_METRICS_INTERPRETATION,
                 "scoredCommunities": len(rows),
                 "macroAucPr": macro_average(rows, "aucPr"),
                 "macroBrier": macro_average(rows, "brier"),
@@ -147,6 +184,7 @@ class CommunityGoldEvaluationMixin:
             "reviewer": reviewer,
             "split": split,
             "trainSplit": train_split,
+            "evaluationContract": "legacy_train_to_dev_diagnostic",
             "methods": requested_methods,
             "bestMethodByMacroAucPr": best_method,
             "summary": summary,
@@ -167,7 +205,17 @@ class CommunityGoldEvaluationMixin:
     ) -> Dict[str, Any]:
         target_ids = sorted(set(train_binary_ids + eval_binary_ids))
         if method == "canonical_map":
-            return {"available": True, "scores": self._canonical_scores(conn, community["communityId"], target_ids)}
+            return {
+                "available": True,
+                "scores": self._canonical_scores(
+                    conn,
+                    community["communityId"],
+                    target_ids,
+                ),
+                "missingScorePolicy": (
+                    "canonical map absence is the explicit zero baseline"
+                ),
+            }
         if method == "nmf_seeded":
             return self._nmf_scores(conn, community, target_ids)
         if method == "louvain_transfer":
@@ -179,47 +227,14 @@ class CommunityGoldEvaluationMixin:
                 if cached.get("available"):
                     grf_cache[community["communityId"]] = cached["scores"]
             if cached.get("available"):
-                return {"available": True, "scores": {account_id: cached["scores"].get(account_id, 0.0) for account_id in target_ids}}
+                return {
+                    "available": True,
+                    "scores": {
+                        account_id: cached["scores"][account_id]
+                        for account_id in target_ids
+                        if account_id in cached["scores"]
+                    },
+                    "missingScorePolicy": "unknown_excluded",
+                }
             return cached
         raise ValueError(f"Unsupported method '{method}'")
-
-    def _evaluate_method_result(
-        self,
-        *,
-        score_result: Dict[str, Any],
-        community: Dict[str, Any],
-        train_split: str,
-        eval_split: str,
-    ) -> Dict[str, Any]:
-        if not score_result.get("available"):
-            return score_result
-
-        train_labels = np.asarray(
-            [1] * len(community["labels"][train_split]["in"]) + [0] * len(community["labels"][train_split]["out"]),
-            dtype=np.int64,
-        )
-        train_ids = community["labels"][train_split]["in"] + community["labels"][train_split]["out"]
-        train_scores = np.asarray([float(score_result["scores"].get(account_id, 0.0)) for account_id in train_ids], dtype=np.float64)
-        threshold, threshold_source = tune_threshold(train_labels, train_scores)
-
-        eval_labels = np.asarray(
-            [1] * len(community["labels"][eval_split]["in"]) + [0] * len(community["labels"][eval_split]["out"]),
-            dtype=np.int64,
-        )
-        eval_ids = community["labels"][eval_split]["in"] + community["labels"][eval_split]["out"]
-        if eval_labels.size == 0 or len(np.unique(eval_labels)) < 2:
-            return {
-                "available": False,
-                "reason": "need at least one positive and one negative eval label",
-                "threshold": threshold,
-                "thresholdSource": threshold_source,
-            }
-        eval_scores = np.asarray([float(score_result["scores"].get(account_id, 0.0)) for account_id in eval_ids], dtype=np.float64)
-        return {
-            "available": True,
-            "threshold": threshold,
-            "thresholdSource": threshold_source,
-            "trainSampleCount": int(train_labels.size),
-            "evalSampleCount": int(eval_labels.size),
-            "metrics": summarize_binary_metrics(labels=eval_labels, scores=eval_scores, threshold=threshold),
-        }

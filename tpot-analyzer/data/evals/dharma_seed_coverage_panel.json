@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "panel_id": "dharma_named_seeds",
+  "panel_version": 1,
+  "created_at": "2026-07-30T12:20:24Z",
+  "scope": "User-named retrieval probes for a Dharma/meditation neighborhood. These are not exhaustive membership labels or a terminal evaluation set.",
+  "profile_claim_receipt": {
+    "observed_at": "2026-07-30T12:09:00Z",
+    "source": "Community Archive public read-only REST API",
+    "source_url": "https://fabxmporizzqflnftavs.supabase.co/rest/v1/all_account",
+    "query_semantics": "case-insensitive handle lookup; selected account_id, username, num_following, num_followers"
+  },
+  "seeds": [
+    {
+      "account_id": "820288038",
+      "handle_at_freeze": "RomeoStevens76",
+      "claimed_following": 700,
+      "claimed_followers": 11712
+    },
+    {
+      "account_id": "1911584655083487232",
+      "handle_at_freeze": "TVachaW",
+      "claimed_following": 2167,
+      "claimed_followers": 8070
+    },
+    {
+      "account_id": "1870910882005540864",
+      "handle_at_freeze": "realityacid108",
+      "claimed_following": 220,
+      "claimed_followers": 950
+    },
+    {
+      "account_id": "178241326",
+      "handle_at_freeze": "SuttaSlime",
+      "claimed_following": 59,
+      "claimed_followers": 1192
+    }
+  ]
+}

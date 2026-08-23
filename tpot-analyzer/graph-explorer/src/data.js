@@ -8,6 +8,7 @@
 import { API_BASE_URL, API_TIMEOUT_MS, API_TIMEOUT_SLOW_MS, withCuratorAuth } from './config';
 import { IndexedDBCache } from './cache/IndexedDBCache';
 import { fetchWithRetry } from './fetchClient';
+import { assertAccountMembershipResponse } from './membershipContract';
 
 /**
  * Performance tracking utility.
@@ -625,7 +626,11 @@ export const fetchClusterTagSummary = async ({ clusterId, n = 25, wl = 0, expand
   if (lens && lens !== 'full') params.set('lens', lens)
 
   const url = `${API_BASE_URL}/api/clusters/${clusterId}/tag_summary?${params.toString()}`
-  const res = await fetchWithRetry(url, { signal }, { timeoutMs: API_TIMEOUT_MS })
+  const res = await fetchWithRetry(
+    url,
+    withCuratorAuth({ signal }),
+    { timeoutMs: API_TIMEOUT_MS },
+  )
   const data = await res.json()
   return { ...data, _timing: res._timing }
 }
@@ -643,12 +648,17 @@ export const fetchAccountMembership = async ({ accountId, ego, signal }) => {
   const params = new URLSearchParams()
   params.set('ego', egoHandle)
   const url = `${API_BASE_URL}/api/clusters/accounts/${encodeURIComponent(account)}/membership?${params.toString()}`
-  const res = await fetchWithRetry(url, { signal }, { timeoutMs: API_TIMEOUT_MS })
+  const res = await fetchWithRetry(
+    url,
+    withCuratorAuth({ signal }),
+    { timeoutMs: API_TIMEOUT_MS },
+  )
   const payload = await res.json()
   if (!res.ok) {
     const detail = payload?.error || `Failed to fetch membership (${res.status})`
     throw new Error(detail)
   }
+  assertAccountMembershipResponse(payload)
   return { ...payload, _timing: res._timing }
 }
 

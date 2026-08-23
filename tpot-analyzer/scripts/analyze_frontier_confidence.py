@@ -1,7 +1,8 @@
-"""Analyze frontier confidence and surface high-entropy bridge accounts.
+"""Inspect compositional spread in a historical classic propagation artifact.
 
-This script identifies accounts with high uncertainty in their community 
-assignments, helping to find the "active boundary" of the TPOT map.
+The output is a candidate list from uncalibrated legacy scores. Entropy and
+``1 - entropy`` describe row composition; they are not confidence, posterior
+uncertainty, true bridge status, or membership.
 
 Usage:
     .venv/bin/python3 -m scripts.analyze_frontier_confidence
@@ -16,10 +17,21 @@ import numpy as np
 import pandas as pd
 
 from src.config import DEFAULT_DATA_DIR, DEFAULT_ARCHIVE_DB
+from src.propagation.bands import (
+    require_supported_band_artifact,
+)
 
 DATA_DIR = DEFAULT_DATA_DIR
 DB_PATH = DEFAULT_ARCHIVE_DB
 PROP_PATH = DATA_DIR / "community_propagation.npz"
+
+
+def load_propagation(path: Path):
+    """Load the propagation artifact used by this analysis."""
+    propagation = np.load(str(path), allow_pickle=True)
+    require_supported_band_artifact(propagation)
+    return propagation
+
 
 def load_usernames(db_path: Path) -> dict[str, str]:
     """Load {account_id: username} from profiles and resolved_accounts."""
@@ -44,7 +56,9 @@ def load_usernames(db_path: Path) -> dict[str, str]:
     return lookup
 
 def main():
-    parser = argparse.ArgumentParser(description="Analyze frontier confidence and bridge accounts")
+    parser = argparse.ArgumentParser(
+        description="Inspect classic-score composition candidates"
+    )
     parser.add_argument("--top-n", type=int, default=50, help="Number of high-entropy accounts to show")
     parser.add_argument("--min-score", type=float, default=0.01, help="Min score for community overlap")
     args = parser.parse_args()
@@ -54,7 +68,7 @@ def main():
         return
 
     print(f"Loading propagation results from {PROP_PATH}...")
-    prop = np.load(str(PROP_PATH), allow_pickle=True)
+    prop = load_propagation(PROP_PATH)
     
     memberships = prop["memberships"]  # (n, K+1)
     
@@ -65,7 +79,6 @@ def main():
         print("Calculating entropy from memberships...")
         entropy = multiclass_entropy(memberships)
         
-    uncertainty = prop["uncertainty"]  # (n,)
     node_ids = prop["node_ids"]        # (n,)
     community_names = prop["community_names"] # list of K strings
     labeled_mask = prop["labeled_mask"] # (n,) bool
@@ -77,8 +90,8 @@ def main():
     print(f"Resolving usernames from {DB_PATH}...")
     usernames = load_usernames(DB_PATH)
     
-    # Calculate Confidence Index (1 - Normalized Entropy)
-    confidence = (1.0 - entropy).clip(0.0, 1.0)
+    # Descriptive row concentration only; not calibrated confidence.
+    concentration = (1.0 - entropy).clip(0.0, 1.0)
     
     # Filter out labeled seeds and abstained nodes (if any)
     # Note: entropy is already 0 for seeds in classic mode
@@ -88,7 +101,7 @@ def main():
     df = pd.DataFrame({
         "node_id": node_ids,
         "entropy": entropy,
-        "confidence": confidence,
+        "concentration": concentration,
     })
     
     # Add username
@@ -111,46 +124,67 @@ def main():
     df["secondary_comm"] = [community_names[i] for i in top2_idx]
     df["secondary_score"] = top2_score
     df["none_score"] = memberships[:, -1]
-    
-    # 1. Surface High-Entropy Bridge Accounts
-    print(f"\n=== TOP {args.top_n} HIGH-ENTROPY BRIDGE ACCOUNTS ===")
-    print("These accounts have significant scores in 2+ communities (True Bridges)")
-    
-    # Filter for real signal: 
-    # - Not a seed
-    # - None score < 0.5 (must be somewhat in TPOT)
-    # - At least two communities with score > 0.02
-    signal_mask = unlabeled_mask & (df["none_score"] < 0.5) & (df["secondary_score"] > 0.02)
-    bridges = df[signal_mask].sort_values("entropy", ascending=False).head(args.top_n)
-    
-    print(f"{'Username':<20} {'Entropy':<8} {'Conf':<6} {'Primary (Score)':<30} {'Secondary (Score)':<30}")
+
+    # 1. Surface high-spread overlap candidates.
+    print(f"\n=== TOP {args.top_n} HIGH-SPREAD LEGACY OVERLAP CANDIDATES ===")
+    print(
+        "Two score columns clear the legacy filter. These are inspection "
+        "candidates, not validated bridges."
+    )
+
+    # Historical candidate gates only; none and community scores are not
+    # calibrated relevance or membership probabilities.
+    overlap_mask = (
+        unlabeled_mask
+        & (df["none_score"] < 0.5)
+        & (df["secondary_score"] > 0.02)
+    )
+    overlap_candidates = (
+        df[overlap_mask].sort_values("entropy", ascending=False).head(args.top_n)
+    )
+
+    print(f"{'Username':<20} {'Entropy':<8} {'Conc':<6} {'Primary (Score)':<30} {'Secondary (Score)':<30}")
     print("-" * 105)
-    for _, row in bridges.iterrows():
+    for _, row in overlap_candidates.iterrows():
         p_str = f"{row['primary_comm']} ({row['primary_score']:.2f})"
         s_str = f"{row['secondary_comm']} ({row['secondary_score']:.2f})"
-        print(f"{row['username']:<20} {row['entropy']:<8.3f} {row['confidence']:<6.2f} "
+        print(f"{row['username']:<20} {row['entropy']:<8.3f} {row['concentration']:<6.2f} "
               f"{p_str:<30} {s_str:<30}")
 
-    # 2. High-Confidence Frontier (Low Entropy)
-    print(f"\n=== TOP {args.top_n} HIGH-CONFIDENCE FRONTIER ACCOUNTS ===")
-    print("These are 'pure' members of a subculture we haven't officially labeled yet.")
+    # 2. Low-spread single-peak candidates.
+    print(f"\n=== TOP {args.top_n} LOW-SPREAD LEGACY SINGLE-PEAK CANDIDATES ===")
+    print(
+        "One score dominates the legacy row. This does not establish "
+        "membership or correctness."
+    )
     
     # Filter for:
     # - Not a seed
     # - High primary score (> 0.5)
     # - Low entropy (< 0.3)
-    pure_mask = unlabeled_mask & (df["primary_score"] > 0.5) & (df["entropy"] < 0.3)
-    pure = df[pure_mask].sort_values("primary_score", ascending=False).head(args.top_n)
-    
-    print(f"{'Username':<20} {'Entropy':<8} {'Conf':<6} {'Primary Community':<25} {'Score':<6}")
+    single_peak_mask = (
+        unlabeled_mask
+        & (df["primary_score"] > 0.5)
+        & (df["entropy"] < 0.3)
+    )
+    single_peak = (
+        df[single_peak_mask]
+        .sort_values("primary_score", ascending=False)
+        .head(args.top_n)
+    )
+
+    print(f"{'Username':<20} {'Entropy':<8} {'Conc':<6} {'Primary Community':<25} {'Score':<6}")
     print("-" * 75)
-    for _, row in pure.iterrows():
-        print(f"{row['username']:<20} {row['entropy']:<8.3f} {row['confidence']:<6.2f} "
+    for _, row in single_peak.iterrows():
+        print(f"{row['username']:<20} {row['entropy']:<8.3f} {row['concentration']:<6.2f} "
               f"{row['primary_comm']:<25} {row['primary_score']:<6.2f}")
 
     # 3. Community Overlap Matrix
-    print("\n=== COMMUNITY OVERLAP (MEAN CROSS-MEMBERSHIP) ===")
-    print("Higher values indicate communities that are hard to distinguish (redundant taxonomy?)")
+    print("\n=== LEGACY COMMUNITY OVERLAP (MEAN CROSS-SCORE) ===")
+    print(
+        "Higher values are a descriptive classic-score overlap, not "
+        "cross-membership."
+    )
     
     overlap = np.zeros((K, K))
     # Use nodes with strong signal to calculate overlap
@@ -178,15 +212,25 @@ def main():
     for a, b, v in overlaps[:15]:
         print(f"{a:<30} {b:<30} {v:<15.3f}")
 
-    # 3. Overall Confidence Stats
-    print("\n=== CONFIDENCE STATS ===")
-    print(f"Mean Confidence (unlabeled): {df[unlabeled_mask]['confidence'].mean():.3f}")
-    print(f"Median Confidence (unlabeled): {df[unlabeled_mask]['confidence'].median():.3f}")
-    
-    # Distribution of confidence
+    # 3. Overall compositional concentration stats.
+    print("\n=== COMPOSITIONAL CONCENTRATION STATS ===")
+    print(
+        "Mean concentration (unlabeled): "
+        f"{df[unlabeled_mask]['concentration'].mean():.3f}"
+    )
+    print(
+        "Median concentration (unlabeled): "
+        f"{df[unlabeled_mask]['concentration'].median():.3f}"
+    )
+
+    # Distribution of descriptive concentration.
     bins = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
-    dist = pd.cut(df[unlabeled_mask]["confidence"], bins).value_counts().sort_index()
-    print("\nConfidence Distribution:")
+    dist = (
+        pd.cut(df[unlabeled_mask]["concentration"], bins)
+        .value_counts()
+        .sort_index()
+    )
+    print("\nConcentration distribution:")
     for b, count in dist.items():
         print(f"  {str(b):<12}: {count:6,} accounts")
 

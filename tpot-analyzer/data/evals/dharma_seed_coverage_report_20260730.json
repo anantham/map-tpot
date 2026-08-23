@@ -1,0 +1,1508 @@
+{
+  "boundary": "Observed stored identity keys and content rows only. Follow source attribution is absent for the merged SQLite views; scores are not membership, probability, confidence, endorsement, or retrieval-quality evidence.",
+  "generated_at": "2026-07-30T13:02:29.705058+00:00",
+  "hypotheses": {
+    "H-C1_pinned_identity_uncontested": {
+      "falsified": false
+    },
+    "H-C2_outgoing_neighborhood_observed": {
+      "falsified": false
+    },
+    "H-C3_follow_acquisition_attributed": {
+      "falsified": true,
+      "reason": "current follow tables have no source, fetched_at, or run ID"
+    },
+    "H-C4_source_selectivity_operational": {
+      "falsified": false,
+      "quality_tested": false
+    }
+  },
+  "inputs": {
+    "api_price_card": {
+      "card_id": "twitterapiio-2026-07-30",
+      "official_sources": [
+        "https://twitterapi.io/pricing",
+        "https://docs.twitterapi.io/api-reference/endpoint/get_user_followings"
+      ],
+      "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT/.codex-worktrees/raw-first-retrieval/tpot-analyzer/data/manifests/twitterapiio_price_card_20260730.json",
+      "sha256": "c3a3f0070b58f0025ef57d336589ab9506d0ad53142fd4dc8655b55eae46ee88",
+      "size_bytes": 1108,
+      "verified_at": "2026-07-30T12:20:24Z"
+    },
+    "archive_db": {
+      "inode": 1391481,
+      "journal_mode": "wal",
+      "mtime_ns": 1785415839337652439,
+      "open_mode": "mode=ro; query_only=ON; read snapshot pinned before receipt",
+      "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT - clean-main/tpot-analyzer/data/archive_tweets.db",
+      "read_snapshot_established": true,
+      "size_bytes": 12184223744,
+      "snapshot_semantics": "mutable_query_time_view",
+      "wal": {
+        "mtime_ns": 1785416029381424868,
+        "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT - clean-main/tpot-analyzer/data/archive_tweets.db-wal",
+        "size_bytes": 0
+      }
+    },
+    "archive_snapshot": {
+      "account_count": 34917,
+      "created_at_max": "2026-07-30T04:24:20+00:00",
+      "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/data/community_archive/snapshots/20260730T045247Z-4913d0183e39",
+      "row_count": 8511975,
+      "sha256": "24843080391b664ed8a138cd65362a4c65756c95459858e19aca98ed7e87e471",
+      "snapshot_id": "20260730T045247Z-4913d0183e39",
+      "verification": "deep sha256 and manifest checks passed"
+    },
+    "cache_db": {
+      "inode": 194028,
+      "journal_mode": "wal",
+      "mtime_ns": 1774762817704998794,
+      "open_mode": "mode=ro; query_only=ON; read snapshot pinned before receipt",
+      "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/data/cache.db",
+      "read_snapshot_established": true,
+      "size_bytes": 351744000,
+      "snapshot_semantics": "mutable_query_time_view",
+      "wal": {
+        "mtime_ns": 1785412805595846762,
+        "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/data/cache.db-wal",
+        "size_bytes": 0
+      }
+    },
+    "cross_db_atomicity": "archive and cache each use a read transaction, but the two SQLite snapshots are not mutually atomic",
+    "seed_panel": {
+      "panel_id": "dharma_named_seeds",
+      "panel_version": 1,
+      "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT/.codex-worktrees/raw-first-retrieval/tpot-analyzer/data/evals/dharma_seed_coverage_panel.json",
+      "sha256": "66e0bb00483f90e6b0ce941e7d7e8acbb566b25724f5ab70eb7c1aaec2d37088",
+      "size_bytes": 1256
+    }
+  },
+  "path_comparison": {
+    "comparison_archive_db": {
+      "inode": 193797,
+      "journal_mode": "wal",
+      "mtime_ns": 1776348097039258753,
+      "open_mode": "mode=ro; query_only=ON; read snapshot pinned before receipt",
+      "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/data/archive_tweets.db",
+      "read_snapshot_established": true,
+      "size_bytes": 12184223744,
+      "snapshot_semantics": "mutable_query_time_view",
+      "wal": {
+        "mtime_ns": 1785412829040907868,
+        "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/data/archive_tweets.db-wal",
+        "size_bytes": 0
+      }
+    },
+    "comparison_candidate_count": 894,
+    "same_inode": false,
+    "seed_deltas": [
+      {
+        "account_id": "820288038",
+        "comparison_distinct_targets": 735,
+        "comparison_target_set_sha256": "cc698b0bec38095baabe280faac9c448ef16771c9eaff6fa7fe3a7bfc131a903",
+        "delta": 222,
+        "handle_at_freeze": "RomeoStevens76",
+        "same_target_digest": false,
+        "selected_distinct_targets": 957,
+        "selected_target_set_sha256": "8e7c385d329a4bfc8adb16f7cf74357e6feecd3a4b7204613ebddf93ed291503"
+      },
+      {
+        "account_id": "1911584655083487232",
+        "comparison_distinct_targets": 225,
+        "comparison_target_set_sha256": "42f2b97a3b382539c98cb04bd38da77506aaef21924174f42db943e3cbc64773",
+        "delta": 2098,
+        "handle_at_freeze": "TVachaW",
+        "same_target_digest": false,
+        "selected_distinct_targets": 2323,
+        "selected_target_set_sha256": "c42a2c902c688f54ca70e0117e8b4ffac19932cea412c038d0785de81c7a4221"
+      },
+      {
+        "account_id": "1870910882005540864",
+        "comparison_distinct_targets": 1,
+        "comparison_target_set_sha256": "4b79446c5f9c909278458fe2e6d7e7aa657c1e702f38a1899cae89404fec0b2b",
+        "delta": 225,
+        "handle_at_freeze": "realityacid108",
+        "same_target_digest": false,
+        "selected_distinct_targets": 226,
+        "selected_target_set_sha256": "2dac32b36521021172a7dc93cec402366fb99f33a9d0fbc0cb337ac0b913bdf6"
+      },
+      {
+        "account_id": "178241326",
+        "comparison_distinct_targets": 2,
+        "comparison_target_set_sha256": "2cc3af06c0da402671842f9480b5f5b40b51b511f53b365cf6e41b6a1d1d4243",
+        "delta": 56,
+        "handle_at_freeze": "SuttaSlime",
+        "same_target_digest": false,
+        "selected_distinct_targets": 58,
+        "selected_target_set_sha256": "ce460567dd3a12a2b9cb8dea75ac4f06f81ffad60d8b2f2b7c530134a663d054"
+      }
+    ],
+    "selected_archive_db": {
+      "inode": 1391481,
+      "journal_mode": "wal",
+      "mtime_ns": 1785415839337652439,
+      "open_mode": "mode=ro; query_only=ON; read snapshot pinned before receipt",
+      "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT - clean-main/tpot-analyzer/data/archive_tweets.db",
+      "read_snapshot_established": true,
+      "size_bytes": 12184223744,
+      "snapshot_semantics": "mutable_query_time_view",
+      "wal": {
+        "mtime_ns": 1785416029381424868,
+        "path": "/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT - clean-main/tpot-analyzer/data/archive_tweets.db-wal",
+        "size_bytes": 0
+      }
+    },
+    "selected_candidate_count": 3305
+  },
+  "ranking": {
+    "candidate_count": 3305,
+    "method": "source_selectivity_v1",
+    "ranking_input": "distinct stored-key union across available follow views",
+    "returned_top_k": 100,
+    "semantic_status": "uncalibrated_ranking_signal",
+    "top_candidates": [
+      {
+        "account_id": "1038586640",
+        "raw_support": 4,
+        "selectivity_score": 0.022849341213241402,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "danielbrottman"
+        ]
+      },
+      {
+        "account_id": "1181349398283993089",
+        "raw_support": 3,
+        "selectivity_score": 0.021804409133826565,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": [
+          "chercher_ai"
+        ]
+      },
+      {
+        "account_id": "1342588411232792579",
+        "raw_support": 3,
+        "selectivity_score": 0.021804409133826565,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": [
+          "TPatbat"
+        ]
+      },
+      {
+        "account_id": "1402372234077933568",
+        "raw_support": 3,
+        "selectivity_score": 0.021804409133826565,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": [
+          "rakkhasa_"
+        ]
+      },
+      {
+        "account_id": "1982576116088070144",
+        "raw_support": 3,
+        "selectivity_score": 0.021804409133826565,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1085075737907027969",
+        "raw_support": 2,
+        "selectivity_score": 0.021373931303434828,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108"
+        ],
+        "username_candidates": [
+          "JigokuCake"
+        ]
+      },
+      {
+        "account_id": "1160069840943513601",
+        "raw_support": 2,
+        "selectivity_score": 0.021373931303434828,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1250561749763440641",
+        "raw_support": 2,
+        "selectivity_score": 0.021373931303434828,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108"
+        ],
+        "username_candidates": [
+          "thecosmicpoet"
+        ]
+      },
+      {
+        "account_id": "1256680388",
+        "raw_support": 2,
+        "selectivity_score": 0.021373931303434828,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1578792789680136192",
+        "raw_support": 2,
+        "selectivity_score": 0.021373931303434828,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1584470880780161024",
+        "raw_support": 2,
+        "selectivity_score": 0.021373931303434828,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1904065714924802048",
+        "raw_support": 2,
+        "selectivity_score": 0.021373931303434828,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1960427232",
+        "raw_support": 2,
+        "selectivity_score": 0.021373931303434828,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108"
+        ],
+        "username_candidates": [
+          "tikkhapanna"
+        ]
+      },
+      {
+        "account_id": "607911401",
+        "raw_support": 2,
+        "selectivity_score": 0.021373931303434828,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "realityacid108"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1832517515328811011",
+        "raw_support": 2,
+        "selectivity_score": 0.017379630372764618,
+        "supporting_seeds": [
+          "SuttaSlime",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1019256135981944832",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "113754519",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1180617638113894400",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1203509480",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1249712390666506243",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": [
+          "missrachelreads"
+        ]
+      },
+      {
+        "account_id": "1254829729686982657",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": [
+          "Nyazsche"
+        ]
+      },
+      {
+        "account_id": "1284554749896019968",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1288739640334147584",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "140420226",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1437319629668499460",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": [
+          "tuna_ape"
+        ]
+      },
+      {
+        "account_id": "1477103471258062858",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1487891625837834242",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1493244874631663618",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1512935932550283270",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1546700865850966022",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1556215311610744832",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1598344660048613383",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1757991126202793984",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1800264407643217920",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1828078922250002432",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1883898606",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "18933499",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1900342278452817920",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1912687736537923584",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1930015435983851520",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1947291075540127744",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "210059519",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "2165958799",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "2368605835",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "245748105",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "2829904451",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "3031040120",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "3315705114",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "342379724",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "39638811",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "4293965117",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "4851972764",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "586655269",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "627068499",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "698294942398070785",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "703422304022212608",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "719277805440274432",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": [
+          "LanguageDoodad"
+        ]
+      },
+      {
+        "account_id": "78177848",
+        "raw_support": 1,
+        "selectivity_score": 0.01694915254237288,
+        "supporting_seeds": [
+          "SuttaSlime"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1044604087013015552",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "vividvoid"
+        ]
+      },
+      {
+        "account_id": "1095166279596625920",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1152313771307786241",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "carmenleelau"
+        ]
+      },
+      {
+        "account_id": "1359981346119155719",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "repligate"
+        ]
+      },
+      {
+        "account_id": "1524771111183044609",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "MarvinKeilbach"
+        ]
+      },
+      {
+        "account_id": "1527282187938123776",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "BeraHugs"
+        ]
+      },
+      {
+        "account_id": "1556182579035906049",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "doom_gazer"
+        ]
+      },
+      {
+        "account_id": "1561623816052572163",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "cube_flipper"
+        ]
+      },
+      {
+        "account_id": "18020718",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "Ogmin"
+        ]
+      },
+      {
+        "account_id": "223739116",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "durdfarm"
+        ]
+      },
+      {
+        "account_id": "24761783",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "nickcammarata"
+        ]
+      },
+      {
+        "account_id": "3742851378",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "WystanTBS"
+        ]
+      },
+      {
+        "account_id": "584224699",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "relic_radiation"
+        ]
+      },
+      {
+        "account_id": "86368957",
+        "raw_support": 3,
+        "selectivity_score": 0.005900188670868519,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "techgnostic"
+        ]
+      },
+      {
+        "account_id": "109865196",
+        "raw_support": 2,
+        "selectivity_score": 0.0054697108404767845,
+        "supporting_seeds": [
+          "realityacid108",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "KennethFolk"
+        ]
+      },
+      {
+        "account_id": "1201000918499463168",
+        "raw_support": 2,
+        "selectivity_score": 0.0054697108404767845,
+        "supporting_seeds": [
+          "realityacid108",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "QualiaRI"
+        ]
+      },
+      {
+        "account_id": "236634076",
+        "raw_support": 2,
+        "selectivity_score": 0.0054697108404767845,
+        "supporting_seeds": [
+          "realityacid108",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "olddog108"
+        ]
+      },
+      {
+        "account_id": "298510171",
+        "raw_support": 2,
+        "selectivity_score": 0.0054697108404767845,
+        "supporting_seeds": [
+          "realityacid108",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "stephen_zerfas"
+        ]
+      },
+      {
+        "account_id": "3007363086",
+        "raw_support": 2,
+        "selectivity_score": 0.0054697108404767845,
+        "supporting_seeds": [
+          "realityacid108",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "MatthewSacchet"
+        ]
+      },
+      {
+        "account_id": "3127370223",
+        "raw_support": 2,
+        "selectivity_score": 0.0054697108404767845,
+        "supporting_seeds": [
+          "realityacid108",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "noampomsky"
+        ]
+      },
+      {
+        "account_id": "779497280651071488",
+        "raw_support": 2,
+        "selectivity_score": 0.0054697108404767845,
+        "supporting_seeds": [
+          "realityacid108",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "WillManidis"
+        ]
+      },
+      {
+        "account_id": "89368633",
+        "raw_support": 2,
+        "selectivity_score": 0.0054697108404767845,
+        "supporting_seeds": [
+          "realityacid108",
+          "RomeoStevens76"
+        ],
+        "username_candidates": [
+          "BuddhaQuotes"
+        ]
+      },
+      {
+        "account_id": "100248311",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1012141552146059265",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1267796482800975873",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": [
+          "quantabhidharma"
+        ]
+      },
+      {
+        "account_id": "1321856186581352448",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1434637666033807360",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": [
+          "The4thWayYT"
+        ]
+      },
+      {
+        "account_id": "1586125551193899010",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "16884623",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": [
+          "visakanv"
+        ]
+      },
+      {
+        "account_id": "1730335465398730752",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": [
+          "jhanatech"
+        ]
+      },
+      {
+        "account_id": "1734771336180895744",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "17468569",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": [
+          "bryan_johnson"
+        ]
+      },
+      {
+        "account_id": "1753218684300992513",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1783595084388208641",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": [
+          "BIMBOSATTVA_"
+        ]
+      },
+      {
+        "account_id": "1811921078874161152",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1837611100554018816",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": [
+          "themopinomicon"
+        ]
+      },
+      {
+        "account_id": "1901421033716060160",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1917972363049639937",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1918635264467165184",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "1962178571243507712",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "2013902430489214976",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      },
+      {
+        "account_id": "2333418488",
+        "raw_support": 2,
+        "selectivity_score": 0.004855256591453682,
+        "supporting_seeds": [
+          "realityacid108",
+          "TVachaW"
+        ],
+        "username_candidates": []
+      }
+    ]
+  },
+  "report_schema_version": 1,
+  "seeds": [
+    {
+      "account_id": "820288038",
+      "claimed_followers": 11712,
+      "claimed_following": 700,
+      "content": {
+        "authored_reply_rows": 11202,
+        "authored_rows": 14542,
+        "created_at_max": "2026-07-30T04:11:52+00:00",
+        "created_at_min": "2014-02-07T23:51:08+00:00",
+        "incoming_nonself_reply_accounts": 670,
+        "incoming_nonself_reply_rows": 2947,
+        "status": "observed"
+      },
+      "follows": {
+        "full_refresh_estimate": {
+          "estimated_calls": 4,
+          "estimated_credits": 800,
+          "estimated_usd": 0.008
+        },
+        "merged_sqlite_direct": {
+          "distinct_targets": 769,
+          "status": "observed",
+          "timestamp_status": "not_recorded"
+        },
+        "merged_sqlite_inverse": {
+          "distinct_targets": 55,
+          "status": "observed",
+          "timestamp_status": "not_recorded"
+        },
+        "shadow_direct_following": {
+          "captured_at_max": "2025-10-18 21:35:13.971244",
+          "captured_at_min": "2025-10-18 21:35:13.971244",
+          "distinct_targets": 50,
+          "source_channels": [
+            "hybrid_selenium"
+          ],
+          "status": "observed",
+          "timestamp_status": "captured_at"
+        },
+        "shadow_inverse_following": {
+          "captured_at_max": "2025-11-25 08:41:41.708959",
+          "captured_at_min": "2025-10-04 22:20:00.626251",
+          "distinct_targets": 174,
+          "source_channels": [
+            "hybrid_selenium"
+          ],
+          "status": "observed",
+          "timestamp_status": "captured_at"
+        },
+        "source_attribution": {
+          "merged_sqlite": "unknown_or_mixed_ingestion_sources; current tables lack source, fetched_at, and run_id",
+          "merged_sqlite_attributed": false,
+          "shadow": "source_channel and fetched_at retained per view",
+          "union": "mixed sources; not attribution-clean"
+        },
+        "stored_key_union": {
+          "distinct_targets": 957,
+          "identity_semantics": "stored keys; unresolved aliases may duplicate people",
+          "status": "observed",
+          "target_set_sha256": "8e7c385d329a4bfc8adb16f7cf74357e6feecd3a4b7204613ebddf93ed291503"
+        }
+      },
+      "handle_at_freeze": "RomeoStevens76",
+      "identity": {
+        "conflicting_numeric_ids": [],
+        "pinned_account_id": "820288038",
+        "resolution_rule": "panel account_id remains authoritative for this report",
+        "status": "pinned"
+      },
+      "source_selectivity_diagnostic": {
+        "claimed_following_count": 700,
+        "degree_unknown": false,
+        "effective_degree": 957,
+        "observed_out_degree": 957
+      }
+    },
+    {
+      "account_id": "1911584655083487232",
+      "claimed_followers": 8070,
+      "claimed_following": 2167,
+      "content": {
+        "authored_reply_rows": 225,
+        "authored_rows": 290,
+        "created_at_max": "2026-07-24T13:00:02+00:00",
+        "created_at_min": "2025-04-19T00:48:04+00:00",
+        "incoming_nonself_reply_accounts": 69,
+        "incoming_nonself_reply_rows": 360,
+        "status": "observed"
+      },
+      "follows": {
+        "full_refresh_estimate": {
+          "estimated_calls": 11,
+          "estimated_credits": 2334,
+          "estimated_usd": 0.02334
+        },
+        "merged_sqlite_direct": {
+          "distinct_targets": 2165,
+          "status": "observed",
+          "timestamp_status": "not_recorded"
+        },
+        "merged_sqlite_inverse": {
+          "distinct_targets": 22,
+          "status": "observed",
+          "timestamp_status": "not_recorded"
+        },
+        "shadow_direct_following": {
+          "captured_at_max": "2025-10-20 03:44:07.046055",
+          "captured_at_min": "2025-10-20 03:44:07.046055",
+          "distinct_targets": 56,
+          "source_channels": [
+            "hybrid_selenium"
+          ],
+          "status": "observed",
+          "timestamp_status": "captured_at"
+        },
+        "shadow_inverse_following": {
+          "captured_at_max": "2025-11-25 08:59:03.676236",
+          "captured_at_min": "2025-10-04 22:29:22.767960",
+          "distinct_targets": 158,
+          "source_channels": [
+            "hybrid_selenium"
+          ],
+          "status": "observed",
+          "timestamp_status": "captured_at"
+        },
+        "source_attribution": {
+          "merged_sqlite": "unknown_or_mixed_ingestion_sources; current tables lack source, fetched_at, and run_id",
+          "merged_sqlite_attributed": false,
+          "shadow": "source_channel and fetched_at retained per view",
+          "union": "mixed sources; not attribution-clean"
+        },
+        "stored_key_union": {
+          "distinct_targets": 2323,
+          "identity_semantics": "stored keys; unresolved aliases may duplicate people",
+          "status": "observed",
+          "target_set_sha256": "c42a2c902c688f54ca70e0117e8b4ffac19932cea412c038d0785de81c7a4221"
+        }
+      },
+      "handle_at_freeze": "TVachaW",
+      "identity": {
+        "conflicting_numeric_ids": [],
+        "pinned_account_id": "1911584655083487232",
+        "resolution_rule": "panel account_id remains authoritative for this report",
+        "status": "pinned"
+      },
+      "source_selectivity_diagnostic": {
+        "claimed_following_count": 2167,
+        "degree_unknown": false,
+        "effective_degree": 2323,
+        "observed_out_degree": 2323
+      }
+    },
+    {
+      "account_id": "1870910882005540864",
+      "claimed_followers": 950,
+      "claimed_following": 220,
+      "content": {
+        "authored_reply_rows": 7,
+        "authored_rows": 7,
+        "created_at_max": "2026-04-02T02:44:51+00:00",
+        "created_at_min": "2025-12-05T20:58:18+00:00",
+        "incoming_nonself_reply_accounts": 6,
+        "incoming_nonself_reply_rows": 6,
+        "status": "observed"
+      },
+      "follows": {
+        "full_refresh_estimate": {
+          "estimated_calls": 2,
+          "estimated_credits": 260,
+          "estimated_usd": 0.0026
+        },
+        "merged_sqlite_direct": {
+          "distinct_targets": 226,
+          "status": "observed",
+          "timestamp_status": "not_recorded"
+        },
+        "merged_sqlite_inverse": {
+          "distinct_targets": 1,
+          "status": "observed",
+          "timestamp_status": "not_recorded"
+        },
+        "shadow_direct_following": {
+          "distinct_targets": 0,
+          "status": "observed",
+          "timestamp_status": "captured_at"
+        },
+        "shadow_inverse_following": {
+          "distinct_targets": 0,
+          "status": "observed",
+          "timestamp_status": "captured_at"
+        },
+        "source_attribution": {
+          "merged_sqlite": "unknown_or_mixed_ingestion_sources; current tables lack source, fetched_at, and run_id",
+          "merged_sqlite_attributed": false,
+          "shadow": "source_channel and fetched_at retained per view",
+          "union": "mixed sources; not attribution-clean"
+        },
+        "stored_key_union": {
+          "distinct_targets": 226,
+          "identity_semantics": "stored keys; unresolved aliases may duplicate people",
+          "status": "observed",
+          "target_set_sha256": "2dac32b36521021172a7dc93cec402366fb99f33a9d0fbc0cb337ac0b913bdf6"
+        }
+      },
+      "handle_at_freeze": "realityacid108",
+      "identity": {
+        "conflicting_numeric_ids": [],
+        "pinned_account_id": "1870910882005540864",
+        "resolution_rule": "panel account_id remains authoritative for this report",
+        "status": "pinned"
+      },
+      "source_selectivity_diagnostic": {
+        "claimed_following_count": 220,
+        "degree_unknown": false,
+        "effective_degree": 226,
+        "observed_out_degree": 226
+      }
+    },
+    {
+      "account_id": "178241326",
+      "claimed_followers": 1192,
+      "claimed_following": 59,
+      "content": {
+        "authored_reply_rows": 0,
+        "authored_rows": 1,
+        "created_at_max": "2025-10-16T15:29:34+00:00",
+        "created_at_min": "2025-10-16T15:29:34+00:00",
+        "incoming_nonself_reply_accounts": 4,
+        "incoming_nonself_reply_rows": 47,
+        "status": "observed"
+      },
+      "follows": {
+        "full_refresh_estimate": {
+          "estimated_calls": 1,
+          "estimated_credits": 177,
+          "estimated_usd": 0.00177
+        },
+        "merged_sqlite_direct": {
+          "distinct_targets": 58,
+          "status": "observed",
+          "timestamp_status": "not_recorded"
+        },
+        "merged_sqlite_inverse": {
+          "distinct_targets": 2,
+          "status": "observed",
+          "timestamp_status": "not_recorded"
+        },
+        "shadow_direct_following": {
+          "distinct_targets": 0,
+          "status": "observed",
+          "timestamp_status": "captured_at"
+        },
+        "shadow_inverse_following": {
+          "distinct_targets": 0,
+          "status": "observed",
+          "timestamp_status": "captured_at"
+        },
+        "source_attribution": {
+          "merged_sqlite": "unknown_or_mixed_ingestion_sources; current tables lack source, fetched_at, and run_id",
+          "merged_sqlite_attributed": false,
+          "shadow": "source_channel and fetched_at retained per view",
+          "union": "mixed sources; not attribution-clean"
+        },
+        "stored_key_union": {
+          "distinct_targets": 58,
+          "identity_semantics": "stored keys; unresolved aliases may duplicate people",
+          "status": "observed",
+          "target_set_sha256": "ce460567dd3a12a2b9cb8dea75ac4f06f81ffad60d8b2f2b7c530134a663d054"
+        }
+      },
+      "handle_at_freeze": "SuttaSlime",
+      "identity": {
+        "conflicting_numeric_ids": [],
+        "pinned_account_id": "178241326",
+        "resolution_rule": "panel account_id remains authoritative for this report",
+        "status": "pinned"
+      },
+      "source_selectivity_diagnostic": {
+        "claimed_following_count": 59,
+        "degree_unknown": false,
+        "effective_degree": 59,
+        "observed_out_degree": 58
+      }
+    }
+  ]
+}

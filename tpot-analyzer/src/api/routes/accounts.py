@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from flask import Blueprint, current_app, jsonify, request
@@ -12,8 +10,6 @@ from src.api.curator_auth import curator_only
 from src.api.responses import error_response
 
 from src.api.cluster import state as cluster_state
-from src.config import get_snapshot_dir
-from src.data.account_tags import AccountTagStore
 from src.graph import (
     save_seed_list,
     set_active_seed_list,
@@ -33,26 +29,8 @@ logger = logging.getLogger(__name__)
 
 accounts_bp = Blueprint("accounts", __name__, url_prefix="/api")
 
-_tag_store: Optional[AccountTagStore] = None
 _search_index: Optional[List[Tuple[str, str, str]]] = None  # (account_id, username_lc, display_name_lc)
 _search_index_graph_id: Optional[int] = None
-
-
-def _require_ego() -> str:
-    ego = (request.args.get("ego") or "").strip()
-    if not ego:
-        raise ValueError("ego query param is required")
-    return ego
-
-
-def _get_tag_store() -> AccountTagStore:
-    global _tag_store
-    if _tag_store is not None:
-        return _tag_store
-    snapshot_dir = get_snapshot_dir()
-    db_path = Path(snapshot_dir) / "account_tags.db"
-    _tag_store = AccountTagStore(db_path)
-    return _tag_store
 
 
 def _get_node_metadata() -> Dict[str, Dict]:
@@ -159,80 +137,6 @@ def search_accounts():
             }
         )
     return jsonify(results)
-
-
-@accounts_bp.route("/accounts/<account_id>/tags", methods=["GET"])
-def get_account_tags(account_id: str):
-    """List account tags for an ego."""
-    try:
-        ego = _require_ego()
-    except ValueError as exc:
-        return error_response(str(exc))
-    store = _get_tag_store()
-    tags = store.list_tags(ego=ego, account_id=str(account_id))
-    return jsonify({"ego": ego, "accountId": str(account_id), "tags": [asdict(t) for t in tags]})
-
-
-@accounts_bp.route("/accounts/<account_id>/tags", methods=["POST"])
-def upsert_account_tag(account_id: str):
-    """Upsert a tag for an account (scoped by ego)."""
-    try:
-        ego = _require_ego()
-    except ValueError as exc:
-        return error_response(str(exc))
-    data = request.get_json(silent=True) or {}
-    tag = (data.get("tag") or "").strip()
-    polarity_raw = data.get("polarity")
-    confidence = data.get("confidence")
-
-    polarity: Optional[int] = None
-    if polarity_raw in (1, -1):
-        polarity = int(polarity_raw)
-    elif isinstance(polarity_raw, str):
-        key = polarity_raw.strip().lower()
-        if key in ("in", "pos", "positive", "yes", "true"):
-            polarity = 1
-        elif key in ("not_in", "not-in", "neg", "negative", "no", "false"):
-            polarity = -1
-    if polarity is None:
-        return error_response("polarity must be 'in' or 'not_in'")
-
-    store = _get_tag_store()
-    try:
-        saved = store.upsert_tag(
-            ego=ego,
-            account_id=str(account_id),
-            tag=tag,
-            polarity=polarity,
-            confidence=float(confidence) if confidence is not None else None,
-        )
-    except Exception as exc:
-        logger.warning("Tag upsert failed ego=%s account=%s tag=%s: %s", ego, account_id, tag, exc)
-        return error_response("tag upsert failed")
-    return jsonify({"status": "ok", "tag": asdict(saved)})
-
-
-@accounts_bp.route("/accounts/<account_id>/tags/<tag>", methods=["DELETE"])
-def delete_account_tag(account_id: str, tag: str):
-    """Delete a tag for an account (scoped by ego)."""
-    try:
-        ego = _require_ego()
-    except ValueError as exc:
-        return error_response(str(exc))
-    store = _get_tag_store()
-    deleted = store.delete_tag(ego=ego, account_id=str(account_id), tag=tag)
-    return jsonify({"status": "deleted" if deleted else "not_found"})
-
-
-@accounts_bp.route("/tags", methods=["GET"])
-def list_tags():
-    """List distinct tags for an ego (for autocomplete)."""
-    try:
-        ego = _require_ego()
-    except ValueError as exc:
-        return error_response(str(exc))
-    store = _get_tag_store()
-    return jsonify({"ego": ego, "tags": store.list_distinct_tags(ego=ego)})
 
 
 @accounts_bp.route("/accounts/<account_id>/teleport_plan", methods=["GET"])

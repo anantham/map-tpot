@@ -13,6 +13,12 @@ from typing import Any
 
 import numpy as np
 
+from src.propagation.bands import (
+    propagation_artifact_mode,
+    reject_unbound_account_band_table,
+    require_supported_band_artifact,
+)
+
 logger = logging.getLogger(__name__)
 
 _INVALID_USERNAMES = {"nan", "none", ""}
@@ -235,7 +241,7 @@ def _load_npz_memberships(
     node_ids = data["node_ids"]                # (N,)
     community_ids = data["community_ids"]      # (K,)
 
-    # Detect mode from saved arrays
+    mode = propagation_artifact_mode(data)
     has_snc = "seed_neighbor_counts" in data
     snc = data["seed_neighbor_counts"] if has_snc else None
 
@@ -245,8 +251,7 @@ def _load_npz_memberships(
     has_ci = "confidence_intervals" in data
     ci_arr = data["confidence_intervals"] if has_ci else None
 
-    # If seed_neighbor_counts present, this is independent mode
-    is_independent = has_snc
+    is_independent = mode == "independent"
 
     n_communities = len(community_ids)
     result: dict[str, list[dict]] = {}
@@ -296,16 +301,15 @@ def extract_band_accounts(
     parquet_path: Path | None = None,
     min_weight: float = 0.05,
 ) -> list[dict[str, Any]]:
-    """Extract accounts using the four-band classification system.
+    """Reject unbound legacy bands; retain the old extractor behind the gate.
 
-    Reads account_band table and builds the account list:
+    The historical implementation reads account_band and builds:
     - exemplar: memberships from community_account (bits > NMF)
     - specialist/bridge/frontier: memberships from propagation NPZ
 
-    Accounts without a resolvable username are skipped.
-
-    Returns list of dicts: {id, tier, handle, memberships, ...}.
-    Falls back to extract_classified_accounts if account_band table doesn't exist.
+    No existing table records the exact NPZ digest, taxonomy, thresholds, or
+    method version that produced each row, so any present table is currently
+    quarantined. If the table is absent, classified-only rows remain available.
     """
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
@@ -319,6 +323,14 @@ def extract_band_accounts(
                 "account_band table not found, falling back to classified-only export"
             )
             return extract_classified_accounts(db_path, min_weight)
+
+        reject_unbound_account_band_table("public band export")
+        if not npz_path.exists():
+            raise RuntimeError(
+                f"account_band propagation artifact is missing: {npz_path}"
+            )
+        with np.load(str(npz_path), allow_pickle=False) as propagation:
+            require_supported_band_artifact(propagation)
 
         # Load all band assignments (including 'unknown' as 'faint')
         band_rows = conn.execute(

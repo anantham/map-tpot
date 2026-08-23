@@ -28,6 +28,8 @@ from typing import Any
 
 import numpy as np
 
+from src.propagation.bands import UnboundAccountBandError
+
 # Re-export helpers for backward compatibility (40+ test import sites)
 from scripts._export_helpers._community_extractors import (
     _INVALID_USERNAMES,
@@ -65,9 +67,9 @@ def run_export(
 ) -> None:
     """Main export entrypoint: reads data, assembles JSON, writes files.
 
-    Uses the four-band classification system (exemplar/specialist/bridge/frontier)
-    from the account_band table. Falls back to the legacy classified/propagated
-    system if account_band doesn't exist.
+    Exports classified rows directly. A legacy account_band table is used only
+    after exact artifact binding exists; until then it is quarantined and this
+    entrypoint falls back to classified-only rows.
 
     Args:
         data_dir: Directory containing graph_snapshot.nodes.parquet and
@@ -94,12 +96,19 @@ def run_export(
     parquet_path = data_dir / "graph_snapshot.nodes.parquet"
 
     logger.info("Extracting band accounts (min_weight=%.3f)", min_weight)
-    all_accounts = extract_band_accounts(
-        db_path=db_path,
-        npz_path=npz_path,
-        parquet_path=parquet_path,
-        min_weight=min_weight,
-    )
+    try:
+        all_accounts = extract_band_accounts(
+            db_path=db_path,
+            npz_path=npz_path,
+            parquet_path=parquet_path,
+            min_weight=min_weight,
+        )
+    except UnboundAccountBandError as exc:
+        logger.warning(
+            "%s; suppressing unbound bands and exporting classified-only rows",
+            exc,
+        )
+        all_accounts = extract_classified_accounts(db_path, min_weight)
     logger.info("Found %d accounts with resolved usernames", len(all_accounts))
 
     # Count by band
@@ -246,12 +255,18 @@ def run_export(
     for c in communities:
         c["slug"] = slug_registry[c["id"]]
 
-    # --- Enrich communities with featured members (exemplar only) ---
-    exemplar_accounts = [a for a in all_accounts if a["tier"] == "exemplar"]
+    # --- Enrich communities with direct seed/classified members only ---
+    # ``classified`` is the safe fallback tier when unbound band rows are
+    # suppressed. Propagated specialist/bridge/frontier rows stay excluded.
+    seed_accounts = [
+        account
+        for account in all_accounts
+        if account["tier"] in {"exemplar", "classified"}
+    ]
     for c in communities:
         cid = c["id"]
         members_with_weight = []
-        for acct in exemplar_accounts:
+        for acct in seed_accounts:
             uname = acct.get("username") or acct.get("handle")
             if not uname:
                 continue

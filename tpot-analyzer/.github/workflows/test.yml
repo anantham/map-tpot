@@ -38,11 +38,11 @@ jobs:
       - name: Verify frontend/backend API contracts
         run: |
           PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_api_contracts.py"
-      - name: Verify clusters (small)
+      - name: Verify clusters (fixture, granularity 25)
         run: |
           PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_clusters.py" \
-            --base-path "${PROJECT_DIR}/data/graph_snapshot" --granularity 25
-      - name: Verify clusters (medium fixture)
+            --base-path "${PROJECT_DIR}/tests/fixtures/medium_graph/graph_snapshot" --granularity 25
+      - name: Verify clusters (fixture, granularity 40)
         run: |
           PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_clusters.py" \
             --base-path "${PROJECT_DIR}/tests/fixtures/medium_graph/graph_snapshot" --granularity 40

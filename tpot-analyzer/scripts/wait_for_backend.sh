@@ -26,7 +26,7 @@ while [ $attempt -lt $MAX_ATTEMPTS ]; do
     fi
 
     sleep 1
-    ((attempt++))
+    ((attempt += 1))
 done
 
 echo "❌ Backend failed to respond within ${MAX_ATTEMPTS} seconds"

@@ -10,14 +10,14 @@ Human-friendly verification for:
 
 Usage:
   cd tpot-analyzer
-  python3 -m scripts.verify_search_teleport_tagging --base-url http://localhost:5001 --ego adityaarpitha
-  python3 scripts/verify_search_teleport_tagging.py --ego adityaarpitha
+  TPOT_CURATOR_TOKEN=... python3 -m scripts.verify_search_teleport_tagging
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -51,9 +51,11 @@ def _request_json(
     url: str,
     method: str = "GET",
     body: Optional[dict] = None,
+    extra_headers: Optional[dict[str, str]] = None,
     timeout_s: float = 30.0,
 ) -> Tuple[int, Any, int]:
     headers = {"Accept": "application/json"}
+    headers.update(extra_headers or {})
     data = None
     if body is not None:
         data = json.dumps(body).encode("utf-8")
@@ -81,7 +83,12 @@ def _request_json(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://localhost:5001", help="Flask API base URL")
-    parser.add_argument("--ego", default="adityaarpitha", help="Ego scope for tags (any non-empty string)")
+    parser.add_argument("--ego", default="verify_search_teleport", help="Isolated ego scope for verification tags")
+    parser.add_argument(
+        "--curator-token",
+        default=os.getenv("TPOT_CURATOR_TOKEN", ""),
+        help="Curator token (defaults to TPOT_CURATOR_TOKEN)",
+    )
     parser.add_argument("--budget", type=int, default=25, help="Budget cap for cluster views")
     parser.add_argument("--visible", type=int, default=11, help="Starting visible (n) to test teleport planning")
     args = parser.parse_args()
@@ -276,9 +283,26 @@ def main() -> int:
             print(_fmt_result(r))
         return 1
 
+    curator_token = (args.curator_token or "").strip()
+    if not curator_token:
+        results.append(
+            CheckResult(
+                name="Account tags CRUD",
+                ok=False,
+                detail="Skipped safely: pass --curator-token or set TPOT_CURATOR_TOKEN",
+            )
+        )
+        for r in results:
+            print(_fmt_result(r))
+        return 1
+    tag_headers = {
+        "X-TPOT-Curator-Token": curator_token,
+        "X-TPOT-Curation-Source": "verification_script",
+    }
+
     tag_value = f"verify_{_utc_now_compact()}"
     tags_url = f"{base_url}/api/accounts/{urllib.parse.quote(sample_account_id)}/tags?{urllib.parse.urlencode({'ego': ego})}"
-    status, up_payload, dur_ms = _request_json(url=tags_url, method="POST", body={"tag": tag_value, "polarity": "in"}, timeout_s=20.0)
+    status, up_payload, dur_ms = _request_json(url=tags_url, method="POST", body={"tag": tag_value, "polarity": "in"}, extra_headers=tag_headers, timeout_s=20.0)
     ok_up = status == 200 and isinstance(up_payload, dict) and up_payload.get("status") == "ok"
     results.append(
         CheckResult(
@@ -293,7 +317,7 @@ def main() -> int:
             print(_fmt_result(r))
         return 1
 
-    status, list_payload, dur_ms = _request_json(url=tags_url, timeout_s=20.0)
+    status, list_payload, dur_ms = _request_json(url=tags_url, extra_headers=tag_headers, timeout_s=20.0)
     listed = []
     if isinstance(list_payload, dict):
         listed = list_payload.get("tags") or []
@@ -325,7 +349,11 @@ def main() -> int:
                 }
             )
         )
-        status, summary_payload, dur_ms = _request_json(url=summary_url, timeout_s=30.0)
+        status, summary_payload, dur_ms = _request_json(
+            url=summary_url,
+            extra_headers=tag_headers,
+            timeout_s=30.0,
+        )
         ok_summary = status == 200 and isinstance(summary_payload, dict) and isinstance(summary_payload.get("tagCounts"), list)
         matched = None
         if ok_summary:
@@ -347,7 +375,7 @@ def main() -> int:
                 print(_fmt_result(r))
             return 1
 
-    status, up2_payload, dur_ms = _request_json(url=tags_url, method="POST", body={"tag": tag_value, "polarity": "not_in"}, timeout_s=20.0)
+    status, up2_payload, dur_ms = _request_json(url=tags_url, method="POST", body={"tag": tag_value, "polarity": "not_in"}, extra_headers=tag_headers, timeout_s=20.0)
     ok_up2 = status == 200 and isinstance(up2_payload, dict) and up2_payload.get("status") == "ok"
     results.append(
         CheckResult(
@@ -362,7 +390,7 @@ def main() -> int:
             print(_fmt_result(r))
         return 1
 
-    status, list2_payload, dur_ms = _request_json(url=tags_url, timeout_s=20.0)
+    status, list2_payload, dur_ms = _request_json(url=tags_url, extra_headers=tag_headers, timeout_s=20.0)
     listed2 = []
     if isinstance(list2_payload, dict):
         listed2 = list2_payload.get("tags") or []
@@ -381,7 +409,7 @@ def main() -> int:
         return 1
 
     distinct_url = f"{base_url}/api/tags?{urllib.parse.urlencode({'ego': ego})}"
-    status, distinct_payload, dur_ms = _request_json(url=distinct_url, timeout_s=20.0)
+    status, distinct_payload, dur_ms = _request_json(url=distinct_url, extra_headers=tag_headers, timeout_s=20.0)
     distinct = distinct_payload.get("tags") if isinstance(distinct_payload, dict) else None
     ok_distinct = status == 200 and isinstance(distinct, list)
     results.append(
@@ -397,12 +425,17 @@ def main() -> int:
             print(_fmt_result(r))
         return 1
 
-    del_url = f"{base_url}/api/accounts/{urllib.parse.quote(sample_account_id)}/tags/{urllib.parse.quote(tag_value)}?{urllib.parse.urlencode({'ego': ego})}"
-    status, del_payload, dur_ms = _request_json(url=del_url, method="DELETE", timeout_s=20.0)
+    status, del_payload, dur_ms = _request_json(
+        url=tags_url,
+        method="DELETE",
+        body={"tag": tag_value},
+        extra_headers=tag_headers,
+        timeout_s=20.0,
+    )
     ok_del = status == 200 and isinstance(del_payload, dict) and del_payload.get("status") in ("deleted", "not_found")
     results.append(
         CheckResult(
-            name="DELETE /api/accounts/<id>/tags/<tag>",
+            name="DELETE /api/accounts/<id>/tags",
             ok=ok_del,
             duration_ms=dur_ms,
             detail=f"status={del_payload.get('status') if isinstance(del_payload, dict) else None}",
@@ -413,7 +446,7 @@ def main() -> int:
             print(_fmt_result(r))
         return 1
 
-    status, list3_payload, dur_ms = _request_json(url=tags_url, timeout_s=20.0)
+    status, list3_payload, dur_ms = _request_json(url=tags_url, extra_headers=tag_headers, timeout_s=20.0)
     listed3 = []
     if isinstance(list3_payload, dict):
         listed3 = list3_payload.get("tags") or []

@@ -8,6 +8,7 @@ from typing import Dict, Set
 import numpy as np
 from flask import jsonify, request
 
+from src.api.curator_auth import curator_only
 from src.api.responses import error_response
 
 from src.api.cluster.state import (
@@ -137,6 +138,7 @@ def get_cluster_members(cluster_id: str):
 
 
 @cluster_bp.route("/<cluster_id>/tag_summary", methods=["GET"])
+@curator_only
 @_require_loaded
 def get_cluster_tag_summary(cluster_id: str):
     """Return per-tag counts (IN/NOT IN) for a cluster's members (scoped by ego)."""

@@ -1,15 +1,15 @@
 # Data Layer — Persistence, Caching & Feed Signals
 
 <!--
-Last verified: 2026-03-05
-Code hash: bb8bf98
-Verified by: agent
+Last verified: 2026-08-01
+Code state: extensional-tagging working-history slice
+Verified by: Codex
 -->
 
 ## Purpose
 
-The `src/data/` package is the persistence layer for all non-golden data. It has four
-independent concerns:
+The `src/data/` package is the persistence layer for non-golden data. Its
+independent concerns are:
 
 | Concern | Module(s) | Backend |
 |---------|-----------|---------|
@@ -17,7 +17,7 @@ independent concerns:
 | Archive blob import | `blob_importer.py` | SQLite (direct) + httpx |
 | Supabase REST cache | `fetcher.py` | SQLite via SQLAlchemy |
 | Extension feed signals | `feed_signals.py`, `feed_scope_policy.py` | SQLite (direct) |
-| Account tagging | `account_tags.py` | SQLite (direct) |
+| Account tagging | `account_tags.py`, `account_tag_history.py`, `account_tag_schema.py` | SQLite (direct) |
 | Golden curation | `golden/` subpackage | SQLite (direct) — see [`golden.md`](golden.md) |
 
 The golden subpackage is documented separately. `golden_store.py` is a 10-line re-export
@@ -281,16 +281,22 @@ whether a firehose relay is active, and allowlist filtering rules.
 
 ---
 
-## `AccountTagStore` — `account_tags.py` (265 LOC)
+## `AccountTagStore` — current projection plus event history
 
 Semantic account tags scoped by ego. Tags have polarity (`+1` = in-group, `-1` = excluded)
-and optional confidence, supporting anchor-conditioned TPOT membership (ADR-006).
+and optional confidence. The current projection supports fast UI and graph reads;
+an application-append-only event log retains set and remove activity with source,
+timestamp, and evidence-binding status. These are mutable working tags, not gold.
+
+Responsibilities are split across `account_tags.py` (store/query API),
+`account_tag_history.py` (event records), and `account_tag_schema.py` (DDL).
 
 ### Schema
 
 | Table | PK | Purpose |
 |-------|----|---------|
 | `account_tags` | `(ego, account_id, tag_key)` | Tag assignments; key stored casefolded |
+| `account_tag_events` | `event_id` | Ordered set/remove history; removals retain no current assignment |
 
 ### Public Methods
 
@@ -302,16 +308,27 @@ and optional confidence, supporting anchor-conditioned TPOT membership (ADR-006)
 | `list_account_ids_for_tags(ego, tags)` | `List[str]` | Accounts tagged with any of the given tags |
 | `list_tags_for_accounts(ego, account_ids)` | `List[AccountTag]` | Bulk tag fetch (batched to stay under SQLite 900-var limit) |
 | `list_anchor_polarities(ego)` | `List[tuple[str, int]]` | Per-account net polarity (`sign(sum(polarity))`) |
-| `upsert_tag(ego, account_id, tag, polarity, confidence)` | `AccountTag` | Insert or update tag |
-| `delete_tag(ego, account_id, tag)` | `bool` | Remove tag; returns True if found |
+| `list_events(ego, account_id, limit)` | `List[AccountTagEvent]` | Recent changes in chronological order |
+| `upsert_tag(..., source)` | `AccountTag` | Set current state and append a `set` event atomically |
+| `delete_tag(..., source)` | `bool` | Remove current state and append a `remove` event if found |
 
 ### Design Notes
 
 - **Casefolded keys, preserved display** — `tag_key` is lowercased for consistent lookups;
   `tag_display` preserves original capitalization for UI rendering.
+- **Distinct semantics** — explicit `NOT IN` remains current negative evidence;
+  remove retracts the current assignment and is retained only in history.
+- **Provenance boundary** — API mutations require an explicit source header.
+  Direct and derived tag reads require curator auth. Current Research Notes
+  events are `unbound`; freezing/evaluation is separate.
+- **Removal transport** — DELETE carries the free-text tag in a JSON body, not
+  a URL path, so tags such as `/r/LocalLLaMA` retain leading/internal slashes.
+- **Legacy projection backfill** — initialization creates one source-marked,
+  unbound `set` event for a pre-event current row and is restart-idempotent.
 - **Anchor polarity** — `list_anchor_polarities()` aggregates net polarity per account:
   `+1` if positive tags outweigh negative, `-1` if reverse, omitted if tied. Used by the
-  spectral clustering pipeline to condition membership inference (ADR-006).
+  spectral clustering pipeline to condition membership inference (ADR-006). It currently
+  aggregates across every tag key and must not be presented as a target-specific position.
 - **Batching** — `list_tags_for_accounts()` splits account_ids into chunks of 900 to stay
   under SQLite's variable limit.
 
@@ -325,7 +342,7 @@ blob_importer.py     ← httpx, pandas, sqlalchemy, stdlib
 fetcher.py           ← httpx, pandas, sqlalchemy, src.config
 feed_signals.py      ← src.data.feed_signals_queries, stdlib
 feed_scope_policy.py ← stdlib only
-account_tags.py      ← stdlib only
+account_tags.py      ← account_tag_history, account_tag_schema, stdlib
 golden_store.py      ← src.data.golden (re-export only)
 ```
 

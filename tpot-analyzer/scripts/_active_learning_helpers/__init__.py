@@ -1,6 +1,6 @@
 """Private helpers for `scripts/active_learning.py`.
 
-Split by phase: account selection (frontier_ranking + handle resolution),
+Split by phase: quarantined historical ranking + explicit handle resolution,
 LLM labeling (per-tweet enrichment + ensemble call), reporting (profile
 classification + inter-model agreement), measurement (rollup + seed insert).
 

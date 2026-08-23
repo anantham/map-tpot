@@ -1001,7 +1001,10 @@ describe('data.js API client', () => {
 
       await fetchClusterTagSummary({ clusterId: 'c1', ego: 'alice', signal: controller.signal })
 
-      expect(fetchWithRetry.mock.calls[0][1]).toEqual({ signal: controller.signal })
+      expect(fetchWithRetry.mock.calls[0][1]).toEqual({
+        signal: controller.signal,
+        headers: { 'X-TPOT-Curator-Token': 'test-curator-token' },
+      })
     })
 
     it('uses API_TIMEOUT_MS (not slow timeout)', async () => {

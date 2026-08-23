@@ -11,13 +11,15 @@ import {
   saveAccountNote,
   saveAccountWeights,
 } from './communitiesApi'
+import LegacyMapNotice from './LegacyMapNotice'
+import { formatLegacySource } from './legacyCommunitySemantics'
 
 const SECTION_KEYS = [
   'communities', 'followersYouKnow', 'notableFollowees', 'topTweets',
   'recentTweets', 'likedTweets', 'rtTargets', 'note',
 ]
 const SECTION_LABELS = {
-  communities: 'Community Weights',
+  communities: 'Legacy Map Scores',
   followersYouKnow: 'Followers You Know',
   notableFollowees: 'Notable Followees',
   topTweets: 'Top Tweets',
@@ -89,7 +91,7 @@ export default function AccountDeepDive({
         setNoteText(data.note || '')
         const w = {}
         for (const c of data.communities || []) {
-          w[c.community_id] = Math.round(c.weight * 100)
+          w[c.community_id] = Number(c.weight)
         }
         setWeights(w)
       })
@@ -117,7 +119,7 @@ export default function AccountDeepDive({
     setWeightsSaving(true)
     try {
       const payload = Object.entries(weights).map(([cid, w]) => ({
-        community_id: cid, weight: w / 100,
+        community_id: cid, weight: Number(w),
       }))
       await saveAccountWeights(accountId, payload)
       if (onWeightsChanged) onWeightsChanged()
@@ -258,7 +260,8 @@ export default function AccountDeepDive({
           {/* Community weights */}
           {sections.communities && (
             <div>
-              <div style={sectionHeaderStyle}>Community Weights</div>
+              <div style={sectionHeaderStyle}>Legacy Map Scores</div>
+              <LegacyMapNotice compact />
               {(preview.communities || []).map(c => (
                 <div key={c.community_id} style={{
                   display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
@@ -272,7 +275,7 @@ export default function AccountDeepDive({
                     {c.name}
                   </span>
                   <input
-                    type="range" min={0} max={100}
+                    type="range" min={0} max={1} step={0.001}
                     value={weights[c.community_id] ?? 0}
                     onChange={e => setWeights(prev => ({
                       ...prev, [c.community_id]: Number(e.target.value),
@@ -280,10 +283,10 @@ export default function AccountDeepDive({
                     style={{ width: 100, accentColor: c.color || '#3b82f6' }}
                   />
                   <input
-                    type="number" min={0} max={100}
+                    type="number" min={0} max={1} step={0.001}
                     value={weights[c.community_id] ?? 0}
                     onChange={e => setWeights(prev => ({
-                      ...prev, [c.community_id]: Math.max(0, Math.min(100, Number(e.target.value))),
+                      ...prev, [c.community_id]: Math.max(0, Math.min(1, Number(e.target.value))),
                     }))}
                     style={{
                       width: 48, padding: '2px 4px', fontSize: 12, textAlign: 'right',
@@ -298,7 +301,7 @@ export default function AccountDeepDive({
                     background: c.source === 'human' ? 'rgba(34,197,94,0.15)' : 'rgba(148,163,184,0.15)',
                     color: c.source === 'human' ? '#22c55e' : '#94a3b8',
                   }}>
-                    {c.source === 'human' ? 'H' : 'N'}
+                    {formatLegacySource(c.source)}
                   </span>
                 </div>
               ))}
@@ -318,7 +321,7 @@ export default function AccountDeepDive({
                 <button onClick={() => {
                   const sel = document.getElementById('add-community-select')
                   if (sel.value) {
-                    setWeights(prev => ({ ...prev, [sel.value]: 50 }))
+                    setWeights(prev => ({ ...prev, [sel.value]: 0.5 }))
                     sel.value = ''
                   }
                 }} style={{
@@ -332,7 +335,7 @@ export default function AccountDeepDive({
                 background: '#22c55e', color: '#fff', border: 'none',
                 borderRadius: 4, cursor: 'pointer', width: '100%',
               }}>
-                {weightsSaving ? 'Saving...' : 'Save Weights'}
+                {weightsSaving ? 'Saving...' : 'Save Legacy Scores'}
               </button>
             </div>
           )}

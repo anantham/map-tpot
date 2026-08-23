@@ -1,5 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { getCachedVersions } from './GenerateCard'
+import LegacyMapNotice from './LegacyMapNotice'
+import {
+  formatLegacyScore,
+  relativeLegacyWidths,
+} from './legacyCommunitySemantics'
 
 export default function CommunityCard({
   handle,
@@ -10,17 +15,21 @@ export default function CommunityCard({
   communityMap,
   aiImageUrl,
   generationStatus,
-  confidence = 0,
+  confidence = null,
 }) {
-  const isClassified = tier === 'classified'
-  // CI drives visual intensity: high CI = full color, low CI = dim/gray
-  // Exemplars (classified) always get full treatment
-  // Everyone else scales with confidence: 0.2 floor to 1.0
-  const ciOpacity = isClassified
+  const isClassified = tier === 'classified' || tier === 'exemplar'
+  const parsedSignal = confidence == null ? NaN : Number(confidence)
+  const graphSignal = Number.isFinite(parsedSignal)
+    ? Math.max(0, Math.min(1, parsedSignal))
+    : null
+  // The legacy `confidence` field is an uncalibrated graph signal. It controls
+  // presentation intensity only; it is not a probability or interval.
+  const signalOpacity = isClassified
     ? 1.0
-    : Math.max(0.2, Math.min(1, 0.2 + confidence * 1.6))
-  // Show community colors when CI is high enough (not just for classified)
-  const useColor = isClassified || confidence >= 0.05
+    : graphSignal == null
+    ? 0.2
+    : Math.max(0.2, Math.min(1, 0.2 + graphSignal * 1.6))
+  const useColor = isClassified || (graphSignal != null && graphSignal >= 0.05)
   const cardRef = useRef(null)
   const [tilt, setTilt] = useState({ x: 0, y: 0 })
   const [fullscreen, setFullscreen] = useState(false)
@@ -62,18 +71,22 @@ export default function CommunityCard({
   }, [fullscreen, goPrevVersion, goNextVersion])
 
   // Resolve community names and colors, sort by weight descending
-  const bars = (memberships || [])
+  const sortedBars = (memberships || [])
     .map(m => {
       const community = communityMap.get(m.community_id)
       return {
         name: community?.name || m.community_name || 'Unknown',
         color: community?.color || '#666',
         weight: m.weight,
-        pct: Math.round(m.weight * 100),
-        ci: m.ci,
+        score: formatLegacyScore(m.weight),
       }
     })
     .sort((a, b) => b.weight - a.weight)
+  const relativeWidths = relativeLegacyWidths(sortedBars.map(bar => bar.weight))
+  const bars = sortedBars.map((bar, index) => ({
+    ...bar,
+    relativeWidth: relativeWidths[index],
+  }))
 
   // Tilt-on-hover handlers (only active when AI image is shown)
   const handleMouseMove = useCallback((e) => {
@@ -118,6 +131,7 @@ export default function CommunityCard({
             {displayName && (
               <div className="card-ai-display-name">{displayName}</div>
             )}
+            <LegacyMapNotice />
             <div className="card-ai-communities">
               {bars.map((bar, i) => (
                 <div className="card-ai-community-row" key={i}>
@@ -126,7 +140,7 @@ export default function CommunityCard({
                     style={{ backgroundColor: useColor ? bar.color : '#555' }}
                   />
                   <span className="card-ai-community-name">{bar.name}</span>
-                  <span className="card-ai-community-pct">{bar.pct}%</span>
+                  <span className="card-ai-community-pct">{bar.score}</span>
                 </div>
               ))}
             </div>
@@ -153,7 +167,7 @@ export default function CommunityCard({
                 className={`card-fullscreen-image ${!useColor ? 'card-fullscreen-image--faint' : ''}`}
                 src={fsUrl}
                 alt={`AI-generated card for @${handle}`}
-                style={{ opacity: ciOpacity }}
+                style={{ opacity: signalOpacity }}
               />
               <div className="card-fullscreen-handle">
                 @{handle}
@@ -163,6 +177,7 @@ export default function CommunityCard({
                   </span>
                 )}
               </div>
+              <LegacyMapNotice />
             </div>
 
             {hasMultipleVersions && (
@@ -184,7 +199,7 @@ export default function CommunityCard({
     <div
       className={`community-card ${useColor ? 'card-classified' : 'card-propagated'} ${isGenerating ? 'generating' : ''}`}
       id="community-card"
-      style={{ opacity: ciOpacity }}
+      style={{ opacity: signalOpacity }}
     >
       {isGenerating && <div className="card-shimmer" />}
 
@@ -199,9 +214,10 @@ export default function CommunityCard({
         <p className="card-bio">{bio}</p>
       )}
 
+      <LegacyMapNotice />
+
       <div className="card-bars">
         {bars.map((bar, i) => {
-          const formatBound = (val) => val != null ? `${Math.round(val * 100)}%` : '?'
           return (
             <div className="bar-row" key={i}>
               <span className="bar-label">{bar.name}</span>
@@ -209,34 +225,31 @@ export default function CommunityCard({
                 <div
                   className="bar-fill"
                   style={{
-                    width: `${bar.pct}%`,
+                    width: `${bar.relativeWidth}%`,
                     backgroundColor: useColor ? bar.color : '#555',
-                    opacity: ciOpacity,
+                    opacity: signalOpacity,
                   }}
                 />
               </div>
               <div className="bar-value-group">
-                <span className="bar-pct">{bar.pct}%</span>
-                {bar.ci && (
-                  <span className="bar-ci-range">
-                    [{formatBound(bar.ci[0])}-{formatBound(bar.ci[1])}]
-                  </span>
-                )}
+                <span className="bar-pct">{bar.score}</span>
               </div>
             </div>
           )
         })}
       </div>
 
-      {!isClassified && confidence < 0.5 && (
+      {!isClassified && (graphSignal == null || graphSignal < 0.5) && (
         <p className="card-note">
-          {confidence >= 0.15
-            ? 'Identified from the network — contribute your data for a richer card.'
-            : confidence >= 0.05
-            ? 'Detected — a faint signal from the follow graph.'
-            : confidence >= 0.001
-            ? 'Glimpsed — barely visible in the network.'
-            : 'Adjacent — in the wider orbit of the network.'}
+          {graphSignal == null
+            ? 'Graph signal unavailable — inspect the supporting evidence.'
+            : graphSignal >= 0.15
+            ? 'Strong graph signal — contribute your data for a richer card.'
+            : graphSignal >= 0.05
+            ? 'Moderate graph signal from the follow graph.'
+            : graphSignal >= 0.001
+            ? 'Faint graph signal — inspect the supporting evidence.'
+            : 'Adjacent — graph signal below the display threshold.'}
         </p>
       )}
 

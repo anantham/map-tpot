@@ -6,9 +6,13 @@ from flask import Flask
 import src.api.cluster.state as cluster_routes
 from src.api.cluster import cluster_bp, ClusterCache
 
+CURATOR_TOKEN = "tag-summary-curator-token"
+CURATOR_AUTH = {"X-TPOT-Curator-Token": CURATOR_TOKEN}
+
 
 @pytest.fixture
 def cluster_app(monkeypatch, tmp_path) -> Flask:
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
     app = Flask(__name__)
     app.testing = True
     app.register_blueprint(cluster_bp)
@@ -49,7 +53,8 @@ def test_cluster_tag_summary_counts_and_suggestion(cluster_app) -> None:
     store.upsert_tag(ego=ego, account_id="2", tag="Gender wars", polarity=-1)
 
     resp = client.get(
-        f"/api/clusters/{cluster_id}/tag_summary?ego={ego}&n=11&budget=25&wl=0.00&expand_depth=0.50"
+        f"/api/clusters/{cluster_id}/tag_summary?ego={ego}&n=11&budget=25&wl=0.00&expand_depth=0.50",
+        headers=CURATOR_AUTH,
     )
     assert resp.status_code == 200
     payload = resp.get_json()
@@ -74,6 +79,13 @@ def test_cluster_tag_summary_counts_and_suggestion(cluster_app) -> None:
 @pytest.mark.unit
 def test_cluster_tag_summary_requires_ego(cluster_app) -> None:
     client = cluster_app.test_client()
-    resp = client.get("/api/clusters/d_1/tag_summary")
+    resp = client.get("/api/clusters/d_1/tag_summary", headers=CURATOR_AUTH)
     assert resp.status_code == 400
 
+
+@pytest.mark.unit
+def test_cluster_tag_summary_rejects_anonymous_reads(cluster_app) -> None:
+    response = cluster_app.test_client().get(
+        "/api/clusters/d_1/tag_summary?ego=adityaarpitha"
+    )
+    assert response.status_code == 401

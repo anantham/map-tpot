@@ -5,9 +5,17 @@ import Discovery from './Discovery'
 import ClusterView from './ClusterView'
 import Labeling from './Labeling'
 import Communities from './Communities'
+import ResearchNotesInbox from './ResearchNotesInbox'
 import { getAccount, getTheme as loadTheme, setTheme as saveTheme } from './storage'
 
-const VALID_VIEWS = ['discovery', 'graph', 'labeling', 'communities', 'cluster']
+const VALID_VIEWS = [
+  'discovery',
+  'graph',
+  'labeling',
+  'communities',
+  'cluster',
+  'research-notes',
+]
 
 function getInitialView() {
   if (typeof window === 'undefined') return 'discovery'
@@ -84,6 +92,9 @@ function App() {
         </button>
         <button {...nav('cluster')} style={navStyle('cluster')}>Cluster View</button>
         <button {...nav('communities')} style={navStyle('communities')}>Communities</button>
+        <button {...nav('research-notes')} style={navStyle('research-notes')}>
+          Research Notes
+        </button>
         <button
           {...nav('labeling')}
           style={{
@@ -127,6 +138,13 @@ function App() {
         {currentView === 'communities' && (
           <div style={{ height: '100%', overflow: 'hidden' }}>
             <Communities ego={accountStatus.handle} initialAccountId={deepDiveAccountId} />
+          </div>
+        )}
+        {currentView === 'research-notes' && (
+          <div style={{ height: '100%' }}>
+            <ResearchNotesInbox
+              ego={accountStatus.valid ? accountStatus.handle : ''}
+            />
           </div>
         )}
         {currentView === 'labeling' && (

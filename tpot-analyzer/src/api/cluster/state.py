@@ -19,6 +19,7 @@ import scipy.sparse as sp
 from flask import Blueprint, jsonify, request
 
 from src.api.responses import error_response
+from src.api.cluster.membership_coverage import estimate_following_coverage
 
 from src.data.account_tags import AccountTagStore
 from src.graph.clusters import ClusterLabelStore
@@ -339,26 +340,16 @@ def _anchor_digest(positive: list[int], negative: list[int]) -> str:
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
 
 
-def _estimate_account_coverage(account_id: str) -> Dict[str, float]:
+def _estimate_account_coverage(account_id: str) -> Dict[str, object]:
     meta = _node_metadata.get(account_id, {})
-    expected_following = _safe_int(meta.get("num_following"), default=0)
     observed_following = 0
     idx = _node_id_to_idx.get(account_id)
     if idx is not None and _adjacency is not None:
         observed_following = int(_adjacency.getrow(idx).count_nonzero())
-
-    if expected_following <= 0:
-        base_floor = max(1e-4, _observation_config.completeness_floor)
-        coverage = 1.0 if observed_following > 0 else base_floor
-    else:
-        coverage = observed_following / float(expected_following)
-        coverage = max(_observation_config.completeness_floor, min(1.0, coverage))
-
-    return {
-        "value": float(coverage),
-        "observedFollowing": float(observed_following),
-        "expectedFollowing": float(expected_following),
-    }
+    return estimate_following_coverage(
+        expected_following=meta.get("num_following"),
+        observed_following=observed_following,
+    )
 
 
 def _require_loaded(f):

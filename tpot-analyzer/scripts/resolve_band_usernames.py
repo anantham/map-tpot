@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
-"""Bulk-resolve usernames for band-classified accounts via Supabase.
+"""Historical band-driven username resolver; currently quarantined.
 
-The export pipeline skips accounts without usernames. This script fills
-the gap by querying Supabase mentioned_users (screen_name by user_id)
-for all account_band accounts that lack a username in profiles or
-resolved_accounts.
+The old implementation selected unresolved ``account_band`` rows and queried
+Supabase ``mentioned_users``. Because those band rows have no exact artifact
+receipt, both its selection API and CLI now fail before opening the database
+or making a request. Retained only as migration evidence.
 
-Zero API cost — queries our own Supabase instance.
-
-Usage:
-    .venv/bin/python3 -m scripts.resolve_band_usernames           # dry-run
-    .venv/bin/python3 -m scripts.resolve_band_usernames --write   # update DB
+Restore only after binding bands to an exact digest, mode, taxonomy,
+thresholds, and method version.
 """
 from __future__ import annotations
 
@@ -23,6 +20,8 @@ from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
+
+from src.propagation.bands import reject_unbound_account_band_table
 
 load_dotenv()
 
@@ -37,6 +36,7 @@ BATCH_SIZE = 50
 
 def load_unresolved_ids(db: sqlite3.Connection) -> list[str]:
     """Return account_ids from account_band that have no username anywhere."""
+    reject_unbound_account_band_table("band username resolution")
     already = set()
     for r in db.execute(
         "SELECT account_id FROM profiles WHERE username IS NOT NULL"
@@ -134,6 +134,7 @@ def main() -> None:
     parser.add_argument("--write", action="store_true", help="Write to DB (default: dry-run)")
     args = parser.parse_args()
 
+    reject_unbound_account_band_table("band username resolution")
     db = sqlite3.connect(str(DB_PATH))
 
     print("=" * 70)

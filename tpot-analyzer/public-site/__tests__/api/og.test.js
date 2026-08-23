@@ -63,6 +63,9 @@ describe('og: gallery lookup', () => {
     // og:image points to /api/card-image, not the blob URL directly (Twitter
     // can't crawl data: URIs and uses summary_large_image preview)
     expect(res.body).toMatch(/\/api\/card-image\?handle=alice/)
+    expect(res.body).toMatch(/Legacy exploratory map: EA, PostRat/)
+    expect(res.body).toMatch(/not membership probabilities/)
+    expect(res.body).not.toMatch(/60%|30%/)
   })
 })
 
@@ -106,5 +109,7 @@ describe('og: degrades gracefully without KV', () => {
     await handler(mockReq({ method: 'GET', query: { handle: 'alice' } }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body).toMatch(/og:title/)
+    expect(res.body).toMatch(/legacy TPOT map/)
+    expect(res.body).toMatch(/not membership probabilities/)
   })
 })
