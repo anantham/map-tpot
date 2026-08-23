@@ -23,9 +23,9 @@ def test_grf_membership_balanced_chain_midpoint_near_half() -> None:
         config=GRFMembershipConfig(prior=0.5, regularization=1e-3),
     )
 
-    assert result.probabilities[0] == 1.0
-    assert result.probabilities[2] == 0.0
-    assert 0.45 <= result.probabilities[1] <= 0.55
+    assert result.affinities[0] == 1.0
+    assert result.affinities[2] == 0.0
+    assert 0.45 <= result.affinities[1] <= 0.55
     assert result.total_uncertainty[0] == 0.0
     assert result.total_uncertainty[2] == 0.0
 
@@ -46,7 +46,7 @@ def test_grf_membership_biases_toward_stronger_positive_connectivity() -> None:
         negative_anchor_indices=[2],
     )
 
-    assert result.probabilities[1] > 0.5
+    assert result.affinities[1] > 0.5
     assert result.converged is True
 
 

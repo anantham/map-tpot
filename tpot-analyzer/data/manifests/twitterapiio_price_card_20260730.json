@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "card_id": "twitterapiio-2026-07-30",
+  "provider": "twitterapi.io",
+  "verified_at": "2026-07-30T12:20:24Z",
+  "currency": "USD",
+  "credits_per_usd": 100000,
+  "official_sources": [
+    "https://twitterapi.io/pricing",
+    "https://docs.twitterapi.io/api-reference/endpoint/get_user_followings",
+    "https://docs.twitterapi.io/api-reference/endpoint/get_user_by_username",
+    "https://docs.twitterapi.io/api-reference/endpoint/get_user_last_tweets"
+  ],
+  "user_info": {
+    "endpoint": "/twitter/user/info",
+    "credits_per_profile": 18,
+    "minimum_call_credits": 18,
+    "billing_basis": "profiles returned per call"
+  },
+  "user_last_tweets": {
+    "endpoint": "/twitter/user/last_tweets",
+    "maximum_page_size": 20,
+    "credits_per_tweet": 15,
+    "minimum_call_credits": 15,
+    "billing_basis": "tweets returned per call"
+  },
+  "user_followings": {
+    "endpoint": "/twitter/user/followings",
+    "maximum_page_size": 200,
+    "minimum_call_credits": 60,
+    "billing_basis": "items returned per call",
+    "tiers": [
+      {
+        "returned_min": 20,
+        "returned_max": 99,
+        "credits_per_item": 3
+      },
+      {
+        "returned_min": 100,
+        "returned_max": 199,
+        "credits_per_item": 2
+      },
+      {
+        "returned_min": 200,
+        "returned_max": 200,
+        "credits_per_item": 1
+      }
+    ]
+  },
+  "notes": [
+    "One USD equals 100,000 credits at the published base rate.",
+    "A full-list estimate prices complete traversal at page size 200.",
+    "A local claimed-minus-observed gap is not itself fetchable; the endpoint may require full traversal."
+  ]
+}

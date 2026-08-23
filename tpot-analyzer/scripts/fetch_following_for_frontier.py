@@ -1,15 +1,16 @@
-"""Fetch following lists for top-ranked frontier accounts via twitterapi.io.
+"""Fetch following lists for selected graph-coverage targets via twitterapi.io.
 
 Adds outbound edges to the follow graph for shadow accounts, transforming
 them from dead-end leaves into connected nodes. Each following list adds
 ~500 edges on average — 50 accounts = ~25K new edges.
 
 Respects cross-validation discipline: NEVER fetches for holdout accounts.
+The historical ``frontier_ranking`` mode is quarantined; only the independent
+zero-outbound coverage heuristic is currently executable.
 
 Usage:
-    .venv/bin/python3 -m scripts.fetch_following_for_frontier --top 50
-    .venv/bin/python3 -m scripts.fetch_following_for_frontier --top 10 --dry-run
-    .venv/bin/python3 -m scripts.fetch_following_for_frontier --budget 2.50
+    .venv/bin/python3 -m scripts.fetch_following_for_frontier --mode zero-outbound --dry-run
+    .venv/bin/python3 -m scripts.fetch_following_for_frontier --mode zero-outbound --budget 2.50
 """
 from __future__ import annotations
 
@@ -22,6 +23,10 @@ from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
+
+from scripts._active_learning_helpers.frontier_quarantine import (
+    reject_unverified_frontier_ranking,
+)
 
 load_dotenv()
 
@@ -130,6 +135,7 @@ def store_following(conn: sqlite3.Connection, source_id: str, following_ids: lis
 
 def select_frontier_targets(conn, top: int, min_outbound: int = 108):
     """Original mode: top frontier_ranking accounts by info_value."""
+    reject_unverified_frontier_ranking("frontier following fetch")
     targets = conn.execute("""
         SELECT fr.account_id,
                COALESCE(p.username, ra.username) as username,
@@ -187,8 +193,9 @@ def select_zero_outbound_targets(conn, max_following: int = 1000, min_inbound: i
 def main():
     parser = argparse.ArgumentParser(description="Fetch following lists for frontier/zero-outbound accounts")
     parser.add_argument("--mode", choices=["frontier", "zero-outbound"], default="frontier",
-                        help="frontier: top frontier_ranking. zero-outbound: high-inbound with no outbound edges.")
-    parser.add_argument("--top", type=int, default=50, help="Limit accounts (frontier mode)")
+                        help="frontier: quarantined. zero-outbound: high-inbound with no outbound edges.")
+    parser.add_argument("--top", type=int, default=50,
+                        help="Historical frontier limit; frontier mode is quarantined")
     parser.add_argument("--max-following", type=int, default=1000,
                         help="Skip accounts following more than this (zero-outbound mode)")
     parser.add_argument("--min-inbound", type=int, default=50,
@@ -197,6 +204,9 @@ def main():
     parser.add_argument("--db-path", type=Path, default=DB_PATH)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
+    if args.mode == "frontier":
+        reject_unverified_frontier_ranking("frontier following fetch")
 
     api_key = get_api_key()
     conn = sqlite3.connect(str(args.db_path))

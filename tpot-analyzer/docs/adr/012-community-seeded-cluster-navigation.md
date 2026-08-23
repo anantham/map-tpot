@@ -468,3 +468,44 @@ genuinely don't belong to any TPOT sub-community.
 8. `config/graph_settings.json` — feature flags for observation model
 9. ADR 007 — observation-aware clustering (GRF membership engine = Phase 3)
 10. ADR 011 — content-aware fingerprinting (multi-label GRF = Layer 3)
+
+---
+
+## Amendment — 2026-07-28: Score and uncertainty semantics
+
+This amendment preserves the proposal above as historical design context while correcting
+claims that no longer match the implemented producers. ADR 021 supersedes the probability,
+confidence, calibration, and sealed-evaluation portions of this ADR.
+
+### What the current producers actually emit
+
+- The NMF producer normalizes each account's `W` row to sum to one. Those values are
+  **compositional factor shares**, not independently overlapping membership probabilities.
+  In that representation, defining `p_none = 1 - sum(mu)` makes `p_none` algebraically
+  approximately zero; it does not estimate non-membership.
+- The implemented membership GRF primitive solves one binary problem for supplied
+  positive and negative anchors and returns a **bounded, uncalibrated harmonic graph
+  affinity**. The live endpoint currently aggregates an ego's polarities across tag
+  keys and has no ontology/task/community target, so it does not yet produce separate
+  per-community runs. Properly target-scoped binary runs may overlap, but they would
+  not form the proposed `K+1` posterior and need not sum to one.
+- Entropy combined with a low-degree penalty is **heuristic graph uncertainty**, not
+  posterior uncertainty, a confidence interval, or a guarantee that an account is
+  "genuinely unknown." Thresholds such as `0.15`, `0.6`, and `0.35` remain hypotheses
+  until registered calibration and held-out evaluation justify them.
+- A row having a score is score availability, not evidence coverage. Evidence coverage
+  needs an observed numerator and expected denominator from a compatible source,
+  snapshot generation, and as-of time. If that compatibility cannot be established,
+  coverage is unknown.
+
+### Claims that require new registered evidence
+
+The directionality comparison, reciprocity gain, sub-second timing target, `60–70%`
+expected none rate, absorption thresholds, and community/count examples above are
+historical assumptions or point-in-time observations. They are not current performance
+guarantees. A future claim must bind the source snapshot, code revision, parameters,
+development/calibration labels, untouched terminal labels, and evaluation receipt.
+
+The route inventory has also changed: cluster endpoints now live under
+`src/api/cluster/`, not the historical `src/api/cluster_routes.py` path. Color-field
+interpretation is further amended by ADR 013's 2026-07-28 amendment.

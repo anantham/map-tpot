@@ -45,9 +45,9 @@ class GRFMembershipConfig:
 
 @dataclass(frozen=True)
 class GRFMembershipResult:
-    """Membership and uncertainty outputs for all nodes."""
+    """Uncalibrated graph affinities and heuristic uncertainty outputs."""
 
-    probabilities: np.ndarray
+    affinities: np.ndarray
     total_uncertainty: np.ndarray
     entropy_uncertainty: np.ndarray
     degree_uncertainty: np.ndarray
@@ -81,8 +81,8 @@ def _dedupe_indices(values: Iterable[int], n_nodes: int) -> np.ndarray:
     return np.asarray(deduped, dtype=np.int64)
 
 
-def _binary_entropy(probabilities: np.ndarray) -> np.ndarray:
-    p = np.clip(probabilities, 1e-8, 1.0 - 1e-8)
+def _binary_entropy(affinities: np.ndarray) -> np.ndarray:
+    p = np.clip(affinities, 1e-8, 1.0 - 1e-8)
     return -(p * np.log2(p) + (1.0 - p) * np.log2(1.0 - p))
 
 
@@ -92,7 +92,7 @@ def compute_grf_membership(
     negative_anchor_indices: Iterable[int],
     config: GRFMembershipConfig | None = None,
 ) -> GRFMembershipResult:
-    """Solve harmonic-label membership probabilities with Laplacian regularization."""
+    """Solve harmonic graph affinities with Laplacian regularization."""
     cfg = (config or GRFMembershipConfig()).normalized()
     if adjacency.shape[0] != adjacency.shape[1]:
         raise ValueError("adjacency must be square")
@@ -120,9 +120,9 @@ def compute_grf_membership(
         [np.ones(pos.size, dtype=np.float64), np.zeros(neg.size, dtype=np.float64)]
     )
 
-    probabilities = np.full(n_nodes, cfg.prior, dtype=np.float64)
-    probabilities[pos] = 1.0
-    probabilities[neg] = 0.0
+    affinities = np.full(n_nodes, cfg.prior, dtype=np.float64)
+    affinities[pos] = 1.0
+    affinities[neg] = 0.0
 
     unlabeled_mask = np.ones(n_nodes, dtype=bool)
     unlabeled_mask[anchors] = False
@@ -153,11 +153,11 @@ def compute_grf_membership(
         if cg_info < 0:
             raise RuntimeError(f"cg solver failed with info={cg_info}")
         converged = cg_info == 0
-        probabilities[unlabeled] = solution
+        affinities[unlabeled] = solution
 
-    probabilities = np.clip(probabilities, 0.0, 1.0)
+    affinities = np.clip(affinities, 0.0, 1.0)
 
-    entropy_uncertainty = _binary_entropy(probabilities)
+    entropy_uncertainty = _binary_entropy(affinities)
     degree_uncertainty = 1.0 / np.sqrt(degrees + 1.0)
     max_degree_uncertainty = float(np.max(degree_uncertainty)) if degree_uncertainty.size else 1.0
     if max_degree_uncertainty > 0:
@@ -173,7 +173,7 @@ def compute_grf_membership(
     degree_uncertainty[anchors] = 0.0
 
     return GRFMembershipResult(
-        probabilities=probabilities,
+        affinities=affinities,
         total_uncertainty=total_uncertainty,
         entropy_uncertainty=entropy_uncertainty,
         degree_uncertainty=degree_uncertainty,

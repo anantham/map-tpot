@@ -1,5 +1,6 @@
 import { render, screen, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { buildShareText } from './shareText'
 
 /**
  * Tests for App.jsx — focuses on tier mapping (THE BIG BUG) and handleResult logic.
@@ -138,22 +139,6 @@ describe('CI messaging thresholds', () => {
   })
 })
 
-// ShareButton tweet text construction
-function buildShareText(handle, memberships, communityMap) {
-  const communityText = (memberships || [])
-    .map(m => {
-      const c = communityMap?.get(m.community_id)
-      return c ? `${Math.round(m.weight * 100)}% ${c.name}` : null
-    })
-    .filter(Boolean)
-    .slice(0, 3)
-    .join(', ')
-
-  return communityText
-    ? `I'm ${communityText} on TPOT.\n\nFind your ingroup →`
-    : `Find which TPOT communities you belong to →`
-}
-
 describe('ShareButton tweet text', () => {
   const communityMap = new Map([
     [1, { id: 1, name: 'Core TPOT', color: '#ff0' }],
@@ -162,35 +147,39 @@ describe('ShareButton tweet text', () => {
     [4, { id: 4, name: 'Highbies', color: '#f0f' }],
   ])
 
-  it('includes top 3 communities with percentages', () => {
+  it('ranks the top 3 communities without publishing membership-like percentages', () => {
     const memberships = [
       { community_id: 1, weight: 0.5 },
       { community_id: 2, weight: 0.3 },
       { community_id: 3, weight: 0.15 },
       { community_id: 4, weight: 0.05 },
     ]
-    const text = buildShareText('alice', memberships, communityMap)
-    expect(text).toContain('50% Core TPOT')
-    expect(text).toContain('30% LLM Whisperers')
-    expect(text).toContain('15% Qualia')
+    const text = buildShareText(memberships, communityMap)
+    expect(text).toContain('My current legacy TPOT map ranks:')
+    expect(text).toContain('Core TPOT')
+    expect(text).toContain('LLM Whisperers')
+    expect(text).toContain('Qualia')
     expect(text).not.toContain('Highbies') // 4th community excluded
-    expect(text).toContain('Find your ingroup')
+    expect(text).not.toContain('%')
+    expect(text).toContain('not membership probabilities')
+    expect(text).toContain('Explore the legacy map')
+    expect(text).not.toContain('Find your ingroup')
   })
 
   it('returns generic text when no memberships', () => {
-    const text = buildShareText('alice', [], communityMap)
-    expect(text).toBe('Find which TPOT communities you belong to →')
+    const text = buildShareText([], communityMap)
+    expect(text).toBe('Explore the legacy TPOT community map — hypotheses, not membership probabilities →')
   })
 
   it('returns generic text when memberships is null', () => {
-    const text = buildShareText('alice', null, communityMap)
-    expect(text).toBe('Find which TPOT communities you belong to →')
+    const text = buildShareText(null, communityMap)
+    expect(text).toBe('Explore the legacy TPOT community map — hypotheses, not membership probabilities →')
   })
 
   it('handles missing communities in map gracefully', () => {
     const memberships = [{ community_id: 999, weight: 0.5 }]
-    const text = buildShareText('alice', memberships, communityMap)
+    const text = buildShareText(memberships, communityMap)
     // community_id 999 not in map → filtered out → generic text
-    expect(text).toBe('Find which TPOT communities you belong to →')
+    expect(text).toBe('Explore the legacy TPOT community map — hypotheses, not membership probabilities →')
   })
 })

@@ -18,7 +18,7 @@ const baseMemberships = [
 ]
 
 describe('CommunityCard', () => {
-  describe('CI opacity calculation', () => {
+  describe('graph-signal opacity calculation', () => {
     it('classified accounts always have opacity 1.0', () => {
       const { container } = render(
         <CommunityCard
@@ -48,12 +48,12 @@ describe('CommunityCard', () => {
       // Should show the bar-chart card (no AI image)
       const card = container.querySelector('.community-card')
       expect(card).toBeTruthy()
-      // CI opacity should be applied to card style
+      // Heuristic graph signal controls presentation opacity.
       const style = card.getAttribute('style')
       expect(style).toContain('opacity')
     })
 
-    it('does not show raw CI percentage in card (delegated to EvidenceSummary)', () => {
+    it('does not show raw confidence language in card', () => {
       const { container } = render(
         <CommunityCard
           handle="alice"
@@ -64,14 +64,13 @@ describe('CommunityCard', () => {
         />
       )
 
-      // CI percentage removed from card — EvidenceSummary handles it with badges
       expect(container.querySelector('.card-ci')).toBeNull()
       expect(screen.queryByText('42% confidence')).toBeNull()
     })
   })
 
-  describe('CI-aware messaging', () => {
-    it('shows "Identified" for confidence >= 0.15', () => {
+  describe('graph-signal messaging', () => {
+    it('shows a strong graph signal for scores >= 0.15', () => {
       render(
         <CommunityCard
           handle="alice"
@@ -82,10 +81,10 @@ describe('CommunityCard', () => {
         />
       )
 
-      expect(screen.getByText(/Identified from the network/)).toBeTruthy()
+      expect(screen.getByText(/Strong graph signal/)).toBeTruthy()
     })
 
-    it('shows "Detected" for confidence 0.05-0.15', () => {
+    it('shows a moderate graph signal for scores 0.05-0.15', () => {
       render(
         <CommunityCard
           handle="alice"
@@ -96,10 +95,10 @@ describe('CommunityCard', () => {
         />
       )
 
-      expect(screen.getByText(/Detected/)).toBeTruthy()
+      expect(screen.getByText(/Moderate graph signal/)).toBeTruthy()
     })
 
-    it('shows "Glimpsed" for confidence < 0.05', () => {
+    it('shows a faint graph signal for scores below 0.05', () => {
       render(
         <CommunityCard
           handle="alice"
@@ -110,7 +109,7 @@ describe('CommunityCard', () => {
         />
       )
 
-      expect(screen.getByText(/Glimpsed/)).toBeTruthy()
+      expect(screen.getByText(/Faint graph signal/)).toBeTruthy()
     })
 
     it('does not show messaging for classified accounts', () => {
@@ -124,7 +123,7 @@ describe('CommunityCard', () => {
         />
       )
 
-      expect(screen.queryByText(/Identified|Detected|Glimpsed/)).toBeNull()
+      expect(screen.queryByText(/Strong|Moderate|Faint graph signal/)).toBeNull()
     })
   })
 
@@ -148,7 +147,7 @@ describe('CommunityCard', () => {
       expect(labels[1].textContent).toBe('Core TPOT')
     })
 
-    it('shows percentage for each community', () => {
+    it('shows an explicitly legacy decimal score for each community', () => {
       render(
         <CommunityCard
           handle="alice"
@@ -159,7 +158,8 @@ describe('CommunityCard', () => {
         />
       )
 
-      expect(screen.getByText('65%')).toBeTruthy()
+      expect(screen.getByText('0.650')).toBeTruthy()
+      expect(screen.queryByText('65%')).toBeNull()
     })
 
     it('uses grayscale colors for non-classified', () => {
@@ -174,11 +174,11 @@ describe('CommunityCard', () => {
       )
 
       const fill = container.querySelector('.bar-fill')
-      // CI < 0.05 uses grayscale; jsdom returns rgb() format for hex colors
+      // Low graph signal uses grayscale; jsdom returns rgb() format for hex colors.
       expect(fill.style.backgroundColor).toBe('rgb(85, 85, 85)')
     })
 
-    it('uses community colors for propagated with high CI', () => {
+    it('uses community colors for propagated with a stronger graph signal', () => {
       const { container } = render(
         <CommunityCard
           handle="alice"
@@ -190,7 +190,7 @@ describe('CommunityCard', () => {
       )
 
       const fill = container.querySelector('.bar-fill')
-      // CI >= 0.05 uses community color
+      // A graph signal >= 0.05 uses community color.
       expect(fill.style.backgroundColor).toBe('rgb(255, 255, 0)')
     })
 

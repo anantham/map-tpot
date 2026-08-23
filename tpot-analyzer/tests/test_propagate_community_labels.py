@@ -469,7 +469,7 @@ class TestMulticlassEntropy:
         """A single-class distribution should have entropy near 0."""
         dist = np.array([[1.0, 0.0, 0.0]])
         entropy = multiclass_entropy(dist)
-        # Due to clipping to 1e-10 there is a tiny residual entropy
+        # Zero-mass bins contribute nothing to the entropy calculation.
         assert entropy[0] < 0.01, (
             f"Single-class distribution should have near-zero entropy, got {entropy[0]:.6f}"
         )

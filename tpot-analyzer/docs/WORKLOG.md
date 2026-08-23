@@ -1,5 +1,2075 @@
 # Worklog - TPOT Analyzer
 
+## Raw-First Retrieval Slice 6G — Visible Takes-to-Frontier Flywheel (2026-08-02)
+
+- [2026-08-02 13:40–16:06 IST] **Connected Aditya's existing notes to an
+  exact-tag, zero-spend feedback loop and kept cluster claims falsifiable
+  (Codex GPT-5 with runtime, source-import, frontier, and adversarial-review
+  peers)**
+    - **Hypotheses:** the local runtime could be made reproducible (`0.98`), all
+      57 Takes accounts could reopen with inert source-backed proposals
+      (`0.90`), and source-side selectivity could expose an immediate judgment
+      effect (`0.72`). A useful ranking was predicted before calibrated
+      membership; a cohesion claim required observed inter-anchor evidence.
+    - **Runtime (`scripts/dev_runtime.py:1-282`, `scripts/start_dev.sh:1-196`,
+      `scripts/wait_for_backend.sh:1-31`, `graph-explorer/vite.config.js:1-30`,
+      `src/api/server.py:1-190`):** resolve the canonical 11.35-GiB archive
+      read-only, keep tag state in this worktree, share one unprinted ephemeral
+      curator token between Flask and Vite, fix the UI at localhost:5184, and
+      fail clearly on missing paths/dependencies/occupied ports. Replaced only
+      the identified four-hour-old API process on port 5001 and launched the
+      repaired paired runtime.
+    - **Takes import (`src/api/routes/research_notes_source.py:1-217`,
+      `researchNotesApi.js:1-58`, `useResearchNotesInbox.js:1-187`):** the
+      authenticated private route returns exact text/hash/size/mtime plus 115
+      model-proposed, non-gold suggestions for 57/57 handles. It sets
+      `private, no-store`, validates the proposal artifact against the exact
+      source hash, and never writes a tag. Missing configuration remains an
+      explicit empty state and manual paste remains available.
+    - **Exact target (`src/data/account_tag_queries.py:1-84`,
+      `src/data/follow_frontier_archive.py:1-115`,
+      `src/graph/target_follow_frontier.py:1-267`,
+      `src/api/routes/research_notes.py:198-229`):** select anchors only by
+      `(ego, tag_key)`, contrast positive/negative source-selectivity support,
+      read one pinned archive transaction, and report coverage plus observed
+      reachability/pair/cross-boundary edges. Corrupt polarity, missing tag DB,
+      and archive failures fail closed. Missing edges remain unknown; status is
+      evidence availability, never cluster existence or probability.
+    - **Visible loop (`ResearchNotesInbox.jsx:1-250`,
+      `AccountTagPanel.jsx:1-257`, `TagSuggestions.jsx:1-67`,
+      `useWorkingTagSelection.js:1-72`, `WorkingTagImpact.jsx:1-219`):** reopen
+      Takes automatically, show each source quote and proposal type, require one
+      curator click for `IN` / `NOT IN`, refresh only that tag, retain the prior
+      response, and display anchor/candidate/rank movement. The active default
+      prefers a community-affiliation proposal. The screen explicitly labels
+      selective follows as the only current channel and shows observed
+      structure separately from uncomputed cluster confidence. Extracting the
+      tag selection/revision state reduced the coordinator from 300 to 250 LOC
+      at the feature seam.
+    - **Adversarial result / real smoke:** initial topology names implied
+      held-out recovery/cohesion and were rejected. Renamed them to observable
+      stored-edge facts, made claimed-degree fallback explicit, filtered
+      self-edges, and made missing/corrupt tag state fail closed. Disposable
+      RomeoStevens76 + TVacha positive and SuttaSlime negative anchors produced
+      542 candidates, but only `0.192` observed/effective positive-edge
+      coverage, no covered negative neighborhood, and zero observed positive
+      pair links. Ranking is useful; cluster existence is unsupported.
+    - **Verification:** backend focused regression `39 passed`; frontend
+      focused contract `21 passed`; full graph-explorer `761 passed`; Vite
+      production build succeeds; scoped ESLint and `git diff --check` pass.
+      Human scripts report runtime 7/7, frontier 5/5, and flywheel 6/6. The new
+      integrated verifier is read-only and found/fixed two entrypoint defects
+      before passing from plain `python3`.
+    - **Live state/scope:** browser is open on Research Notes with all 57 Takes
+      accounts. `@nicefryroll` selects `neo-buddhist`; with zero curator tags it
+      truthfully begins at zero anchors/candidates. No proposal was accepted on
+      Aditya's behalf. Persistent tag state remains `current=0, events=0`.
+      Spend is `$0`; no twitterapi.io, OpenRouter, remote social-data, or gold
+      write occurred.
+    - **Next:** Aditya supplies the first judgments by clicking proposals or
+      adding/removing tags. The UI will show the observed delta. After several
+      covered positives and explicit negatives, run a frozen ranking bake-off;
+      then add typed engagement and post-content channels as separable evidence.
+
+## Raw-First Retrieval Slice 6F — Extensional Tagging Workspace (2026-08-01–02)
+
+- [2026-08-01 17:34–2026-08-02 11:16 IST] **Shipped the smallest evidence-first, reversible
+  account-tagging loop without manufacturing model confidence (Codex GPT-5
+  with focused implementation, documentation, and adversarial-review peers)**
+    - **Hypothesis (`0.78`):** the existing ego/account/tag projection could
+      support multi-tag include/exclude/remove beside raw evidence if each
+      mutation also produced inspectable history. Slash tags, cross-account
+      async state, implicit provenance, identity switching, or a legacy score
+      presented as target-specific position were registered falsifiers;
+      fallback was the non-writing documentation contract.
+    - `graph-explorer/src/ResearchNotesInbox.jsx`, `AccountTagPanel.jsx`, and
+      `researchNotes/useResearchNotesInbox.js` now combine raw dossier evidence,
+      reusable tag palette, independent `IN` / `NOT IN` assignments,
+      first-class removal, queue classification state, and recent action
+      history. Model position is explicitly unavailable and the queue remains
+      manual until a target-scoped producer exists.
+    - `src/api/routes/account_tags.py` extracts the focused curator-private
+      route surface. `src/data/account_tags.py`, `account_tag_history.py`, and
+      `account_tag_schema.py` preserve the current projection while appending
+      transactional set/remove events, backfill legacy current rows once, and
+      expose source plus evidence-binding status. Mutations require an explicit
+      allowlisted curation source; UI writes declare human and verification
+      scripts declare verification.
+    - **Adversarial result:** the first implementation was rejected. Review
+      found slash-containing tags could not be removed, stale loads/mutations
+      could cross account navigation, queue rows hid tag state, handle fallback
+      could silently change identity, verifier writes could pollute the human
+      ego, absent provenance defaulted to human, and non-string tag JSON escaped
+      validation. The slice now uses request invalidation and identity-keyed
+      panels, an archive-ID gate that prevents unresolved handle writes,
+      isolated verifier egos, fail-closed provenance, strict tag type
+      validation, and a JSON-body removal route that preserves leading slashes.
+      Live browser QA found one further product falsifier: the ontology owner
+      was incorrectly required to be a graph node. Research Notes now accepts a
+      session-local curator identity independently of the active graph ego and
+      scopes loaded state by both curator and account.
+      Final privacy/state review found anonymous tag-summary/GRF derived reads,
+      curator casing that could split an extension, and failed reloads that
+      appeared empty and writable. Derived reads now require curator auth, this
+      UI canonicalizes the curator handle, and unknown tag state clears the
+      queue cache, locks mutation, and offers Retry.
+      Durable alias reconciliation remains required before any future
+      handle-only write path is allowed.
+    - **Verification:** 94 impacted Python tests and 121 expanded frontend
+      tests pass; the suite covers the curation panel, clients, and private
+      derived reads; the production Vite build passes with 1,121 transformed
+      modules; the Research Notes verifier passes 13/13 checks; verifier scripts
+      compile; and pure JS files plus documentation checks pass.
+      `npm ci` restored the lockfile-pinned worktree runtime. Live browser QA
+      loaded RomeoStevens76 plus 20 archived posts, displayed the empty current
+      extension and unavailable model position, then completed an add/remove
+      cycle with both sourced events retained in history.
+    - **Runtime findings:** the worktree-local archive path was an existing
+      zero-byte SQLite file, and the first frontend/backend port pairing was not
+      in the CORS allowlist. QA therefore used the real archive explicitly and
+      read-only, an isolated temporary snapshot/tag database, and an explicit
+      local CORS origin. `npm ci` reported 23 dependency advisories (2 low, 8
+      moderate, 11 high, 2 critical); no automatic audit fix was attempted.
+    - **Scope:** no real account was persistently tagged, no project database or
+      Community Gold schema was changed, and no external social-data, model, or
+      paid API call, retry, debit, or spend was used. `npm ci` was the only
+      dependency-network-capable step. The temporary QA tag was removed from the
+      current projection; only its set/remove history remains in the disposable
+      store. The 468-LOC live tagging verifier was safety-patched only; its
+      responsibility split is recorded as debt rather than disguised by more
+      module multiplication.
+    - **Next:** let the curator inspect the sandboxed surface, connect an
+      explicit persistent local tag store before lasting curation, add a
+      queue-wide classification overview, collect 30 human examples under
+      stable archive IDs, freeze `tag-v1`, and only then falsify a target-scoped
+      score producer and disagreement ordering.
+
+## Extensional Tagging Contract — Documentation Amendment (2026-08-01)
+
+- [2026-08-01 17:09 IST] **Reframed personal social tags as mutable examples,
+  with evaluation freezes instead of abstract definition gates (Codex GPT-5)**
+    - **Hypothesis/result:** Research Notes plus ego/account/tag state can
+      support reversible multi-tag curation without new gold schema; the
+      all-tag GRF cannot supply a target-specific position. Inspection
+      supported the first claim and rejected the second (EXP-035).
+    - **Decision:** no intensional definition prompt; preserve `IN`, `NOT IN`,
+      and removal history behind the mutable extension; freeze `v1`/`v2` only
+      for evaluation and measure drift. Working tags remain non-gold, no new
+      Community Gold module/schema is allowed before 30 human task-scoped
+      judgments, and model/disagreement views wait for target-scoped output.
+    - **Files:** ADR 021 appends the decision at lines 251–295;
+      `docs/ROADMAP.md` makes the UI/freeze/producer sequence active;
+      `docs/EXPERIMENT_LOG.md` records EXP-035; `docs/index.md` marks the
+      amendment. No new document was added.
+    - **Scope:** documentation only. No account was tagged, no Community Gold
+      row/module or model artifact was created, and no database, network, or
+      paid API was used.
+    - **Next:** ship the evidence-first add/exclude/remove workspace and its
+      history; collect 30 examples; freeze the first extension; then falsify a
+      target-scoped producer before model position or disagreement ordering.
+
+## Raw-First Retrieval Slice 6E — Model-Provisional Note Extraction (2026-08-01)
+
+- [2026-08-01 14:55 IST] **Used the existing takes to reduce the first human
+  gate to reusable ontology questions, without creating gold (Codex GPT-5 plus
+  one context-isolated reading)**
+    - **Hypothesis (`0.75`):** the dated takes alone would support both proposed
+      answers for 7–9 of 12 accounts, leaving at most 3–5 accounts for human
+      adjudication. More than 25% unresolved/abstaining slots or collapse of the
+      two questions would falsify that expectation. Fallback was a private
+      non-training artifact and grouped clarification, not paid acquisition or
+      another persistence module.
+    - Two same-family model readings used only the exact 10,311-byte takes
+      snapshot. The primary reading was explicitly unblinded because it had
+      already seen the panel strata; the context-isolated reading received only
+      the takes and 12 handles and was instructed not to inspect the panel,
+      protocol, logs, or strata. Exact agreement was required for a provisional
+      consensus label.
+    - **Result:** the confident-account prediction was rejected. The readings
+      agreed on 18/24 slots (`75%`), leaving 6 `REVIEW` slots and 6 consensus
+      `ABSTAIN` slots; only two accounts had two decisive consensus answers.
+      The ambiguity did not require 24 clicks, however: all six disagreements
+      collapse into three reusable rules—bare `dharma` shorthand, broad
+      tantric/esoteric retrieval, and the scope of `not dharma`.
+    - The private mode-0600 artifact
+      `data/private/research-notes/dharma-boundary-pretrial-v1/model-provisional-pass-20260801T091859Z.json`
+      binds the takes/panel/protocol/producer hashes, both rationales, exact
+      source-line ranges, consensus rule, and explicit `may_train=false`,
+      `may_score=false`, and `may_replace_human_pass=false` permissions. Its
+      SHA-256 is `081cdb6deb80fc2086fbaba1d847434c87f56b11456f81e303beb7ac6a5809cf`.
+    - **Verification:** JSON parse passed; 12/12 unique handles and 12/12 source
+      ranges matched the hashed takes; permissions are 0600; no network,
+      credential, external model API, database write, paid call, or spend
+      occurred. This same-family agreement is a robustness diagnostic, not
+      human reliability, ontology validation, or a ranking benchmark.
+      Docs hygiene passed 9/9 and personal-ontology documentation passed 21/21.
+      The existing inbox verifier passed its 23 backend tests, takes snapshot,
+      and 10/11 aggregate checks; its sole failed check was environmental—the
+      isolated worktree has no local Vitest binary. Two shared-runtime attempts
+      then stopped at dependency resolution before test execution. No frontend
+      source changed, and the loop was stopped rather than adding a repo symlink
+      or a fourth environment workaround.
+    - **Next:** resolve the three rule questions once, propagate those answers
+      across the six affected slots, and acquire/review evidence only for the
+      remaining true abstentions. Do not run the ranking bake-off against these
+      model-derived labels as if they were Aditya's judgments.
+
+## Raw-First Retrieval Slice 6D — Minimal Post-Abort Correction (2026-08-01)
+
+- [2026-08-01 13:10 IST] **Fixed the demonstrated parser and privacy defects,
+  then stopped disproportionate verifier work (Codex GPT-5)**
+    - **Hypotheses:** confidence `0.98` that the documented `data.tweets`
+      nesting explained the rejection and `0.98` that unconstrained exception
+      text could disclose private values. Predicted REDs were the old envelope
+      error and visible handle/tweet sentinels; both occurred. Fallback was the
+      untouched aborted bundle, no retry, and no network/spend.
+    - `src/evaluation/dossier_response_contract.py:133-198` now validates and
+      returns the nested list; `dossier_snapshot_transform.py:107-167` consumes
+      that value. Nested behavior is covered in the modified dossier executor,
+      evidence, fail-closed, and snapshot tests and the six-check synthetic
+      operator script.
+    - `scripts/run_dossier_pretrial_acquisition.py:8-287` now encloses client
+      open, acquisition, persistence, transforms, diagnostics, and client close
+      in one fixed public-safe boundary. `dossier_private_diagnostics.py:1-45`
+      stores only phase, exception class, and message hash. Sentinel,
+      single-execution, close, diagnostic-write, and direct-entrypoint behavior
+      is covered by `tests/test_dossier_cli_private_boundary.py:1-112` and
+      `tests/test_dossier_script_entrypoints.py:1-35`.
+    - Offline replay accepted all 20 captured tweet objects without emitting
+      identity or content. No credential, HTTP call, debit, judgment, or project
+      inference-model call occurred in this correction.
+    - **Verification:** 57 targeted parser/privacy tests pass; the human-readable
+      synthetic script reports 6/6; hermetic regression reports 1,655 passed,
+      two skipped, and 20 existing sparse-matrix warnings. Docs hygiene,
+      compilation, and `git diff --check` pass.
+    - **Scope stop:** a generalized verifier prototype entered an open-ended
+      tamper loop and multiplied modules under the 300-LOC gate. Human review
+      correctly rejected that trade: it protected a four-call, zero-debit abort
+      while the corpus still had no durable judgments. The prototype is parked,
+      not shipped; the LOC gate is henceforth a review signal, not evidence of
+      lower coupling.
+    - **Next:** run the registered $0 ontology-boundary test, persist its first
+      real judgments, then run the $0 ranking bake-off. Paid retry remains later
+      and requires evidence that acquisition is binding plus fresh authorization.
+
+## Raw-First Retrieval Slice 6C — First Live Dossier Attempt (2026-08-01)
+
+- [2026-08-01 10:36 IST] **Rejected live-completion readiness while confirming
+  the fail-closed boundary (Codex GPT-5 with three read-only peer audits)**
+    - **Hypothesis (`0.90`):** the committed exact-plan chain would turn its
+      first live responses into a completed blind dossier snapshot. Registered
+      falsifiers were any schema/identity mismatch, missing durable event,
+      retry, private console leak, or debit beyond the 3,846-credit local
+      reserve. Fallback was an immediate no-retry stop with private evidence.
+    - Executed plan `2470a84f…` once from commit `a4bb7a0`: frozen 12-account
+      4/6/2 panel, maximum 26 calls, 12 profiles plus at most 240 recent tweets,
+      and USD 0.03846 planned exposure. No panel, target, or action adapted to a
+      response.
+    - **Observed falsifier:** after the before-balance call and one validated
+      profile, the first recent-tweets HTTP-200 response was rejected. The
+      strict parser expected top-level `tweets`; the actual response used
+      `data.tweets`, which existing `docs/TWITTERAPI_ENDPOINTS.md` and
+      `scripts/fetch_tweets_for_account.py` already record. This is a local
+      schema-contract/test gap, not evidence of corrupt returned data.
+    - The captured nested list had 20 structurally valid, unique tweets; every
+      author identity bound to the validated profile. These are aggregate
+      integrity checks only, not content interpretation or a usable dossier.
+    - The abort path then made its reserved after-balance call and stopped:
+      four HTTP-200 requests total, four durable attempt/response/observation
+      triples, one validated profile action, one rejected tweet action, zero
+      retries/substitutions, and **0 measured credits debited**.
+    - Private output remained confined to the ignored mode-0700 run directory;
+      every file is mode 0600, with no symlinks or temporary files. Receipt
+      SHA-256 `2b128d5e…`, partial-record artifact SHA-256 `20f76028…`, and all
+      three frozen source byte hashes recomputed successfully. No completed
+      evidence artifact, snapshot, judgment, or model call exists.
+    - **Files recorded:** `docs/EXPERIMENT_LOG.md:1-69` (EXP-032) records the
+      falsified hypothesis and methodology;
+      `docs/experiments/2026-07-31-dharma-boundary-pretrial.md:3-129` records
+      the halted protocol state and private artifact provenance; and
+      `docs/ROADMAP.md:558-577` records the parser, privacy-boundary,
+      live-verifier, and reauthorization gates. This entry is
+      `docs/WORKLOG.md:3-46`. No new document or `docs/index.md` entry was
+      needed.
+    - **Next:** behavior-first support for the documented nested envelope,
+      private-safe post-network failures, and a reusable live-bundle verifier.
+      Do not rerun this attempt; any second paid attempt needs fresh explicit
+      authorization after local verification.
+
+## Raw-First Retrieval Slice 6B — Adversarial Pre-Spend Gate (2026-07-31)
+
+- [2026-07-31 21:33 IST] **Rejected first-pass live readiness and hardened the
+  private execution boundary (Codex GPT-5 with three computational-peer audits)**
+    - **Hypothesis (`0.85`):** the EXP-030 final receipt and no-retry path were
+      sufficient for one live run. Falsifiers were trackable private output,
+      paid evidence lost on interruption, renamed holdout leakage, false-green
+      dry preflight, unreplayable inputs, or a non-enforceable advertised cap.
+      Fallback remained zero spend and the unchanged unbound preview.
+    - The audit rejected readiness: output paths were unrestricted; safe
+      responses lived only in memory; holdout exclusion used handles only; the
+      mutable logical holdout and exact source files were not bundled; static
+      plan validation occurred after dry preflight; and provider billing has no
+      server-side dollar ceiling.
+    - `dossier_bundle_io.py` and `dossier_execution_bundle.py` now enforce the
+      resolved ignored private root, atomic exclusive fsynced 0600 artifacts,
+      exact source copies, a private logical holdout snapshot, and per-call
+      attempt/response/observation files before the executor proceeds.
+    - `dossier_http_transport.py`, `dossier_transport_contract.py`, and
+      `dossier_transport_observation.py` retain the fixed origin/allowlist and
+      no-retry behavior while durably recording credential-free JSON bodies;
+      rejected bodies retain only sanitized status/timing/byte hashes.
+    - `holdout_snapshot.py`, `dossier_execution_preflight.py`, and
+      `dossier_acquisition_executor.py` validate the full plan before credential
+      access, bind the 368-handle/288-ID logical exclusion set, and stop after a
+      matching profile ID before that target's tweets.
+    - The runner preserves receipt, raw records, and canonical evidence before
+      client close/transform, derives the snapshot ID from the frozen panel,
+      rejects wrong local reserves before bundle/key access, and keeps private
+      execution failures out of console output. Snapshot validation now rejects
+      tweet IDs duplicated across accounts.
+    - **Budget semantics:** 3,846 credits/USD 0.03846 is the pinned local reserve
+      for exactly 26 no-retry calls, not a provider-enforced billing ceiling;
+      the final balance measures any deviation after it occurs.
+    - **Verification:** 145/145 focused tests, synthetic verifier 6/6, real
+      private preflight, Python compilation, file-size gates, docs hygiene, and
+      `git diff --check` pass. Network, credential read, provider response,
+      database write, judgment, and spend remain zero.
+    - Broad local regression: 1,648 passed and two skipped. The only three
+      failures were pre-existing live Supabase calls in
+      `tests/test_connection.py`; that file is not marked `requires_supabase`
+      and failed DNS under restricted network. The isolation gap is recorded
+      in ROADMAP rather than hidden or changed in this feature commit.
+
+## Raw-First Retrieval Slice 6 — Fail-Closed Dossier Execution (2026-07-31)
+
+- [2026-07-31 21:15 IST] **Completed the zero-spend executor, evidence, and
+  snapshot chain (Codex GPT-5 with four computational-peer audits)**
+    - **Hypothesis (`0.90`):** exact artifact preflight plus an injected,
+      no-retry transport can turn one frozen plan into reproducible blind
+      dossiers while stopping on the first hash/schema/identity/cap mismatch.
+      Falsifiers were any unrecorded attempted call, retry, response-body leak
+      into the receipt, mutable evidence, holdout overlap, or accepted drift.
+      Fallback: keep the plan unexecuted and retain the unbound preview.
+    - `src/evaluation/dossier_execution_preflight.py:1-296` binds the real plan,
+      raw panel bytes, semantic price card, 4/6/2 strata, exact target intents,
+      and read-only historical holdout exclusion before credentials/network.
+    - `dossier_execution_contract.py`, `dossier_acquisition_executor.py`,
+      `dossier_executor_types.py`, and `dossier_response_contract.py` implement
+      exact acceptance, balance/action sequencing, strict provider envelopes,
+      canonical timestamps and decimal identities, attempted-call receipts,
+      descriptive sanitized failures, and no retries.
+    - `dossier_http_transport.py` fixes the provider origin, three endpoints,
+      parameter sets, timeout, credential redaction, and defensive private
+      response capture; it takes an injected key rather than reading one.
+    - `dossier_receipt_validation.py`, `dossier_evidence_artifact.py`,
+      `dossier_snapshot_transform.py`, and `src/data/research_notes_snapshot.py`
+      keep raw evidence private, reconcile every call/hash/balance, strip to
+      display fields, and build immutable per-account and snapshot hashes.
+    - Rejected an initial 298-LOC artifact module that met the numeric gate by
+      packing constants onto long lines. The final SRP split is 213/207 LOC;
+      this directly applies the project's Metric Gamer warning.
+    - `scripts/run_dossier_pretrial_acquisition.py:1-264` defaults to no-spend
+      preflight; live mode requires the exact total reserve, explicit env file,
+      and a new private 0700 directory, writing 0600 receipt/raw/evidence/
+      snapshot artifacts. `scripts/verify_dossier_pretrial_execution.py:1-197`
+      gives human-readable synthetic verification.
+    - **Verification:** 120/120 focused tests, synthetic verifier 6/6, real
+      private preflight 10/10 aggregate fields, Python compilation, file-size
+      gates, and `git diff --check` pass. No network, credential read, API
+      response, database write, human answer, or paid credit yet.
+
+## Raw-First Retrieval Slice 5B — Provenance-Link Correction (2026-07-31)
+
+- [2026-07-31 20:45 IST] **Re-hashed the still-unexecuted plan after its
+  profile-documentation slug proved noncanonical (Codex GPT-5)**
+    - Prediction (`0.90`): the endpoint and prices would remain unchanged but
+      the official source identity and every downstream semantic hash would
+      change. Fallback: preserve prior private plans as superseded and make no
+      request until preflight recognizes only the corrected hash.
+    - Official references confirmed `/twitter/user/info` with a `data` object
+      and top-level `tweets` for recent posts, but the canonical profile page is
+      `get_user_by_username`, not the stored `get_user_info` slug.
+    - `data/manifests/twitterapiio_price_card_20260730.json` and its pinning
+      test now bind semantic SHA-256 `eab5a081…`; no price changed.
+    - The replacement mode-0600 plan is `2470a84f…`, still 26 maximum calls,
+      3,846 reserved credits, and USD 0.03846. The `3c66b735…` plan was retained
+      as superseded alongside `f352851e…`; all remain unexecuted.
+    - EXP-029 and the focused pretrial protocol record the falsifier and
+      downstream invalidation. Focused acquisition tests pass 30/30; paid spend
+      remains USD 0.
+
+## Raw-First Retrieval Slice 5A — Telemetry-Reserve Correction (2026-07-31)
+
+- [2026-07-31 20:05 IST] **Superseded the unexecuted dossier plan after a
+  pricing assumption failed (Codex GPT-5)**
+    - **Hypothesis and falsifier:** assumed the documented balance endpoint was
+      free. Confidence was only `0.55`; absence of an authoritative price or a
+      hard-cap boundary that passed without reserving the calls would reject
+      it. Fallback was to spend nothing and widen the reserve.
+    - **RED:** at a 3,830-credit cap, the old evidence-only planner incorrectly
+      accepted 3,816 credits even though the required before/after balance
+      observations were outside its budget.
+    - **GREEN:** `src/evaluation/dossier_acquisition_plan.py:1-258` now emits a
+      schema-v2 plan with two explicit `conservative_unverified` telemetry
+      calls and counts their 30-credit reserve toward the hard cap.
+      `tests/test_dossier_acquisition_plan.py:1-167` covers the exact manifest
+      and boundary; `scripts/verify_acquisition_plan_contract.py:1-220` reports
+      evidence and telemetry separately.
+    - **Private receipt:** retained unexecuted plan `f352851e…` under an
+      explicitly superseded filename. The replacement mode-0600 plan is
+      `3c66b7353e393bb0b266000261204345bfce2031dbc617301e5ae600bc07fd56`:
+      26 maximum calls, 3,846 reserved credits, USD 0.03846 under the unchanged
+      USD 0.05 cap; holdout overlap remains zero and local coverage remains
+      5/12 profiles and 1/12 timelines.
+    - **Docs:** EXP-028 records the rejected assumption; ADR 022, ROADMAP, and
+      the pretrial protocol carry the additive correction.
+    - **Verification:** focused planner tests 12/12 and real private verifier
+      7/7. No API/OpenRouter call, credential read, response, or paid credit.
+
+## Raw-First Retrieval Slice 5 — Formative Acquisition Planning (2026-07-31)
+
+- [2026-07-31 19:16 IST] **Falsified local-only dossier readiness and froze a
+  non-executing USD 0.05 acquisition plan (Codex GPT-5 with three
+  computational-peer audits)**
+    - **Hypotheses, predictions, confidence, fallback**
+        - `H-A1` (`0.70`): the private 12-account Dharma panel already has
+          comparable profile plus recent-post coverage. Expected: most
+          accounts have both locally; fewer than half falsifies readiness.
+        - `H-A2` (`0.95`): current provider prices permit one standardized
+          profile-plus-20-post dossier per account below USD 0.05. A stale or
+          malformed card, cap overflow, or unverifiable price identity
+          falsifies the plan.
+        - `H-A3` (`0.95`): planning can remain credential-free and incapable of
+          execution while pinning every target, action, reserve, price card,
+          selection manifest, and canonical plan hash. Any environment/API
+          access or `authorizes_execution=true` falsifies the separation.
+        - Fallback: do not reuse either legacy fetcher. If the plan cannot be
+          proved safe, continue with the visibly unbound UI and collect no
+          trial answers or paid evidence.
+    - **Investigation loop**
+        - Attempt 1/3: a read-only canonical-archive coverage query rejected
+          `H-A1`: 5/12 selected accounts have profiles and 1/12 has any local
+          authored tweets; the populated timeline is not a comparable current
+          dossier.
+        - Attempt 2/3: code and peer audits rejected both historical paid
+          fetchers for this run because their price assumptions, dry-run
+          boundary, cap granularity, response receipts, and provenance are not
+          safe enough for a new paid call.
+        - Attempt 3/3: current official pricing plus pure behavioral contracts
+          confirmed `H-A2` and `H-A3`. The exact fixed plan reserves USD
+          0.03816 below a USD 0.05 cap and contains no execution capability.
+    - **Changes (files + why)**
+        - `data/manifests/twitterapiio_price_card_20260730.json`: extend the
+          dated tracked card with official profile and recent-tweet prices and
+          endpoint identities; the semantic card hash is
+          `f795e1704f5d8bb0337f1d1deb3e81276750a98dd4485dac7285ff6f2f9dd2bb`.
+        - `src/evaluation/acquisition_manifest.py:1-124`: isolate shared
+          canonical JSON, handle, timestamp, exact-decimal cap, and self-hash
+          rules so neither action planner approaches the 300-LOC boundary.
+        - `src/evaluation/acquisition_plan_contract.py:1-186`: add the pure
+          followings plan contract, worst-case 398-credit page reserve, and
+          freshness/cap validation. It has no transport, credentials, or write
+          path.
+        - `src/evaluation/dossier_acquisition_plan.py:1-231`: add the pure
+          fixed profile/recent-tweet dossier planner with atomic actions,
+          selection-manifest binding, one-page bounds, deterministic target
+          ordering, and hard-cap failure.
+        - `tests/test_acquisition_plan_contract.py:1-168` and
+          `tests/test_dossier_acquisition_plan.py:1-144`: behaviorally cover
+          exact reserves, price/card drift, duplicates, invalid handles/pages,
+          stale/future prices, cap overflow, deterministic hashing, and the
+          non-execution flag. Dossier tests began against an intentional
+          `NotImplementedError` RED implementation.
+        - `scripts/verify_acquisition_plan_contract.py:1-214`: add the required
+          human-facing verifier; it reports costs, counts, hashes, historical
+          holdout overlap, local coverage, and the next gate without printing
+          private identities. Optional plan output is exclusive and mode 0600.
+        - `.gitignore`: exclude `data/private/`; the real panel and plan stay
+          local with mode 0600 and are not staged.
+        - `docs/EXPERIMENT_LOG.md` EXP-027, `docs/ROADMAP.md`,
+          `docs/experiments/2026-07-31-dharma-boundary-pretrial.md`, and ADR
+          022 record the falsification, plan / execute boundary, exact
+          pre-answer cost, and remaining receipt gate. The focused pretrial
+          extraction also returns the parent pilot below the 300-LOC gate.
+    - **Private receipts and measured result**
+        - Selection manifest SHA-256:
+          `ce680f1a88fb9d4b2dd1af169c1ce741eaca3e9d3dcaa83f834f6d1cbfdc83ce`;
+          12 accounts; `4/6/2` pre-answer strata; historical holdout overlap 0.
+        - Plan semantic SHA-256:
+          `f352851ed285493445bb2baecc3ef69714bc9db71ab945b3abe63b0c360fb8ab`;
+          24 maximum calls; 12 profiles; 240 tweets; 3,816 credits; USD
+          0.03816 under the USD 0.05 hard cap.
+        - `authorizes_execution=false`. No credential was read and actual
+          provider/OpenRouter spend remains USD 0.
+    - **Verification**
+        - Acquisition/dossier/seed price contracts → 33/33 passed.
+        - Real private-plan verifier → 6/6 passed and wrote only the ignored
+          mode-0600 plan.
+        - Python compilation and `git diff --check` passed; all new production
+          files remain under 300 LOC.
+
+
+## Raw-First Retrieval Slice 4 — Independent-Band Quarantine (2026-07-30)
+
+- [2026-07-30 18:55 IST] **Falsified independent-Lift entropy and blocked its
+  stale bands from classification, export, and acquisition ranking (Codex
+  GPT-5 with three read-only computational-peer audits)**
+    - **Hypotheses, predictions, confidence, fallback**
+        - `H-E1` (`0.99`): normalized entropy must be finite, bounded in
+          `[0,1]`, and invariant to positive row scaling. A negative, >1, or
+          scale-dependent result falsifies the implementation.
+        - `H-E2` (`0.65`): correcting row normalization will preserve current
+          specialist/bridge/frontier assignments. Any changed assignment makes
+          it a taxonomy change requiring held-out evaluation.
+        - `H-E3` (`0.80`): the entropy predicate contributes information to
+          active banding. Removing it without changing a band falsifies this.
+        - `H-E4` (`0.90`): stored bands and active membership affinities share
+          one propagation run. Timestamp/count skew falsifies this.
+        - Predicted safe outcome: centralize valid compositional entropy but
+          fail closed for independent display bands rather than inventing new
+          thresholds. Fallback: if a compatible evaluated band contract
+          already existed, bind it to the exact artifact receipt; none was
+          found.
+    - **Investigation loop**
+        - Attempt 1/3:
+            - hypothesis: the current calculation is Shannon entropy over Lift.
+            - test: reproduce it on the active NPZ, apply a 7x scale transform,
+              and add synthetic scale/bounds/negative-input regressions.
+            - result: rejected — historical values ranged
+              `-1190.1798..1.9756`, with 30,434 outside `[0,1]`; the RED suite
+              failed 4/4 for the intended reasons.
+        - Attempt 2/3:
+            - refined hypothesis: correct row normalization is a
+              behavior-preserving numerical fix.
+            - test: compare current bands with corrected entropy and with the
+              entropy predicate removed.
+            - result: rejected — correction changes 1,793 bands, while deleting
+              the predicate changes zero. Specialist precedence also
+              overwrites qualified bridges.
+        - Attempt 3/3:
+            - final hypothesis: blocking new classification is sufficient.
+            - test: trace `account_band` through public export and
+              `rank_frontier`, compare its creation timestamp/counts with the
+              active NPZ, and add downstream regressions.
+            - result: rejected — stale SQLite rows bypassed the classifier,
+              public export joined them to a newer NPZ, and the ranker used
+              synthetic `none` Lift as `1-p_none`. Both consumers now share the
+              fail-closed mode guard.
+    - **Changes (files + why)**
+        - `src/propagation/entropy.py:1-43` adds one scale-invariant,
+          non-negative row-entropy primitive with explicit zero-row
+          convention.
+        - `src/propagation/bands.py` owns classic thresholds, requires an
+          explicit artifact mode plus coherent node/community dimensions,
+          raises the descriptive independent-mode exception, and preserves
+          pure historical classic classification.
+        - `src/propagation/engine.py:24-33` delegates solver entropy to the
+          shared primitive instead of clipping every Lift above one.
+        - `scripts/classify_bands.py:1-212` becomes a thin classic-only
+          persistence CLI and shrinks below the 300-LOC gate.
+        - `scripts/_export_helpers/_community_extractors.py` first validates
+          the supplied propagation artifact, then rejects every existing
+          unbound `account_band` table even when the artifact is valid classic
+          mode. `scripts/export_public_site.py` catches only that named
+          quarantine error, logs it, and emits the safer classified-only
+          fallback. This inherited 556-LOC helper and 388-LOC orchestrator
+          remain decomposition debt; the safety patch does not broaden their
+          refactor.
+        - `scripts/rank_frontier.py` rejects both unsupported propagation
+          artifacts and every unbound band table at its reusable loader
+          boundary before zero uncertainty, synthetic `none` Lift, or
+          version-skewed classic rows can steer API acquisition.
+        - `scripts/analyze_frontier_confidence.py:15-31,61` rejects the same
+          artifact before compositional entropy can be called confidence or
+          combined with probability-like thresholds.
+        - `scripts/_active_learning_helpers/frontier_quarantine.py`,
+          `_account_selection.py`, `scripts/active_learning.py`, and
+          `scripts/fetch_following_for_frontier.py` reject every current
+          `frontier_ranking`-dependent automatic acquisition entry point
+          before a database/API-key/spend path runs. Explicit handles remain
+          available and receive no stale score or community metadata. The
+          separate zero-outbound following selector remains an unvalidated
+          coverage heuristic and is not claimed as an information-value
+          policy.
+        - `scripts/fetch_topic_seeds.py` now stores parsed tweets/profiles
+          without writing an artificial `frontier_ranking` score;
+          `scripts/verify_topic_seed_ingestion.py --handles-output` creates an
+          inspectable explicit-handle handoff instead. EXP-006 is additively
+          marked superseded.
+        - `scripts/fetch_tweets_for_account.py` adds a source-exclusion option
+          to the existing freshness check, and
+          `_account_selection.select_accounts_by_handle` ignores
+          topic-search-only rows while still suppressing fresh account-level
+          enrichment. It also normalizes `@` prefixes and deduplicates resolved
+          account IDs before work can be scheduled.
+        - `scripts/verify_active_learning.py` now recommends only explicit
+          reviewed handles and no longer presents the quarantined automatic
+          selector or historical automatic seed promotion as next actions.
+        - `scripts/resolve_band_usernames.py` rejects its standalone
+          `account_band` selection before database/network work. Its old
+          Supabase resolver remains as migration evidence, not an advertised
+          executable utility.
+        - `src/propagation/types.py:61-66` corrects the result contract:
+          independent rows are raw Lift and uncertainty is a zero placeholder,
+          not a simplex plus measured uncertainty.
+        - `tests/test_propagation_entropy.py` covers scale/bounds, >1 Lift
+          preservation, overflow-safe finite Lift, negative input, and exact
+          classic tiny-weight compatibility. `tests/test_band_classification.py`
+          covers explicit mode, artifact dimensions/masks, classifier, export,
+          ranker, and analysis fail-closed behavior. Both new modules remain
+          below 300 LOC; falsifiers were observed red before implementation.
+        - `tests/test_account_band_quarantine.py` adds the release-review
+          falsifiers: a valid but unrelated classic artifact cannot legitimize
+          SQLite band rows, and direct ranker-loader callers cannot bypass the
+          guard. `tests/test_export_public_site.py` and the end-to-end export
+          assertion now require classified-only fallback output. The inherited
+          855-LOC ordered `tests/test_pipeline_e2e.py` scenario is recorded for
+          decomposition rather than expanded.
+        - `tests/test_acquisition_frontier_quarantine.py` covers the CLI,
+          reusable account-selection API, frontier-follow selection,
+          band-username resolution, and the manual-handle escape hatch.
+          `tests/test_fetch_topic_seeds.py` covers the explicit handles-file
+          handoff. Historical ranking-query regressions remain isolated behind
+          a private helper until a replacement policy exists.
+        - `scripts/verify_independent_band_entropy.py:1-248` provides the
+          required read-only ✓/✗ verifier with hashes, counts, entropy ranges,
+          scale delta, legacy table metrics, boundaries, and next action.
+        - `public-site/src/About.jsx` calls hosted specialist, bridge,
+          frontier, and faint labels stale quarantined metadata rather than
+          current findings; it describes the seeds as mixed NMF,
+          LLM-ensemble, and curator inputs and explains that current export
+          suppresses every unbound band row. `About.truthfulness.test.jsx`
+          protects those copy contracts. The roughly 1,080-LOC About monolith
+          was warned and recorded as debt; this slice makes copy-only edits.
+        - `docs/adr/018-propagation-engine-and-confidence.md` receives an
+          additive 2026-07-30 decision amendment; `docs/EXPERIMENT_LOG.md`
+          records EXP-024; `docs/ROADMAP.md`, `docs/index.md`, and `README.md`
+          remove current/shipped claims and preserve historical documents as
+          explicitly superseded evidence.
+    - **Measured result**
+        - Active artifact: SHA-256 prefix `1d12f3371205260d`, independent mode,
+          298,347 accounts, 16 community columns.
+        - Correct entropy range: `0..0.975667`; values outside `[0,1]`: `0`;
+          maximum delta after 7x scaling: `0`.
+        - Stored table: 298,347 rows, 16,065 negative entropy rows; all 6,964
+          stored specialists are negative. Counts and timestamp identify an
+          older run than the active NPZ.
+        - No real band, SQLite, NPZ, JSON export, hosted site, ranking,
+          Community Gold judgment, API request, or paid acquisition was
+          created or changed.
+        - The active database's 8,727 existing `frontier_ranking` rows remain
+          intact but cannot drive current automatic selection or
+          frontier-ranked following fetches.
+    - **Verification**
+        - RED: `tests/test_band_classification.py` → 4/4 expected failures
+          before the entropy and classifier changes; downstream export and
+          ranker tests each then failed for “did not raise” before their
+          guards.
+        - GREEN: final entropy/band/acquisition/topic/fetch/export tranche →
+          `111 passed`.
+        - Full offline Python non-Selenium/non-Supabase suite (explicitly
+          excluding the unmarked live `test_connection.py`) → `1,503 passed,
+          2 skipped`; warnings are the existing SciPy sparse-mutation warning.
+          The three live connection tests skip cleanly without credentials
+          when rerun with network access.
+        - Full public-site suite → `212 passed`; production Vite build passed.
+        - About truthfulness focused contract → `1 passed`.
+        - Real-data read-only verifier → `6/6` checks passed, including the
+          unbound-consumer boundary, and printed all metrics above.
+        - Documentation verifiers → docs hygiene `9/9`; personal-ontology
+          documentation `21/21`.
+        - Independent review also found that ADR-013 cluster coloring treats
+          synthetic independent `none` Lift and zero uncertainty as
+          probability/confidence. That separate rendering-contract repair is
+          recorded in `docs/ROADMAP.md`; cluster visuals were not silently
+          changed in this banding slice.
+        - Final adversarial release review found three P2 gaps and each was
+          falsified and closed: unrelated classic artifacts could legitimize
+          unbound bands; a private legacy frontier selector was re-exported by
+          the public orchestrator; and About called mixed-source seeds
+          well-classified/human-classified. The follow-up review also found
+          that classified fallback rows were searchable but excluded from
+          community member lists; a page-level RED regression reproduced the
+          empty communities, and the exporter now includes only direct
+          `classified`/`exemplar` seed rows while still excluding all
+          propagated band tiers. Final band/export/active-learning/E2E tranche
+          passed `96/96`, About truthfulness passed `1/1`, public site passed
+          `212/212`, and the production Vite build passed.
+
+## Raw-First Retrieval Slice 3 — Named-Seed Coverage Triage (2026-07-30)
+
+- [2026-07-30 18:30 IST] **Implemented a zero-spend, read-only Dharma seed
+  coverage and acquisition-cost report (Codex GPT-5 with three read-only
+  computational-peer audits)**
+    - **Hypotheses, predictions, confidence, fallback**
+        - `H-C1` (`0.95`): a versioned seed panel can pin the intended numeric
+          identities without silently accepting conflicting handle lookups.
+          Any conflicting numeric ID is surfaced while the panel remains
+          authoritative.
+        - `H-C2` (`0.80`): explicit direct/inverse archive and shadow following
+          views contain a nonempty stored-key neighborhood for each of the four
+          named Dharma seeds. A zero union falsifies this; unavailable sources
+          make the union partial but do not erase observed rows.
+        - `H-C3` (`0.40`): the later local follow rows can be attributed to a
+          provider, fetch run, and time. Missing row-level source/run/time
+          fields falsify this.
+        - `H-C4` (`0.90` arithmetic; `0.45` retrieval quality):
+          source-selectivity can rank current candidates, but improvement over
+          raw support requires future frozen development/holdout judgments.
+        - Predicted outcome: use current local evidence before spending API
+          credits; price only complete refreshes, never a locally inferred
+          gap. Fallback: if every neighborhood remained sparse, price a
+          seed-specific acquisition tranche; if provenance remained unknown,
+          keep rows usable only as explicitly unattributed observations.
+    - **Investigation loop**
+        - Attempt 1/3:
+            - hypothesis: EXP-021's `538/10/0/0` diagnostic represents current
+              named-seed coverage.
+            - test: compare independent project-root and sibling archive
+              databases by inode, table counts, per-seed target digests, and
+              candidate universe.
+            - result: rejected — database selection changed stored-key unions
+              from `735/225/1/2` to `957/2,323/226/58` and candidates from
+              `894` to `3,305`.
+        - Attempt 2/3:
+            - refined hypothesis: the public Community Archive REST topology
+              can independently close the four current follow lists.
+            - test: inspect current public account profiles and direct/inverse
+              following/follower table counts without paid requests.
+            - result: rejected for topology closure — profiles were current,
+              but public relationship rows were absent or partial for three
+              seeds. The canonical Parquet tweet snapshot was still refreshed
+              and deep-verified at zero cost.
+        - Attempt 3/3:
+            - final hypothesis: the active local database is sufficient for a
+              zero-cost ranking but cannot prove acquisition provenance.
+            - test: inspect schema, rowid batches, stale fetch-state/log rows,
+              shadow metadata, and run the query-time report with explicit
+              paths and pinned SQLite read snapshots.
+            - result: confirmed for operational retrieval; falsified for
+              provenance. The later batch has no provider, fetch time, or run
+              ID and is labeled only as unattributed SQLite evidence.
+    - **Changes (files + why)**
+        - `data/evals/dharma_seed_coverage_panel.json:1-39` pins the four
+          user-named probes and timestamped Community Archive profile-count
+          receipts; these are retrieval seeds, not exhaustive membership
+          labels.
+        - `data/manifests/twitterapiio_price_card_20260730.json:1-40` freezes
+          the verified credits/USD, endpoint pagination, minimum-call, and
+          item-tier assumptions used by the cost estimator.
+        - `src/evaluation/seed_coverage_contract.py:1-200` validates panels,
+          computes page-tier full-refresh cost, compares receipts/digests, and
+          derives explicit falsification results.
+        - `src/evaluation/seed_coverage_io.py:1-192` handles JSON/database
+          receipts, missing-table semantics, and identity/name lookup.
+        - `src/evaluation/seed_coverage_content.py:1-95` deep-verifies and
+          caches one immutable Parquet content/reply projection per process so
+          path comparison does not scan the same 920 MB snapshot twice.
+        - `src/evaluation/seed_coverage_follow.py:1-108` keeps direct/inverse
+          sources separate, constructs the stored-key union, preserves shadow
+          provenance, and canonicalizes known seed aliases for ranking.
+        - `src/evaluation/seed_coverage.py:1-177` pins read snapshots before
+          receipts/queries, orchestrates the adapters, invokes the existing
+          source-selectivity primitive, and states that scores are uncalibrated.
+        - `tests/test_seed_coverage.py:1-240`,
+          `tests/test_seed_coverage_contract.py:1-100`, and
+          `tests/test_seed_coverage_io.py:1-31` behaviorally cover price tiers,
+          concurrent-writer WAL snapshot isolation, source
+          separation/deduplication, known seed-alias exclusion, pinned identity
+          conflicts, content/ranking semantics, comparison receipts/digests,
+          derived attribution status, and missing-table `unavailable`
+          behavior. RED-first truthfulness fixes renamed shadow direct/inverse
+          following and removed non-comparable claim-versus-union ratios.
+        - `scripts/verify_seed_coverage_triage.py:1-189` prints explicit
+          implementation checks and falsification statuses,
+          seed metrics, ranked candidates, path dependence, cost, boundaries,
+          and next steps; JSON output is no-clobber.
+        - `data/evals/dharma_seed_coverage_report_20260730.json` freezes the
+          historical query-time result and input receipts. Its SQLite inputs
+          are explicitly mutable; the report is not an immutable source
+          snapshot and cannot be exactly regenerated after their WALs advance.
+        - `docs/EXPERIMENT_LOG.md` adds EXP-023 and an additive EXP-021
+          amendment; `docs/ROADMAP.md` records the candidate-review surface,
+          canonical data root, edge extract, ingestion provenance, shadow
+          orientation, and typed-edge follow-ups.
+    - **Data and cost receipts**
+        - Community Archive snapshot
+          `20260730T045247Z-4913d0183e39`: 8,511,975 tweets, 34,917 accounts,
+          newest event `2026-07-30T04:24:20Z`, SHA-256
+          `24843080391b664ed8a138cd65362a4c65756c95459858e19aca98ed7e87e471`.
+        - Named-seed stored-key unions: RomeoStevens76 `957`, TVachaW `2,323`,
+          realityacid108 `226`, SuttaSlime `58`. Mixed-time aliases mean these
+          are neither current-follow counts nor completeness denominators.
+        - Latest-snapshot authored rows: `14,542/290/7/1`; incoming non-self
+          reply rows: `2,947/360/6/47`.
+        - Source-selective candidate count: `3,305`; top row
+          `danielbrottman` is supported by all four seeds. No precision or
+          membership conclusion is drawn before held-out review.
+        - Verified full-refresh quote: 3,571 credits, USD `0.03571`; actual
+          twitterapi.io spend: USD `0`. The report itself makes no network
+          request; the earlier public Community Archive refresh also cost USD
+          `0`.
+    - **Verification and limitations**
+        - Behavior-first contracts began with expected `NotImplementedError`
+          failures. The WAL snapshot regression then reproduced visibility of
+          a writer commit after `BEGIN` but before the first read; the retained
+          reader pins a real SELECT snapshot and the concurrent-writer test is
+          green.
+        - `pytest tests/test_seed_coverage.py
+          tests/test_seed_coverage_contract.py
+          tests/test_seed_coverage_io.py tests/test_source_selectivity.py
+          tests/test_archive_snapshot.py
+          tests/test_archive_snapshot_validation.py
+          tests/test_snapshot_comparison.py -q` → `33 passed`.
+        - Final real-data verifier → 4/4 implementation checks passed;
+          H-C1/H-C2/H-C4 were not falsified, H-C3 was falsified; 3,305
+          candidates; path deltas `+222/+2,098/+225/+56`; full-refresh quote
+          USD `0.03571`. The builder exposes local paths only and does not
+          execute acquisition; spend is recorded separately as an operational
+          USD `0` observation, not inferred by the verifier.
+        - `python -m py_compile` across all Slice 3 modules/tests and
+          `git diff --check` passed.
+        - `scripts/verify_docs_hygiene.py` → `9/9`; module invocation of
+          `scripts.verify_personal_ontology_docs` → `21/21`.
+        - The regenerated report timestamp is generated after its database
+          receipts and queries; it postdates every recorded DB/WAL mtime.
+        - All SQLite opens use `mode=ro` and `PRAGMA query_only=ON`; WAL
+          visibility and concurrent-writer snapshot isolation are tested.
+          Deep snapshot verification runs before opening the database read
+          snapshots. Missing tables report `unavailable`, not observed zero.
+        - A peer audit confirmed price arithmetic, artifact hashes, no secrets,
+          and current shadow-row interpretation. It also caught the mutable-WAL
+          reproducibility boundary, ambiguous shadow field names, and a
+          mixed-union delta name; all are now explicit.
+        - Current `shadow_edge` producer code and row metadata support the
+          following interpretation used here, but reference documentation
+          contradicts itself. Historical writer/version audit remains debt.
+        - No logical database row/schema write, model inference, paid X
+          request, Community Gold schema/module, UI, or deployment is part of
+          this slice. Opening the WAL databases read-only created normal
+          SQLite runtime sidecars (a 0-byte WAL and 32 KiB SHM) beside the
+          selected sibling database.
+
+## Raw-First Retrieval Slice 2 — Research Notes Inbox (2026-07-30)
+
+- [2026-07-30 16:07 IST] **Implemented and synthetically verified the blind
+  paste-and-review thin slice (Codex GPT-5 with three implementation peers and
+  an independent adversarial review)**
+    - **Hypothesis, prediction, confidence, fallback**
+        - `H1` (`0.90`): messy notes can become a deduplicated review queue
+          whose dossier contains only allowlisted raw evidence and no legacy
+          recommendations. A leaked community/weight/role field, lost source
+          line, or unsafe profile URL falsifies it.
+        - `H2` (`0.95`): preview mode can fail closed by rejecting `frameId`,
+          refusing all writes, ignoring mutable client target text, and naming
+          current SQLite evidence as mutable and not snapshot-bound. Any
+          enabled save, frozen-evidence wording, or hidden-role-dependent
+          progress falsifies it.
+        - `H3` (`0.45`): the surface will make real curation motivating and
+          cheap enough to reach 30 judgments. Synthetic behavior cannot confirm
+          this; review time, abstention, correction rate, and held-out retrieval
+          change will. If the dossier is insufficient, add the smallest
+          evidence view justified by observed abstentions rather than another
+          substrate.
+    - **RED / GREEN evidence**
+        - Parser contracts began with 3 expected failures; the retained parser
+          passes 3/3.
+        - Dossier API contracts began with 7 expected failures; focused backend
+          and adjacent auth/integrity contracts now pass 23/23.
+        - App/API wiring began with 4 expected failures and inbox behavior with
+          3 expected failures. The retained focused frontend tranche passes
+          19/19.
+        - Direct visual inspection exposed a context-free network error; a RED
+          regression now requires the failing handle. An adversarial link test
+          then reproduced unsafe `javascript:` website rendering and singular
+          count errors; both are fixed and green.
+        - Independent review falsified the first synthetic write design:
+          mutable current rows were labeled as frame-bound, editable
+          environment text could contradict the immutable task, a
+          training-readable count leaked hidden role membership, and retry was
+          not idempotent. RED contracts now require explicit frame rejection,
+          session-only drafts, and no client-defined target; the write path and
+          its unused client helpers were removed.
+    - **Changes (files + current line ranges)**
+        - `src/api/routes/research_notes.py:1-180` adds one curator-only,
+          read-only dossier endpoint with explicit profile/tweet fields and
+          capture times, mutable-source metadata, strict limits, and explicit
+          rejection of unimplemented frame binding.
+        - `src/api/server.py:32,161` registers the dossier blueprint.
+        - `tests/test_research_notes_routes.py:1-202` exercises auth, blind raw
+          payloads, descriptive missing-account errors, invalid limits, capture
+          provenance, and mandatory frame rejection using temporary SQLite.
+        - `graph-explorer/src/researchNotes/parseResearchNotes.js:1-41` parses
+          handles and X/Twitter profile or tweet-author URLs, preserves the
+          first source line, and deduplicates case-insensitively.
+        - `graph-explorer/src/researchNotes/researchNotesApi.js:1-31` fetches an
+          authenticated dossier and retains account context in network errors.
+        - `graph-explorer/src/researchNotes/RawDossier.jsx:1-102` renders only
+          the allowlisted profile and authored posts, with safe external links,
+          capture times, mutable/snapshot status, and a no-recommendations
+          boundary.
+        - `graph-explorer/src/researchNotes/useResearchNotesInbox.js:1-81`
+          owns only the session queue, raw evidence loading, dossier retry, and
+          draft fields. It contains no persistence call.
+        - `graph-explorer/src/ResearchNotesInbox.jsx:1-140` and
+          `ResearchNotesInbox.css:1-266` provide the two-pane paste, dossier,
+          draft judgment, error, session-only warning, and responsive layout.
+        - `graph-explorer/src/App.jsx` mounts `?view=research-notes` as a
+          top-level view without accepting reviewer/target semantics from
+          environment configuration.
+        - `scripts/verify_research_notes_inbox.py:1-192` prints 8 explicit
+          ✓/✗ checks, file sizes, the no-real-data boundary, and the next gate.
+        - `docs/EXPERIMENT_LOG.md` EXP-022 records the method, falsifiers,
+          synthetic-only result, and snapshot provenance limitation.
+        - `docs/ROADMAP.md` marks the blind thin slice shipped while retaining
+          snapshot-addressed evidence, real activation, and UX measurement as
+          open work.
+    - **Verification**
+        - `scripts/verify_research_notes_inbox.py` under the project dependency
+          environment: 8/8 checks passed; 23 backend and 19 frontend contracts.
+          A first invocation under a bare UV interpreter failed descriptively
+          because that interpreter did not include pytest; rerunning under the
+          project venv passed and did not alter code or data.
+        - Graph explorer: 759/759 tests passed; scoped ESLint passed with zero
+          warnings; production Vite build succeeded with inherited dynamic
+          import and bundle-size warnings.
+        - In-app browser: pasted two accounts, confirmed deduplication,
+          queue switching, raw dossier rendering, and disabled preview save
+          against a disposable fixture database. No real archive DB was opened.
+    - **Scope, assumptions, and debt**
+        - No schema, Community Gold module, real ontology/frame/role/judgment,
+          prediction, API fetch, paid acquisition, or deployment was added.
+        - A profile plus up to 20 authored posts is not assumed to prove
+          competence, affiliation, endorsement, Kegan stage, simulacrum level,
+          or durable intent. Those remain separately defined targets.
+        - The endpoint reads current local rows and says so; it cannot accept a
+          frame. Real saving remains gated on a server-derived canonical task,
+          snapshot-addressed evidence/context verification, an idempotency key,
+          and role-independent cumulative progress.
+        - The first combined inbox component crossed 300 LOC during
+          implementation and was split into presentation, controller, raw
+          dossier, parser, and transport modules before integration. No new
+          production file exceeds 300 LOC. Adversarial simplification reduced
+          the route from 268 to 180 LOC, controller from 266 to 81 LOC, and
+          backend test from 299 to 202 LOC.
+
+- [2026-07-31 18:45 IST] **Validated full-block import against the real takes
+  snapshot without activating gold writes (Codex GPT-5 with a read-only peer
+  audit)**
+    - **Hypothesis, prediction, confidence, fallback**
+        - `H1` (`0.95`): block boundaries can recover the intended subjects
+          and their complete rationale while treating handles inside evidence
+          as citations. Expected: 57 subjects, no `cisco`/`ai4bharat`, both
+          explicit co-subject/display-name cases present, and zero exact-span
+          mismatches. Fallback: retain the raw span and require explicit
+          curator confirmation for ambiguous block syntax rather than adding
+          handle-specific exceptions.
+    - **RED / GREEN evidence**
+        - The behavior-first fixture reproduced the old failure: employer
+          mentions on their own lines became separate queue subjects and the
+          surrounding rationale was split away.
+        - The first real-file probe still returned 59 rows, specifically
+          exposing that standalone mentions inside a continued bio need a
+          boundary condition. The refined rule requires a standalone mention
+          to begin at a blank/separator boundary or after a narrowly detected
+          display-name line.
+        - The retained parser returns 57 subjects on the dated 10,311-byte
+          snapshot, includes `meaningaligned` and `chrislakin`, excludes the
+          two employer citations, and has zero `sourceText !==
+          input.slice(sourceStart, sourceEnd)` mismatches.
+    - **Changes (files + why)**
+        - `graph-explorer/src/researchNotes/parseResearchNotes.js:10-184`:
+          replace line-only subject discovery with block-aware profile
+          boundaries, explicit co-subject handling, display-name retention,
+          and immutable source offsets/text separate from the editable note.
+        - `graph-explorer/src/researchNotes/parseResearchNotes.test.js:5-189`:
+          add behavioral falsifiers for exact source slicing, embedded and
+          standalone evidence citations, shared co-subject context, and
+          display-name-plus-handle blocks.
+        - `scripts/verify_research_notes_inbox.py:5,77-112,195-245`: add an
+          optional read-only `--takes-file`/`--expected-count` check that
+          prints snapshot hash, byte and subject counts, false-subject list,
+          and exact-span errors without copying private notes into the repo.
+        - `docs/EXPERIMENT_LOG.md` EXP-025 records the hypothesis, two-stage
+          falsification, dated snapshot receipt, and methodological lesson.
+        - `docs/ROADMAP.md` records account/question-keyed provisional drafts
+          and the safe paid-acquisition replacement as explicit follow-up.
+    - **Verification**
+        - Focused Vitest RED: 1/5 failed for the intended standalone-citation
+          reason; GREEN: 5/5 passed.
+        - `scripts/verify_research_notes_inbox.py --takes-file <private-file>
+          --expected-count 57` under the project dependency environment → 9/9
+          checks passed, including 23 backend contracts and the focused
+          frontend tranche.
+        - Snapshot receipt: SHA-256
+          `b9e9d616c0a79933f7f6a33dbf6cad0990e4ca1611fe48af5904a7d610e30cc0`;
+          10,311 bytes; 57 subjects; zero false employers; zero span errors.
+    - **Scope and debt**
+        - The private raw file remains outside git. No archive row, gold
+          judgment, ontology, task, frame, API request, paid credit, or public
+          artifact changed.
+        - The UI still has one draft shared across accounts; account/question
+          keyed provisional drafts are the next product slice. Real save stays
+          locked because evidence is mutable and unbound and retries are not
+          idempotent.
+
+- [2026-07-31 19:02 IST] **Added the paired Dharma boundary pretrial UI and
+  repaired evidence-review ergonomics (Codex GPT-5)**
+    - **Hypothesis, prediction, confidence, fallback**
+        - `H1` (`0.90`): separate account/question-keyed drafts can expose
+          retrieval relevance and social affiliation as distinct provisional
+          targets without creating schema or implying gold. Navigation loss,
+          one shared answer, enabled saving, or task-like certainty falsifies
+          it. Fallback: keep only a discussion mockup and revise the questions
+          before any persistent contract.
+        - `H2` (`0.75`): both questions can remain usable while reviewing a
+          20-post dossier. If the evidence pushes controls out of practical
+          reach, the layout fails even when its state tests pass. Fallback:
+          colocate evidence and controls rather than truncating evidence to
+          make the test pass.
+    - **RED / GREEN and visual evidence**
+        - The new two-account behavioral contract began with two expected
+          failures because no paired groups or account-keyed draft state
+          existed. The retained UI passes switching, disagreement, editable
+          note, queue progress, and disabled-save checks.
+        - The first live visual pass falsified `H2`: controls rendered several
+          screens below 20 long posts. A sticky side panel now keeps dossier
+          and probes co-present on desktop; below 1,150 px the controls stack
+          above evidence. A live read-only `nosilverv` dossier showed both
+          questions in the first viewport.
+        - The live session accepted retrieval `IN` plus affiliation `OUT` and
+          exposed `@nosilverv 2/2 drafted` with both buttons pressed. This is a
+          UI exercise, not a domain judgment or trial result; nothing was
+          persisted.
+    - **Changes (files + why)**
+        - `graph-explorer/src/researchNotes/useResearchNotesInbox.js:14-60,
+          87-104`: replace one navigation-reset draft with state keyed by
+          normalized account and probe ID while keeping notes per account.
+        - `graph-explorer/src/ResearchNotesInbox.jsx:12-25,65-99,125-179`:
+          render explicit retrieval/social-affiliation probes, disagreement
+          semantics, per-account progress, and non-gold/save-lock wording.
+        - `graph-explorer/src/ResearchNotesInbox.test.jsx`: add the public
+          two-account navigation/disagreement contract and flush dossier
+          transitions without React `act(...)` warnings.
+        - `graph-explorer/src/ResearchNotesInbox.css` and
+          `graph-explorer/src/researchNotes/ResearchNotesReview.css:1-113`:
+          extract review-control styles before the original stylesheet crossed
+          300 LOC; add sticky desktop co-presence and narrow-screen stacking.
+          Final files are 213 and 113 LOC.
+        - `scripts/verify_research_notes_inbox.py:180-205,256-260`: verify the
+          paired formative semantics and account/question-keyed draft markers;
+          the script remains below 300 LOC (264).
+        - `docs/experiments/2026-07-26-budgeted-personal-ontology-local-first-pilot.md:73-111`:
+          preregister the zero-spend 12-account/two-pass boundary pretrial,
+          exact questions, descriptive measures, and falsifiers without
+          publishing private panel identities.
+        - `docs/EXPERIMENT_LOG.md` EXP-026 records the visual falsification and
+          repair; `docs/ROADMAP.md` separates the shipped session UI from the
+          still-unrun formative pretrial.
+    - **Verification**
+        - Focused frontend tranche → 22/22 passed; scoped ESLint passed.
+        - Research Notes verifier with the private dated takes snapshot → 11/11
+          checks passed; adjacent backend/auth/integrity tranche → 23/23.
+        - Production Vite build passed (inherited dynamic-import and 500 kB
+          chunk warnings remain); docs hygiene → 9/9.
+        - In-app browser inspected the live local UI with the existing archive
+          opened through the dossier route's SQLite `mode=ro`/`query_only`
+          contract. No remote request or paid credit occurred.
+    - **Scope and next gate**
+        - Drafts remain browser-session-only and explicitly non-gold. The
+          protocol cannot run durably until timing/investigation capture and a
+          blinded second-pass receipt exist.
+        - Real saving still requires a canonical task, snapshot-bound context,
+          server-side context verification, idempotent retry, and role-neutral
+          progress. No Community Gold schema/module was added.
+
+## Raw-First Retrieval Slice 1 — Source Selectivity (2026-07-30)
+
+- [2026-07-30 15:32 IST] **Implemented and tested the minimal
+  source-side selectivity primitive (Codex GPT-5 with a computational-peer
+  implementation pass)**
+    - **Hypotheses and falsifiers**
+        - `H1` (`0.95`): distinct seed follows weighted by
+          `1 / max(observed_out_degree, claimed_following_count)` should make a
+          selective seed contribute more than a broad seed. Duplicate
+          inflation, seed/self handling, invalid claims, nondeterminism, or
+          hidden normalization would falsify the arithmetic contract.
+        - `H2` (`0.55`): source-selective ranking should improve held-out
+          Recall@K over raw distinct-seed support. A time/topology-split
+          comparison showing no stable gain, or worse precision/reciprocal
+          rank, falsifies it. This remains untested until 30 real scoped
+          judgments support a frozen development/holdout split.
+    - **Scope correction**
+        - The first peer implementation reached 556 lines across a library,
+          loaders, tests, and verifier while remaining synthetic-only. It was
+          held rather than accepted. The retained slice is 269 lines total:
+          104 implementation, 94 behavioral tests, and 71 human verifier.
+          It adds no schema, adapter, API, UI, or new Community Gold module.
+    - **Changes (files + current line ranges)**
+        - `src/graph/source_selectivity.py:1-104` ranks non-seed candidates,
+          deduplicates observations, uses the larger observed/claimed degree,
+          and returns explicit per-seed degree-unknown/coverage diagnostics.
+        - `tests/test_source_selectivity.py:1-94` covers discrimination,
+          duplicate resistance, seed/self behavior, fallback semantics,
+          determinism, and the fact that the signal can exceed one.
+        - `scripts/verify_source_selectivity.py:1-71` prints four explicit
+          ✓/✗ checks, concrete counts/scores, the semantic boundary, and the
+          next held-out comparison.
+        - `docs/EXPERIMENT_LOG.md` EXP-021 records the method, real diagnostic,
+          assumptions, falsifiers, negative result, and next step.
+        - `docs/ROADMAP.md` marks the primitive complete while keeping
+          comparative retrieval validation open.
+    - **Read-only real-data diagnostic**
+        - Four named seeds yielded two usable neighborhoods: RomeoStevens76
+          538 observed / 667 claimed, TVachaW 10 / 2,182, while SuttaSlime and
+          realityacid108 remained degree-unknown in the following view.
+        - The scorer returned 542 candidates. Five accounts supported by both
+          usable seeds led at `0.001957546`, but raw support ranked the same
+          five first. This validates operational arithmetic only; it is not
+          evidence of improved retrieval or any community membership.
+        - The diagnostic used a read-only point-in-time local SQLite view but
+          did not freeze its query, output artifact, or database hash. The
+          counts are provisional and must not be treated as reproducible
+          evidence. It made no API, network, model, label, or database write.
+    - **Verification**
+        - Focused and adjacent graph behavior: 11/11 passed across
+          `test_source_selectivity.py`, `test_observation_model.py`, and
+          `test_graph_builder.py`.
+        - The first direct verifier run failed with `ModuleNotFoundError: src`
+          despite the tests passing. Adding the same direct-execution project
+          root bootstrap used by existing verifiers made the advertised
+          invocation pass 4/4. This was an invocation defect, not a scoring
+          failure.
+        - Documentation hygiene passed 9/9 and `git diff --check` was clean at
+          the documentation checkpoint.
+        - Personal-ontology documentation contracts passed 21/21 via module
+          invocation. Direct script invocation exposed a pre-existing
+          `ModuleNotFoundError: scripts`; fixing that unrelated verifier is
+          recorded under Developer Experience rather than mixed into this
+          commit.
+        - Independent adversarial review found no mathematical implementation
+          blocker, then caught an untested ranking tie-break, ambiguous
+          `unknown` semantics, and overconfident diagnostic provenance. Exact
+          score/support/account ordering is now tested; the field is
+          `degree_unknown`; and the live counts are explicitly provisional.
+    - **Assumptions and fallback**
+        - Follows are treated as equal units of attention; seed correlation,
+          time, typed engagement, stance, missing-not-at-random coverage, and
+          durable numeric/`shadow:*` identity reconciliation are not modeled.
+        - The score is unbounded and is not a probability, confidence, interval,
+          or membership.
+        - No production caller consumes the primitive yet. The next coverage
+          slice must use it or it remains an experimental phantom consumer.
+        - If held-out retrieval does not improve, retain raw support and test
+          log-inverse/capped weighting or typed evidence without changing the
+          holdout. No paid acquisition is justified by this result.
+
+## Personal-Ontology Slice 1 — Evaluation Integrity (2026-07-26)
+
+- [2026-07-28 12:13 IST] **Independent final release verification
+  (Codex GPT-5)**
+    - **Outcome**
+        - Credential-free Python: `1,449 passed, 5 skipped`, with 20 existing
+          SciPy sparse-efficiency warnings.
+        - Public site: `190/190` tests passed; the production Vite build
+          completed successfully.
+        - Graph explorer: `741/741` tests passed; the production Vite build
+          completed successfully. Existing Node experimental-storage,
+          React `act(...)`, dynamic-import, and bundle-size warnings remain
+          non-failing.
+        - Human verifiers: Slice 1 `6/6`, documentation contracts `21/21`,
+          documentation hygiene `9/9`, and GRF affinity smoke checks `10/10`.
+        - `git diff --check` passed after the documentation integration.
+    - **Files verified**
+        - Community Gold and regression surfaces under
+          `src/data/community_gold/`, `src/api/routes/community_gold_integrity.py`,
+          `tests/test_*community_gold*`, `tests/test_slice1_*`, and
+          `tests/test_terminal_delivery*.py`.
+        - Score-contract surfaces under `src/api/cluster/`,
+          `src/graph/membership_grf.py`, `graph-explorer/src/`, and
+          `public-site/src/`.
+        - Methodology records and human-readable verifiers under `docs/` and
+          `scripts/verify_*`.
+    - **Non-blocking debt found**
+        - The full graph-explorer lint command is not green: `15` errors and
+          `2` warnings remain across pre-existing `ClusterTour`, `Labeling`,
+          `TweetCard`, test-import, empty-catch, Fast Refresh, and hook
+          dependency debt. The changed membership assertions/builds/tests are
+          green, but this release does not claim a repository-wide lint pass.
+          The stale completed roadmap item was reopened rather than expanding
+          this integrity slice into an unrelated frontend cleanup.
+
+- [2026-07-28 11:24 IST] **Adversarial integrity and score-semantics hardening
+  (Codex GPT-5 with three read-only computational-peer audits)**
+    - **Hypotheses and falsifiers**
+        - Complete table/index structural validation should reject
+          name-compatible migration impostors; the falsifier was a malformed
+          table or partial index accepted by preflight/postflight.
+        - A terminal access envelope should bind the stored actor assertion and
+          time as well as frame, release, roles, and label heads; the falsifier
+          was post-write `accessed_by`/`accessed_at` tampering that still
+          verified. This detects mutation but does not authenticate the actor.
+        - Final schema/release falsifiers were: a terminal head
+          created after the release cutoff; incomplete attestation of full
+          judgment history and lineage; mutation when opening a future-schema
+          database; weakened partial-index predicates or UNIQUE/CHECK clauses;
+          a silent/absent schema marker; fractional count values; and nullable
+          `TEXT PRIMARY KEY` columns. Nine expected-failing tests represented
+          ten concrete hostile shapes because the weakened-CHECK case was
+          parameterized; the repaired focused suite passed 101/101.
+        - Per-target anchor isolation should prevent one subculture label from
+          changing another. The current falsifier is that
+          `list_anchor_polarities(ego)` aggregates across tag keys while the
+          endpoint/cache has no ontology/task/community target.
+        - Missing expected-following data must remain unknown; the falsifier
+          was the prior fabricated `1.0` coverage.
+        - GRF output, entropy/degree uncertainty, public-card intensity, and
+          NMF shares must survive explicit zero/missing cases without becoming
+          probabilities or confidence intervals.
+        - Node 26's experimental global web storage, rather than product code,
+          caused the graph-explorer full-suite failures; prediction was that
+          disabling it would restore jsdom `localStorage`.
+    - **Changes (files + current line ranges)**
+        - `src/data/community_gold/migration_table_specs.py:1-208`,
+          `migration_table_contracts.py:1-112`, and
+          `migration_index_contracts.py:1-101` validate NOT NULL, CHECK,
+          foreign-key, UNIQUE, index-column, uniqueness, and partial-predicate
+          structure.
+        - `src/data/community_gold/terminal_access_envelope.py:1-86` binds
+          frame, registry, caller-asserted actor, time, access receipt, release
+          manifest, and released-head count; verification recomputes the
+          envelope but does not authenticate the original assertion.
+        - `src/data/community_gold/integrity_triggers.py:1-176` and
+          `ontology_frame_triggers.py:1-137` split trigger responsibilities
+          below 300 lines without changing their registry.
+        - `src/api/cluster/membership_coverage.py:1-35`,
+          `src/graph/membership_grf.py:1-186`, and the graph-explorer/public
+          evidence surfaces preserve unknown coverage and use uncalibrated
+          affinity/heuristic-signal language.
+        - `public-site/src/About.jsx`,
+          `CommunityCard.jsx:1-245`, and `App.jsx:19-267` distinguish
+          compositional NMF shares, PPR Lift, GRF affinity, heuristic
+          uncertainty, and coverage; unregistered intervals are hidden and
+          the acquisition flywheel is labeled planned.
+        - `graph-explorer/src/setupTests.js:1-63` supplies a conditional
+          standards-shaped in-memory `Storage` only when Node 26 shadows
+          jsdom's implementation.
+        - `public-site/src/About.jsx`, ADR 012/013 dated amendments,
+          `docs/modules/communities.md`, `docs/index.md`, `docs/ROADMAP.md`, this
+          worklog, EXP-018, and the Slice 1 plan/debt ledger record producer-specific
+          edge views, legacy empirical caveats, score/coverage semantics, actor
+          and delivery limits, target-collapse risk, and remaining provenance debt.
+        - `scripts/verify_personal_ontology_docs.py` now protects ADR 007,
+          ADR 011, ADR 012, and ADR 013 amendments. Their declarative needles
+          were extracted to `scripts/_personal_ontology_adr_contracts.py`, keeping
+          the verifier at 291 LOC and the helper at 51 LOC.
+          `scripts/verify_membership_grf.py` reports the settings path and exact
+          JSON read/parse error instead of silently replacing malformed input.
+    - **Verification**
+        - Prior integrated checkpoint (superseded by the final hardening):
+          focused backend 114/114; credential-free Python 1,425
+          passed/five skipped; public site 189/189; graph explorer 730/730;
+          synthetic verifier 6/6.
+        - Final hostile-shape falsification: nine expected failures covering ten
+          concrete shapes. After repair: focused Community Gold 101/101,
+          synthetic Slice 1 verifier 6/6, and verifier unit test 1/1.
+          Largest scoped implementation file: 264 LOC; largest regression file:
+          260 LOC.
+        - **A1 idempotent terminal replay — GREEN:** the RED phase
+          deliberately produced 11/11 expected failures across two focused test
+          files. They cover lost-response recovery; exact payload/`accessedAt`
+          replay; actor, reviewer, receipt, and frame conflicts; corruption;
+          sealing; concurrent requests; no post-commit reload; and HTTP 409 with
+          no leaked rows. Final delivery tests pass 12/12, the broader Community
+          Gold/Slice 1 surface passes 102/102, and the human verifier passes 6/6.
+          The first release fully verifies before commit and its rollback test
+          passes; an identical retry returns exact judgments/access metadata,
+          preserves the original `accessedAt`, uses one row, and marks
+          `replayed=true`; conflicts map to HTTP 409 with no rows; corruption
+          fails closed; concurrent calls converge; and the route no longer
+          reloads after commit. Maximum route size is 270 LOC and the new
+          delivery module is 262 LOC. `accessedBy` remains caller-asserted.
+        - Documentation contract: 21/21; docs hygiene: 9/9; standalone GRF
+          affinity verifier: 10/10. The first docs run exposed one case-sensitive
+          verifier needle (20/21); correcting that contract produced 21/21.
+          A no-filesystem malformed-settings stub emitted the precise
+          `JSONDecodeError` and failed its parse check instead of silently
+          substituting empty settings.
+        - Core handoff and final documentation integration both passed
+          `git diff --check`.
+    - **Limits**
+        - No live/archive refresh, API request, provider/LLM inference, external
+          write, or paid action occurred. Synthetic GRF/evaluator computation is
+          not a live model run. Public empirical counts remain point-in-time
+          until a source/run manifest is exposed.
+        - The public export still mixes NMF/bits shares, classic simplex values,
+          and independent Lift under one `weight` field. Explicit per-score
+          semantics remain required before the card can format every producer
+          without ambiguity.
+        - A1 now handles lost-response retry through exact idempotent replay,
+          but a shared curator token still does not authenticate `accessed_by`.
+          Principal-derived actor identity remains a live-release gate.
+        - Membership anchors, cache, and response are not target-scoped, so
+          synthetic binary tests do not validate overlapping multi-subculture
+          inference. Coverage is also unknown when numerator and denominator
+          lack compatible source/generation/as-of provenance.
+
+- [2026-07-26 16:29 IST] **Implemented a synthetic-only, fail-closed
+  ontology/holdout substrate (Codex GPT-5 with three independent
+  computational-peer audits)**
+    - **Goal**
+        - Extend the existing Community Gold adapter with versioned personal
+          ontology/task identity, immutable global account roles, typed score
+          semantics, append-only human judgments, and a one-use terminal
+          release before modeling or paid acquisition begins.
+        - Preserve the 167 imported labels without fabricating ontology,
+          evidence-generation, stable-identity, negative, or calibration
+          meaning.
+    - **Hypotheses and falsifiers**
+        - `H1` (`0.90`): an additive nullable migration preserves legacy rows;
+          falsifier was row/identity drift or restart failure.
+        - `H2` (`0.85`): caller-supplied role catalogs, strata, and integer
+          quotas yield deterministic exclusive roles and nominal quota
+          probabilities conditional on a genuinely precommitted random seed;
+          falsifiers were registry reuse, cross-registry reassignment,
+          whitespace split-brain, missing accounts, or nonpositive terminal
+          probability. A seed/randomization receipt remains a real-use gate.
+        - `H3` (`0.90`): purpose-gated reads keep terminal labels out of
+          training/selection; falsifiers were returned or SQL-fetched sealed
+          heads, repeated terminal access, or post-release writes.
+        - `H4` (`0.95`): structurally separate predictions cannot masquerade
+          as judgments; falsifiers were legacy/scoped leakage, mutable payloads,
+          missing score semantics, or a forgeable probability claim.
+        - `legacy_unbound` remains a curator-authenticated writable
+          compatibility surface, isolated from versioned study reads and
+          excluded from scientific evaluation. No parallel database/store was
+          introduced.
+    - **Initial failures that paid down assumptions**
+        - Reopening after two valid scoped corrections recreated the legacy
+          global unique index and raised `IntegrityError`.
+        - Extra role rows were ignored by projection verification.
+        - A corrupt terminal row consumed the one-use receipt before failing.
+        - The same role-registry ID accepted a different seed/allocation; a new
+          caller-selected registry could reassign the same accounts; terminal
+          release did not seal sibling task frames; empty or reviewer-filtered
+          releases burned the holdout; ontology groups remained appendable;
+          judgment heads could be deleted/rewound; and earlier schema-v2 shapes
+          were not upgradable transactionally.
+        - Arbitrary hashes could claim `calibrated_probability`; prediction and
+          terminal receipt/manifest hashes were not recomputed; role whitespace
+          produced a later access `KeyError`; missing method outputs became
+          score zero; the legacy evaluator emitted Brier/ECE for uncalibrated
+          scores; and the live GRF API/UI called a coverage-blended affinity a
+          probability with a fabricated 95% interval.
+        - Behavior-first tests reproduced each defect before the corresponding
+          migration, trigger, registry, digest, canonicalization, query, or
+          release-manifest repair.
+    - **Changes (files + intent)**
+        - `src/data/community_gold/`: transactional additive schema version 3;
+          validated upgrades from the earlier v2 access shape; replace-on-open
+          integrity triggers; immutable
+          ontology/group/task projections; global role registry; frozen frame
+          projection; evidence-bound append-only judgment heads; SQL-level
+          purpose access; separate immutable predictions; generation-level
+          sealing; complete single-reviewer terminal coverage manifests;
+          tamper-checked access receipts; future-schema refusal; and explicit
+          `legacy_unbound` compatibility filtering.
+        - `src/data/community_gold/candidate_pool.py` was extracted in commit
+          `17217a0` before role work; pure frame/allocation contracts landed in
+          `549de93`. New responsibilities remain in focused files below 300
+          lines.
+        - `src/data/community_gold/evals.py` and
+          `evaluation_reporting.py` restrict the legacy evaluator to
+          train→development diagnostics, report prediction missingness and
+          development class support, keep calibration eligibility false, and
+          suppress Brier/ECE until registered probabilities exist.
+        - `src/api/cluster/membership.py` and
+          `graph-explorer/src/AccountMembershipPanel.jsx` now expose the live
+          GRF result as uncalibrated `affinity`; evidence coverage and heuristic
+          uncertainty remain separate and no confidence interval is claimed.
+        - `src/api/routes/community_gold_integrity.py`,
+          `src/api/routes/community_gold.py`, and `src/api/server.py`: register
+          the canonical route family in the production factory and protect
+          every Community Gold route with the existing fail-closed curator
+          token.
+        - `scripts/_personal_ontology_slice1_fixture.py`,
+          `_personal_ontology_slice1_checks.py`, and
+          `verify_personal_ontology_slice1.py`: network-free synthetic verifier
+          with explicit checks, complete in/out/abstain terminal coverage,
+          nominal inclusion probability, digests, and next steps.
+        - Focused behavior tests cover migration/restart, frame/role identity,
+          global registry reuse, history/head integrity, legacy isolation,
+          prediction immutability, sealed release, API/auth behavior, evaluator
+          claims, and verifier network isolation.
+    - **Empirical legacy baseline**
+        - A read-only point-in-time SQLite inspection found 167/167 active labels,
+          all `in`, one reviewer, no corrections, only `handle`/`source`
+          evidence, and mixed 81 shadow / 54 handle / 32 numeric IDs.
+          No source hash/snapshot/query receipt was recorded, so this is not an
+          immutable baseline or freshness claim.
+        - These rows cannot calibrate; they remain `legacy_unbound`. Candidate
+          alias mappings are not accepted without immutable receipts.
+        - Full method and result records are EXP-017 and EXP-018 in
+          `docs/EXPERIMENT_LOG.md`.
+    - **Verification**
+        - Final focused Community Gold, personal-ontology, adversarial
+          migration, route/auth, verifier, and GRF semantics surface: 114 tests
+          passed.
+        - Final credential-free suite: 1,425 passed with five expected skips
+          and zero failures.
+        - Synthetic verifier: 6/6 passed; role mix
+          `4 model-development / 1 policy-development / 2 terminal / 3
+          frame-only`, four complete terminal heads spanning `in/out/abstain`,
+          nominal minimum terminal probability `.166667`, and content-addressed
+          frame/role/release digests.
+        - No real ontology, role, judgment, prediction, release, API request,
+          provider/LLM inference, data download, or paid action occurred.
+          Synthetic GRF/evaluator computation did run.
+    - **Residuals**
+        - Real identity resolution, seed precommit/randomization proof,
+          quotas/strata, explicit real negatives and abstentions, 20/20 class
+          support, calibration records, simplex-vector finalization, and IPW
+          versioned evaluation remain future work.
+        - Community Gold UI modules remain orphaned and reveal model/group
+          information; they were intentionally not wired.
+        - Historical acquisition holdout fail-open behavior is outside Slice 1
+          and must be repaired before spend.
+
+## Personal-Ontology Documentation Foundation (2026-07-26)
+
+- [2026-07-26 13:30 IST] **Specified overlapping discovery semantics,
+  budget-constrained evidence acquisition, and a local-first implementation
+  sequence (Codex GPT-5 with three independent computational-peer reviews)**
+    - **Goal**
+        - Turn the approved research direction into a documentation-only
+          foundation: an applied mission, precise task meanings, falsifiable
+          acquisition policy, USD 100 planned pilot, thin implementation
+          slices, and an explicit refactor/debt boundary.
+        - Reuse the existing Community Gold, frontier-ranking,
+          active-learning, enrichment-log, fetcher, and dossier surfaces rather
+          than designing parallel stacks.
+    - **Hypotheses and predicted outcomes**
+        - Independent affiliation heads should represent genuinely overlapping
+          communities more faithfully than normalized shares; this is rejected
+          if blind human judgments are reliably mutually exclusive or a
+          simplex/hierarchy calibrates better on equivalent evidence.
+        - Typed graph, content, interaction, artifact, and time-correct context
+          should improve retrieval over simple baselines; each modality is
+          rejected when cost-matched mask/reveal intervals show no practical
+          development gain.
+        - Local models may replace some hosted inference only if the frozen
+          benchmark meets schema, evidence-span, proper-score, and correction
+          thresholds. Installed weights alone are not implementation evidence.
+        - An adaptive policy should beat random, degree, entropy, and current
+          frontier baselines per dollar/human minute; it is rejected before
+          live expansion if retrospective value calibration fails.
+    - **Assumptions, confidence, and fallback**
+        - `0.95` that separating affiliation, competence, public participation
+          interest, style, and observed coverage removes a real semantic defect.
+        - `0.75` that local structured extraction will clear the registered
+          non-inferiority threshold; fallback is embeddings/statistical heads
+          plus pinned hosted audits, never unmeasured local routing.
+        - `0.65` that value-of-information ranking will beat the current
+          heuristic after selection-bias controls; fallback is the strongest
+          simple randomized or fixed baseline.
+        - No paid API call, model download, data mutation, label change, or
+          runtime behavior change is authorized by this phase.
+    - **Changes (files + intent)**
+        - `docs/VISION.md` and
+          `docs/product/2026-07-26-publishing-and-privacy-boundary.md`: define
+          the applied mission, four-part evidence architecture, overlapping
+          affinity language, remote-egress disclosure, and field-level
+          publication boundary without growing the vision into a monolith.
+        - `docs/adr/021-independent-overlapping-membership-and-evidence-semantics.md`:
+          separate task targets/coverage, evaluation integrity, reuse boundary,
+          decision-level falsifiers, and prior-ADR relationships.
+        - `docs/adr/022-budget-constrained-active-evidence-acquisition.md`:
+          define typed actions, development-risk reduction, constrained batch
+          policy, conditional local-first cascade, receipts, temporal controls,
+          random audit, and stop rules.
+        - `docs/experiments/2026-07-26-budgeted-personal-ontology-local-first-pilot.md`:
+          plan the USD 0/USD 10/USD 70/USD 20 tranches, exact 20% randomized
+          audit, quantitative falsifiers, egress allowlist, and sealed outcomes.
+        - `docs/experiments/2026-07-26-personal-ontology-evaluation-methods.md`:
+          freeze the eligible universe and probability sampling, separate
+          challenge/calibration/policy/extraction panels, define abstention and
+          the scalar primary endpoint, add a probability-audited novel-account
+          cohort, prohibit evaluation reuse, and distinguish offline policy
+          promotion from the terminal task-head test.
+        - `docs/plans/2026-07-26-personal-ontology-active-discovery-implementation.md`
+          and `personal-ontology-refactor-ledger.md`: sequence ten gated thin
+          slices and record keep/repair/retire, monolith, embedding-provenance,
+          and safe-parallelization debt.
+        - `docs/index.md` and `docs/ROADMAP.md`: index the new canonical
+          records, mark precise supersessions, retire stale price guidance, and
+          expose follow-on work.
+        - `scripts/verify_personal_ontology_docs.py`: read-only, human-facing
+          documentation contract verifier required by the phase.
+        - Final line map: `docs/VISION.md:1-224`, publishing boundary `:1-90`,
+          ADR 021 `:1-249`, ADR 022 `:1-267`, pilot `:1-268`, evaluation
+          methods `:1-251`, implementation plan `:1-274`, refactor ledger
+          `:1-108`, verifier `:1-217`, `docs/index.md:8-147`, and
+          `docs/ROADMAP.md:40-585`.
+    - **Documentation debt**
+        - `docs/PROJECT_STRUCTURE.md` is required by `AGENTS.md` but absent.
+          The refactor ledger records the gap; this phase does not invent a
+          replacement without determining the intended canonical source.
+        - `WORKLOG.md`, `ROADMAP.md`, and `EXPERIMENT_LOG.md` already exceed the
+          300-line working-set limit; decomposition remains tracked work.
+    - **Verification**
+        - Independent review rejected the first draft's purposive-panel
+          calibration, reusable test checkpoints, ordinary-bootstrap adaptive
+          stopping, additive mutual-information utility, and post-selectable
+          metrics. Final review also removed zero-probability evaluation roles
+          and scoped all population-weighted claims to \(U_{\mathrm{eval}}\).
+        - Final personal-ontology verifier: 14/14 passed. Existing docs-hygiene
+          verifier: 9/9 passed. Every new doc is below 300 lines and
+          `git diff --check` is clean.
+        - Python syntax compilation passed with `PYTHONPYCACHEPREFIX` directed
+          to `/tmp`; the first default-cache attempt failed descriptively
+          because the isolated clone could not create `scripts/__pycache__`.
+        - No entry is added to `docs/EXPERIMENT_LOG.md` because this phase runs
+          no scientific measurement.
+
+## Frozen Membership and Discoverability Assumption Audit (2026-07-26)
+
+- [2026-07-26 11:53 IST] **Turned the approved assumption plan into
+  reproducible falsification harnesses and refreshed corpus evidence
+  (Codex GPT-5 with three parallel computational peers)**
+    - **Goal**
+        - Test the frozen solver, soft-membership, threshold, taxonomy, graph
+          sampling, direction, and degree assumptions without modifying the
+          frozen control or mistaking a negative finding for execution failure.
+        - Refresh and compare the mutable Community Archive tweet export while
+          keeping topology freshness and paid live API collection separate.
+    - **Hypotheses and predicted falsifiers**
+        - The frozen uncertainty formula should reproduce within `1e-6`;
+          configured PPR `max_iter=1` must not exceed one iteration; dangling
+          PPR mass must remain within `1e-9` of one.
+        - Frozen rows must beat empirical-prior and uniform Brier/log-loss
+          baselines; top-class confidence must have ECE ≤ `.05`; at least half
+          of recalled propagation-heldout calibration accounts must be core;
+          an information-equivalent factor split must keep core Jaccard ≥ `.95`
+          and core-count change ≤ 5%.
+        - Final selection Jaccard must remain ≥ `.95/.90/.85` under
+          1%/5%/10% stored-edge deletion.
+        - Capture-center, edge-direction/reciprocity, and degree mechanisms
+          should pass their predeclared structural detection thresholds.
+        - A newer Community Archive corpus must add rows and advance its newest
+          tweet; archive linkage keeps pace only if linked rows cover the delta
+          and missing upload IDs do not grow.
+    - **Result**
+        - Community Archive corpus advance confirmed:
+          snapshot `20260726T045149Z-37a97fa3e057`, 8,321,675 rows,
+          34,698 accounts, newest tweet 2026-07-26T04:26:07Z, SHA-256
+          `99e93da98bb9fbdbddaa46a9e7f00da7ae501144294c123155e4d56447a8e9bd`.
+          Versus July 25: +3,425 rows, +14 accounts, +87,038 seconds.
+          Linkage pace rejected: +0 archive-linked rows and +3,425 missing IDs.
+        - Historical uncertainty post-processing fingerprint confirmed at
+          maximum error
+          `3.6783e-08`. PPR iteration plumbing rejected (requested one;
+          observed 90/90/90) and dangling-mass conservation rejected
+          (mass `.21375` versus reciprocal control `1.0`).
+        - About/NMF correspondence rejected: the page describes independent
+          overlapping percentages, but `cluster_soft.py` row-normalizes every
+          account's factor weights to a compositional sum of one.
+        - Soft-target predictive agreement rejected: model/prior/uniform Brier
+          `.586815/.505926/.517078`, log loss
+          `3.737831/2.620363/2.708050`; hard dominant-class confidence
+          calibration also rejected at ECE `.094255`. The empirical prior is
+          in-sample, but the independent uniform baseline also beats the model.
+          Calibration-set core interpretation rejected at 0 core, 53
+          halo-only, and 2 missed. These 55 accounts were held out from
+          propagation but reused to select τ, so this is not threshold
+          generalization. Equal split-all taxonomy invariance rejected at core
+          Jaccard `.405714` and total-selection Jaccard `.576469`.
+        - Bounded fixed-membership edge-loss selection survived:
+          minimum Jaccards `.990984/.961264/.922418`.
+        - Capture/direction/degree mechanisms confirmed: 1.731% capture centers
+          touch 100% of shadow edges; 80.336% degree-one nodes; seed reach
+          39.944% forward, 66.780% reverse, 99.991% undirected, 6.425% mutual;
+          exact 175 core + 8,809 halo selection with an 80.176-point
+          degree-one versus degree≥51 selection-rate gap.
+    - **Assumptions, confidence, and fallback**
+        - `0.99` that results bind to the frozen manifest and named snapshot
+          hashes; every scientific loader fails closed on identity errors.
+        - `0.98` that current outputs are useful deterministic ranking/control
+          evidence; `0.15` that they are calibrated current group probabilities.
+        - Edge-loss support is conditional (`0.95`) on fixed memberships and
+          tests only degree/relevance/core/halo recomputation, not propagation.
+        - On any identity, leakage, serialization, or runtime failure, return
+          exit `1` and preserve prior evidence. Scientific falsification
+          returns `0` in measurement mode and `2` only under an explicit strict
+          gate. Do not patch the producer or overwrite the frozen bundle.
+    - **Changes (files + why)**
+        - `src/archive/snapshot_comparison.py:1-195`,
+          `scripts/compare_community_archive_snapshots.py:1-125`,
+          `tests/test_snapshot_comparison.py:1-168`: verified immutable
+          baseline/candidate comparison, exact count/linkage deltas, samples,
+          no-clobber JSON, falsifiers, and `0/1/2` CLI behavior.
+        - `src/evaluation/solver_contract.py:1-281`,
+          `scripts/verify_propagation_solver_contract.py:1-90`,
+          `tests/test_solver_contract.py:1-152`: historical uncertainty
+          post-processing fingerprint, bounded config-plumbing probe,
+          dangling-mass control, and future-fix-safe behavioral verdict tests.
+        - `src/evaluation/frozen_membership.py:1-195`,
+          `membership_scoring.py:1-117`, `membership_stress.py:1-105`,
+          `scripts/evaluate_frozen_membership.py:1-136`,
+          `tests/test_frozen_membership_evaluation.py:1-190`: leakage-safe
+          holdout metrics, stable ties, probability baselines, ECE, taxonomy
+          intervention, fixed-membership edge loss, and strict result gate.
+        - `src/evaluation/discoverability.py:1-270`,
+          `discoverability_topology.py:1-78`,
+          `scripts/verify_network_discoverability.py:1-113`,
+          `tests/test_discoverability_evaluation.py:1-202`: modular directed,
+          any-direction, and reciprocal graph views; components/reachability;
+          capture and degree measurements; exact fixed seed panel; no-clobber
+          evidence.
+        - `Makefile:1-84`: expose snapshot comparison and individual/combined
+          assumption-verifier targets.
+        - `docs/experiments/2026-07-26-membership-discoverability-audit.md:1-199`,
+          `docs/EXPERIMENT_LOG.md` (EXP-015/016), `docs/ROADMAP.md`, and
+          `docs/index.md`: durable methodology, falsifiers, exact results,
+          limitations, future work, and discoverable documentation intent.
+    - **Verification**
+        - Full deep snapshot comparison passed both hashes and identities;
+          strict mode returned the expected `2` for linkage falsification.
+        - `make verify-research-assumptions` completed all three evidence lanes.
+          Solver and membership strict modes returned expected `2`;
+          discoverability strict mode returned `0`.
+        - Focused plus adjacent Python surface: `63 passed`.
+        - Independent pre-commit construct-validity review narrowed the
+          uncertainty claim, split predictive agreement from hard-label ECE,
+          exposed calibration-set reuse, and found the missing-degree report
+          edge case. All four findings were corrected without changing an
+          observed metric or scientific outcome.
+        - Credential-free backend suite: initial restricted-sandbox attempt
+          stopped with 20 `PermissionError` setup errors when existing API
+          logging could not create `logs/api.log`; the prescribed rerun with
+          normal workspace write access passed:
+          `1,338 passed, 5 skipped, 20 warnings`.
+        - Docs hygiene: `9 passed, 0 failed`; remote fetch succeeded and
+          `origin/main` remains `7cfb45f` with this branch five commits ahead
+          before the current commit.
+        - All new implementation modules are at most 281 lines;
+          `git diff --check` passes.
+    - **Residuals / attention boundaries**
+        - No production solver, membership, threshold, About-page, or graph
+          artifact was changed. Architecture must first choose compositional
+          shares versus independently overlapping affinities.
+        - No TwitterAPI.io call was made and the clean clone has no credentials.
+          Attention is required only before credential use or material spend.
+        - The new tweet snapshot does not refresh follower topology. Raw archive
+          relationship inventory, multi-center temporal holdouts, end-to-end
+          censoring, verified negatives, and NMF restart stability remain
+          roadmap work.
+        - The backup-synchronized 1,337-entry damaged checkout remains
+          quarantined. Promoting this clean clone and archiving/removing the old
+          path is a separate path-changing/destructive attention boundary.
+
+## Frozen Graph Artifact Compatibility Baseline (2026-07-26)
+
+- [2026-07-26 08:56 IST] **Made the existing graph-to-TPOT chain safe for
+  controlled, read-only assumption experiments (Codex GPT-5)**
+    - **Goal**
+        - Establish whether graph, adjacency, propagation, calibration,
+          selected TPOT subgraph, and spectral artifacts actually belong
+          together before testing network discoverability or soft group
+          membership.
+        - Prevent future builders from combining arrays by filename/position or
+          overwriting the certified frozen control.
+    - **Hypotheses**
+        - `H1` (`0.98`): the 95,057-node cache exactly reconstructs from the
+          ordered graph nodes and 319,771 edge rows.
+        - `H2` (`0.65`): the newer 298,347-node active propagation is a full
+          superset that can be safely reindexed to the graph.
+        - `H3` (`0.90`): the 95,057-node train propagation plus saved threshold
+          exactly generated the frozen 8,984-node TPOT output.
+        - `H4` (`0.95`): strict identity/reproduction checks can make the
+          frozen chain a deterministic control without claiming it is fresh or
+          scientifically validated ground truth.
+    - **Predicted outcome**
+        - Exact sparse reconstruction either proves cache binding or fails with
+          differing-cell counts; propagation candidates are accepted only with
+          complete unique ID coverage; calibration must reproduce exact
+          relevance, counts, ordered selection, Parquet subsets, spectral rows,
+          and runtime adjacency semantics.
+    - **Result**
+        - `H1`, `H3`, and `H4` confirmed; `H2` rejected. The active propagation
+          overlaps only 358 graph IDs and omits 94,699.
+        - `community_propagation_train.npz` has exact graph order and reproduces
+          175 core + 8,809 halo = 8,984 selected nodes at
+          `tau=0.05644444444444444`.
+        - The saved float32 relevance vector reproduces exactly (SHA-256
+          `e08d5a87fdf096f7c7751de2cedbc2a01871831e2afc72a6b7022da496b576dd`);
+          mapping, node/edge Parquets, both spectral artifacts, and TPOT runtime
+          adjacency also bind exactly.
+        - Compatibility exposed two scientific caveats instead of hiding them:
+          the legacy control uses a 14-community schema disjoint from the
+          active 16-community independent-Lift schema, and 0/15 legacy solver
+          classes converged (all recorded 800 iterations).
+        - The historical threshold “F1” label was corrected to
+          positive-recall/graph-compactness harmonic utility; it contains no
+          negative-class precision signal.
+    - **Confidence**
+        - `0.99` that the frozen files are internally identity-compatible.
+        - `0.98` that the branch now fails closed on positional, score-semantic,
+          calibration-method, or output-binding contradictions.
+        - `0.20` that the legacy soft memberships should be interpreted as
+          calibrated current group probabilities without new experiments.
+        - `0.10` that the frozen follow topology is current; the fresh
+          Community Archive Parquet is tweet-only.
+    - **Fallback plan**
+        - If any compatibility check fails, retain the hash-pinned frozen
+          control and investigate the named artifact. Never truncate, select by
+          modification time, delete/rebuild the adjacency cache, weaken
+          convergence evidence, or overwrite flat outputs.
+    - **Changes (files + why)**
+        - `src/artifacts/adjacency_binding.py:1-124`,
+          `digests.py:1-60`: exact node/order/topology/value identity and
+          explicit directed versus mutual-reverse construction semantics.
+        - `src/artifacts/propagation_alignment.py:1-215`,
+          `propagation_schema.py:1-140`, `tpot_inputs.py:1-110`: complete-ID
+          candidate selection, safe superset reindexing of known node arrays,
+          mode-aware classic probability versus independent Lift validation,
+          and TPOT probability-semantic enforcement.
+        - `src/artifacts/provenance.py:1-216`,
+          `selection_binding.py:1-80`, `spectral_binding.py:1-170`,
+          `relevance_binding.py:1-51`: graph/propagation compatibility records
+          plus exact relevance, selection, and spectral binding.
+        - `data/manifests/frozen_control_compatibility.json`,
+          `src/artifacts/frozen_manifest.py:1-107`: persist and verify expected
+          byte sizes and SHA-256 for all 15 scientific files in the frozen
+          control, preventing same-shape membership or embedding replacement.
+        - `src/artifacts/calibration_method.py:1-116`,
+          `calibration_record.py:1-183`, `calibration_output.py:1-89`,
+          `tpot_calibration.py:1-69`: holdout leakage/count checks, honest
+          objective naming, method/code hashes, no-clobber calibration output,
+          and threshold-to-artifact binding.
+        - `src/artifacts/output_reservation.py:1-36`,
+          `tpot_bundle_output.py:1-43`: cooperating-writer lock, absent-path
+          reservation, and exact ordered sidecar output. This deliberately does
+          not claim atomic multi-file publication.
+        - `src/artifacts/frozen_control_verifier.py:1-221`,
+          `frozen_output_verifier.py:1-134`,
+          `scripts/verify_artifact_compatibility.py:1-46`: modular
+          human-readable end-to-end verifier with ✓/✗ metrics, convergence
+          warning, hashes, and next action.
+        - `scripts/build_tpot_spectral.py:1-268`: replace filename/positional
+          propagation choice and default threshold fallback with compatibility
+          binding, exact legacy reproduction, score-mode checks, output
+          reservation, and absent-prefix-only output.
+        - `scripts/calibrate_tpot_threshold.py:1-252`: require train-only
+          propagation plus fully resolved non-leaking holdout, remove production
+          fallback, rename the objective, reject infeasible recall floors, and
+          write new outputs without replacement.
+        - `src/graph/spectral.py:1-260`, `spectral_types.py:1-33`,
+          `spectral_validation.py:1-64`,
+          `src/graph/tpot_relevance.py:1-173`: split types/validation below 300
+          lines, validate spectral identities and actual dimensions, and
+          centralize safe symmetrized degree statistics.
+        - `tests/test_artifact_*.py`, `tests/test_calibration_*.py`,
+          `tests/test_frozen_manifest.py`,
+          `tests/test_output_reservation.py`,
+          `tests/test_propagation_artifact_alignment.py`,
+          `tests/test_relevance_binding.py`,
+          `tests/test_selection_artifact_binding.py`,
+          `tests/test_spectral*.py`, and `tests/test_tpot_*.py`: behavioral
+          contracts for every compatibility and no-clobber boundary.
+        - `docs/adr/020-graph-artifact-compatibility.md`,
+          `docs/EXPERIMENT_LOG.md` (EXP-014), `docs/ROADMAP.md`, and
+          `docs/index.md`: record the decision, empirical evidence, limitations,
+          and next experiments.
+        - `Makefile:8-47`: expose `make verify-artifact-compatibility` without
+          making gitignored research data a clean-checkout baseline dependency.
+    - **Verification**
+        - `make verify-artifact-compatibility`: all frozen-chain checks pass;
+          pins 15 files/27,272,597 bytes and reports the 0/15 convergence
+          warning rather than treating it as success.
+        - Focused compatibility, calibration, relevance, output, and spectral
+          surface: `99 passed`.
+        - Credential-free backend suite with normal local log/database write
+          access: `1307 passed, 5 skipped, 20 warnings`.
+        - Docs hygiene: `9 passed, 0 failed`; `git diff --check` passes.
+        - All new or materially expanded implementation files are below 300
+          lines.
+    - **Residuals**
+        - This is a compatibility record, not the complete producer manifest:
+          effective propagation parameters, seeds, source database cutoffs,
+          producer Git state, and taxonomy generation still need binding.
+        - Multi-file candidate output is reserved/no-clobber but not atomically
+          published. Immutable generation directories plus a validated manifest
+          and atomic pointer are required before replacement/deployment.
+        - The API rebuild path uses different adjacency construction semantics
+          from the pinned full cache.
+        - The legacy propagation producer still overwrites flat artifacts and
+          is not safe for regeneration; a versioned producer is roadmap work.
+
+## Versioned Community Archive Snapshot Foundation (2026-07-26)
+
+- [2026-07-26 07:06 IST] **Implemented and live-probed a non-destructive,
+  evidence-grade bulk snapshot path (Codex GPT-5)**
+    - **Goal**
+        - Make current Community Archive tweet data acquirable without
+          overwriting the certified frozen baseline, silently trusting a
+          mutable URL, or combining an incomplete transfer with old derived
+          artifacts.
+    - **Hypotheses**
+        - `H1` (`0.90`): the mutable canonical Parquet object is newer than its
+          release-page label and the local 2026-03-22 tweet cutoff.
+        - `H2` (`0.98`): strict HEAD/GET validator equality, two independent
+          byte ceilings, streamed SHA-256, no-clobber publication, Parquet
+          schema checks, and a manifest written last are sufficient for a safe
+          acquisition boundary.
+        - `H3` (`0.95`): preserving old relationship observations is safer than
+          interpreting absence from a later archive as an unfollow/unlike.
+    - **Predicted outcome**
+        - Probe-only mode performs one HEAD and no writes; a changed or
+          oversized response is rejected before publication; completed
+          snapshots are immutable and reusable only after deep verification;
+          the frozen baseline remains untouched.
+    - **Result**
+        - `H1` confirmed by the live probe: the object was modified
+          2026-07-25 even though its release title said 2026-07-13, and the
+          one-row live API probe reached 2026-07-26 versus the local
+          2026-03-22 cutoff.
+        - `H2` confirmed as a safety boundary. After commit `48f8daa`, the first
+          full-body attempt transferred all bytes with a clean producer Git
+          state, then refused to manifest because live `created_at` is a
+          canonical UTC string rather than the predicted Arrow timestamp.
+          The candidate remained incomplete and did not affect the baseline.
+        - The refined string parser rescanned all 8,318,250 rows successfully
+          and exposed 108 source/Snowflake disagreements larger than one second,
+          including five impossible pre-Twitter source timestamps.
+        - Attempt 2/3 reacquired the unchanged remote object after commit
+          `7b405bb`, wrote the manifest last, and passed independent deep hash
+          plus full Parquet verification. Snapshot acquisition is complete.
+        - `H3` retained as ADR 019's conservative data contract. The official
+          pair-key upsert ingest does not delete absent following/follower
+          pairs, so those source tables are themselves accumulated
+          observations rather than exact current-state snapshots.
+    - **Confidence**
+        - `0.99` that no completed snapshot can be silently overwritten by this
+          workflow.
+        - `0.98` that a mid-transfer change visible through ETag,
+          Last-Modified, length, or received bytes is rejected.
+        - `0.99` that this snapshot's observed string-ID and canonical UTC
+          string-time schema is now represented accurately; the original Arrow
+          timestamp-only assumption was rejected by the full-file test.
+    - **Fallback plan**
+        - On validator, cap, schema, hash, or manifest failure, leave the frozen
+          baseline active and do not create a commit-marker manifest. Re-probe
+          the source; never weaken checks to accept a candidate.
+    - **Changes (files + why)**
+        - `.gitignore:20-23`: ignore large versioned Community Archive snapshot
+          bodies and manifests.
+        - `Makefile:8-47`: add safe HEAD-only probing and explicit snapshot
+          verification targets.
+        - `src/archive/snapshot.py:1-205`: model remote identity, parse
+          validators, enforce positive length and streaming byte caps, hash
+          while streaming, reject HEAD/GET drift, and publish with unique
+          temporary files plus no-clobber links.
+        - `src/archive/snapshot_contract.py:1-25`: isolate filenames, schema
+          version, required columns, and human-facing check records.
+        - `src/archive/snapshot_dataset_validation.py:1-149`: isolate dataset
+          count, partition, column, sample, cutoff, and timestamp-quality
+          invariants.
+        - `src/archive/snapshot_inspection.py:1-204`: validate Parquet ID/time
+          representations and scan coverage, linkage, samples, and quality.
+        - `src/archive/snapshot_manifest.py:1-98`: create provenance manifests
+          and publish them last without replacement.
+        - `src/archive/snapshot_quality.py:1-147`: compare source timestamps
+          with eligible tweet Snowflake times and retain bounded anomalies.
+        - `src/archive/snapshot_validation.py:1-226`: verify source/directory
+          identity, structural types, cross-field byte/count invariants,
+          required columns, cutoffs, code identity, and optional deep SHA-256.
+        - `src/archive/snapshot_workflow.py:1-136`: orchestrate new acquisition
+          versus verified immutable reuse and reject unmanifested collisions.
+        - `scripts/refresh_community_archive_snapshot.py:1-176`: default to
+          metadata-only probing; require explicit `--download`; print
+          ✓/✗ metadata, caps, metrics, and next steps.
+        - `scripts/verify_community_archive_snapshot.py:1-103`: add the
+          mandatory human verifier with deep hash by default and optional
+          Parquet metric rescan.
+        - `tests/test_archive_snapshot*.py`: add 23 behavior-level tests for
+          transfer, schema/quality inspection, validation, workflow, and CLI
+          contracts.
+        - `docs/adr/019-versioned-research-data-and-artifact-manifests.md`:
+          record the accepted immutable-snapshot and future artifact-binding
+          decision.
+        - `docs/modules/archive.md` and `docs/index.md`: document the new module
+          boundary and correct the old `INSERT OR IGNORE`/writer-lock claims.
+        - `docs/EXPERIMENT_LOG.md` (EXP-013): record live probe metadata,
+          bounded API results, assumptions, and the pending full-download test.
+        - `docs/ROADMAP.md`: separate shipped bulk acquisition from raw archive
+          refresh, topology inventory, artifact compatibility, and the
+          confirmed TPOT node-alignment defect.
+    - **Verification**
+        - Focused TDD surface:
+          `23 passed` across transfer, structural validation, acquisition
+          workflow, and CLI tests.
+        - Credential-free backend suite with normal clean-checkout write access:
+          `1230 passed, 5 skipped, 20 warnings`.
+        - Docs hygiene verifier: `9 passed, 0 failed`.
+        - Live canonical HEAD:
+          snapshot `20260725T045122Z-4123f74b1a43`, 901,456,905 bytes,
+          Last-Modified `2026-07-25T04:51:22+00:00`, ETag
+          `"b07a2925eca027be751c5814fe3ddffe-54"`.
+        - Probe-only output explicitly confirmed no body download and no file
+          changes.
+        - First full transfer: 901,456,905 bytes received; strict inspection
+          rejected the string timestamp schema and wrote no manifest.
+        - Refined full-file scan: 8,318,250 rows, 34,684 accounts, source maximum
+          2026-07-25T04:15:29Z, Snowflake maximum
+          2026-07-25T04:15:29.758Z, 108 >1-second timestamp anomalies.
+        - Completed snapshot:
+          `data/community_archive/snapshots/20260725T045122Z-4123f74b1a43/`;
+          SHA-256
+          `f40645e181976558f2e107528e9eebf90d82038881fdb886d759e973c3fd3667`;
+          producer `7b405bb5b56a83d2764ffb9598ae6279efd14a6f`,
+          `git_dirty=false`.
+        - Independent verifier recomputed the 901,456,905-byte file hash and
+          rescanned every dataset metric with zero failed checks.
+        - `make verify-baseline` on the host correctly rejected Node 26 because
+          the repository/CI contract is Node 22; this repeats EXP-012's known
+          runtime diagnostic and is unrelated to the Python snapshot surface.
+        - All new implementation and test files are below 300 lines;
+          `git diff --check` passes.
+    - **Residuals**
+        - The first unmanifested candidate was explicitly removed and
+          reacquired; only the completed immutable snapshot remains.
+        - The tweet-only Parquet does not refresh following/follower topology;
+          bounded raw-object inventory is separate future work.
+        - Existing `store.py`/fetch CLI still have terminal-status, username
+          identity, update, and presence-history limitations documented in the
+          roadmap.
+        - `WORKLOG.md`, `ROADMAP.md`, and `EXPERIMENT_LOG.md` remain above the
+          300-line threshold; decomposition is tracked rather than mixed into
+          this data-acquisition phase.
+
+## Assumption-Testing Repository Readiness (2026-07-25)
+
+- [2026-07-25 21:38 IST] **Recovered current main into an isolated,
+  reproducible code + frozen-data baseline (Codex GPT-5)**
+    - **Goal**
+        - Make the repository safe to begin empirical tests of clustering,
+          network discoverability, and soft group-membership assumptions without
+          pulling into or repairing the backup-synchronized conflicted checkout.
+    - **Hypotheses**
+        - `H1` (`0.60`): current `origin/main` contains the intended source and
+          most old-checkout changes are upstream copies or sync/EOL noise.
+        - `H2` (`0.25`): a small set of genuine local-only code/tests needs
+          preservation.
+        - `H3` (`0.15`): toolchain and data-path assumptions, rather than source
+          drift, block a reproducible baseline.
+    - **Predicted outcome**
+        - Normalized comparison finds no or very little unique local source;
+          CI-equivalent code gates pass on the exact toolchain; independently
+          copied data matches the immutable source at the handoff boundary and
+          reports its age instead of being mistaken for current network truth.
+    - **Result**
+        - `H1` confirmed, `H2` rejected, `H3` confirmed. Across 749 relevant
+          paths, 746 match current main after CRLF normalization; the only
+          mismatch is a superseded historical `AGENTS.md`; two old-only files
+          were intentionally deleted upstream. Genuine local-only
+          source/docs/tests: **0**.
+        - Python 3.12 failed to install `pandas==2.1.0`; exact CI Python 3.11.15
+          installed all 55 requirements. Node 26 caused 43 coupled
+          `localStorage` test failures; checksum-verified Node 22.23.1 passed all
+          729 graph-explorer tests.
+        - The frozen data copy is byte-identical and structurally valid but
+          stale: newest tweet 2026-03-22, spectral snapshot 2026-02-26,
+          propagation 2026-04-10.
+    - **Confidence**
+        - `0.99` that the clean checkout loses no unique code/docs/tests.
+        - `0.96` that the copied artifacts are a sound frozen control baseline.
+        - `0.35` that the baseline represents the current Community Archive or
+          current social graph; a refresh/manifest phase is still required.
+    - **Fallback plan**
+        - Keep the old checkout immutable and recover any disputed policy from
+          Git history. If later data verification diverges, discard only the
+          ignored working copies and recreate them from the source; continue
+          method work on deterministic fixtures until refresh semantics are
+          approved.
+    - **Changes (files + why)**
+        - `tpot-analyzer/.python-version:1` and `.nvmrc:1`: pin the local
+          interpreter majors to CI's Python 3.11 and Node 22.
+        - `tpot-analyzer/.github/workflows/test.yml:41-48`: replace the
+          untracked-production-artifact cluster gate with two granularities over
+          the committed deterministic medium fixture.
+        - `tpot-analyzer/Makefile:8-41`: add `verify-baseline` and a distinct
+          credential-free `make test-ci` target while preserving the historical
+          unfiltered `make test` contract.
+        - `tpot-analyzer/scripts/verify_clusters.py:1-103`: use a sparse
+          production-safe synthetic adjacency and temporary label database,
+          print explicit failure metrics/next steps, and return non-zero on
+          exceptions or failed checks.
+        - `tpot-analyzer/scripts/verify_assumption_baseline.py:1-85`: add the
+          human-facing, read-only baseline CLI with strict certification-option
+          validation.
+        - `tpot-analyzer/scripts/_assumption_baseline_checks.py:1-116`: isolate
+          Git, runtime, lock-hash, status, and reporting checks.
+        - `tpot-analyzer/scripts/_assumption_baseline_data.py:1-240`: isolate
+          source/working inode-size-hash parity, source/working WAL quiescence,
+          immutable SQLite schema/count/integrity checks, Snowflake-based
+          freshness, and bound artifact metadata.
+        - `tpot-analyzer/tests/test_verify_assumption_baseline.py:1-69`: cover
+          invalid hash certification, required snapshot sidecars, and
+          descriptive empty-archive failure.
+        - `tpot-analyzer/docs/guides/QUICKSTART.md:7-100,155-205,234-238,274-279`:
+          align onboarding with CI, use `npm ci`, remove the nonexistent Ruff
+          contract, replace the unused `shadow.db` copy advice, and document
+          immutable-source data certification.
+        - `tpot-analyzer/docs/EXPERIMENT_LOG.md:5-95`: record EXP-012, including
+          rejected runtime assumptions, hashes, test outcomes, and the
+          Snowflake-date lesson.
+        - `tpot-analyzer/docs/ROADMAP.md:5,85-95,153-178,418-432`: record the
+          shipped readiness work and future dependency-security, refresh,
+          unified-data-path, artifact-manifest, and documentation-decomposition
+          work.
+    - **Operational data handoff (gitignored)**
+        - Clean code checkout:
+          `/Volumes/AirBackup/home/Documents/Ongoing Local/Project 2 - Map TPOT - clean-main`
+          on `codex/community-archive-readiness`, based on `7cfb45f`.
+        - Old checkout was not pulled, reset, or edited. It remains the recovery
+          and immutable-data source.
+        - APFS copy-on-write files were created only for `archive_tweets.db`,
+          `cache.db`, active full/TPOT graph artifacts, adjacency caches, and
+          propagation outputs. `archive_cache/` and unrelated experimental DBs
+          were not copied.
+        - Core handoff hashes:
+          - archive DB:
+            `c99b23fc83e1d01e64962124385674324a163ab6ccfee2a36d59cb995b894cd4`
+          - cache DB:
+            `4e04289dd6d86f7166f8cdfadb03443e6925f6b90b710393fc93a648baf8a552`
+          - spectral:
+            `05306f30c329bc7461c770228db77b39ac34144b0919e62070567e55e3796b8e`
+          - propagation:
+            `1d12f3371205260d7808d1b01c6ecd66cb3cdb7013420cb9a591993d2082a830`
+    - **Verification**
+        - `make verify-baseline` under Node 22.23.1 → pass (runtime, docs,
+          dependency contract, API contracts, cluster granularities 25/40);
+          Node 26 now fails explicitly.
+        - Deep data certification → `56 passed, 0 failed`; both SQLite
+          `quick_check` results `ok`; all eight required source/working hash
+          pairs match, have distinct inodes, and source/working WALs are
+          quiescent.
+        - Readiness verifier regressions → `3 passed`.
+        - Backend `make test-ci` → `1210 passed, 5 skipped, 20 warnings`.
+        - Public site → `12 files / 184 tests passed`.
+        - Graph explorer, Node 22.23.1 → `30 files / 729 tests passed`.
+    - **Residuals / human gates**
+        - Current Node lockfiles report 23 graph-explorer vulnerabilities
+          (2 critical) and 4 high-severity public-site vulnerabilities. No
+          automatic audit fix was applied; upgrades need a reviewed dependency
+          change.
+        - The data is suitable as a frozen control, not a current-state result.
+          Snapshot-aware Community Archive refresh semantics and a cross-artifact
+          manifest remain an architectural human gate.
+        - `docs/WORKLOG.md`, `docs/ROADMAP.md`, and `docs/EXPERIMENT_LOG.md`
+          exceed 300 LOC. This phase made narrow mandated append-only updates;
+          decomposition remains explicitly tracked in the roadmap.
+
 ## Monolith-Split Sweep (2026-05-25)
 
 - [2026-05-25] **Five monoliths split across 5 commits, all pushed (Claude Opus 4.7)**
@@ -1058,3 +3128,42 @@
     - **Verification**
         - `cd tpot-analyzer/public-site && node -e "require('./api/generate-card.js'); console.log('generate-card-loaded')"` → module loads successfully.
         - `cd tpot-analyzer/public-site && npm run build` → successful Vite production build after adding `functions.maxDuration`.
+
+- [2026-07-30 14:40 IST] **Raw-first retrieval Slice 0: quarantine legacy membership claims (Codex GPT-5)**
+    - **Hypothesis**
+        - Adjacent caveats, decimal score formatting, and honest producer names can preserve the legacy map as a baseline without presenting mixed `weight` values as calibrated community-membership probabilities.
+        - Predicted outcome: no primary internal, public, download, tweet-share, or OpenGraph surface emits a bare membership-like percentage.
+        - Confidence: `0.90`.
+        - Fallback: hide legacy numeric values entirely if any context-free probability affordance remains.
+    - **RED diagnostic**
+        - Focused public contracts produced 11 expected failures among 62 tests before implementation: cards, evidence, community page, tweet share, and OpenGraph metadata all reproduced the old percentage/belonging language.
+        - The graph pure-function contract initially had no implementation module. A separate first run exposed worktree dependency-resolution friction; `--configLoader runner` allowed the existing clean-clone dependencies to be reused without writing into their read-only cache.
+    - **Changes (files + why)**
+        - `graph-explorer/src/legacyCommunitySemantics.js:1-14` and `LegacyMapNotice.jsx:1-25`: centralize decimal formatting, exact source labels, and the adjacent legacy-map caveat; a visual pass increased light-theme contrast.
+        - `graph-explorer/src/Communities.jsx:22-23,113-150,374`: rename `Weight` to `Legacy score`, remove rendered percentages, preserve actual producer names, and show the always-visible caveat.
+        - `graph-explorer/src/AccountDeepDive.jsx:14-15,22,94,122,262-338`: rename the editor, use the API's native `0..1` scale, preserve source names, and keep the caveat beside editable legacy scores.
+        - `public-site/src/legacyCommunitySemantics.js:1-20` and `LegacyMapNotice.jsx:1-25`: define public decimal/caveat semantics and normalize mixed-scale values to bounded, explicitly within-card relative geometry.
+        - `public-site/src/CommunityCard.jsx:3-89,127-235`: render decimal legacy scores, use relative bar lengths instead of `weight * 100`, and carry the caveat in fallback, AI-image, and fullscreen branches.
+        - `public-site/src/EvidenceSummary.jsx:38-40,123`: label the highest placement as an uncalibrated decimal legacy affinity while retaining the separately named historical heuristic metadata.
+        - `public-site/src/CommunityPage.jsx:4-5,59,119-177`: replace “weight” and prototypical-member claims with legacy-score/exploratory-example language and an adjacent caveat.
+        - `public-site/src/App.jsx:327-336` and `CardGallery.jsx:103-213`: replace homepage belonging copy and keep the caveat beside cached art in both gallery and fullscreen contexts.
+        - `public-site/src/styles.css:566-624`: reserve viewport height for the fullscreen caveat and bound the notice beside short-viewport art.
+        - `public-site/src/EvidenceSummary.jsx:31-157`: remove the hidden `weight * 100 >= 5` bridge/community-count inference, report only legacy row count/order, and describe supporting accounts as legacy-labeled rather than members.
+        - `public-site/src/shareText.js:1-14` and `public-site/api/og.js:41-53`: share ranked names without numbers, explicitly deny membership-probability meaning, and avoid the contradictory “Find your ingroup” call to action.
+        - `public-site/src/CardDownload.jsx:1-228`, `cardDownloadAi.js:1-118`, and `cardCanvas.js:1-58`: cap exports at three ranked scores plus an omission count, reserve a tested caveat/footer area, normalize visible bars within-card, and decompose AI canvas rendering so the React component remains below 300 LOC.
+        - `public-site/src/legacyCardPrompt.js:1-72`, `GenerateCard.jsx:14,263`, `public-site/api/_legacyCardPrompt.js:1-108`, and `api/generate-card.js:12,143-149`: replace score percentages, score thresholds, and “community membership” art direction with top-three rank-only exploratory motifs and explicit methodological constraints.
+        - Focused semantics tests updated/added across `graph-explorer/src/legacyCommunitySemantics.test.js`, `AccountDeepDive.legacyScores.test.jsx`, `Communities.truthfulness.test.jsx`, and public card, gallery, homepage, prompt, evidence, community-page, share, download-layout, and OpenGraph contracts.
+        - `scripts/verify_legacy_community_truthfulness.py:1-299`: add the required human-readable verifier with ✓/✗ checks over 18 production surfaces plus 31 executable adversarial contracts.
+    - **Verification**
+        - The first focused RED tranche produced 11 expected public failures across 62 tests. Independent review then held the commit after finding unbounded bar geometry, clipped 15-score exports, membership language in both generated-card prompts, and context-free fullscreen art.
+        - The second RED tranche reproduced `7333%` geometry from score `73.3335`, 4/4 prompt failures, missing fullscreen notices, and unconstrained export rows.
+        - `cd graph-explorer && npx vitest run src --configLoader runner` → `746/746` passed; the suite retains pre-existing verbose canvas logs and React `act(...)` warnings.
+        - `cd public-site && npm test` → `211/211` passed.
+        - `cd graph-explorer && npm run build -- --configLoader runner` and `cd public-site && npm run build` → both production builds succeeded. The graph build retains its pre-existing large-chunk/dynamic-import warnings.
+        - `python3 scripts/verify_legacy_community_truthfulness.py` → 18 production surfaces, 52 required markers, 31 forbidden patterns, and 31 executable contracts checked; all passed.
+        - In-app browser visual pass at the isolated worktree dev server → caveat is adjacent to the table, “Legacy score” is visible, and the light-theme warning is readable after the contrast adjustment. The API was deliberately left unconfigured, so the preview showed no real rows and did not open or migrate the production database.
+    - **Scope and debt**
+        - No Community Gold schema/module was added, no data changed, no paid API was called, and nothing was deployed.
+        - The mounted `Communities.jsx` (661 LOC) and `AccountDeepDive.jsx` (540 LOC) remain pre-existing monolith debt already tracked in `docs/ROADMAP.md`; this slice only added imports/labels/notices and did not attempt a mixed refactor.
+        - `public-site/src/CommunityCard.test.jsx` remains inherited 325-LOC debt after changing the old percentage assertion; its fixture-preserving split is tracked separately in `docs/ROADMAP.md`.
+        - Prompt extraction reduced `GenerateCard.jsx` from 407 to 345 LOC and `api/generate-card.js` from 460 to 353 LOC, but both remain inherited decomposition debt; the client remainder is now explicitly tracked alongside the existing server item.

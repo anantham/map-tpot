@@ -8,6 +8,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
+from src.data.account_tag_history import (
+    AccountTagEvent,
+    append_event,
+    list_events,
+)
+from src.data.account_tag_schema import initialize_account_tag_schema
+
 logger = logging.getLogger(__name__)
 
 _SQLITE_MAX_VARS = 900
@@ -47,27 +54,7 @@ class AccountTagStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS account_tags (
-                    ego TEXT NOT NULL,
-                    account_id TEXT NOT NULL,
-                    tag_key TEXT NOT NULL,
-                    tag_display TEXT NOT NULL,
-                    polarity INTEGER NOT NULL,
-                    confidence REAL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    PRIMARY KEY (ego, account_id, tag_key)
-                )
-                """
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_account_tags_ego_account ON account_tags(ego, account_id)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_account_tags_ego_tag ON account_tags(ego, tag_key)"
-            )
+            initialize_account_tag_schema(conn)
 
     def list_tags(self, *, ego: str, account_id: str) -> List[AccountTag]:
         with sqlite3.connect(self.db_path) as conn:
@@ -217,6 +204,16 @@ class AccountTagStore:
                 anchors.append((str(account_id), -1))
         return anchors
 
+    def list_events(
+        self, *, ego: str, account_id: str, limit: int = 50
+    ) -> List[AccountTagEvent]:
+        """Return the latest working-tag events in chronological order."""
+        bounded_limit = max(1, min(int(limit), 200))
+        with sqlite3.connect(self.db_path) as conn:
+            return list_events(
+                conn, ego=ego, account_id=account_id, limit=bounded_limit
+            )
+
     def upsert_tag(
         self,
         *,
@@ -225,6 +222,7 @@ class AccountTagStore:
         tag: str,
         polarity: int,
         confidence: Optional[float] = None,
+        source: str = "account_tag_store",
     ) -> AccountTag:
         if polarity not in (1, -1):
             raise ValueError("polarity must be 1 (in) or -1 (not_in)")
@@ -245,6 +243,19 @@ class AccountTagStore:
                 """,
                 (ego, account_id, tag_key, tag_display, polarity, confidence, now, now),
             )
+            append_event(
+                conn,
+                ego=ego,
+                account_id=account_id,
+                tag_key=tag_key,
+                tag_display=tag_display,
+                action="set",
+                polarity=polarity,
+                confidence=confidence,
+                source=source,
+                evidence_binding_status="unbound",
+                recorded_at=now,
+            )
         return AccountTag(
             ego=ego,
             account_id=account_id,
@@ -254,12 +265,36 @@ class AccountTagStore:
             updated_at=now,
         )
 
-    def delete_tag(self, *, ego: str, account_id: str, tag: str) -> bool:
+    def delete_tag(self, *, ego: str, account_id: str, tag: str, source: str = "account_tag_store") -> bool:
         tag_key, _ = _normalize_tag(tag)
         with sqlite3.connect(self.db_path) as conn:
+            existing = conn.execute(
+                """
+                SELECT tag_display
+                FROM account_tags
+                WHERE ego = ? AND account_id = ? AND tag_key = ?
+                """,
+                (ego, account_id, tag_key),
+            ).fetchone()
+            if existing is None:
+                return False
             cur = conn.execute(
                 "DELETE FROM account_tags WHERE ego = ? AND account_id = ? AND tag_key = ?",
                 (ego, account_id, tag_key),
             )
             deleted = cur.rowcount or 0
+            if deleted:
+                append_event(
+                    conn,
+                    ego=ego,
+                    account_id=account_id,
+                    tag_key=tag_key,
+                    tag_display=str(existing[0]),
+                    action="remove",
+                    polarity=None,
+                    confidence=None,
+                    source=source,
+                    evidence_binding_status="unbound",
+                    recorded_at=_utc_now_iso(),
+                )
         return deleted > 0

@@ -11,6 +11,7 @@ import CardGallery from './CardGallery'
 import EvidenceSummary from './EvidenceSummary'
 import useRouting from './useRouting'
 import { DATA_JSON_ENDPOINT, SEARCH_JSON_ENDPOINT, fetchJson } from './dataEndpoints'
+import { buildShareText } from './shareText'
 
 /**
  * ResultArea — always mounts when a classified/propagated result exists,
@@ -39,11 +40,11 @@ function ResultArea({ result, communityMap, links, onCommunityClick }) {
           aiImageUrl={imageUrl}
           generationStatus={status}
           onCommunityClick={onCommunityClick}
-          confidence={result.confidence || 0}
+          confidence={result.confidence}
         />
         <EvidenceSummary
           tier={result.originalTier || result.tier}
-          confidence={result.confidence || 0}
+          confidence={result.confidence}
           memberships={result.memberships}
           communityMap={communityMap}
           followers={result.followers}
@@ -100,22 +101,10 @@ function ResultArea({ result, communityMap, links, onCommunityClick }) {
 function ShareButton({ handle, memberships, communityMap }) {
   const [copied, setCopied] = useState(false)
 
-  // Build community breakdown text for the tweet
-  const communityText = (memberships || [])
-    .map(m => {
-      const c = communityMap?.get(m.community_id)
-      return c ? `${Math.round(m.weight * 100)}% ${c.name}` : null
-    })
-    .filter(Boolean)
-    .slice(0, 3)
-    .join(', ')
-
   const ogUrl = `${window.location.origin}/api/og?handle=${encodeURIComponent(handle)}`
   const cardUrl = `${window.location.origin}/?handle=${encodeURIComponent(handle)}`
 
-  const tweetText = communityText
-    ? `I'm ${communityText} on TPOT.\n\nFind your ingroup →`
-    : `Find which TPOT communities you belong to →`
+  const tweetText = buildShareText(memberships, communityMap)
 
   const shareToX = () => {
     const intentUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(ogUrl)}`
@@ -232,15 +221,15 @@ export default function App() {
     window.history.pushState({}, '', `/?handle=${searchResult.handle}`)
     const tier = searchResult.tier
 
-    // All known tiers get a card — CI drives the visual treatment
+    // All known tiers get a card; the legacy `confidence` field is an
+    // uncalibrated display heuristic whose inputs differ by export tier.
     const isKnown = tier && tier !== 'not_found'
     const isClassified = tier === 'classified' || tier === 'exemplar'
 
     if (isKnown) {
       const account = accountMap.get(searchResult.handle)
-      // Use CI for display: classified = always color, others = CI drives opacity
       const displayTier = isClassified ? 'classified' : 'propagated'
-      const confidence = account?.confidence ?? searchResult.confidence ?? 0
+      const confidence = account?.confidence ?? searchResult.confidence ?? null
       if (account) {
         setResult({
           handle: account.username,
@@ -338,12 +327,12 @@ export default function App() {
       {showHome && (
         <div className="hero">
           <h1 className="hero-title">{data.meta.site_name}</h1>
-          <p className="hero-tagline">Discover which corners of TPOT you belong to</p>
+          <p className="hero-tagline">Explore a legacy map of TPOT affinities — hypotheses, not membership probabilities</p>
 
           <SearchBar onResult={handleResult} />
 
           <div className="community-showcase">
-            <p className="showcase-label">{communities.length} communities mapped</p>
+            <p className="showcase-label">Legacy groups shown: {communities.length}</p>
             <div className="showcase-tags">
               {communities.map(c => (
                 <a

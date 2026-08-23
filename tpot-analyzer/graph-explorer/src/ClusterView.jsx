@@ -614,7 +614,10 @@ export default function ClusterView({ defaultEgo = '', theme = 'light', onThemeC
       clusterViewLog.debug('Membership loaded', {
         accountId: account,
         ego: egoTrimmed,
-        probability: res?.probability,
+        affinity: res?.affinity,
+        scoreSemantics: res?.scoreSemantics,
+        calibrated: res?.calibrated,
+        coverageStatus: res?.coverage?.status,
         uncertainty: res?.uncertainty,
         timing: res?._timing,
       })

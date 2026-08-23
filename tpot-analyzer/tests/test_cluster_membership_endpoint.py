@@ -8,9 +8,13 @@ import pytest
 from flask import Flask
 from scipy import sparse
 
+import src.api.cluster.membership as membership_routes
 import src.api.cluster.state as cluster_routes
 from src.api.cluster import ClusterCache, cluster_bp
 from src.data.account_tags import AccountTagStore
+
+CURATOR_TOKEN = "membership-curator-token"
+CURATOR_AUTH = {"X-TPOT-Curator-Token": CURATOR_TOKEN}
 
 
 @dataclass
@@ -24,6 +28,7 @@ class _MockSpectralResult:
 
 @pytest.fixture
 def membership_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask:
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
     app = Flask(__name__)
     app.register_blueprint(cluster_bp)
     app.config["TESTING"] = True
@@ -66,7 +71,10 @@ def test_membership_endpoint_rejects_when_engine_disabled(
 ) -> None:
     monkeypatch.setattr(cluster_routes, "_graph_settings", {"membership_engine": "off"}, raising=False)
     client = membership_app.test_client()
-    resp = client.get("/api/clusters/accounts/node_1/membership?ego=ego1")
+    resp = client.get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1",
+        headers=CURATOR_AUTH,
+    )
     assert resp.status_code == 400
     assert "membership_engine" in resp.get_json()["error"]
 
@@ -79,7 +87,10 @@ def test_membership_endpoint_requires_positive_and_negative_anchors(
     tag_store.upsert_tag(ego="ego1", account_id="node_0", tag="tpot", polarity=1)
 
     client = membership_app.test_client()
-    resp = client.get("/api/clusters/accounts/node_1/membership?ego=ego1")
+    resp = client.get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1",
+        headers=CURATOR_AUTH,
+    )
     assert resp.status_code == 400
     payload = resp.get_json()
     details = payload.get("details", payload)
@@ -87,7 +98,7 @@ def test_membership_endpoint_requires_positive_and_negative_anchors(
     assert details["anchorCounts"]["negative"] == 0
 
 
-def test_membership_endpoint_returns_probability_and_uses_cache(
+def test_membership_endpoint_returns_uncalibrated_affinity_and_uses_cache(
     membership_app: Flask,
 ) -> None:
     tag_store = cluster_routes._tag_store
@@ -96,16 +107,118 @@ def test_membership_endpoint_returns_probability_and_uses_cache(
     tag_store.upsert_tag(ego="ego1", account_id="node_2", tag="not_tpot", polarity=-1)
 
     client = membership_app.test_client()
-    first = client.get("/api/clusters/accounts/node_1/membership?ego=ego1")
+    first = client.get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1",
+        headers=CURATOR_AUTH,
+    )
     assert first.status_code == 200
     first_payload = first.get_json()
+    assert first_payload["schemaVersion"] == "account-membership-affinity-v1"
     assert first_payload["engine"] == "grf"
-    assert 0.0 <= first_payload["probability"] <= 1.0
+    assert 0.0 <= first_payload["affinity"] <= 1.0
+    assert first_payload["scoreSemantics"] == "affinity"
+    assert first_payload["calibrated"] is False
+    assert first_payload["uncertaintySemantics"] == (
+        "heuristic_graph_entropy_degree"
+    )
+    assert "probability" not in first_payload
+    assert "probabilityRaw" not in first_payload
+    assert "confidenceInterval95" not in first_payload
     assert first_payload["cacheHit"] is False
     assert first_payload["anchorCounts"]["positive"] == 1
     assert first_payload["anchorCounts"]["negative"] == 1
 
-    second = client.get("/api/clusters/accounts/node_1/membership?ego=ego1")
+    second = client.get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1",
+        headers=CURATOR_AUTH,
+    )
     assert second.status_code == 200
     second_payload = second.get_json()
     assert second_payload["cacheHit"] is True
+
+
+def test_membership_affinity_does_not_change_with_evidence_coverage(
+    membership_app: Flask,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tag_store = cluster_routes._tag_store
+    assert tag_store is not None
+    tag_store.upsert_tag(
+        ego="ego1",
+        account_id="node_0",
+        tag="tpot",
+        polarity=1,
+    )
+    tag_store.upsert_tag(
+        ego="ego1",
+        account_id="node_2",
+        tag="not_tpot",
+        polarity=-1,
+    )
+    monkeypatch.setattr(
+        membership_routes,
+        "_estimate_account_coverage",
+        lambda _account_id: {"value": 0.0, "source": "test"},
+    )
+
+    response = membership_app.test_client().get(
+        "/api/clusters/accounts/node_0/membership?ego=ego1",
+        headers=CURATOR_AUTH,
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["affinity"] == 1.0
+    assert payload["evidence"]["coverage"] == 0.0
+    assert payload["coverage"]["value"] == 0.0
+
+
+def test_membership_coverage_is_unknown_without_expected_following(
+    membership_app: Flask,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tag_store = cluster_routes._tag_store
+    assert tag_store is not None
+    tag_store.upsert_tag(
+        ego="ego1",
+        account_id="node_0",
+        tag="tpot",
+        polarity=1,
+    )
+    tag_store.upsert_tag(
+        ego="ego1",
+        account_id="node_2",
+        tag="not_tpot",
+        polarity=-1,
+    )
+    metadata = dict(cluster_routes._node_metadata)
+    metadata["node_1"] = {"username": "candidate"}
+    monkeypatch.setattr(
+        cluster_routes,
+        "_node_metadata",
+        metadata,
+        raising=False,
+    )
+
+    response = membership_app.test_client().get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1",
+        headers=CURATOR_AUTH,
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["coverage"] == {
+        "value": None,
+        "status": "unknown",
+        "reason": "missing_expected_following",
+        "observedFollowing": 2,
+        "expectedFollowing": None,
+    }
+    assert payload["evidence"]["coverage"] is None
+
+
+def test_membership_endpoint_rejects_anonymous_reads(membership_app: Flask) -> None:
+    response = membership_app.test_client().get(
+        "/api/clusters/accounts/node_1/membership?ego=ego1"
+    )
+    assert response.status_code == 401

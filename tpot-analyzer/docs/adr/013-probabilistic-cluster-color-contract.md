@@ -180,3 +180,37 @@ Coverage may remain low, and clusters may appear hatched, until the planned ADR-
 **Encode all five quantities as separate visual channels.** Rejected — too much cognitive load. Chroma encodes the joint quality signal; ambiguity ring and coverage hatch provide the two most actionable exceptions.
 
 **Use HSL instead of OKLCH.** Rejected — HSL does not preserve perceived brightness across hues. Two communities at the same HSL saturation/lightness but different hues will appear to have different emphasis, which introduces unintended hierarchy.
+
+---
+
+## Amendment — 2026-07-28: Rendering scores, not probability claims
+
+This amendment preserves the accepted rendering decision while narrowing its scientific
+interpretation. ADR 021 supersedes the posterior, probability, confidence, calibration,
+and sealed-evaluation portions of this ADR.
+
+The currently deployed upstream producers do not establish a calibrated posterior. NMF
+rows are compositional factor shares, while one membership-GRF invocation emits a bounded,
+uncalibrated harmonic affinity. The live membership endpoint is not yet target-scoped, so
+it does not establish independent per-community outputs. The API's historical field names
+therefore remain compatibility names, not evidence that their values have probabilistic
+semantics.
+
+| Legacy field | Current defensible interpretation |
+|---|---|
+| `signalStrength` | `1 - noneWeight` from the supplied producer; a heuristic score unless that producer has a compatible calibration record |
+| `purity` | Concentration of the supplied non-none scores |
+| `ambiguity` | Margin between the two largest supplied scores |
+| `coverage` | Fraction of cluster members with a supplied score; **score availability is not evidence coverage** |
+| `confidence` | `1 - uncertainty` from a heuristic upstream uncertainty signal |
+| `communityChroma` | A heuristic rendering score composed from the fields above, not calibrated truth, confidence, or membership probability |
+
+Evidence coverage must instead bind an observed numerator and expected denominator to a
+compatible source, snapshot generation, and as-of time. If those records are absent or
+incompatible, evidence coverage is unknown even when `coverage` is `1.0`.
+
+The words *posterior*, *probability*, and *confidence* may be used scientifically only
+after a producer has a registered calibration record and passes untouched terminal
+evaluation under ADR 021. Until then the visual treatment should be described as stronger
+or weaker rendered graph support. The current cluster endpoint implementation lives under
+`src/api/cluster/`; `src/api/cluster_routes.py` is a historical path.

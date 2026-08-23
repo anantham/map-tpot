@@ -1,6 +1,10 @@
 # TPOT Community Map
 
-Discovers and maps the TPOT (This Part of Twitter) community using the [Community Archive](https://community-archive.org) dataset. Combines follow graph analysis, engagement signals, and label propagation to classify ~200K accounts into 15 named communities across 4 confidence bands.
+Explores TPOT (This Part of Twitter) using Community Archive data, locally
+captured shadow data, typed interaction edges, and content signals. The
+repository is moving from a legacy fixed community map toward raw-first,
+human-in-the-loop retrieval. Its historical named communities, scores, and
+display bands are exploratory artifacts—not calibrated membership claims.
 
 **Live site:** [maptpot.vercel.app](https://maptpot.vercel.app)
 
@@ -22,21 +26,20 @@ Community Archive (Supabase)
                 │
                 ▼
     ┌──────────────────────────┐
-    │  15 Communities (NMF)    │  Human-curated seeds from
-    │  317 seed accounts       │  spectral clustering + validation
+    │  16 Legacy Communities   │  Mixed NMF + LLM-ensemble seed rows;
+    │  361 seed accounts       │  not a fully human-curated ontology
     └───────────┬──────────────┘
                 │
                 ▼
     ┌──────────────────────────┐
-    │  Label Propagation       │  Harmonic (CG solve on Laplacian)
-    │  201K-node graph         │  with engagement weighting +
-    │  T=2.0, balanced         │  class balancing + seed eligibility
+    │  Directed PPR + Lift     │  298K-account active artifact;
+    │  independent affinities  │  uncalibrated, solver audit pending
     └───────────┬──────────────┘
                 │
                 ▼
     ┌──────────────────────────┐
-    │  4-Band Classification   │  exemplar → specialist → bridge → frontier
-    │  ~10K classified         │  based on membership confidence + degree
+    │  Legacy Display Bands    │  unbound rows are quarantined regardless
+    │  export suppresses them  │  of score mode; classic classifier is local
     └───────────┬──────────────┘
                 │
                 ▼
@@ -46,7 +49,11 @@ Community Archive (Supabase)
     └──────────────────────────┘
 ```
 
-## Communities
+## Historical 15-Community Snapshot
+
+The table below documents the March-era NMF snapshot. The current database and
+active propagation artifact contain 16 legacy names, so this table is not a
+canonical current taxonomy and must not be used as golden membership data.
 
 | # | Community | Seeds | Description |
 |---|-----------|-------|-------------|
@@ -77,8 +84,9 @@ cp .env.example .env  # Add your SUPABASE_KEY
 
 # Core pipeline
 .venv/bin/python3 -m scripts.propagate_community_labels --save    # propagation
-.venv/bin/python3 -m scripts.classify_bands                       # band classification
-.venv/bin/python3 -m scripts.export_public_site                   # site export
+.venv/bin/python3 -m scripts.classify_bands                       # classic mode only; independent fails closed
+.venv/bin/python3 -m scripts.export_public_site                   # suppresses unbound bands; classified-only fallback
+.venv/bin/python3 -m scripts.verify_independent_band_entropy      # inspect entropy/band contract
 
 # Data fetches (long-running, resume-capable)
 .venv/bin/python3 -m scripts.build_mention_graph     # ~3hrs, keyset pagination
@@ -111,13 +119,13 @@ See `.env.example` for all options.
 ```
 tpot-analyzer/
 ├── scripts/
-│   ├── propagate_community_labels.py   # Core: harmonic label propagation
-│   ├── classify_bands.py               # Core: 4-band classification
+│   ├── propagate_community_labels.py   # Directed PPR + Lift propagation
+│   ├── classify_bands.py               # Legacy classic bands; independent fails closed
 │   ├── export_public_site.py           # Core: generate data.json + search.json
 │   ├── build_mention_graph.py          # Data: fetch mentions from Supabase
 │   ├── build_quote_graph.py            # Data: fetch quotes from Supabase
-│   ├── rank_frontier.py                # Analysis: prioritize enrichment targets
-│   ├── resolve_band_usernames.py       # Utility: bulk username resolution
+│   ├── rank_frontier.py                # Historical ranker; quarantined pending exact binding
+│   ├── resolve_band_usernames.py       # Historical resolver; quarantined
 │   ├── verify_bootstrap_cv.py          # Validation: cross-validation metrics
 │   ├── verify_holdout_recall.py        # Validation: holdout recall check
 │   └── ...                             # ~25 more verify/utility scripts
@@ -177,11 +185,11 @@ tpot-analyzer/
 |--------|---------|---------|---------|
 | `build_mention_graph` | Fetch 10.6M user mentions from Supabase | ~3hrs | Yes (keyset cursor) |
 | `build_quote_graph` | Fetch quote tweets from Supabase | ~30min | Yes (keyset cursor) |
-| `propagate_community_labels` | Harmonic label propagation on full graph | ~15s | N/A |
-| `classify_bands` | Assign exemplar/specialist/bridge/frontier bands | ~5s | N/A |
-| `export_public_site` | Generate data.json + search.json for site | ~10s | N/A |
-| `rank_frontier` | Score frontier accounts for API enrichment | ~5s | N/A |
-| `resolve_band_usernames` | Bulk-resolve usernames via Supabase | ~2min | N/A |
+| `propagate_community_labels` | Directed PPR + Lift propagation on the graph | ~15s | N/A |
+| `classify_bands` | Assign legacy bands for classic artifacts; reject independent Lift | ~5s | N/A |
+| `export_public_site` | Generate site JSON; suppress unbound bands and use classified-only fallback | ~10s | N/A |
+| `rank_frontier` | Historical enrichment ranker; blocked until bands have an exact artifact receipt | blocked | N/A |
+| `resolve_band_usernames` | Historical band-driven resolver; fails closed pending artifact binding | blocked | N/A |
 | `verify_bootstrap_cv` | Bootstrap cross-validation (20 iterations) | ~5min | N/A |
 
 ## Graph Explorer (Development UI)

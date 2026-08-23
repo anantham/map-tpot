@@ -1,17 +1,22 @@
 # Communities — NMF Soft Clustering, Curation & Versioning
 
 <!--
-Last verified: 2026-03-19
-Code hash: 596924c
-Verified by: agent
+Inventory snapshot verified: 2026-03-19
+Historical code hash: 596924c
+Scientific-semantics audit: 2026-07-28
 -->
 
 ## Purpose
 
-Manages soft community assignments for network accounts using a two-layer
+Manages community scores for network accounts using a two-layer
 architecture: an immutable NMF layer (algorithmic runs) and a mutable curator
 layer (human-edited canonical map). Includes branch/snapshot versioning so
 curators can explore alternative ontologies without losing state.
+
+NMF `W` rows are normalized compositional factor shares. They are useful for
+mixture visualization but are not independently overlapping membership
+probabilities. Other producers, including the membership GRF, have different
+score semantics and must identify their producer in exported artifacts.
 
 ## Module Files
 
@@ -19,7 +24,7 @@ curators can explore alternative ontologies without losing state.
 |------|-----|----------------|
 | `store.py` | 367 | SQLite persistence — Layer 1 (NMF) and Layer 2 (curator) CRUD |
 | `versioning.py` | 377 | Branch/snapshot version control for Layer 2 state |
-| `cluster_colors.py` | 226 | ADR-013 probabilistic color contract (5 rendering quantities) |
+| `cluster_colors.py` | 226 | Legacy ADR-013 color fields and heuristic rendering score |
 | `preview.py` | 185 | Rich per-account preview data for curator UI |
 
 ### API Routes
@@ -71,19 +76,23 @@ Key operations:
 
 ### Color Contract (cluster_colors.py)
 
-Implements ADR-013's five independent rendering quantities from soft community
-membership propagation:
+Implements ADR-013's compatibility fields and rendering score from supplied
+community scores:
 
-| Quantity | Formula | Meaning |
-|----------|---------|---------|
-| `signal_strength` | `1 - p[none]` | How much community signal exists |
-| `purity` | `top1 / sum(K)` | How concentrated in dominant community |
-| `ambiguity` | `top1 - top2` | Margin between top two |
-| `coverage` | `matched / total` | Fraction with propagation scores |
-| `confidence` | `mean(1 - uncertainty)` | Per-member quality |
-| `chroma` | `sqrt(signal * confidence * coverage) * concentration` | Final rendering value |
+| Quantity | Implementation calculation | Defensible current meaning |
+|----------|----------------------------|----------------------------|
+| `signal_strength` | `1 - none_weight` | Supplied non-none score; probabilistic only for a compatibly calibrated producer |
+| `purity` | `top1 / sum(K)` | Concentration in the dominant supplied score |
+| `ambiguity` | `top1 - top2` | Margin between the two largest supplied scores |
+| `coverage` | `matched / total` | Score availability, **not evidence coverage** |
+| `confidence` | `mean(1 - uncertainty)` | Inverse of a heuristic upstream uncertainty signal |
+| `chroma` | `sqrt(signal * confidence * coverage) * concentration` | Heuristic rendering score, not calibrated confidence or truth |
 
 Data classes: `PropagationData` (loaded from `.npz`), `CommunityInfo` (per-cluster result).
+
+Evidence coverage is a separate provenance claim: an observed numerator and expected
+denominator must share a compatible source, snapshot generation, and as-of time. Missing
+or incompatible metadata means unknown coverage even when every member has a score.
 
 ### Account Preview (preview.py)
 
@@ -136,7 +145,7 @@ store.py ──→ versioning.py  (uses now_utc only)
 
 versioning.py ──→ routes/branches.py
 preview.py    ──→ routes/communities.py
-cluster_colors.py ──→ cluster_routes.py (loaded for cluster rendering)
+cluster_colors.py ──→ src/api/cluster/ (loaded for cluster rendering)
 ```
 
 No circular dependencies. `cluster_colors.py` is consumed by the cluster routes
@@ -152,6 +161,12 @@ module, not the community routes.
 - **`is_branch_dirty()` is O(n):** Loads entire snapshot data to compare. Could
   add a content hash to the snapshot table.
 - **No partial restore:** `restore_snapshot()` always wipes and restores atomically.
+- **Legacy probability-shaped names:** `signalStrength`, `confidence`, and `coverage`
+  are compatibility fields with heuristic score semantics. A coordinated API/frontend
+  migration should rename them or attach an explicit producer/calibration contract.
+- **Producer identity is implicit:** NMF factor shares and GRF affinities can currently
+  reach common rendering code. Exported rows need producer, source generation, as-of
+  time, and calibration metadata before cross-producer comparisons are defensible.
 
 ## Design Docs
 
@@ -163,5 +178,5 @@ Historical design rationale in `docs/plans/`:
 ## ADR References
 
 - [ADR-011: Content-Aware Fingerprinting and Community Visualization](../adr/011-content-aware-fingerprinting-and-community-visualization.md)
-- [ADR-012: Community-Seeded Cluster Navigation](../adr/012-community-seeded-cluster-navigation.md)
-- [ADR-013: Probabilistic Cluster Color Contract](../adr/013-probabilistic-cluster-color-contract.md)
+- [ADR-012: Community-Seeded Cluster Navigation](../adr/012-community-seeded-cluster-navigation.md) — amended 2026-07-28; probability and uncertainty semantics superseded by ADR 021
+- [ADR-013: Probabilistic Cluster Color Contract](../adr/013-probabilistic-cluster-color-contract.md) — amended 2026-07-28; current chroma is a heuristic rendering score

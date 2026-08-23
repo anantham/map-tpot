@@ -28,6 +28,7 @@ class CommunityGoldReadMixin:
 
         conditions = []
         params: List[Any] = []
+        conditions.append("ls.identity_status = 'legacy_unbound'")
         if not include_inactive:
             conditions.append("ls.is_active = 1")
         if community_id is not None:
@@ -53,7 +54,9 @@ class CommunityGoldReadMixin:
                 f"""
                 SELECT ls.id, ls.account_id, ls.community_id, ls.reviewer, ls.judgment,
                        ls.confidence, ls.note, ls.evidence_json, ls.is_active, ls.created_at,
-                       ls.supersedes_label_set_id, s.split, c.name AS community_name,
+                       ls.supersedes_label_set_id, ls.identity_status,
+                       ls.evidence_snapshot_id, ls.context_hash,
+                       s.split, c.name AS community_name,
                        c.color AS community_color, p.username, p.display_name,
                        ca.weight AS canonical_weight, ca.source AS canonical_source
                 FROM account_community_gold_label_set ls
@@ -90,6 +93,10 @@ class CommunityGoldReadMixin:
                     if row["supersedes_label_set_id"] is not None
                     else None
                 ),
+                "identityStatus": row["identity_status"],
+                "ontologyScope": None,
+                "evidenceSnapshotId": row["evidence_snapshot_id"],
+                "contextHash": row["context_hash"],
                 "canonicalMembershipWeight": (
                     float(row["canonical_weight"]) if row["canonical_weight"] is not None else None
                 ),
@@ -121,6 +128,7 @@ class CommunityGoldReadMixin:
                        SUM(CASE WHEN judgment = 'abstain' THEN 1 ELSE 0 END) AS abstain_count
                 FROM account_community_gold_label_set
                 WHERE is_active = 1
+                  AND identity_status = 'legacy_unbound'
                 GROUP BY community_id
             ) gl ON gl.community_id = c.id
             ORDER BY canonical_member_count DESC, c.name ASC
@@ -152,7 +160,12 @@ class CommunityGoldReadMixin:
             self._assert_community_table(conn)
             total_active_labels = int(
                 conn.execute(
-                    "SELECT COUNT(*) AS n FROM account_community_gold_label_set WHERE is_active = 1"
+                    """
+                    SELECT COUNT(*) AS n
+                    FROM account_community_gold_label_set
+                    WHERE is_active = 1
+                      AND identity_status = 'legacy_unbound'
+                    """
                 ).fetchone()["n"]
             )
             labeled_account_count = int(
@@ -161,6 +174,7 @@ class CommunityGoldReadMixin:
                     SELECT COUNT(DISTINCT account_id) AS n
                     FROM account_community_gold_label_set
                     WHERE is_active = 1
+                      AND identity_status = 'legacy_unbound'
                     """
                 ).fetchone()["n"]
             )
@@ -185,6 +199,7 @@ class CommunityGoldReadMixin:
                 FROM account_community_gold_label_set ls
                 JOIN account_community_gold_split s ON s.account_id = ls.account_id
                 WHERE ls.is_active = 1
+                  AND ls.identity_status = 'legacy_unbound'
                 GROUP BY s.split
                 """
             ).fetchall():
@@ -202,6 +217,7 @@ class CommunityGoldReadMixin:
                 SELECT judgment, COUNT(*) AS n
                 FROM account_community_gold_label_set
                 WHERE is_active = 1
+                  AND identity_status = 'legacy_unbound'
                 GROUP BY judgment
                 """
             ).fetchall():
@@ -214,6 +230,7 @@ class CommunityGoldReadMixin:
                     SELECT reviewer, COUNT(*) AS n
                     FROM account_community_gold_label_set
                     WHERE is_active = 1
+                      AND identity_status = 'legacy_unbound'
                     GROUP BY reviewer
                     ORDER BY n DESC, reviewer ASC
                     """
@@ -227,6 +244,7 @@ class CommunityGoldReadMixin:
                         SELECT account_id, community_id, reviewer
                         FROM account_community_gold_label_set
                         WHERE is_active = 1
+                          AND identity_status = 'legacy_unbound'
                         GROUP BY account_id, community_id, reviewer
                         HAVING COUNT(*) > 1
                     )

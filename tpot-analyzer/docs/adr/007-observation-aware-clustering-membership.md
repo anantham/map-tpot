@@ -103,3 +103,17 @@ Adopt a staged architecture with feature flags:
 2. `/Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/src/api/cluster_routes.py`
 3. `/Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/src/graph/seeds.py`
 4. `/Users/aditya/Documents/Ongoing Local/Project 2 - Map TPOT/tpot-analyzer/config/graph_settings.json`
+
+## Amendment — 2026-07-28: GRF and coverage semantics
+
+The output-semantics portion of this proposed decision is partially superseded
+by ADR 021. The implemented GRF scalar is a bounded, uncalibrated harmonic
+graph affinity, not a membership probability. Its binary-entropy and
+inverse-degree combination is heuristic graph uncertainty, not posterior
+uncertainty or a confidence interval.
+
+Evidence coverage remains separate. When the expected-following denominator
+is missing or nonpositive, coverage is unknown rather than 100%. The IPW
+completeness proxy must not be surfaced as factual coverage. Probability
+language is permitted only after task-specific held-out calibration with a
+compatible calibration record.

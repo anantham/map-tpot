@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from scipy.sparse import csr_matrix
 
 from src.graph.spectral import (
@@ -70,3 +71,61 @@ def test_save_and_load_round_trip(tmp_path):
     assert np.allclose(result.eigenvalues, loaded.eigenvalues)
     assert np.allclose(result.linkage_matrix, loaded.linkage_matrix)
     assert loaded.metadata["n_nodes"] == 2
+    assert loaded.metadata["n_dims"] == result.embedding.shape[1]
+
+
+def test_spectral_embedding_rejects_node_count_mismatch():
+    adjacency = csr_matrix(np.eye(3))
+
+    with pytest.raises(
+        ValueError,
+        match=r"adjacency shape=.*3, 3.*node_ids=2",
+    ):
+        compute_spectral_embedding(adjacency, ["a", "b"])
+
+
+def test_spectral_embedding_rejects_non_square_adjacency():
+    adjacency = csr_matrix(np.ones((2, 3)))
+
+    with pytest.raises(ValueError, match=r"adjacency must be square.*2, 3"):
+        compute_spectral_embedding(adjacency, ["a", "b"])
+
+
+def test_spectral_embedding_rejects_duplicate_node_ids():
+    adjacency = csr_matrix(np.eye(2))
+
+    with pytest.raises(ValueError, match=r"duplicate node_ids.*a"):
+        compute_spectral_embedding(adjacency, ["a", "a"])
+
+
+def test_spectral_embedding_rejects_multidimensional_node_ids():
+    adjacency = csr_matrix(np.eye(2))
+
+    with pytest.raises(ValueError, match="node_ids must be one-dimensional"):
+        compute_spectral_embedding(adjacency, np.array([["a"], ["b"]]))
+
+
+@pytest.mark.parametrize(
+    ("adjacency", "message"),
+    [
+        (csr_matrix([[0.0, np.nan], [1.0, 0.0]]), "finite"),
+        (csr_matrix([[0.0, -1.0], [1.0, 0.0]]), "non-negative"),
+    ],
+)
+def test_spectral_embedding_rejects_invalid_adjacency_values(
+    adjacency,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        compute_spectral_embedding(adjacency, ["a", "b"])
+
+
+def test_spectral_embedding_rejects_invalid_config():
+    adjacency = csr_matrix(np.eye(2))
+
+    with pytest.raises(ValueError, match="n_dims must be positive"):
+        compute_spectral_embedding(
+            adjacency,
+            ["a", "b"],
+            SpectralConfig(n_dims=0),
+        )

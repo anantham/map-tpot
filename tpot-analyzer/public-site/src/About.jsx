@@ -167,17 +167,20 @@ export default function About({ meta, onNavigate }) {
           <section className="about-section">
             <h2>How It Works (Short Version)</h2>
             <p>
-              We analyze eight types of connections: who follows whom, who quotes whom, and who
-              replies to whom. Each connection type carries different meaning. Following a meditation
-              teacher tells us more than following Elon Musk. An algorithm finds clusters of
-              accounts with similar connection patterns. A human curator reviews and names
-              each cluster.
+              The archive contains eight relationship types: follows, followers, mentions,
+              quotes, co-follows, likes, replies, and retweets. Different producers use different
+              subsets of those records. The legacy NMF view uses follows, retweets, and optionally
+              likes; the propagation graph has its own typed-edge weights. Those weights are
+              hypotheses about signal, not measured universal meanings. An algorithm finds
+              accounts with similar connection patterns, and a human curator reviews and names
+              the resulting factors.
             </p>
             <p>
               Then we read tweets. Your social tribe and intellectual interests often point in
               different directions. This divergence makes the network interesting. We infer
               placement for accounts outside the core dataset based on their position in the
-              network. Grayscale cards signal lower confidence for these inferred placements.
+              network. Grayscale cards indicate weaker observed graph support for these inferred
+              placements. This support score is heuristic, not a membership probability.
             </p>
           </section>
         </>
@@ -201,16 +204,17 @@ export default function About({ meta, onNavigate }) {
                 Community Archive
               </a>{' '}
               is a project where Twitter users voluntarily share their tweets, follows,
-              and likes. Around 327 people have done this so far. This archive contains millions
-              of tweets and likes. It provides a detailed record of who these people chose
-              to listen to.
+              and likes. The public snapshot described on this page includes around 327
+              contributors. The Community Archive continues updating, so this is not a live
+              contributor count. The snapshot contains millions of tweets and likes and provides
+              a detailed, but incomplete, record of who contributors chose to listen to.
             </p>
             <p>
               Each archived account follows hundreds or thousands of people. Tracing these
               connections outward reveals roughly 298,000 accounts in the shadow network.
-              We see everything for the 327 archived accounts. For the others, we
-              only know that someone chose to follow them. They exist as faceless silhouettes
-              in the graph.
+              Contributor exports provide much richer records, but available fields and timestamps
+              vary; we do not assume complete histories. For most other accounts we initially know
+              only observed incoming edges. They exist as faceless silhouettes in the graph.
             </p>
             <p>
               We selectively fetch data for the most connected shadow accounts via the Twitter API
@@ -219,8 +223,17 @@ export default function About({ meta, onNavigate }) {
               communities.
             </p>
             <p>
-              The result is a combined graph of 2.7 million weighted connections across the searchable network spanning eight
-              relationship types.
+              A legacy pipeline report described a 2.7-million-edge searchable working graph.
+              The raw relationship table below reported 25,132,521 records across eight edge
+              types. These are different data products; without their source manifests, they
+              should not be treated as the same denominator.
+            </p>
+            <p>
+              Unless a paragraph explicitly says otherwise, every numerical result on this page
+              is a point-in-time legacy measurement. The public page does not yet bind those
+              numbers to an immutable source snapshot, query, code revision, and run receipt.
+              Treat them as descriptive historical observations—not current Community Archive
+              counts, calibrated performance, or independently reproducible benchmarks.
             </p>
             <div className="about-recall-table">
               <table>
@@ -260,7 +273,7 @@ export default function About({ meta, onNavigate }) {
                   <tr>
                     <td>Like</td>
                     <td>17,501,243</td>
-                    <td>Endorsements</td>
+                    <td>Attention or weak preference; may also reflect bookmarking, irony, or disagreement</td>
                   </tr>
                   <tr>
                     <td>Reply</td>
@@ -289,8 +302,11 @@ export default function About({ meta, onNavigate }) {
               Reading the Signals
             </h2>
             <p>
-              Follows provide the strongest signal. They are deliberate and stable indicators of who
-              you listen to. However, a person extends beyond their follow list.
+              The current heuristics give follows the largest coefficient. That is an assumption:
+              follows are often more deliberate and persistent than a single interaction, but
+              they can also be stale, adversarial, parasocial, or purely informational. Weight
+              ablations and time-aware holdouts are needed before calling them the strongest
+              signal in general.
             </p>
             <p>
               For the archived accounts, we also see what they retweet, what they like, and who
@@ -303,10 +319,10 @@ export default function About({ meta, onNavigate }) {
               and cluster at multiple scales to map what you write and think about.
             </p>
             <p>
-              Follow-graph communities and tweet-content clusters are nearly independent. Their
-              statistical agreement is 0.08 out of 1.0. Who you follow and what you write about
-              measure different dimensions. The follow graph captures social tribes. Tweet content
-              captures intellectual interests.<sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/docs/adr/017-multi-view-account-descriptor.md#L63" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[5]</a></sup>
+              In one legacy comparison, follow-graph labels and tweet-content clusters had an
+              adjusted mutual information score of 0.08. That is evidence of low agreement in
+              that sample, not proof that the views are statistically independent or that one
+              uniquely measures social tribe while the other measures intellectual interest.<sup><a href="https://github.com/anantham/map-tpot/blob/549de93/tpot-analyzer/docs/adr/017-multi-view-account-descriptor.md#L61-L65" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[5]</a></sup>
             </p>
             <p>
               @repligate&rsquo;s follow list points to Qualia Research, as they follow consciousness
@@ -327,30 +343,45 @@ export default function About({ meta, onNavigate }) {
             <p>
               Not all follows are equal. Following a niche consciousness researcher separates
               communities. Following Elon Musk doesn&rsquo;t. Rare, specific follows dominate the
-              picture. Follows are primary. Retweets count at 0.6&times;. Likes at 0.4&times;.<sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/scripts/cluster_soft.py#L335-L336" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[1]</a></sup>
+              picture after TF-IDF and normalization. In this NMF producer, follows use a
+              1.0 block weight, retweets default to 0.6, and optional likes default to 0.4.
+              These are configurable heuristic coefficients, not learned causal effects or the
+              weights used by every graph producer.<sup><a href="https://github.com/anantham/map-tpot/blob/549de93/tpot-analyzer/scripts/cluster_soft.py#L335-L336" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[1]</a></sup>
             </p>
             <p>
-              The core technique is matrix factorization. You have a giant sparse matrix of
-              who-follows-whom. The algorithm decomposes it into two smaller matrices:
+              Separately, the typed propagation producer defaults to follow 1.0, quote 0.7,
+              retweet 0.6, reply 0.5, like 0.3, mention 0.15, co-follow 0.1, and
+              inbound-follower 0.0. The last layer is retained for reciprocity queries but
+              omitted from the default sum. These coefficients are also hand-set: they do not
+              yet learn valence, model event context, correct missing-not-at-random capture, or
+              prove that one interaction type is intrinsically more informative.<sup><a href="https://github.com/anantham/map-tpot/blob/549de93/tpot-analyzer/src/propagation/typed_graph.py#L33-L44" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[7]</a></sup>
+            </p>
+            <p>
+              The legacy discovery technique is non-negative matrix factorization. It concatenates
+              normalized TF-IDF blocks for follows, retweets, and optionally likes into a sparse
+              account-by-feature matrix, then decomposes that matrix into two smaller matrices:
             </p>
             <p className="about-formula">
-              <em>A</em> &asymp; <em>W</em> &middot; <em>H</em><sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/scripts/cluster_soft.py#L390-L392" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[2]</a></sup>
+              <em>A</em> &asymp; <em>W</em> &middot; <em>H</em><sup><a href="https://github.com/anantham/map-tpot/blob/549de93/tpot-analyzer/scripts/cluster_soft.py#L380-L403" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[2]</a></sup>
             </p>
             <p>
               <em>W</em> tells you each account&rsquo;s community mixture. <em>H</em> tells you what
-              defines each community by exposing follow targets and retweet targets. You can look at
-              a cluster and see <em>why</em> it exists, which makes human naming possible.
+              features load onto each factor across the follow, retweet, and optional-like blocks.
+              Inspecting those loadings gives a curator evidence for naming, but it does not make
+              the name objective or prove that a factor is a natural community.
             </p>
             <p>
-              These memberships don&rsquo;t sum to one. You can be 80% Builders and 60%
-              Contemplative at the same time. Real people belong to multiple scenes.
+              In the current NMF implementation, each account&rsquo;s factor row is normalized
+              to sum to one. These are relative factor shares, not probabilities of belonging.
+              Multiple nonzero shares show mixed structure; independently overlapping
+              affinities require a separate model.
             </p>
             <p>
-              We tested 12, 14, and 16 communities on the same data. At 16, 14 of the communities
+              In a legacy run, we tested 12, 14, and 16 factors on the same data. At 16, 14 of the communities
               matched the 14-factor run (91% overlap), plus two clean splits where tech-intellectuals
-              and creatives each resolved into finer subcommunities. We use 16 because those splits
-              are meaningful and the structure is the most stable across random restarts. These are
-              social tribes defined by follow patterns. What people write about is a separate question.
+              and creatives each resolved into finer subcommunities. The curator selected 16 because
+              those splits appeared interpretable and stable in those restarts. That is model-selection
+              evidence for that snapshot, not proof of a true number of social tribes.
             </p>
             <p>
               The {numCommunities} factors emerge as anonymous math. A curator reviews the top
@@ -358,7 +389,8 @@ export default function About({ meta, onNavigate }) {
               follow the same meditation teachers becomes Contemplative Practitioners.
             </p>
             <p>
-              @repligate scores 52% LLM Whisperers, 16% AI Creatives, and 15% Queer TPOT. A
+              In that run, @repligate&rsquo;s normalized NMF factor shares are 52% LLM
+              Whisperers, 16% AI Creatives, and 15% Queer TPOT. A
               follow-only analysis categorized them as 100% Qualia Research. Adding likes and
               retweets revealed the LLM tinkering identity. Tweet labeling refines this starting picture.
             </p>
@@ -372,9 +404,9 @@ export default function About({ meta, onNavigate }) {
             </h2>
 
             <p>
-              The follow graph tells you which social tribe someone belongs to. It doesn&rsquo;t
-              tell you what they actually think, write, or care about. For that, you have to read
-              their tweets.
+              The follow graph offers evidence about social position and attention. It does not by
+              itself establish group belonging or what someone thinks, writes, or cares about.
+              Tweet evidence adds a different, still incomplete view.
             </p>
             <p>
               Three AI models independently read each tweet and tag it. We only keep tags where at
@@ -386,15 +418,18 @@ export default function About({ meta, onNavigate }) {
               AI misses things humans see. A tweet containing only a link gives it nothing to work
               with. An image-heavy thread carries meaning it can&rsquo;t read. In early spot-checks,
               about 30% of AI labels needed correction. The AI often guessed based on who the person
-              is, not what the tweet says. We run labeling on archive tweets at zero API cost by
-              pointing three AI models at the existing data. 125 accounts have been labeled this way
-              so far, accumulating over 21,000 evidence tags.
+              is, not what the tweet says. We can label archive tweets without buying new Twitter
+              data by pointing three AI models at already-held records, so that step adds no acquisition
+              cost. Model inference, provider charges, local compute, and data-egress risks are separate
+              costs. A legacy run reported 125 labeled accounts and over 21,000 evidence tags.
             </p>
             <p>
               Not all tweets carry equal weight. A <a href="https://www.lesswrong.com/tag/simulacrum-levels" target="_blank" rel="noopener noreferrer">sincere statement of belief</a> reveals intellectual
               commitments. A strategic argument reveals what someone promotes. The strongest community
               signal comes from performative tweets like in-group memes and shared references. These
-              count double because they represent pure expressions of belonging.
+              currently count double under an unvalidated heuristic. The hypothesis is that such posts
+              reveal affiliation more directly; it would be falsified if held-out curator judgments
+              or downstream calibration do not improve against an equal-weight baseline.
             </p>
             <p>
               After labeling 51 of @repligate&rsquo;s tweets, the picture shifts:
@@ -447,8 +482,10 @@ export default function About({ meta, onNavigate }) {
             </h2>
 
             <p>
-              The {classifiedStr} seed accounts are well-classified. We must also classify the
-              other ~200,000 accounts in the network.
+              The {classifiedStr} historical seed rows combine NMF-derived assignments,
+              LLM-ensemble additions, and curator review. They are not a fully human-labeled or
+              validated golden set. The legacy propagation attempted to extend those starting
+              labels to roughly 200,000 other accounts.
             </p>
             <p>
               Community labels spread outward using Directed Personalized PageRank (PPR). We simulate a
@@ -457,24 +494,43 @@ export default function About({ meta, onNavigate }) {
               to the authorities they listen to.
             </p>
             <p>
-              Raw propagation scores naturally inflate mega-accounts. A node with 10,000 followers
-              will absorb probability mass from any random walk simply due to its size. To solve this
-              hub penalty, we normalize the community-specific PPR against a Null Model—the
+              Raw propagation scores can favor highly connected accounts. A node with 10,000 followers
+              may absorb mass across many random walks partly due to its graph position. To reduce this
+              popularity effect, we normalize the community-specific PPR against a null model—the
               Global PageRank of the entire network.
             </p>
             <p className="about-formula">
-              <em>Network Lift</em> &asymp; <em>Community PPR</em> &divide; <em>Global PageRank</em><sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/src/propagation/engine.py#L327" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[6]</a></sup>
+              <em>Network Lift</em> = <em>Community PPR</em> &divide; <em>Global PageRank</em><sup><a href="https://github.com/anantham/map-tpot/blob/549de93/tpot-analyzer/src/propagation/engine.py#L356-L389" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[6]</a></sup>
             </p>
             <p>
-              This calculation isolates specific community affinity from general popularity. A score
-              of 5.0x means an account is five times more likely to be reached by the
-              community than by random chance.
+              This calculation isolates specific community affinity from general popularity.
+              Under this random-walk model, 5.0x lift means five times the global PageRank
+              visitation baseline. It does not mean five times the probability that the account
+              belongs to the community.
             </p>
             <p>
-              Not everyone gets a confident placement. Accounts with a Lift score greater than 5.0x
-              receive vibrant specialist cards. Accounts with a Lift below 1.5x stay gray to indicate
-              uncertainty. The map currently shows {(byBand.bridge || 0).toLocaleString()} bridge
-              accounts connecting different scenes.
+              The currently loaded public export still carries historical display-band labels.
+              They came from an older propagation artifact whose independent-Lift entropy formula
+              was scale-dependent, and the labels are now quarantined legacy metadata. The
+              current independent-Lift path refuses to regenerate or re-export those bands until
+              specialist/bridge semantics beat simpler baselines on frozen judgments. The classic
+              legacy export is also not provenance-bound to an exact propagation run, so the
+              current exporter suppresses every existing band row and falls back to
+              classified-only seed rows. Card intensity is a separate uncalibrated rendering
+              heuristic.
+            </p>
+            <p>
+              The graph explorer also exposes a separate Gaussian random-field harmonic solver.
+              Its bounded output is an uncalibrated affinity, not a membership probability. Its
+              uncertainty score combines affinity entropy with a low-degree penalty, so it is a
+              heuristic prioritization signal rather than posterior uncertainty.
+            </p>
+            <p>
+              That endpoint is currently a binary experimental path, not yet the overlapping
+              subculture model described elsewhere. It aggregates an ego&rsquo;s working anchor
+              polarities across tag keys and does not target an ontology task or community.
+              Target-scoped anchors, cache keys, responses, and cross-target-isolation tests are
+              required before interpreting separate community affinities.
             </p>
           </section>
 
@@ -482,12 +538,12 @@ export default function About({ meta, onNavigate }) {
           <section className="about-section">
             <h2>
               <span className="about-stage-num">&#x2194;</span>
-              Most TPOT Members Are Bridges
+              Historical Bridge Labels Are Not Findings
             </h2>
 
             <p>
-              We checked if the social tribe matches the intellectual profile for people
-              independently confirmed as TPOT members.
+              In one legacy comparison, we checked whether a graph-derived label matched a
+              content-derived label for accounts appearing on TPOT reference lists.
             </p>
             <p>
               For 82% of them, the profiles do not match. Their follow-graph community and
@@ -497,14 +553,16 @@ export default function About({ meta, onNavigate }) {
               follows Contemplative Practitioners but tweets about AI creativity.
             </p>
             <p>
-              TPOT members inherently follow one tribe while intellectually ranging across several.
-              A person who exclusively follows and writes about meditation belongs to a meditation
-              community, not TPOT.
+              This sample suggests that some listed TPOT accounts follow one scene while writing
+              across several. It does not establish an inherent property of TPOT membership or
+              justify excluding a person whose observed activity concentrates on meditation.
             </p>
             <p>
-              {(byBand.bridge || 0).toLocaleString()} accounts show up as bridges because these
-              people genuinely straddle multiple worlds. Blended aesthetics on your card reflect
-              how you move through the network.
+              The loaded export contains {(byBand.bridge || 0).toLocaleString()} historical rows
+              labeled &ldquo;bridge&rdquo;. Those rows predate the active Lift artifact and were
+              produced with invalid entropy math, so their blended card aesthetics are preserved
+              only as quarantined legacy metadata. They do not verify overlap, belonging, or
+              identity.
             </p>
           </section>
 
@@ -551,13 +609,15 @@ export default function About({ meta, onNavigate }) {
               and you&rsquo;ll get a different map.
             </p>
 
-            <h3>Confidence decays with distance</h3>
+            <h3>Graph evidence weakens when support is sparse</h3>
             <p>
-              The further you are from a classified account in the network, the weaker
-              the signal. One connection away is strong. Two is useful. Three or more is
-              mostly noise. With {classifiedStr} classified accounts in a 200K-node network,
-              most accounts are far from anyone classified. Their placements appear faint
-              because the network is too sparse to carry signal that far.
+              Observed classified seed neighbors can provide graph support, but the historical
+              display bands also mixed in invalid independent-Lift entropy and are quarantined.
+              Sparse support is not a calibrated distance law. Evidence coverage is observed
+              outgoing follow edges divided by expected follows when that denominator is known
+              and positive. The numerator and denominator must also refer to a compatible source,
+              snapshot generation, and as-of time. Otherwise coverage is unknown rather than 0%
+              or 100%.
             </p>
 
             <h3>AI labeling makes mistakes</h3>
@@ -571,10 +631,10 @@ export default function About({ meta, onNavigate }) {
 
             <h3>What we&rsquo;re doing about it</h3>
             <p>
-              The system continuously improves by finding uncertain accounts, reading their
-              tweets, classifying them, checking results, updating the map, and measuring
-              progress. Each round adds more classified accounts and corrects prior mistakes.
-              The numbers on this page update with each round.
+              The intended iteration loop finds uncertain accounts, reads their tweets,
+              classifies them, checks results, updates the map, and measures progress. Some
+              pieces exist as scripts, but the provenance-tracked flywheel and automatic page
+              refresh are not yet an operational guarantee.
             </p>
           </section>
 
@@ -585,31 +645,35 @@ export default function About({ meta, onNavigate }) {
               How We Know It Works
             </h2>
             <p>
-              A community that only shows up in one signal could be an artifact. A community
-              confirmed by three independent methods is real.
+              A community that only shows up in one view could be a pipeline artifact.
+              Corroboration across several views reduces that risk; it does not establish
+              ontology-independent ground truth.
             </p>
             <p>
-              We verify communities against three independent signals: the follow graph, topic
-              models, and co-followed structure. All three signals confirm 12 of 15 communities.
-              Two signals confirm the remaining 3 communities.
+              We compare three views: the follow graph, topic models, and co-followed structure.
+              Follow and co-follow views are graph-derived and therefore not independent.
+              In the legacy analysis, all three views supported 12 of 15 named communities,
+              while two views supported the remaining 3.
             </p>
             <p>
               We also re-ran the analysis as data grew from 441K to 815K to 2.7M edges. The
               same communities emerged each time. 11 of 16 matched strongly across runs; the
-              other 5 showed minor boundary shifts. If the communities were an artifact of
-              sparse data, tripling the data would have destroyed them.
+              other 5 showed minor boundary shifts. This legacy stability check is evidence
+              against some sparse-data artifacts, but it does not rule out shared sampling,
+              preprocessing, or curator-label artifacts.
             </p>
             <p>
               Separately, we embedded 24,000 tweets into a semantic space and clustered them at
               multiple scales. The tweet clusters have clean hierarchical structure up to 8 groups,
-              meaning there are real macro-topics in what people write about. These content clusters
-              are nearly independent of the follow-graph communities. The 0.08 agreement score
-              confirms that social structure and intellectual structure operate as different dimensions.<sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/docs/adr/017-multi-view-account-descriptor.md#L63" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[3]</a></sup>
+              which is consistent with macro-topic structure in that sample. Their 0.08 adjusted
+              mutual information with follow-graph labels shows low agreement for that run; it
+              does not confirm statistical independence or a unique interpretation for either
+              view.<sup><a href="https://github.com/anantham/map-tpot/blob/549de93/tpot-analyzer/docs/adr/017-multi-view-account-descriptor.md#L61-L65" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[3]</a></sup>
             </p>
 
             <h3>Testing against known lists</h3>
             <p>
-              We tested against 1,822 accounts from four independent lists of known TPOT accounts.
+              We tested against 1,822 accounts from four overlapping TPOT reference lists.
               We measured how many reachable TPOT accounts the map successfully finds.
             </p>
 
@@ -625,7 +689,7 @@ export default function About({ meta, onNavigate }) {
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Accounts on 3+ lists</td>
+                    <td>Accounts appearing on 3+ lists</td>
                     <td><strong>65%</strong></td>
                     <td>65%</td>
                     <td>0%</td>
@@ -643,7 +707,7 @@ export default function About({ meta, onNavigate }) {
                     <td>39%</td>
                   </tr>
                   <tr>
-                    <td>Accounts on 2+ lists</td>
+                    <td>Accounts appearing on 2+ lists</td>
                     <td><strong>43%</strong></td>
                     <td>42%</td>
                     <td>1%</td>
@@ -665,15 +729,15 @@ export default function About({ meta, onNavigate }) {
             </div>
 
             <p>
-              The more curated the source, the higher the recall. Accounts confirmed
-              by 3+ independent sources are found 65% of the time. Aditya&rsquo;s raw
-              follow list has low recall because mainstream accounts inflate the denominator.
+              In this legacy comparison, the more curated sources had higher measured recall.
+              Accounts appearing on 3+ of these overlapping lists were found 65% of the time.
+              Aditya&rsquo;s raw follow list had lower recall partly because mainstream accounts
+              inflated the denominator.
             </p>
             <p>
-              Graph coverage and classified density limit recall. Currently, 39% of Orange
-              directory accounts remain unreachable. The {classifiedStr} classified accounts
-              must each cover ~600 nodes in the 200K-node graph. Each round of improvement
-              adds more classified accounts and pushes recall up.
+              Graph coverage and classified density can limit recall. In that table, 39% of Orange
+              directory accounts were unreachable. Adding well-chosen labels may improve recall,
+              but the gain must be measured on held-out labels rather than assumed from graph size.
             </p>
 
             <div className="about-recall-table">
@@ -690,11 +754,11 @@ export default function About({ meta, onNavigate }) {
                     <td>{classifiedStr}</td>
                   </tr>
                   <tr>
-                    <td>Specialist + Bridge + Frontier</td>
+                    <td>Historical specialist + bridge + frontier labels</td>
                     <td>{((byBand.specialist || 0) + (byBand.bridge || 0) + (byBand.frontier || 0)).toLocaleString()}</td>
                   </tr>
                   <tr>
-                    <td>Faint (low confidence)</td>
+                    <td>Historical faint labels</td>
                     <td>{(byBand.faint || 0).toLocaleString()}</td>
                   </tr>
                   <tr>
@@ -721,14 +785,16 @@ export default function About({ meta, onNavigate }) {
               We must ask if the map can find the territory when we hide the landmarks.
             </p>
             <p>
-              To test the map, we removed known TPOT accounts from the seed set and propagated
-              the network without them. The system rediscovered them from the structure alone.
+              In a legacy point-in-time test of binary TPOT relevance—not soft per-community
+              membership—we removed known TPOT accounts from the seed set and propagated the
+              network without them. This was not a frozen benchmark or a calibration result.
             </p>
             <p>
               Across five cross-validation folds, the seed-neighbor signal recovers held-out
               TPOT accounts with an AUC of 0.999. The system finds hidden TPOT accounts 100%
               of the time at a 5% false positive rate. A held-out TPOT member has a median of
-              64 seed neighbors. A random non-TPOT account has 1.<sup><a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/scripts/verify_veil_cv.py#L428" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[4]</a></sup>
+              64 seed neighbors. A random non-TPOT account has 1. These are unregistered legacy
+              estimates from the sampled binary task, not expected production performance.<sup><a href="https://github.com/anantham/map-tpot/blob/549de93/tpot-analyzer/scripts/verify_veil_cv.py#L415-L438" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[4]</a></sup>
             </p>
             <p>
               Raw propagation scores yield an AUC of 0.178. TPOT accounts score lower than random
@@ -771,34 +837,37 @@ export default function About({ meta, onNavigate }) {
             </p>
             <p>
               We drew the communities to match follow patterns, not to survive this test. Surviving
-              deletion confirms the structure exists independently of our labeling. We simply
-              named the clusters we found.
+              deletion is consistent with redundant graph paths in that snapshot. It does not
+              establish that the structure exists independently of seed selection, edge sampling,
+              model choices, or curator naming.
             </p>
           </section>
 
-          {/* Stage 8: The Active Learning Engine */}
+          {/* Stage 8: Planned active learning loop */}
           <section className="about-section">
             <h2>
               <span className="about-stage-num">8</span>
-              The Active Learning Engine
+              Planned Active Learning Loop
             </h2>
 
             <p>
-              The system actively drives its own expansion instead of passively waiting for
-              data. It uses an Active Learning loop to maximize the return on investment for
-              every Twitter API call.
+              The intended system should actively propose where additional evidence would be
+              most useful instead of passively waiting for data. The historical frontier ranking
+              is currently blocked because its stored rows are unversioned and its active
+              independent-Lift uncertainty and &ldquo;none&rdquo; terms are invalid. ADR 022
+              specifies the holdout, receipts, budget gates, and randomized audit required before
+              claiming value-of-information optimization.
             </p>
             <p>
-              The pipeline ranks frontier accounts based on information theory. It calculates
-              which uncertain accounts, if fetched and labeled, would resolve the most
-              uncertainty across the entire graph. The algorithm prioritizes accounts positioned
-              at structural bottlenecks where communities collide.
+              The planned policy ranks typed actions—such as reviewing an existing tweet or
+              fetching a specific public edge—by expected development-risk reduction per dollar
+              and human minute. That value must be tested against random, degree, entropy, and
+              current frontier baselines before promotion.
             </p>
             <p>
-              We fetch the highly ranked accounts, read their tweets, and feed the new labels
-              back into the network. This process collapses uncertainty cascades. A single
-              strategic API call can solidify the placements of dozens of surrounding shadow
-              accounts. The map builds itself outward by seeking the highest-leverage information.
+              No autonomous paid expansion is authorized. Any future batch must record what was
+              observed, what left the machine, what it cost, and whether the revealed evidence
+              improved held-out decisions. Negative results remain part of the experiment record.
             </p>
           </section>
 
@@ -820,8 +889,9 @@ export default function About({ meta, onNavigate }) {
               if an account relies on a <code>playful-exploration</code> or <code>personal-testimony</code> posture.
             </p>
             <p>
-              These behavioral dimensions operate independently from topical interests. Two
-              accounts might both discuss artificial intelligence. The system distinguishes the
+              These behavioral dimensions are intended to complement topical interests; their
+              statistical independence has not been established. Two accounts might both discuss
+              artificial intelligence. The system attempts to distinguish the
               founder shipping product announcements from the tinkerer anthropomorphizing
               the model late at night. The map groups people by their shared epistemic approach,
               not just their shared vocabulary.
@@ -851,41 +921,44 @@ export default function About({ meta, onNavigate }) {
             <div className="about-tier">
               <span className="about-badge about-badge--color">Exemplar</span>
               <p>
-                <strong>{classifiedStr} seed accounts.</strong> These accounts possess full archive
-                data including follows, retweets, and liked content. They receive rich tarot-style
-                cards with community iconography woven into the art.
+                <strong>{classifiedStr} seed accounts.</strong> These accounts have richer
+                contributed archive data, which may include follows, retweets, and liked content.
+                Available fields and time spans vary. They receive rich tarot-style cards with
+                community iconography woven into the art.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--color">Specialist</span>
               <p>
-                Clearly belongs to one community. Confident graph placement. Colorful card,
-                strong visual identity.
+                A historical display label from the stale band artifact. It is quarantined legacy
+                metadata, not current strong graph evidence or confirmed belonging.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--bridge">Bridge</span>
               <p>
-                Bridge accounts straddle 2&ndash;3 communities. Their cards blend multiple aesthetics
-                to reflect social reality rather than classification failure.
+                A historical display label whose old threshold and precedence rules were not
+                validated. It does not establish real overlap; blended cards retain the legacy
+                aesthetic only.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--gray">Frontier</span>
               <p>
-                Frontier accounts have uncertain placement due to distance from seeds or conflicting
-                community pulls. Grayscale card. Candidates for exploration.
+                A historical display label, not an information-value ranking. These grayscale
+                cards may still suggest accounts to inspect, but the label cannot steer paid
+                acquisition.
               </p>
             </div>
 
             <div className="about-tier">
               <span className="about-badge about-badge--gray">Faint</span>
               <p>
-                Barely visible in the network. Present in the graph but below the confidence
-                threshold. These accounts remain searchable, but receive dim cards.
+                A historical fallback label from the stale band export. It does not establish
+                weak support or graph distance; dim cards retain legacy presentation only.
               </p>
             </div>
 
@@ -909,8 +982,9 @@ export default function About({ meta, onNavigate }) {
             <h2>This Is One Map, Not <em>The</em> Map</h2>
 
             <p>
-              This map starts from my perspective. It relies on the ~1,400 accounts I follow,
-              the {classifiedStr} seeds I classified, and the boundaries I drew.
+              This map starts from my perspective. Its inputs include the ~1,400 accounts I
+              follow and {classifiedStr} historical seed rows assembled from NMF, LLM-ensemble,
+              and curator inputs; its names and boundaries also reflect my editorial choices.
             </p>
             <p>
               A contemplative practitioner would draw the meditation scene at higher resolution.
@@ -924,20 +998,21 @@ export default function About({ meta, onNavigate }) {
                 community archive
               </a>{' '}
               is TPOT. Uploading data represents an act of transparency rather than a membership
-              card. The pipeline filters for this: accounts whose follow patterns don&rsquo;t
-              concentrate in any community propagate with lower confidence.
+              card. The historical pipeline attempted to filter for this using graph affinity and
+              support heuristics, but its independent display bands are now quarantined.
             </p>
             <p>
-              TPOT is a meta-community. It is not one single thing, but a collection of
-              roughly 16 overlapping social tribes. A &ldquo;Bridge Account&rdquo; is someone
-              who straddles three or more of these scenes—a connector who prevents the network
-              from fragmenting into isolated silos.
+              TPOT can be viewed as a meta-community rather than one single thing. Conceptually, a
+              &ldquo;bridge account&rdquo; would straddle several scenes and connect them. That is
+              a useful retrieval target, not something the historical band label has established.
             </p>
             <p>
-              In our validation tests, 82% of confirmed TPOT members were actually bridges. They
+              In one legacy comparison, 82% of listed TPOT reference accounts received different
+              graph-derived and content-derived labels. They
               might follow the AI Safety scene but write for the Highbies, or live in the NYC
               building scene while practicing Jhana. Disagreement between social scene and intellectual
-              identity is not a classification error; it is the defining signature of a cross-pollinator.
+              identity may indicate cross-pollination, model mismatch, or incomplete evidence; the
+              observed disagreement alone does not decide among those explanations.
             </p>
             <p>
               Identifying someone in the wrong community, a community that requires splitting,
@@ -962,7 +1037,8 @@ export default function About({ meta, onNavigate }) {
               where someone lives in the network, rendered as mythology.
             </p>
             <p>
-              An account that&rsquo;s 45% Jhana, 30% Core TPOT, 15% LLM Whisperers gets a
+              An account with illustrative normalized factor shares of 45% Jhana, 30% Core TPOT,
+              and 15% LLM Whisperers gets a
               card dominated by moonlight-violet, with star-dust accents and faint circuit
               traces. You feel it before you decode it.
             </p>

@@ -1,13 +1,13 @@
-"""Account membership route (GRF-based TPOT membership probability)."""
+"""Account affinity route backed by an uncalibrated GRF score."""
 from __future__ import annotations
 
 import logging
 import time
-from typing import Dict
 
 import numpy as np
 from flask import jsonify, request
 
+from src.api.curator_auth import curator_only
 from src.api.responses import error_response
 
 from src.api.cluster.state import (
@@ -24,11 +24,14 @@ from src.graph.membership_grf import GRFMembershipConfig, compute_grf_membership
 
 logger = logging.getLogger(__name__)
 
+MEMBERSHIP_RESPONSE_SCHEMA_VERSION = "account-membership-affinity-v1"
+
 
 @cluster_bp.route("/accounts/<account_id>/membership", methods=["GET"])
+@curator_only
 @_require_loaded
 def get_account_membership(account_id: str):
-    """Return TPOT-membership probability for one account using GRF anchors."""
+    """Return an uncalibrated TPOT affinity for one account using GRF anchors."""
 
     if not _membership_engine_enabled():
         return error_response(
@@ -49,7 +52,7 @@ def get_account_membership(account_id: str):
     positive, negative, anchor_stats = _resolve_anchor_indices(ego)
     if not positive or not negative:
         return error_response(
-            "Need both positive and negative anchor labels for GRF membership",
+            "Need both positive and negative anchor labels for GRF affinity",
             details={
                 "ego": ego,
                 "anchorCounts": {
@@ -80,7 +83,7 @@ def get_account_membership(account_id: str):
         )
         solve_ms = int((time.time() - solve_start) * 1000)
         cached = {
-            "probabilities": grf.probabilities,
+            "affinities": grf.affinities,
             "uncertainty": grf.total_uncertainty,
             "entropy_uncertainty": grf.entropy_uncertainty,
             "degree_uncertainty": grf.degree_uncertainty,
@@ -90,7 +93,7 @@ def get_account_membership(account_id: str):
                 "cg_iterations": grf.cg_iterations,
                 "solve_ms": solve_ms,
             },
-            "prior": grf.prior,
+            "solver_baseline": grf.prior,
             "anchor_counts": {
                 "positive": grf.n_positive_anchors,
                 "negative": grf.n_negative_anchors,
@@ -98,36 +101,31 @@ def get_account_membership(account_id: str):
         }
         state._membership_cache.set(cache_key, cached)
 
-    probabilities = cached["probabilities"]
+    affinities = cached["affinities"]
     uncertainties = cached["uncertainty"]
     entropy_uncertainty = cached["entropy_uncertainty"]
     degree_uncertainty = cached["degree_uncertainty"]
 
-    probability_raw = float(probabilities[node_index])
+    affinity = float(np.clip(affinities[node_index], 0.0, 1.0))
     uncertainty_graph = float(uncertainties[node_index])
     coverage = _estimate_account_coverage(node_id)
-    coverage_value = float(coverage["value"])
+    coverage_value = coverage["value"]
 
-    probability = (probability_raw * coverage_value) + (cached["prior"] * (1.0 - coverage_value))
-    probability = float(np.clip(probability, 0.0, 1.0))
-
-    uncertainty = (0.7 * uncertainty_graph) + (0.3 * (1.0 - coverage_value))
-    uncertainty = float(np.clip(uncertainty, 0.0, 1.0))
-    sigma = min(0.25, 0.25 * uncertainty)
-    ci_low = float(max(0.0, probability - (1.96 * sigma)))
-    ci_high = float(min(1.0, probability + (1.96 * sigma)))
+    uncertainty = float(np.clip(uncertainty_graph, 0.0, 1.0))
 
     meta = state._node_metadata.get(node_id, {})
     return jsonify(
         {
+            "schemaVersion": MEMBERSHIP_RESPONSE_SCHEMA_VERSION,
             "accountId": node_id,
             "ego": ego,
             "engine": "grf",
             "cacheHit": cache_hit,
-            "probability": probability,
-            "probabilityRaw": probability_raw,
-            "confidenceInterval95": [ci_low, ci_high],
+            "affinity": affinity,
+            "scoreSemantics": "affinity",
+            "calibrated": False,
             "uncertainty": uncertainty,
+            "uncertaintySemantics": "heuristic_graph_entropy_degree",
             "evidence": {
                 "graph": float(1.0 - uncertainty_graph),
                 "entropyUncertainty": float(entropy_uncertainty[node_index]),
@@ -141,7 +139,7 @@ def get_account_membership(account_id: str):
             },
             "coverage": coverage,
             "solver": cached["solver"],
-            "prior": cached["prior"],
+            "solverBaseline": cached["solver_baseline"],
             "username": meta.get("username"),
         }
     )

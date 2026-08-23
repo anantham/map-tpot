@@ -4,6 +4,9 @@ from __future__ import annotations
 import logging
 import sqlite3
 
+from scripts._active_learning_helpers.frontier_quarantine import (
+    reject_unverified_frontier_ranking,
+)
 from scripts.fetch_tweets_for_account import is_stale
 
 logger = logging.getLogger(__name__)
@@ -49,7 +52,27 @@ def select_accounts(
     round_num: int,
     ego_account_id: str | None = None,
 ) -> list[dict]:
+    """Reject automatic selection from the quarantined frontier ranking."""
+    reject_unverified_frontier_ranking("active-learning account selection")
+    return _select_accounts_from_unverified_frontier(
+        conn,
+        top_n=top_n,
+        round_num=round_num,
+        ego_account_id=ego_account_id,
+    )
+
+
+def _select_accounts_from_unverified_frontier(
+    conn: sqlite3.Connection,
+    top_n: int,
+    round_num: int,
+    ego_account_id: str | None = None,
+) -> list[dict]:
     """Select top accounts from frontier_ranking for enrichment.
+
+    This private helper preserves the historical query for regression tests
+    and a future versioned replacement. Production callers must use
+    ``select_accounts()``, which currently fails closed.
 
     Excludes:
       - holdout accounts (in_holdout=1 OR in tpot_directory_holdout)
@@ -143,14 +166,19 @@ def select_accounts_by_handle(
             "SELECT account_id FROM tpot_directory_holdout WHERE account_id IS NOT NULL"
         ).fetchall()
     )
-    enriched_ids = set(
+    account_enriched_ids = set(
         r[0] for r in conn.execute(
-            "SELECT DISTINCT account_id FROM enriched_tweets"
+            "SELECT DISTINCT account_id FROM enriched_tweets "
+            "WHERE COALESCE(fetch_source, '') != 'topic_seed'"
         ).fetchall()
     )
 
     accounts = []
-    for handle in handles:
+    seen_account_ids: set[str] = set()
+    for raw_handle in handles:
+        handle = raw_handle.strip().lstrip("@")
+        if not handle:
+            continue
         # Resolve handle → account_id
         row = conn.execute(
             "SELECT account_id, username FROM profiles WHERE LOWER(username) = LOWER(?)",
@@ -166,27 +194,33 @@ def select_accounts_by_handle(
             continue
 
         aid, username = row[0], row[1]
+        if aid in seen_account_ids:
+            logger.info(
+                "@%s resolves to an already-selected account — skipping",
+                handle,
+            )
+            continue
+        seen_account_ids.add(aid)
 
         if aid in holdout_ids:
             logger.warning("@%s is a holdout account — skipping", handle)
             continue
 
-        if aid in enriched_ids and not is_stale(conn, aid):
+        stale = is_stale(
+            conn,
+            aid,
+            ignored_fetch_sources=("topic_seed",),
+        )
+        if aid in account_enriched_ids and not stale:
             logger.warning("@%s already enriched (fresh) — skipping", handle)
             continue
-        if aid in enriched_ids and is_stale(conn, aid):
+        if aid in account_enriched_ids and stale:
             logger.info("@%s enriched but stale (>%d days) — re-fetching", handle, 30)
-
-        # Get info_value if available (might not be in frontier_ranking)
-        iv_row = conn.execute(
-            "SELECT info_value, top_community FROM frontier_ranking WHERE account_id = ?",
-            (aid,),
-        ).fetchone()
 
         accounts.append({
             "account_id": aid,
-            "info_value": iv_row[0] if iv_row else 0.0,
-            "top_community": iv_row[1] if iv_row else "unknown",
+            "info_value": 0.0,
+            "top_community": "unknown",
             "username": username,
             "proximity": "manual",
             "priority": 999.0,  # manual picks always highest priority
