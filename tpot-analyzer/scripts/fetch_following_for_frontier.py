@@ -133,6 +133,35 @@ def store_following(conn: sqlite3.Connection, source_id: str, following_ids: lis
     return added
 
 
+def select_named_targets(conn, handles: list[str], api_key: str):
+    """Explicit handles, resolved live. For seeds a human named directly.
+
+    The graph-ranked modes can only propose accounts already in the graph, so
+    they structurally cannot reach an account we have never observed — which is
+    exactly the case for seeds named from lived experience rather than from data.
+    """
+    out = []
+    for handle in handles:
+        handle = handle.lstrip("@").strip()
+        if not handle:
+            continue
+        row = conn.execute(
+            "SELECT account_id FROM profiles WHERE lower(username)=lower(?)",
+            (handle,)).fetchone()
+        account_id = row[0] if row else None
+        info = fetch_user_info(api_key, handle)
+        if not info:
+            print(f"  ! could not resolve @{handle} — skipping")
+            continue
+        account_id = account_id or str(info.get("id") or "")
+        if not account_id:
+            print(f"  ! no id for @{handle} — skipping")
+            continue
+        out.append((account_id, handle, int(info.get("followers") or 0),
+                    int(info.get("following") or 0)))
+    return out
+
+
 def select_frontier_targets(conn, top: int, min_outbound: int = 108):
     """Original mode: top frontier_ranking accounts by info_value."""
     reject_unverified_frontier_ranking("frontier following fetch")
@@ -201,6 +230,10 @@ def main():
     parser.add_argument("--min-inbound", type=int, default=50,
                         help="Min inbound edges (zero-outbound mode)")
     parser.add_argument("--budget", type=float, default=5.0, help="Max spend in USD")
+    parser.add_argument("--handles", action="append", metavar="H1,H2",
+                        help="explicit handles to fetch, bypassing graph ranking "
+                             "(repeatable; comma-separated). Use for seeds a human "
+                             "named that the graph has never observed.")
     parser.add_argument("--db-path", type=Path, default=DB_PATH)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -211,7 +244,11 @@ def main():
     api_key = get_api_key()
     conn = sqlite3.connect(str(args.db_path))
 
-    if args.mode == "zero-outbound":
+    if args.handles:
+        names = [h for chunk in args.handles for h in chunk.split(",")]
+        targets = select_named_targets(conn, names, api_key)
+        print(f"Mode: named handles ({len(targets)} resolved)")
+    elif args.mode == "zero-outbound":
         targets = select_zero_outbound_targets(conn, args.max_following, args.min_inbound)
         print(f"Mode: zero-outbound (inbound >= {args.min_inbound}, following <= {args.max_following})")
     else:
