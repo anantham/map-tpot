@@ -47,9 +47,14 @@ push would fail thousands of pre-existing lines, so the first-push case checks
 `HEAD^..HEAD`; pull requests use their exact base SHA and direct subsequent
 pushes use the event's prior SHA.
 
-**Next step:** Merge PR #8 only after the evidence-only follow-up run is green,
-then require the three observed contexts and pull requests on `main` while
-retaining administrator bypass during initial rollout.
+**Protection result:** PR #8 merged as `f5c12d2`; main run `32630037099` passed.
+Live protection requires pull requests and strict/up-to-date versions of the
+three app-bound GitHub Actions checks. Required approvals are `0`, administrator
+enforcement is off during initial rollout, and force pushes/deletions are off.
+
+**Next step:** Use the protected documentation PR that records this result as
+the first routine enforcement exercise; revisit administrator enforcement only
+after the workflow has a stable operating history.
 
 ---
 
