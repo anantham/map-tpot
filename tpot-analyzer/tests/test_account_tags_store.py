@@ -76,6 +76,20 @@ def test_account_tag_store_roundtrip(tmp_path) -> None:
 
 
 @pytest.mark.integration
+def test_distinct_vocabulary_survives_retraction(tmp_path) -> None:
+    store = AccountTagStore(tmp_path / "account_tags.db")
+    store.upsert_tag(
+        ego="ego",
+        account_id="account",
+        tag="Dharma",
+        polarity=1,
+    )
+    store.delete_tag(ego="ego", account_id="account", tag="dharma")
+
+    assert store.list_distinct_tags(ego="ego") == ["Dharma"]
+
+
+@pytest.mark.integration
 def test_account_tag_history_records_only_real_state_changes(tmp_path) -> None:
     store = AccountTagStore(tmp_path / "account_tags.db")
 

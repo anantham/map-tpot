@@ -12,11 +12,17 @@ from src.api.curator_auth import curator_only
 from src.api.responses import error_response
 from src.config import get_snapshot_dir
 from src.data.account_tags import AccountTagStore
+from src.data.tag_meta_notes import (
+    TagMetaNoteStore,
+    normalize_ego,
+    normalize_tag,
+)
 
 logger = logging.getLogger(__name__)
 
 account_tags_bp = Blueprint("account_tags", __name__, url_prefix="/api")
 _tag_store: Optional[AccountTagStore] = None
+_meta_note_store: Optional[TagMetaNoteStore] = None
 _SOURCE_HEADER = "X-TPOT-Curation-Source"
 _ALLOWED_SOURCES = {
     "agent_assisted_curator",
@@ -37,6 +43,27 @@ def _get_tag_store() -> AccountTagStore:
     if _tag_store is None:
         _tag_store = AccountTagStore(Path(get_snapshot_dir()) / "account_tags.db")
     return _tag_store
+
+
+def _get_meta_note_store() -> TagMetaNoteStore:
+    global _meta_note_store
+    if _meta_note_store is None:
+        _meta_note_store = TagMetaNoteStore(
+            Path(get_snapshot_dir()) / "account_tags.db"
+        )
+    return _meta_note_store
+
+
+def _require_meta_note_subject() -> tuple[str, str, str]:
+    raw_ego = request.args.get("ego")
+    raw_tag = request.args.get("tag")
+    if raw_ego is None or not raw_ego.strip():
+        raise ValueError("ego query param is required")
+    if raw_tag is None or not raw_tag.strip():
+        raise ValueError("tag query param is required")
+    ego = normalize_ego(raw_ego)
+    tag_key, tag_display = normalize_tag(raw_tag)
+    return ego, tag_key, tag_display
 
 
 def _parse_polarity(value: object) -> Optional[int]:
@@ -164,3 +191,62 @@ def list_tags():
     except ValueError as exc:
         return error_response(str(exc))
     return jsonify({"ego": ego, "tags": _get_tag_store().list_distinct_tags(ego=ego)})
+
+
+@account_tags_bp.route("/tag-meta-notes", methods=["GET"])
+@curator_only
+def get_tag_meta_notes():
+    """Return the latest note and append-only history for one curator/tag."""
+    try:
+        ego, tag_key, tag_display = _require_meta_note_subject()
+        current, history = _get_meta_note_store().get_notes(
+            ego=ego,
+            tag=tag_key,
+        )
+    except ValueError as exc:
+        return error_response(str(exc))
+    except Exception:
+        logger.exception("Tag meta-note read failed")
+        return error_response(
+            "tag meta-note read failed; inspect the API log",
+            status=500,
+        )
+    response = jsonify({
+        "ego": ego,
+        "tag": tag_display,
+        "tagKey": tag_key,
+        "current": asdict(current) if current is not None else None,
+        "history": [asdict(row) for row in history],
+    })
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+@account_tags_bp.route("/tag-meta-notes", methods=["POST"])
+@curator_only
+def append_tag_meta_note():
+    """Append a new working intension without rewriting prior notes."""
+    try:
+        ego, _, tag_display = _require_meta_note_subject()
+        source = _event_source()
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            raise ValueError("Request body must be a JSON object")
+        raw_note = data.get("note")
+        if not isinstance(raw_note, str):
+            raise ValueError("note must be a string")
+        saved = _get_meta_note_store().append_note(
+            ego=ego,
+            tag=tag_display,
+            note=raw_note,
+            source=source,
+        )
+    except ValueError as exc:
+        return error_response(str(exc))
+    except Exception:
+        logger.exception("Tag meta-note append failed")
+        return error_response(
+            "tag meta-note append failed; inspect the API log",
+            status=500,
+        )
+    return jsonify({"status": "appended", "current": asdict(saved)})
