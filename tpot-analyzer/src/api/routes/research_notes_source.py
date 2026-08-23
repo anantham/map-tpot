@@ -14,6 +14,7 @@ from flask import Blueprint, jsonify
 
 from src.api.curator_auth import curator_only
 from src.api.responses import error_response
+from src.data.research_notes_sections import source_sections_by_handle
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,18 @@ class ResearchNotesSourceError(RuntimeError):
     def __init__(self, message: str, *, status: int) -> None:
         super().__init__(message)
         self.status = status
+
+
+class StaleResearchNotesProposals(ResearchNotesSourceError):
+    """A safe proposal envelope bound to a different source receipt."""
+
+    def __init__(self, *, bound_sha256: str, current_sha256: str) -> None:
+        super().__init__(
+            "Research Notes proposals do not match the configured source",
+            status=409,
+        )
+        self.bound_sha256 = bound_sha256
+        self.current_sha256 = current_sha256
 
 
 def _read_limited_file(
@@ -103,7 +116,7 @@ def _source_payload(path: Path) -> tuple[dict[str, Any], str]:
 def _validate_suggestion(
     suggestion: Any,
     *,
-    source_text: str,
+    source_sections: tuple[str, ...],
 ) -> None:
     if not isinstance(suggestion, dict):
         raise ValueError("suggestion must be an object")
@@ -111,8 +124,8 @@ def _validate_suggestion(
         value = suggestion.get(field)
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"suggestion {field} must be non-empty text")
-    if suggestion["sourceQuote"] not in source_text:
-        raise ValueError("suggestion sourceQuote is not in the source")
+    if not any(suggestion["sourceQuote"] in block for block in source_sections):
+        raise ValueError("suggestion sourceQuote is not in the account source block")
     if suggestion.get("polarity") not in _POLARITIES:
         raise ValueError("suggestion polarity is invalid")
     if suggestion.get("proposalStatus") != "model-proposed":
@@ -139,11 +152,6 @@ def _load_suggestions(
         ))
         if not isinstance(proposal, dict) or proposal.get("schemaVersion") != 1:
             raise ValueError("unsupported proposal schema")
-        if proposal.get("sourceSha256") != source_sha256:
-            raise ResearchNotesSourceError(
-                "Research Notes proposals do not match the configured source",
-                status=409,
-            )
         if proposal.get("proposalStatus") != "model-proposed":
             raise ValueError("proposal set is not marked model-proposed")
         if proposal.get("goldStatus") != "not-gold":
@@ -155,16 +163,34 @@ def _load_suggestions(
             "mayAutoWriteTags": False,
         }:
             raise ValueError("proposal permissions are not safely disabled")
+        bound_sha256 = proposal.get("sourceSha256")
+        if not isinstance(bound_sha256, str) or not re.fullmatch(
+            r"[0-9a-f]{64}",
+            bound_sha256,
+        ):
+            raise ValueError("proposal sourceSha256 is invalid")
+        if bound_sha256 != source_sha256:
+            raise StaleResearchNotesProposals(
+                bound_sha256=bound_sha256,
+                current_sha256=source_sha256,
+            )
         suggestions = proposal.get("suggestionsByHandle")
         if not isinstance(suggestions, dict):
             raise ValueError("suggestionsByHandle must be an object")
+        source_sections = source_sections_by_handle(source_text)
         for handle, values in suggestions.items():
             if not isinstance(handle, str) or not _HANDLE.fullmatch(handle):
                 raise ValueError("proposal handles must be normalized X handles")
             if not isinstance(values, list):
                 raise ValueError("handle suggestions must be a list")
+            handle_sections = source_sections.get(handle, ())
+            if not handle_sections:
+                raise ValueError("proposal handle has no account source block")
             for suggestion in values:
-                _validate_suggestion(suggestion, source_text=source_text)
+                _validate_suggestion(
+                    suggestion,
+                    source_sections=handle_sections,
+                )
         return suggestions
     except ResearchNotesSourceError:
         raise
@@ -173,6 +199,31 @@ def _load_suggestions(
             "Research Notes proposals are invalid",
             status=422,
         ) from exc
+
+
+def _proposal_payload(
+    path: Path,
+    *,
+    source_sha256: str,
+    source_text: str,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str] | None]:
+    try:
+        suggestions = _load_suggestions(
+            path,
+            source_sha256=source_sha256,
+            source_text=source_text,
+        )
+        return suggestions, None
+    except StaleResearchNotesProposals as exc:
+        logger.warning("Research Notes proposals quarantined as stale: %s", exc)
+        return {}, {
+            "status": "stale",
+            "boundSourceSha256": exc.bound_sha256,
+            "currentSourceSha256": exc.current_sha256,
+        }
+    except ResearchNotesSourceError as exc:
+        logger.warning("Research Notes proposals quarantined as invalid: %s", exc)
+        return {}, {"status": "invalid"}
 
 
 @research_notes_source_bp.get("/source")
@@ -193,20 +244,23 @@ def get_research_notes_source():
     try:
         source, source_text = _source_payload(Path(configured_path))
         proposals_path = (os.getenv(PROPOSALS_PATH_ENV) or "").strip()
-        suggestions = (
-            _load_suggestions(
+        suggestions, proposal_metadata = (
+            _proposal_payload(
                 Path(proposals_path),
                 source_sha256=source["sha256"],
                 source_text=source_text,
             )
             if proposals_path
-            else {}
+            else ({}, None)
         )
-        response = jsonify({
+        payload = {
             "configured": True,
             "source": source,
             "suggestionsByHandle": suggestions,
-        })
+        }
+        if proposal_metadata is not None:
+            payload["proposalMetadata"] = proposal_metadata
+        response = jsonify(payload)
         response.headers["Cache-Control"] = "private, no-store"
         return response
     except ResearchNotesSourceError as exc:
