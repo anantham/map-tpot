@@ -87,6 +87,19 @@ def is_subsequence(earlier: bytes, later: bytes) -> bool:
                for line in normalized(earlier).splitlines())
 
 
+def is_ledger_union(file_name: str, earlier: bytes, later: bytes) -> bool:
+    if file_name.endswith("ROADMAP.md"):
+        earlier = b"\n".join(
+            line for line in earlier.splitlines()
+            if not line.startswith(b"*Last updated:")
+        )
+        later = b"\n".join(
+            line for line in later.splitlines()
+            if not line.startswith(b"*Last updated:")
+        )
+    return is_subsequence(earlier, later)
+
+
 def verify_integration(root: Path, report: Report, require_pushed: bool) -> None:
     head = git(root, "rev-parse", "HEAD")
     branch = git(root, "branch", "--show-current")
@@ -139,7 +152,7 @@ def verify_integration(root: Path, report: Report, require_pushed: bool) -> None
             "tpot-analyzer/docs/ROADMAP.md",
             "tpot-analyzer/docs/WORKLOG.md",
         } and before and after:
-            unioned += int(is_subsequence(before, after))
+            unioned += int(is_ledger_union(file_name, before, after))
     coverage_ok = (exact, normalized_only, unioned, len(paths)) == (47, 2, 2, 51)
     report.check(
         "51-path snapshot coverage", coverage_ok,
