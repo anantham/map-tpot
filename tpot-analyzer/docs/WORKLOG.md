@@ -1,5 +1,31 @@
 # Worklog - TPOT Analyzer
 
+## GitHub Action Runtime Maintenance (2026-08-23)
+
+- [2026-08-23 14:45 IST] **Turned the final hosted annotation into an
+  immutable action-runtime contract (Codex GPT-5)**
+    - **Hypothesis / fallback:** confidence `0.94` that the green main run's
+      Node 20 deprecation annotation comes from old action implementations, not
+      the project's intentionally pinned Node 22 test runtime. Predicted green
+      result is the same three job contexts with no action-runtime annotation.
+      Any changed project runtime, missing cache, failed job, or surviving
+      warning is a falsifier; fallback is to repair only this protected PR
+      branch and leave main at `4402329`.
+    - **Evidence:** main run `32630293759` passed all three jobs but reported
+      that `actions/checkout@v4` and `actions/setup-node@v4` target deprecated
+      Node 20 and were force-run on Node 24. Official current releases are
+      checkout `v7.0.1`, setup-node `v7.0.0`, and setup-python `v7.0.0`; their
+      release `action.yml` files all declare `node24`.
+    - **Change (`/.github/workflows/test.yml`,
+      `scripts/verify_ci_discovery.py:1-174`):** resolve each official release
+      tag to its immutable commit SHA and verify exactly three checkout, two
+      setup-node, and one setup-python references. The contract verifier failed
+      the expected three pin checks at `20/23` before the workflow change and
+      passed `23/23` afterward. Python 3.11 and project Node 22 remain unchanged.
+    - **Remaining gate:** run the protected push/PR workflows and require all
+      three jobs to pass with zero Node 20 action-runtime annotations before
+      merging or marking the roadmap item complete.
+
 ## Hosted CI Discovery and Main Protection (2026-08-23)
 
 - [2026-08-23 14:08 IST] **Made the existing gate discoverable and added build

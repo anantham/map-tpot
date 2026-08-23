@@ -2,7 +2,39 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-08-23 (hosted CI discovery and main protection)*
+*Last updated: 2026-08-23 (GitHub action runtime maintenance)*
+
+---
+
+## EXP-047: Can immutable Node 24 actions remove the hosted deprecation warning?
+
+**Date:** 2026-08-23
+
+**Question:** Can the official GitHub actions be updated without changing the
+project's Python 3.11 / Node 22 test contract, and will that remove the Node 20
+action-runtime annotation observed on an otherwise green main run?
+
+**Hypothesis:** Confidence `0.94` that old action implementations alone caused
+the warning. Expected red signal: a verifier requiring immutable current
+release SHAs fails exactly the three action-pin checks. Expected hosted green
+signal: the same three protected jobs pass and the run has no Node 20 action
+annotation. Falsifiers are any job/cache failure, project runtime drift, or
+surviving warning. Fallback is to keep protected main at `4402329` and revise
+only the PR branch.
+
+**Method:** Read the final main run annotation, queried the official action
+release API and release notes, inspected each release's `action.yml`, resolved
+the release tags to commits, and added those exact references to the workflow
+integrity verifier before editing the workflow.
+
+**Result (local checkpoint):** The new verifier failed `20/23` before the
+workflow change, with zero matches for all three immutable references. After
+pinning checkout `v7.0.1` (`3d3c42e…`), setup-node `v7.0.0` (`8207627…`), and
+setup-python `v7.0.0` (`5fda3b9…`), it passed `23/23`. All three releases declare
+the Node 24 action runtime. Hosted proof remains pending.
+
+**Next step:** Prove the same three jobs on a protected PR and inspect run
+annotations; merge only if they pass and the Node 20 warning is absent.
 
 ---
 
@@ -52,9 +84,10 @@ Live protection requires pull requests and strict/up-to-date versions of the
 three app-bound GitHub Actions checks. Required approvals are `0`, administrator
 enforcement is off during initial rollout, and force pushes/deletions are off.
 
-**Next step:** Use the protected documentation PR that records this result as
-the first routine enforcement exercise; revisit administrator enforcement only
-after the workflow has a stable operating history.
+**Follow-through:** Protected documentation PR #9 merged as `4402329`; main run
+`32630293759` passed all three required jobs. The rule therefore governed a
+routine follow-up successfully. Revisit administrator enforcement only after
+the workflow has a stable operating history.
 
 ---
 

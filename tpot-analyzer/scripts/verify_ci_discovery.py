@@ -14,6 +14,9 @@ REPOSITORY_ROOT = PROJECT_ROOT.parent
 WORKFLOW = REPOSITORY_ROOT / ".github/workflows/test.yml"
 NESTED_WORKFLOW = PROJECT_ROOT / ".github/workflows/test.yml"
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+CHECKOUT_ACTION = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
+SETUP_NODE_ACTION = "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0"
+SETUP_PYTHON_ACTION = "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0"
 
 
 @dataclass
@@ -109,6 +112,9 @@ def verify_workflow(report: Report) -> None:
     node_job_count = text.count("node-version: '22'")
     npm_install_count = text.count("npm ci --no-audit --no-fund")
     build_count = text.count("run: npm run build")
+    checkout_count = text.count(CHECKOUT_ACTION)
+    setup_node_count = text.count(SETUP_NODE_ACTION)
+    setup_python_count = text.count(SETUP_PYTHON_ACTION)
     report.check(
         "Node 22 jobs",
         node_job_count == 2,
@@ -123,6 +129,21 @@ def verify_workflow(report: Report) -> None:
         "production builds",
         build_count == 2,
         f"count={build_count}",
+    )
+    report.check(
+        "immutable checkout v7.0.1",
+        checkout_count == 3,
+        f"count={checkout_count}",
+    )
+    report.check(
+        "immutable setup-node v7.0.0",
+        setup_node_count == 2,
+        f"count={setup_node_count}",
+    )
+    report.check(
+        "immutable setup-python v7.0.0",
+        setup_python_count == 1,
+        f"count={setup_python_count}",
     )
 
 
