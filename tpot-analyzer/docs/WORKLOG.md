@@ -33,8 +33,8 @@
       `research_notes_sections.py:1-100`, and tests); `0e8740f` restores the 36
       graph-explorer workspace paths; `c7a8952` restores the product amendment,
       roadmap/worklog record, and `verify_tagging_workspace_ux.py:1-297`.
-      Coverage is 48 byte-identical paths, two EOF-whitespace repairs, and one
-      ordered Worklog union: 51/51 represented.
+      Coverage is 47 byte-identical paths, two EOF-whitespace repairs, and two
+      ordered Worklog/Roadmap unions: 51/51 represented.
     - **Consolidation gate (`scripts/_repository_consolidation_checks.py:1-222`,
       `scripts/verify_repository_consolidation.py:1-60`):** checks cleanliness,
       conflicts, whitespace, exact refs/dispositions, snapshot equivalence,

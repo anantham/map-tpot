@@ -38,9 +38,9 @@ every snapshot path to the result and ran the exact CI commands from
   paths match current or historical preserved content; `657` are excluded
   residue (`653` sync-conflict paths, `2` generated archive files, `2`
   registered worktree directories); unmatched intentional paths: `0`.
-- Snapshot coverage is `51/51`: `48` byte-identical, `2` differing only by
-  removal of a trailing blank line, and `WORKLOG.md` preserved as an ordered
-  union with the personal history.
+- Snapshot coverage is `51/51`: `47` byte-identical, `2` differing only by
+  removal of a trailing blank line, and `WORKLOG.md` / `ROADMAP.md` preserved
+  as ordered unions with the personal history and consolidation follow-up.
 - The only merge conflicts were `EXPERIMENT_LOG.md` and `WORKLOG.md`; both were
   append-only collisions. The parked stash remains at `21e50c0` and is not an
   ancestor of the integrated head. The verified bundle SHA-256 is
