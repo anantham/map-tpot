@@ -50,7 +50,9 @@
 
 .research-notes-panel,
 .research-notes-dossier,
-.research-notes-judgment {
+.research-notes-judgment,
+.research-notes-consequence,
+.research-notes-audit {
   box-sizing: border-box;
   border: 1px solid var(--panel-border);
   border-radius: 12px;
@@ -143,6 +145,8 @@
 
 .research-notes-state,
 .research-notes-error,
+.research-notes-proposal-warning,
+.research-notes-persistence-warning,
 .research-notes-preview-warning {
   border-radius: 8px;
   padding: 12px;
@@ -158,6 +162,34 @@
   border: 1px solid #ef4444;
   background: rgba(239, 68, 68, 0.1);
   color: #b91c1c;
+}
+
+.research-notes-persistence-warning {
+  border: 1px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.research-notes-proposal-warning {
+  border: 1px solid #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.research-notes-proposal-warning p {
+  margin: 0 0 8px;
+}
+
+.research-notes-proposal-warning button {
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 6px 9px;
 }
 
 .research-notes-evidence-boundary {
@@ -220,12 +252,16 @@
   background: transparent;
 }
 
-@media (max-width: 800px) {
+@media (max-width: 1180px) {
   .research-notes-grid {
     grid-template-columns: 1fr;
   }
 
   .research-notes-panel {
     position: static;
+  }
+
+  .research-notes-queue {
+    max-height: 280px;
   }
 }

@@ -2,9 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { parseResearchNotes } from './parseResearchNotes'
 import {
+  mergeResearchQueues,
+  withQueueProvenance,
+} from './manualResearchStore'
+import {
   fetchResearchDossier,
   fetchResearchNotesSource,
 } from './researchNotesApi'
+import { useManualResearchState } from './useManualResearchState'
 
 function normalizedSuggestions(suggestionsByHandle) {
   if (!suggestionsByHandle || typeof suggestionsByHandle !== 'object') return {}
@@ -17,8 +22,9 @@ function normalizedSuggestions(suggestionsByHandle) {
 }
 
 export function useResearchNotesInbox() {
+  const manual = useManualResearchState()
   const [pasteText, setPasteText] = useState('')
-  const [queue, setQueue] = useState([])
+  const [sourceQueue, setSourceQueue] = useState([])
   const [selectedKey, setSelectedKey] = useState(null)
   const [dossier, setDossier] = useState(null)
   const [dossierKey, setDossierKey] = useState(null)
@@ -26,52 +32,75 @@ export function useResearchNotesInbox() {
   const [dossierError, setDossierError] = useState(null)
   const [dossierErrorKey, setDossierErrorKey] = useState(null)
   const [dossierAttempt, setDossierAttempt] = useState(0)
-  const [drafts, setDrafts] = useState({})
   const [source, setSource] = useState(null)
   const [sourceLoading, setSourceLoading] = useState(true)
   const [sourceError, setSourceError] = useState(null)
+  const [sourceAttempt, setSourceAttempt] = useState(0)
+  const [proposalMetadata, setProposalMetadata] = useState(null)
   const [suggestionsByHandle, setSuggestionsByHandle] = useState({})
+  const queue = useMemo(
+    () => mergeResearchQueues(sourceQueue, manual.items),
+    [manual.items, sourceQueue],
+  )
 
   const selectedItem = useMemo(
     () => queue.find((item) => item.normalizedHandle === selectedKey) || null,
     [queue, selectedKey],
   )
   const selectedDraft = useMemo(
-    () => drafts[selectedKey] || {
+    () => manual.drafts[selectedKey] || {
       note: selectedItem?.note || '',
     },
-    [drafts, selectedItem, selectedKey],
+    [manual.drafts, selectedItem, selectedKey],
   )
 
   const addToQueue = useCallback(() => {
     const parsed = parseResearchNotes(pasteText)
     if (parsed.length === 0) return
-    const existing = new Set(queue.map((item) => item.normalizedHandle))
-    const additions = parsed.filter((item) => !existing.has(item.normalizedHandle))
-    const combined = [...queue, ...additions]
-    setQueue(combined)
-    if (!selectedKey && combined[0]) {
-      setSelectedKey(combined[0].normalizedHandle)
+    const sourceHandles = new Set(sourceQueue.map((item) => item.normalizedHandle))
+    const existing = new Set(manual.items.map((item) => item.normalizedHandle))
+    const additions = parsed
+      .filter((item) => (
+        !sourceHandles.has(item.normalizedHandle)
+        && !existing.has(item.normalizedHandle)
+      ))
+      .map((item) => withQueueProvenance(item, 'manual_paste'))
+    if (additions.length === 0) return
+    manual.setItems((current) => [...current, ...additions])
+    if (!selectedKey) {
+      setSelectedKey(additions[0].normalizedHandle)
     }
-  }, [pasteText, queue, selectedKey])
+  }, [manual, pasteText, selectedKey, sourceQueue])
 
   const addCandidate = useCallback(({ accountId, username }) => {
     const handle = String(username || '').trim().replace(/^@/, '')
     if (!handle) return
     const normalizedHandle = handle.toLowerCase()
-    setQueue((current) => {
+    manual.setItems((current) => {
       const existing = current.find((item) => (
         item.normalizedHandle === normalizedHandle
       ))
       if (existing) {
-        if (!accountId || existing.accountId) return current
+        const alreadySourced = existing.queueProvenance?.some(
+          (row) => row.kind === 'frontier_candidate',
+        )
+        if ((!accountId || existing.accountId) && alreadySourced) return current
+        const enriched = alreadySourced
+          ? existing
+          : withQueueProvenance(existing, 'frontier_candidate', {
+              sourceLine: `@${handle}`,
+              sourceText: `@${handle}`,
+            })
         return current.map((item) => (
           item.normalizedHandle === normalizedHandle
-            ? { ...item, accountId: String(accountId) }
+            ? {
+                ...enriched,
+                accountId: existing.accountId || (accountId ? String(accountId) : null),
+              }
             : item
         ))
       }
-      return [...current, {
+      return [...current, withQueueProvenance({
         accountId: accountId ? String(accountId) : null,
         handle,
         normalizedHandle,
@@ -80,24 +109,34 @@ export function useResearchNotesInbox() {
         sourceLine: `@${handle}`,
         sourceStart: null,
         sourceText: `@${handle}`,
-      }]
+      }, 'frontier_candidate')]
     })
     setSelectedKey(normalizedHandle)
-  }, [])
+  }, [manual])
 
   useEffect(() => {
     let cancelled = false
     setSourceLoading(true)
     setSourceError(null)
+    setProposalMetadata(null)
+    setSuggestionsByHandle({})
     fetchResearchNotesSource()
       .then((result) => {
         if (cancelled) return
         setSource(result?.configured ? result.source : null)
+        setProposalMetadata(result?.proposalMetadata || null)
         setSuggestionsByHandle(normalizedSuggestions(result?.suggestionsByHandle))
-        if (!result?.configured || typeof result?.source?.text !== 'string') return
-        setPasteText(result.source.text)
-        const parsed = parseResearchNotes(result.source.text)
-        setQueue((current) => (current.length > 0 ? current : parsed))
+        if (!result?.configured || typeof result?.source?.text !== 'string') {
+          setSourceQueue([])
+          return
+        }
+        const parsed = parseResearchNotes(result.source.text).map((item) => (
+          withQueueProvenance(item, 'takes_source', {
+            sourceName: result.source.name,
+            sourceSha256: result.source.sha256,
+          })
+        ))
+        setSourceQueue(parsed)
       })
       .catch((error) => {
         if (!cancelled) setSourceError(error.message)
@@ -108,21 +147,27 @@ export function useResearchNotesInbox() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [sourceAttempt])
 
   useEffect(() => {
-    if (!selectedKey && queue[0]) setSelectedKey(queue[0].normalizedHandle)
+    if (queue.length === 0) {
+      if (selectedKey) setSelectedKey(null)
+      return
+    }
+    if (!queue.some((item) => item.normalizedHandle === selectedKey)) {
+      setSelectedKey(queue[0].normalizedHandle)
+    }
   }, [queue, selectedKey])
 
   const updateSelectedDraft = useCallback((update) => {
     if (!selectedItem || !selectedKey) return
-    setDrafts((current) => {
+    manual.setDrafts((current) => {
       const draft = current[selectedKey] || {
         note: selectedItem.note || '',
       }
       return { ...current, [selectedKey]: update(draft) }
     })
-  }, [selectedItem, selectedKey])
+  }, [manual, selectedItem, selectedKey])
 
   const setNote = useCallback((note) => {
     updateSelectedDraft((draft) => ({ ...draft, note }))
@@ -169,10 +214,15 @@ export function useResearchNotesInbox() {
     dossier: dossierKey === selectedKey ? dossier : null,
     dossierError: dossierErrorKey === selectedKey ? dossierError : null,
     dossierLoading,
-    drafts,
+    drafts: manual.drafts,
+    manualQueueCount: manual.items.length,
     note: selectedDraft.note,
     pasteText,
+    persistenceEnabled: manual.persistenceEnabled,
+    persistenceWarning: manual.persistenceWarning,
+    proposalMetadata,
     queue,
+    reloadSource: () => setSourceAttempt((attempt) => attempt + 1),
     retryDossier: () => setDossierAttempt((attempt) => attempt + 1),
     selectedItem,
     selectedKey,

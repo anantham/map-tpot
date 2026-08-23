@@ -7,7 +7,7 @@ const isCommunityKind = (kind) => (
 export function useWorkingTagSelection({ selectedHandle, suggestionsByHandle }) {
   const [activeTag, setActiveTag] = useState('')
   const [activeTagKind, setActiveTagKind] = useState('')
-  const [revision, setRevision] = useState(0)
+  const [tagRevisions, setTagRevisions] = useState({})
   const [tagVocabulary, setTagVocabulary] = useState([])
   const selectedSuggestions = useMemo(
     () => (selectedHandle ? (suggestionsByHandle[selectedHandle] || []) : []),
@@ -30,6 +30,7 @@ export function useWorkingTagSelection({ selectedHandle, suggestionsByHandle }) 
     () => [...new Set([...tagVocabulary, ...proposalMetadata.tags])],
     [proposalMetadata.tags, tagVocabulary],
   )
+  const revision = tagRevisions[String(activeTag || '').trim().toLowerCase()] || 0
 
   useEffect(() => {
     if (activeTag) return
@@ -51,8 +52,12 @@ export function useWorkingTagSelection({ selectedHandle, suggestionsByHandle }) 
     if (change?.tag) {
       setActiveTag(change.tag)
       setActiveTagKind(proposalMetadata.kinds.get(change.tag) || '')
+      const tagKey = String(change.tag).trim().toLowerCase()
+      setTagRevisions((current) => ({
+        ...current,
+        [tagKey]: (current[tagKey] || 0) + 1,
+      }))
     }
-    setRevision((current) => current + 1)
   }, [proposalMetadata.kinds])
   const selectTag = useCallback((tag) => {
     setActiveTag(tag)

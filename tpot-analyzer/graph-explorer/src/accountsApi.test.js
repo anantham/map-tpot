@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 import {
+  fetchTagMetaNote,
   searchAccounts,
   fetchTeleportPlan,
+  saveTagMetaNote,
 } from './accountsApi'
 
 // ---------------------------------------------------------------------------
@@ -162,5 +164,38 @@ describe('fetchTeleportPlan', () => {
     await expect(fetchTeleportPlan({ accountId: 'alice' })).rejects.toThrow(
       'Failed to compute teleport plan: 503 Service Unavailable',
     )
+  })
+})
+
+describe('tag meta notes', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+  })
+
+  it('fetches one curator-owned tag note with auth', async () => {
+    mockFetch.mockResolvedValue(mockResponse({ current: null, history: [] }))
+
+    await fetchTagMetaNote({ ego: '@Aditya Arpitha', tag: 'Dharma & practice' })
+
+    expect(fetchedUrl()).toBe(
+      'http://test-api/api/tag-meta-notes?ego=%40Aditya+Arpitha&tag=Dharma+%26+practice',
+    )
+    expect(fetchedOpts().headers['X-TPOT-Curator-Token'])
+      .toBe('test-curator-token')
+    expect(fetchedOpts().cache).toBe('no-store')
+  })
+
+  it('appends a version with an explicit human-curation source', async () => {
+    mockFetch.mockResolvedValue(mockResponse({ status: 'appended' }))
+
+    await saveTagMetaNote({ ego: 'aditya', tag: 'Dharma', note: 'Working meaning' })
+
+    expect(fetchedOpts()).toMatchObject({ method: 'POST' })
+    expect(fetchedOpts().headers).toMatchObject({
+      'Content-Type': 'application/json',
+      'X-TPOT-Curation-Source': 'human_curator_api',
+      'X-TPOT-Curator-Token': 'test-curator-token',
+    })
+    expect(JSON.parse(fetchedOpts().body)).toEqual({ note: 'Working meaning' })
   })
 })

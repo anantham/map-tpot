@@ -221,7 +221,7 @@ export default function ClusterDetailsSidebar({
                   membership={membership}
                 />
                 <AccountTagPanel
-                  key={selectedAccount.id}
+                  key={`${ego || ''}:${selectedAccount.id}`}
                   ego={ego}
                   account={selectedAccount}
                   onTagChanged={onTagChanged}

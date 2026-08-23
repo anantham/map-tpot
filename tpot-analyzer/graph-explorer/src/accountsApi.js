@@ -98,3 +98,32 @@ export const listDistinctTags = async ({ ego }) => {
   )
   return jsonOrError(res, 'Failed to list tags')
 }
+
+export const fetchTagMetaNote = async ({ ego, tag }) => {
+  const params = new URLSearchParams()
+  params.set('ego', ego)
+  params.set('tag', tag)
+  const res = await fetch(
+    `${API_BASE_URL}/api/tag-meta-notes?${params.toString()}`,
+    withCuratorAuth({ cache: 'no-store' }),
+  )
+  return jsonOrError(res, 'Failed to fetch tag note')
+}
+
+export const saveTagMetaNote = async ({ ego, tag, note }) => {
+  const params = new URLSearchParams()
+  params.set('ego', ego)
+  params.set('tag', tag)
+  const res = await fetch(
+    `${API_BASE_URL}/api/tag-meta-notes?${params.toString()}`,
+    withCuratorAuth({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        [CURATION_SOURCE_HEADER]: 'human_curator_api',
+      },
+      body: JSON.stringify({ note }),
+    }),
+  )
+  return jsonOrError(res, 'Failed to save tag note')
+}
