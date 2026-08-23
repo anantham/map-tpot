@@ -816,14 +816,14 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Infrastructure & Tooling
 
-- [ ] **Make GitHub discover and enforce the CI workflow** — Actions is enabled, but
-  `gh workflow list` returned no workflows after the 2026-08-23 main push
-  because `test.yml` lives under `tpot-analyzer/.github/workflows/` instead of
-  repository-root `.github/workflows/`. The repair branch relocates it while
-  preserving project-directory detection and exact Python/Node 22 commands,
-  adds both production builds and patch hygiene. Push run `32629747636` and PR
-  run `32629769099` passed all three jobs; completion now requires merging PR #8
-  and requiring those observed checks and pull requests on `main`.
+- [x] **Make GitHub discover and enforce the CI workflow** — PR #8 relocated
+  `test.yml` to repository-root `.github/workflows/`, preserved Python 3.11 and
+  Node 22 test contracts, and added both production builds plus patch hygiene.
+  Push run `32629747636`, PR run `32629769099`, and merged-main run
+  `32630037099` passed all three jobs. `main` now requires PRs and strict,
+  GitHub-Actions-bound versions of those three checks; administrator bypass is
+  retained initially and force pushes/deletions are disabled (completed
+  2026-08-23).
 - [ ] **Retire the 2026-08-23 consolidation recovery assets deliberately** —
   choose a retention window, then use `verify_repository_consolidation.py`
   before removing any dated preservation ref, worktree, parked stash, bundle,
