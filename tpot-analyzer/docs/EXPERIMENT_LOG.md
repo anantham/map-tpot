@@ -2,7 +2,66 @@
 
 > Hypotheses tested, results observed, lessons learned. This is institutional memory — what we tried, what worked, what didn't, and why. Each entry records the question, the method, the data, and the verdict so future sessions don't re-run failed experiments or miss validated insights.
 
-*Last updated: 2026-08-04 (dharma-v1 freeze + membrane deck preregistration)*
+*Last updated: 2026-08-23 (repository preservation and canonical-main consolidation)*
+
+---
+
+## EXP-045: Can divergent work be consolidated without losing provenance or importing sync residue?
+
+**Date:** 2026-08-23
+
+**Question:** Can the community-archive, local-first, personal-ontology,
+raw-first, and 51-path uncommitted work be represented on one canonical main
+while the parked dossier prototype, generated/private data, sync-conflict
+copies, and recoverability assets remain explicitly outside it?
+
+**Hypothesis:** Confidence `0.94` that the committed lines were mostly additive,
+the personal/raw conflict surface was limited to append-only ledgers, the dirty
+snapshot could be decomposed without changing its content, and the legacy
+checkout contained no unique intentional code after content/history matching.
+Falsifiers were an unmatched legacy path, a lost snapshot path, a missing
+recovery ref/bundle/stash, a product or repository gate failure, or upstream
+drift. Fallback was to stop on the integration branch and recover from the
+dated refs or standalone bundle without moving main.
+
+**Method:** Created six immutable local preservation refs plus a standalone Git
+bundle before integration. Classified all 1,362 legacy dirty records by current
+or historical content, or by the approved residue exclusions. Merged raw-first
+and personal histories with `--no-ff`, unioned the two documentation conflicts,
+and decomposed the 51-path snapshot into backend tagging, Research Notes
+provenance, graph-explorer workspace, and product/verifier commits. Compared
+every snapshot path to the result and ran the exact CI commands from
+`.github/workflows/test.yml` under Python 3.11 and Node 22.23.1.
+
+**Result:**
+- Legacy classification accounted for all `1,362` records: `705` intentional
+  paths match current or historical preserved content; `657` are excluded
+  residue (`653` sync-conflict paths, `2` generated archive files, `2`
+  registered worktree directories); unmatched intentional paths: `0`.
+- Snapshot coverage is `51/51`: `48` byte-identical, `2` differing only by
+  removal of a trailing blank line, and `WORKLOG.md` preserved as an ordered
+  union with the personal history.
+- The only merge conflicts were `EXPERIMENT_LOG.md` and `WORKLOG.md`; both were
+  append-only collisions. The parked stash remains at `21e50c0` and is not an
+  ancestor of the integrated head. The verified bundle SHA-256 is
+  `f3ac9c2543ea403f90ae71176da2b99c4878c48da4c0fba7a3a34d9b7667a86b`.
+- CI-equivalent gates passed: Louvain `2/2`, docs hygiene `9/9`, API contracts
+  `23` frontend paths / `77` backend routes / `0` gaps, both cluster fixtures,
+  Python `1,768 passed, 5 skipped`, public site `212/212`, graph explorer
+  `791/791`, both production builds, and the tagging verifier `10/10`.
+- A first API-contract run failed only because the sandbox denied its normal
+  local log write; the same command with checkout write permission passed.
+  Default Node 26 was rejected in favor of the CI-pinned Node 22 runtime.
+
+**Lesson:** A dirty legacy checkout is not evidence of unique work. Preservation
+refs, content/history equivalence, and a path-complete gate let us distinguish
+intentional work from sync/generated residue without deleting either. Snapshot
+content equivalence matters more than making the snapshot commit itself an
+ancestor when the approved goal is coherent, tested commits.
+
+**Next step:** Fast-forward local `main`, push only `main`, verify the live
+remote OID, and retain the local recovery refs, bundle, worktrees, legacy
+quarantine, and parked stash until a separate explicit retirement decision.
 
 ---
 

@@ -3,7 +3,7 @@
 Living backlog of follow-on work items. Update this document as new ideas,
 coverage gaps, or UX improvements surface.
 
-*Last updated: 2026-08-03*
+*Last updated: 2026-08-23*
 
 ---
 
@@ -816,6 +816,11 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 
 ## Infrastructure & Tooling
 
+- [ ] **Retire the 2026-08-23 consolidation recovery assets deliberately** —
+  choose a retention window, then use `verify_repository_consolidation.py`
+  before removing any dated preservation ref, worktree, parked stash, bundle,
+  or quarantined legacy checkout. This is a separate human-approved cleanup;
+  never replace it with a broad `git clean` or deletion of the legacy root.
 - [x] Add immutable Community Archive snapshot comparison with deep hash
   verification, corpus/linkage deltas, samples, no-clobber JSON, strict
   falsifiers, and a Make target (implemented 2026-07-26).
