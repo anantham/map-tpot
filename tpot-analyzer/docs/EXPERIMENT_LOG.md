@@ -1480,7 +1480,92 @@ came from a stale project-root database. The active local database yielded
 `957/2,323/226/58` stored-key unions and 3,305 candidates. Those later rows
 still lack acquisition provenance, so the amendment increases usable topology
 without establishing freshness, completeness, or source.
+## EXP-019: Can off-platform bio links and source-selectivity recover a named subculture?
 
+**Date:** 2026-07-30
+
+**Question:** Three channels (follows, engagement, tweet text) miss accounts whose
+substance lives elsewhere. Does resolving profile bio links add evidence the follow
+graph structurally cannot contain — and does weighting a follow by the *source's*
+selectivity recover a subculture the operator named by hand?
+
+**Hypothesis:** (H1) `profiles.website` is write-only and its t.co stubs hide real
+personal sites. (H2) A follow emitted by a selective account carries more
+information than one from a promiscuous account, so selectivity-weighted
+co-following should recover operator-named seeds. (H3) Seeds named from lived
+experience are largely absent from a Feb–Mar 2026 snapshot.
+
+**Method:** Resolved all 2,114 URLs mined from `profiles.website` and bio text
+through the existing SSRF-guarded `safe_urlopen`; classified each page with pure
+heuristics; captioned undecided pages with a two-model local ollama ensemble.
+Separately fetched following lists for 40 operator-named handles via twitterapi.io
+and scored candidates with `src/propagation/selectivity.py`.
+
+**Result:**
+- 1,894 of 2,114 URLs resolved (89.6%); 532 person-shaped pages; 674 Substack and
+  521 GitHub outbound links. **~310 of the GitHub links are boilerplate footers
+  (`docs.github.com`) — a known over-count, not yet excluded.**
+- **H3 confirmed:** 5 of the operator's first 8 named accounts were absent from
+  every table; follow snapshot is 2026-03-24 against July judgements.
+- **H2 partially confirmed.** A cluster built from 4 dharma seeds contained
+  `O1A2S3D` *before* the operator named it — an unprompted recovery. Against 19
+  later-written labels the ranking placed positives at median rank 71 of 2,786
+  (top 2.5%), 12 inside the top 100.
+- **H2 limit found:** the method recovers the *neighbourhood*, not the *boundary*.
+  `Meaningness`, labelled "NOT tpot", ranked #43 — above most positives — because
+  co-following measures adjacency, not membership.
+- Source selectivity alone surfaced only celebrities; a target-side popularity
+  discount was required, and that discount needed a floor or it inverted into a
+  bounty on unmeasured accounts. Neither term works alone.
+- With 7–8 seeds the celebrity floor dominates; at 23 seeds it clears. **Seed
+  count, not the weighting formula, was the binding constraint.**
+- Cost: 40 accounts, ~61k edges, **$0.35**. The repo's cost model
+  (`CREDITS_PER_FOLLOWER = 15`) over-estimates actual spend by ~14x.
+
+**Lesson:** Selectivity × rarity is necessary but not sufficient. It ranks the
+neighbourhood well and cannot express membership, so human labels remain the only
+encoding of the boundary. Negative examples are worth more than positives here:
+the two explicit OUTs did more to expose the metric's limits than 25 INs.
+
+**Next step:** Exclude the operator from their own candidate lists; drop
+`docs.github.com` from signal links; add interface-cluster seeds, which are far
+sparser than the dharma seeds.
+
+---
+
+## EXP-020: Do the local vision models actually disagree, and does it matter?
+
+**Date:** 2026-07-30
+
+**Question:** Text classification abstains on 386 of 1,894 fetched pages. Can a
+local vision model resolve them, and should its self-reported confidence be trusted?
+
+**Hypothesis:** A vision model can classify a page image where HTML heuristics
+abstain; model-reported confidence is a usable gate.
+
+**Method:** Probed `/api/show` for capabilities, then baked off `qwen2.5vl:7b`,
+`gemma4:latest` and `qwen3.6:latest` on identical images. Ran the surviving two as
+an independent-vote ensemble over 437 undecided pages.
+
+**Result:**
+- **A prior claim of ours was wrong:** `gemma4` and `qwen3.6` already had vision.
+  It was inferred from the `families` metadata field, which does not report it;
+  `/api/show` → `capabilities` is authoritative. A 6 GB pull was unnecessary.
+- `qwen3.6` returns empty replies under `format:json` (thinking model) — unusable.
+- The two working models agreed 8/8 on the decision that matters, so accuracy did
+  not separate them. **Calibration did:** `gemma4` reported `confidence: 1.0`
+  three times in eight, and once alongside an *empty caption*.
+- Ensemble over 437 pages: 213 unanimous (51%), 99 single-voter, **88 split**,
+  16 no-signal. 121 pages show a person.
+
+**Lesson:** A model's self-reported confidence is not evidence — confident
+emptiness is a real failure mode. Independent agreement is, which is why trust
+gates on voter count, mirroring the existing 2-of-3 rule in
+`scripts/label_tweets_ensemble.py`. Splits are stored and surfaced for human
+adjudication rather than averaged away.
+
+**Next step:** Route the 88 splits into the review queue; nothing currently reads
+`bio_link_image_verdict`.
 ---
 
 ## EXP-018: Does the Slice 1 store enforce its holdout and identity claims?
