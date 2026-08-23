@@ -1,15 +1,14 @@
+import { xProfileUrl } from './researchNotes/xProfileUrl'
 import './ResearchNotesInbox.css'
 import './researchNotes/ResearchNotesReview.css'
 import { useCallback, useState } from 'react'
 import AccountTagPanel from './AccountTagPanel'
 import RawDossier from './researchNotes/RawDossier'
+import ResearchNotesQueuePanel from './researchNotes/ResearchNotesQueuePanel'
+import TagHistory from './researchNotes/TagHistory'
 import WorkingTagImpact from './researchNotes/WorkingTagImpact'
 import { useResearchNotesInbox } from './researchNotes/useResearchNotesInbox'
 import { useWorkingTagSelection } from './researchNotes/useWorkingTagSelection'
-
-function plural(count, singular, pluralForm = `${singular}s`) {
-  return count === 1 ? singular : pluralForm
-}
 
 function getWorkingIdentity({
   dossier,
@@ -27,10 +26,11 @@ function getWorkingIdentity({
 }
 
 export default function ResearchNotesInbox({ ego = '' }) {
-  const inbox = useResearchNotesInbox()
   const [curatorEgo, setCuratorEgo] = useState(ego)
+  const [historyState, setHistoryState] = useState({})
   const [tagState, setTagState] = useState({})
   const activeEgo = curatorEgo.trim().replace(/^@/, '').toLowerCase()
+  const inbox = useResearchNotesInbox()
   const identity = getWorkingIdentity({
     dossier: inbox.dossier,
     selectedItem: inbox.selectedItem,
@@ -52,6 +52,19 @@ export default function ResearchNotesInbox({ ego = '' }) {
       return next
     })
   }, [activeEgo, inbox.selectedItem])
+  const recordSelectedHistory = useCallback((events) => {
+    if (!activeEgo || !inbox.selectedItem) return
+    const stateKey = `${activeEgo}:${inbox.selectedItem.normalizedHandle}`
+    setHistoryState((current) => ({ ...current, [stateKey]: events }))
+  }, [activeEgo, inbox.selectedItem])
+  const selectedStateKey = inbox.selectedItem
+    ? `${activeEgo}:${inbox.selectedItem.normalizedHandle}`
+    : ''
+  const selectedHistoryKnown = Object.prototype.hasOwnProperty.call(
+    historyState,
+    selectedStateKey,
+  )
+  const selectedHistory = historyState[selectedStateKey]
   return (
     <main className="research-notes">
       <header className="research-notes-header">
@@ -63,85 +76,13 @@ export default function ResearchNotesInbox({ ego = '' }) {
       </header>
 
       <div className="research-notes-grid">
-        <aside className="research-notes-panel">
-          <label htmlFor="research-notes-curator">Curator identity</label>
-          <input
-            id="research-notes-curator"
-            className="research-notes-curator-input"
-            value={curatorEgo}
-            onChange={(event) => setCuratorEgo(event.target.value)}
-            placeholder="e.g. adityaarpitha"
-          />
-          <p className="research-notes-curator-hint">
-            Owns this personal tag extension; graph membership is not required.
-          </p>
-          {inbox.sourceLoading && (
-            <p className="research-notes-source-state">Loading configured research source…</p>
-          )}
-          {inbox.source && (
-            <p className="research-notes-source-state">
-              Loaded from {inbox.source.name} · proposals remain unconfirmed
-            </p>
-          )}
-          {inbox.sourceError && (
-            <p className="research-notes-source-error">
-              Takes source unavailable: {inbox.sourceError}. Manual paste still works.
-            </p>
-          )}
-          <label htmlFor="research-notes-paste">Paste accounts and notes</label>
-          <textarea
-            id="research-notes-paste"
-            className="research-notes-input"
-            value={inbox.pasteText}
-            onChange={(event) => inbox.setPasteText(event.target.value)}
-            placeholder="@handle, X profile URL, and whatever you currently believe"
-          />
-          <button
-            className="research-notes-primary"
-            type="button"
-            onClick={inbox.addToQueue}
-          >
-            Add to queue
-          </button>
-          <div className="research-notes-progress">
-            <span>
-              {inbox.queue.length}{' '}
-              {plural(inbox.queue.length, 'account')} in queue
-            </span>
-            <span>
-              {inbox.source ? 'Takes-backed queue · proposals only' : 'Manual queue · not disagreement-ranked'}
-            </span>
-          </div>
-          <nav className="research-notes-queue" aria-label="Research account queue">
-            {inbox.queue.map((item) => {
-              const stateKey = `${activeEgo}:${item.normalizedHandle}`
-              const stateLoaded = Object.prototype.hasOwnProperty.call(
-                tagState,
-                stateKey,
-              )
-              const assignments = tagState[stateKey]
-              const status = stateLoaded
-                ? (assignments.length
-                    ? `${assignments.length} ${plural(assignments.length, 'tag')}`
-                    : 'unclassified')
-                : 'tags not loaded'
-              return (
-                <button
-                  type="button"
-                  key={item.normalizedHandle}
-                  aria-label={`@${item.handle} ${status}`}
-                  className={
-                    item.normalizedHandle === inbox.selectedKey ? 'active' : ''
-                  }
-                  onClick={() => inbox.setSelectedKey(item.normalizedHandle)}
-                >
-                  <span>@{item.handle}</span>
-                  <span className="research-notes-queue-status">{status}</span>
-                </button>
-              )
-            })}
-          </nav>
-        </aside>
+        <ResearchNotesQueuePanel
+          activeEgo={activeEgo}
+          curatorEgo={curatorEgo}
+          inbox={inbox}
+          onCuratorChange={setCuratorEgo}
+          tagState={tagState}
+        />
 
         <div className="research-notes-main">
           {!inbox.selectedItem && (
@@ -157,7 +98,7 @@ export default function ResearchNotesInbox({ ego = '' }) {
               <p>{inbox.dossierError}</p>
               {inbox.selectedItem && (
                 <a
-                  href={`https://x.com/${encodeURIComponent(inbox.selectedItem.normalizedHandle)}`}
+                  href={xProfileUrl(inbox.selectedItem.normalizedHandle)}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -177,34 +118,17 @@ export default function ResearchNotesInbox({ ego = '' }) {
 
           {inbox.selectedItem && (
             <section className="research-notes-judgment">
-              <h2>Working extension</h2>
+              <h2>Your tags for @{inbox.selectedItem.handle}</h2>
               <p className="research-notes-question">
-                The category is demonstrated by the accounts you include and
-                exclude. No first-principles definition is required here.
+                Mark this account IN or NOT IN for any tags that matter to you.
+                You can change or retract every judgment later.
               </p>
               <div className="research-notes-provenance" role="note">
-                Ego-scoped mutable curator tags · add/remove activity and its
-                source retained separately from the current tag state
+                Your mutable working set · model suggestions do nothing until
+                you accept them
               </div>
-              {identity ? (
-                <AccountTagPanel
-                  key={`${activeEgo}:${identity.account.id}`}
-                  ego={activeEgo}
-                  account={identity.account}
-                  suggestions={workingTag.selectedSuggestions}
-                  onTagChanged={workingTag.tagChanged}
-                  onTagStateLoaded={recordSelectedTagState}
-                  onVocabularyLoaded={workingTag.recordVocabulary}
-                />
-              ) : (
-                <p className="research-notes-empty">
-                  {inbox.dossierError
-                    ? 'Tagging stays locked until retry resolves a stable archive account ID.'
-                    : 'Resolving a stable archive account ID before loading tags…'}
-                </p>
-              )}
               <label htmlFor="research-notes-investigation-note">
-                Investigation note
+                Notes about this account
               </label>
               <textarea
                 id="research-notes-investigation-note"
@@ -213,10 +137,38 @@ export default function ResearchNotesInbox({ ego = '' }) {
                 onChange={(event) => inbox.setNote(event.target.value)}
               />
               <p className="research-notes-preview-warning">
-                This investigation note is session-only. Account tags are the
-                durable working extension; they are mutable and are not a frozen
-                evaluation set.
+                {inbox.persistenceEnabled
+                  ? 'Saved in this browser’s device-wide research queue. '
+                  : 'Currently held in memory only. '}
+                A tag’s working meaning is versioned separately below.
               </p>
+              {identity ? (
+                <AccountTagPanel
+                  key={`${activeEgo}:${identity.account.id}`}
+                  activeTag={workingTag.activeTag}
+                  ego={activeEgo}
+                  account={identity.account}
+                  onActiveTagChange={workingTag.selectTag}
+                  onHistoryLoaded={recordSelectedHistory}
+                  suggestions={workingTag.selectedSuggestions}
+                  onTagChanged={workingTag.tagChanged}
+                  onTagStateLoaded={recordSelectedTagState}
+                  onVocabularyLoaded={workingTag.recordVocabulary}
+                  renderHistory={false}
+                  vocabulary={workingTag.availableTags}
+                />
+              ) : (
+                <p className="research-notes-empty">
+                  {inbox.dossierError
+                    ? 'Tagging stays locked until retry resolves a stable archive account ID.'
+                    : 'Resolving a stable archive account ID before loading tags…'}
+                </p>
+              )}
+            </section>
+          )}
+
+          {inbox.selectedItem && (
+            <aside className="research-notes-consequence">
               {workingTag.activeTag && activeEgo ? (
                 <WorkingTagImpact
                   availableTags={workingTag.availableTags}
@@ -229,17 +181,27 @@ export default function ResearchNotesInbox({ ego = '' }) {
                 />
               ) : (
                 <div className="research-notes-model-state">
-                  <h2>Model position</h2>
+                  <h2>What this tag currently surfaces</h2>
+                  <h3>Model opinion — none yet (needs more tags)</h3>
                   <p>
-                    Unavailable: no target-scoped prediction has been run for
-                    this working tag extension.
+                    Choose or add a tag to calculate its first selective-follow
+                    candidate list.
                   </p>
                   <p>
                     Legacy NMF percentages are intentionally not shown as soft
-                    membership. Accept or add a tag to calculate its first
-                    selective-follow frontier.
+                    membership.
                   </p>
                 </div>
+              )}
+            </aside>
+          )}
+
+          {inbox.selectedItem && selectedHistoryKnown && (
+            <section className="research-notes-audit" aria-label="Audit history">
+              {Array.isArray(selectedHistory) ? (
+                <TagHistory events={selectedHistory} />
+              ) : (
+                <p>Recent changes are unavailable until tag state reloads.</p>
               )}
             </section>
           )}

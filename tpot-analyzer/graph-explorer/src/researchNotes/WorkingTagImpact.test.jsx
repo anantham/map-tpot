@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import WorkingTagImpact from './WorkingTagImpact'
@@ -80,8 +80,18 @@ describe('WorkingTagImpact', () => {
       />
     )
 
-    expect(await screen.findByText('Insufficient evidence')).toBeInTheDocument()
-    expect(screen.getByText(/1 IN anchor/i)).toBeInTheDocument()
+    expect(await screen.findByText('Not enough tagged examples yet')).toBeInTheDocument()
+    expect(screen.getByRole('heading', {
+      name: 'Model opinion — none yet (needs more tags)',
+    })).toBeInTheDocument()
+    expect(screen.getByRole('heading', {
+      name: 'Candidates this tag surfaces',
+    })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Model position' }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Current frontier' }))
+      .not.toBeInTheDocument()
+    expect(screen.getByText('1 IN example')).toBeInTheDocument()
     expect(screen.getByText(/selective-follow channel only/i)).toBeInTheDocument()
     expect(screen.getByText(/uncalibrated ranking signal/i)).toBeInTheDocument()
     expect(screen.getByText(/not cluster confidence/i)).toBeInTheDocument()
@@ -119,7 +129,7 @@ describe('WorkingTagImpact', () => {
         onReviewCandidate={onReviewCandidate}
       />
     )
-    expect(await screen.findByText('Insufficient evidence')).toBeInTheDocument()
+    expect(await screen.findByText('Not enough tagged examples yet')).toBeInTheDocument()
 
     rerender(
       <WorkingTagImpact
@@ -132,13 +142,93 @@ describe('WorkingTagImpact', () => {
       />
     )
 
-    expect(await screen.findByText('Provisional selective-follow ranking')).toBeInTheDocument()
-    expect(screen.getByText(/IN anchors 1 → 2/i)).toBeInTheDocument()
+    expect(await screen.findByText('Candidate ranking available')).toBeInTheDocument()
+    expect(screen.getByText(/IN examples 1 → 2/i)).toBeInTheDocument()
     expect(screen.getByText(/@other moved #2 → #1/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Review @other' }))
     await waitFor(() => expect(onReviewCandidate).toHaveBeenCalledWith({
       accountId: 'y',
       username: 'other',
     }))
+  })
+
+  it('labels a first post-judgment measurement without inventing a baseline delta', async () => {
+    fetchTagFrontier.mockResolvedValue(frontier({
+      positive: 1,
+      candidateCount: 2,
+    }))
+
+    render(
+      <WorkingTagImpact
+        ego="adityaarpitha"
+        tag="New tag"
+        availableTags={['New tag']}
+        revision={1}
+        onTagChange={vi.fn()}
+        onReviewCandidate={vi.fn()}
+      />
+    )
+
+    expect(await screen.findByText('First measured state since your latest judgment'))
+      .toBeInTheDocument()
+    expect(screen.getByText(/no pre-judgment baseline was captured/i))
+      .toBeInTheDocument()
+    expect(screen.getByText(/current measured state: 1 IN example; 2 candidates/i))
+      .toBeInTheDocument()
+    expect(screen.queryByText(/IN examples 0 → 1/i)).not.toBeInTheDocument()
+  })
+
+  it('removes a prior ranking when revision recomputation fails', async () => {
+    const onReviewCandidate = vi.fn()
+    let rejectRecomputation
+    const recomputation = new Promise((resolve, reject) => {
+      rejectRecomputation = reject
+    })
+    fetchTagFrontier
+      .mockResolvedValueOnce(frontier({
+        candidates: [{
+          accountId: 'prior',
+          username: 'prior-candidate',
+          positiveRawSupport: 1,
+          negativeRawSupport: 0,
+        }],
+      }))
+      .mockReturnValueOnce(recomputation)
+
+    const { rerender } = render(
+      <WorkingTagImpact
+        ego="adityaarpitha"
+        tag="Dharma"
+        availableTags={['Dharma']}
+        revision={0}
+        onTagChange={vi.fn()}
+        onReviewCandidate={onReviewCandidate}
+      />
+    )
+    expect(await screen.findByRole('button', { name: 'Review @prior-candidate' }))
+      .toBeInTheDocument()
+
+    rerender(
+      <WorkingTagImpact
+        ego="adityaarpitha"
+        tag="Dharma"
+        availableTags={['Dharma']}
+        revision={1}
+        onTagChange={vi.fn()}
+        onReviewCandidate={onReviewCandidate}
+      />
+    )
+
+    expect(await screen.findByText('Calculating candidates for this tag…'))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Review @prior-candidate' }))
+      .not.toBeInTheDocument()
+    await act(async () => {
+      rejectRecomputation(new Error('Recomputation unavailable'))
+    })
+    expect(await screen.findByText('Recomputation unavailable')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Review @prior-candidate' }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByText('Candidate ranking available')).not.toBeInTheDocument()
   })
 })

@@ -1,0 +1,86 @@
+.tag-suggestions {
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--bg-muted);
+}
+
+.tag-suggestions-header,
+.tag-suggestion-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tag-suggestions-header h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.tag-suggestions-header span,
+.tag-suggestions > p,
+.tag-suggestion-heading span,
+.tag-suggestion-review {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.tag-suggestions > p {
+  margin: 9px 0;
+  line-height: 1.45;
+}
+
+.tag-suggestions-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tag-suggestions article {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--panel);
+}
+
+.tag-suggestion-heading {
+  display: grid;
+  gap: 3px;
+}
+
+.tag-suggestions blockquote {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tag-suggestions button {
+  min-height: 36px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.tag-suggestion-dismiss {
+  color: var(--text-muted) !important;
+}
+
+.tag-suggestion-restore {
+  width: 100%;
+  margin-top: 9px;
+  border-style: dashed !important;
+}
+
+@media (max-width: 560px) {
+  .tag-suggestions-header,
+  .tag-suggestion-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

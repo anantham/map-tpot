@@ -5,6 +5,7 @@ import ResearchNotesInbox from './ResearchNotesInbox'
 import {
   deleteAccountTag,
   fetchAccountTags,
+  fetchTagMetaNote,
   listDistinctTags,
   upsertAccountTag,
 } from './accountsApi'
@@ -13,6 +14,10 @@ import {
   fetchResearchNotesSource,
   fetchTagFrontier,
 } from './researchNotes/researchNotesApi'
+import {
+  addAccounts,
+  UNBOUND_DOSSIER,
+} from './researchNotes/researchNotesTestSupport'
 
 vi.mock('./researchNotes/researchNotesApi', () => ({
   fetchResearchDossier: vi.fn(),
@@ -22,47 +27,16 @@ vi.mock('./researchNotes/researchNotesApi', () => ({
 vi.mock('./accountsApi', () => ({
   deleteAccountTag: vi.fn(),
   fetchAccountTags: vi.fn(),
+  fetchTagMetaNote: vi.fn(),
   listDistinctTags: vi.fn(),
+  saveTagMetaNote: vi.fn(),
   upsertAccountTag: vi.fn(),
 }))
-
-const UNBOUND_DOSSIER = {
-  bindingStatus: 'unbound',
-  provenance: {
-    source: 'mutable_local_archive',
-    snapshotBound: false,
-  },
-  account: {
-    accountId: 'acct-alice',
-    username: 'alice',
-    displayName: 'Alice',
-    bio: 'Meditation and distributed systems.',
-    location: 'Somewhere',
-    website: 'https://alice.example',
-    fetchedAt: '2026-07-22T00:00:00+00:00',
-  },
-  tweets: [
-    {
-      tweetId: 'tweet-1',
-      text: 'A note about jhana practice.',
-      createdAt: '2026-07-20T00:00:00+00:00',
-      favoriteCount: 12,
-      retweetCount: 2,
-      fetchedAt: '2026-07-22T00:00:00+00:00',
-    },
-  ],
-}
-
-function addAccounts(text) {
-  fireEvent.change(screen.getByLabelText('Paste accounts and notes'), {
-    target: { value: text },
-  })
-  fireEvent.click(screen.getByRole('button', { name: 'Add to queue' }))
-}
 
 describe('ResearchNotesInbox', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    localStorage.clear()
     fetchResearchDossier.mockResolvedValue(UNBOUND_DOSSIER)
     fetchResearchNotesSource.mockResolvedValue({
       configured: false,
@@ -84,6 +58,7 @@ describe('ResearchNotesInbox', () => {
       },
     })
     fetchAccountTags.mockResolvedValue({ tags: [] })
+    fetchTagMetaNote.mockResolvedValue({ current: null, history: [] })
     listDistinctTags.mockResolvedValue({ tags: ['Dharma', 'forecasting'] })
     upsertAccountTag.mockResolvedValue({ status: 'ok' })
     deleteAccountTag.mockResolvedValue({ status: 'deleted' })
@@ -120,6 +95,112 @@ describe('ResearchNotesInbox', () => {
     expect(upsertAccountTag).not.toHaveBeenCalled()
   })
 
+  it('keeps edited Takes accounts visible while stale proposals are quarantined', async () => {
+    const staleSource = {
+      configured: true,
+      source: {
+        name: "aditya's takes",
+        text: '@alice\ncurrent note\n\n@bob\nnewly added account',
+        sha256: 'current-sha',
+        bytes: 49,
+        modifiedAt: '2026-08-03T00:00:00Z',
+      },
+      suggestionsByHandle: {},
+      proposalMetadata: {
+        status: 'stale',
+        boundSourceSha256: 'old-sha',
+        currentSourceSha256: 'current-sha',
+      },
+    }
+    const refreshedSource = {
+      ...staleSource,
+      suggestionsByHandle: {
+        alice: [{
+          tag: 'Dharma',
+          polarity: 'in',
+          kind: 'affiliation',
+          quote: 'current note',
+        }],
+      },
+    }
+    delete refreshedSource.proposalMetadata
+    fetchResearchNotesSource
+      .mockResolvedValueOnce(staleSource)
+      .mockResolvedValueOnce(refreshedSource)
+
+    render(<ResearchNotesInbox ego="adityaarpitha" />)
+
+    expect(await screen.findByText('2 accounts in queue')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /suggestions are stale and hidden/i,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent(/old-sha.*current-sha/i)
+    expect(screen.queryByText('Suggested from your Takes')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reload Takes source' }))
+
+    expect(await screen.findByText('Suggested from your Takes')).toBeInTheDocument()
+    expect(screen.queryByText(/suggestions are stale and hidden/i))
+      .not.toBeInTheDocument()
+    expect(fetchResearchNotesSource).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not overwrite manual paste text when the Takes source arrives late', async () => {
+    let resolveSource
+    fetchResearchNotesSource.mockReturnValue(new Promise((resolve) => {
+      resolveSource = resolve
+    }))
+    render(<ResearchNotesInbox ego="adityaarpitha" />)
+    fireEvent.change(screen.getByLabelText('Paste accounts and notes'), {
+      target: { value: '@manual\nmy unfinished note' },
+    })
+
+    await act(async () => resolveSource({
+      configured: true,
+      source: {
+        name: "aditya's takes",
+        text: '@source\nconfigured note',
+        sha256: 'source-sha',
+        bytes: 23,
+        modifiedAt: '2026-08-03T00:00:00Z',
+      },
+      suggestionsByHandle: {},
+    }))
+
+    expect(screen.getByLabelText('Paste accounts and notes'))
+      .toHaveValue('@manual\nmy unfinished note')
+    expect(await screen.findByText('1 account in queue')).toBeInTheDocument()
+  })
+
+  it('removes stale proposal status when a source reload fails', async () => {
+    fetchResearchNotesSource
+      .mockResolvedValueOnce({
+        configured: true,
+        source: {
+          name: "aditya's takes",
+          text: '@alice\ncurrent note',
+          sha256: 'current-sha',
+          bytes: 19,
+          modifiedAt: '2026-08-03T00:00:00Z',
+        },
+        suggestionsByHandle: {},
+        proposalMetadata: {
+          status: 'stale',
+          boundSourceSha256: 'old-sha',
+          currentSourceSha256: 'current-sha',
+        },
+      })
+      .mockRejectedValueOnce(new Error('reload offline'))
+    render(<ResearchNotesInbox ego="adityaarpitha" />)
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Reload Takes source',
+    }))
+
+    expect(await screen.findByText(/Takes source unavailable: reload offline/i))
+      .toBeInTheDocument()
+    expect(screen.queryByText(/Proposal receipt:/i)).not.toBeInTheDocument()
+  })
+
   it('turns messy notes into a manual evidence-and-tag queue', async () => {
     render(<ResearchNotesInbox ego="adityaarpitha" />)
 
@@ -135,9 +216,9 @@ describe('ResearchNotesInbox', () => {
     expect(fetchResearchDossier).toHaveBeenCalledWith({ handle: 'alice' })
     expect(await screen.findByText('Meditation and distributed systems.')).toBeInTheDocument()
     expect(screen.getByText('A note about jhana practice.')).toBeInTheDocument()
-    expect(screen.getByText(/manual queue/i)).toBeInTheDocument()
+    expect(screen.getByText(/browser-local queue/i)).toBeInTheDocument()
     expect(screen.getByText(/not disagreement-ranked/i)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Account tags' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Current tags for @alice' })).toBeInTheDocument()
     await waitFor(() => {
       expect(fetchAccountTags).toHaveBeenCalledWith({
         ego: 'adityaarpitha',
@@ -150,6 +231,9 @@ describe('ResearchNotesInbox', () => {
 
   it('lets the curator choose an ontology owner without graph membership', async () => {
     render(<ResearchNotesInbox />)
+
+    expect(screen.getByText(/research queue and account notes are device-wide/i))
+      .toBeInTheDocument()
 
     addAccounts('@alice')
     await screen.findByRole('heading', { name: '@alice' })
@@ -165,168 +249,23 @@ describe('ResearchNotesInbox', () => {
         accountId: 'acct-alice',
       })
     })
-    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Mark IN' })).toBeDisabled()
     expect(screen.queryByText('Set `ego` to tag accounts.')).not.toBeInTheDocument()
   })
 
-  it('supports extensional multi-tagging without asking for a definition', async () => {
-    fetchAccountTags
-      .mockResolvedValueOnce({ tags: [], events: [] })
-      .mockResolvedValueOnce({
-        tags: [{ tag: 'Dharma', polarity: 1, updated_at: 'now' }],
-        events: [],
-      })
-    render(<ResearchNotesInbox ego="adityaarpitha" />)
-
-    addAccounts('@alice clear dharma')
-    await screen.findByText('Meditation and distributed systems.')
-    fireEvent.click(await screen.findByRole('button', { name: 'Use Dharma tag' }))
-    expect(screen.getByPlaceholderText('e.g. AI alignment')).toHaveValue('Dharma')
-    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
-
-    await waitFor(() => {
-      expect(upsertAccountTag).toHaveBeenCalledWith({
-        ego: 'adityaarpitha',
-        accountId: 'acct-alice',
-        tag: 'Dharma',
-        polarity: 'in',
-        confidence: undefined,
-      })
-    })
-    expect(await screen.findByRole('button', { name: /@alice 1 tag/i }))
-      .toBeInTheDocument()
-    expect(screen.queryByText('Provisional boundary probes')).not.toBeInTheDocument()
-    expect(screen.queryByText(/necessary-and-sufficient/i)).not.toBeInTheDocument()
-  })
-
-  it('keeps investigation notes keyed to each account while tags persist separately', async () => {
-    fetchResearchDossier.mockImplementation(({ handle }) => Promise.resolve({
-      ...UNBOUND_DOSSIER,
-      account: {
-        ...UNBOUND_DOSSIER.account,
-        accountId: `acct-${handle}`,
-        username: handle,
-      },
-    }))
-    render(<ResearchNotesInbox ego="adityaarpitha" />)
-
-    addAccounts([
-      '@alice',
-      'Dharma teacher with explicit practice evidence.',
-      '',
-      '@bob',
-      'Meditation-adjacent builder; affiliation unclear.',
-    ].join('\n'))
-    await screen.findByText('Meditation and distributed systems.')
-
-    fireEvent.change(screen.getByLabelText('Investigation note'), {
-      target: { value: 'Alice: explicit practice evidence.' },
-    })
-
-    expect(await screen.findByRole('button', { name: /@alice unclassified/i }))
-      .toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /@bob/i }))
-    await screen.findByRole('heading', { name: '@bob' })
-    expect(screen.getByLabelText('Investigation note')).toHaveValue(
-      '@bob\nMeditation-adjacent builder; affiliation unclear.',
-    )
-    fireEvent.click(screen.getByRole('button', { name: /@alice/i }))
-    await screen.findByRole('heading', { name: '@alice' })
-    expect(screen.getByLabelText('Investigation note')).toHaveValue(
-      'Alice: explicit practice evidence.',
-    )
-  })
-
-  it('states that target-scoped model position is unavailable instead of showing legacy membership', async () => {
+  it('explains the absent model opinion without showing legacy membership', async () => {
     render(<ResearchNotesInbox ego="adityaarpitha" />)
 
     addAccounts('@alice')
     await screen.findByText('Meditation and distributed systems.')
 
-    expect(screen.getByRole('heading', { name: 'Model position' })).toBeInTheDocument()
-    expect(screen.getByText(/no target-scoped prediction/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', {
+      name: 'Model opinion — none yet (needs more tags)',
+    })).toBeInTheDocument()
+    expect(screen.getByText(/choose or add a tag/i)).toBeInTheDocument()
     expect(screen.getByText(/legacy NMF percentages are intentionally not shown/i))
       .toBeInTheDocument()
     expect(screen.queryByText(/\d+% membership/i)).not.toBeInTheDocument()
   })
 
-  it('does not restore stale tags after switching accounts', async () => {
-    let resolveAliceTags
-    fetchResearchDossier.mockImplementation(({ handle }) => Promise.resolve({
-      ...UNBOUND_DOSSIER,
-      account: {
-        ...UNBOUND_DOSSIER.account,
-        accountId: `acct-${handle}`,
-        username: handle,
-      },
-    }))
-    fetchAccountTags.mockImplementation(({ accountId }) => {
-      if (accountId === 'acct-alice') {
-        return new Promise((resolve) => {
-          resolveAliceTags = resolve
-        })
-      }
-      return Promise.resolve({
-        tags: [{ tag: 'Bob only', polarity: 1, updated_at: 'now' }],
-        events: [],
-      })
-    })
-    render(<ResearchNotesInbox ego="adityaarpitha" />)
-
-    addAccounts('@alice\n\n@bob')
-    await screen.findByRole('heading', { name: '@alice' })
-    await waitFor(() => {
-      expect(fetchAccountTags).toHaveBeenCalledWith({
-        ego: 'adityaarpitha',
-        accountId: 'acct-alice',
-      })
-    })
-    fireEvent.click(screen.getByRole('button', { name: /@bob/i }))
-    await screen.findByRole('heading', { name: '@bob' })
-    expect(await screen.findByText('Bob only')).toBeInTheDocument()
-
-    await act(async () => {
-      resolveAliceTags({
-        tags: [{ tag: 'Alice only', polarity: 1, updated_at: 'now' }],
-        events: [],
-      })
-    })
-    expect(screen.getByText('Bob only')).toBeInTheDocument()
-    expect(screen.queryByText('Alice only')).not.toBeInTheDocument()
-  })
-
-  it('locks tag writes until retry resolves a stable archive identity', async () => {
-    fetchResearchDossier
-      .mockRejectedValueOnce(new Error('dossier unavailable for @alice'))
-      .mockResolvedValueOnce(UNBOUND_DOSSIER)
-    render(<ResearchNotesInbox ego="adityaarpitha" />)
-
-    addAccounts('@alice')
-    expect(
-      await screen.findByText('dossier unavailable for @alice'),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /@alice/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open @alice on X' }))
-      .toHaveAttribute('href', 'https://x.com/alice')
-    expect(screen.getByText(/tagging stays locked/i)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Account tags' }))
-      .not.toBeInTheDocument()
-    expect(fetchAccountTags).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Retry dossier' }))
-
-    expect(
-      await screen.findByText('Meditation and distributed systems.'),
-    ).toBeInTheDocument()
-    await waitFor(() => {
-      expect(fetchResearchDossier).toHaveBeenCalledTimes(2)
-      expect(fetchAccountTags).toHaveBeenLastCalledWith({
-        ego: 'adityaarpitha',
-        accountId: 'acct-alice',
-      })
-    })
-    expect(screen.getByRole('heading', { name: 'Account tags' }))
-      .toBeInTheDocument()
-  })
 })
