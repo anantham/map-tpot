@@ -134,8 +134,10 @@ def test_bound_model_proposals_are_returned_without_becoming_tags(
     response = source_client.get("/api/research-notes/source")
 
     assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "private, no-store"
     payload = response.get_json()
     assert payload["suggestionsByHandle"] == suggestions
+    assert "proposalMetadata" not in payload
     assert "tags" not in payload
     assert "judgments" not in payload
 
@@ -158,15 +160,21 @@ def test_source_rejects_oversize_private_file(
 
 
 @pytest.mark.integration
-def test_source_rejects_oversize_proposals_file(
+@pytest.mark.parametrize(
+    "proposal_bytes",
+    [b"{not-json", b"x" * (PROPOSALS_LIMIT_BYTES + 1)],
+    ids=["malformed", "oversize"],
+)
+def test_source_quarantines_invalid_proposals_without_hiding_source(
     source_client,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    proposal_bytes: bytes,
 ) -> None:
     source_path = tmp_path / "takes"
     source_path.write_text("@Alice\n", encoding="utf-8")
-    proposals_path = tmp_path / "too-large-proposals"
-    proposals_path.write_bytes(b"x" * (PROPOSALS_LIMIT_BYTES + 1))
+    proposals_path = tmp_path / "invalid-proposals"
+    proposals_path.write_bytes(proposal_bytes)
     monkeypatch.setenv("RESEARCH_NOTES_SOURCE_PATH", str(source_path))
     monkeypatch.setenv(
         "RESEARCH_NOTES_PROPOSALS_PATH",
@@ -175,25 +183,30 @@ def test_source_rejects_oversize_proposals_file(
 
     response = source_client.get("/api/research-notes/source")
 
-    assert response.status_code == 413
-    assert "1048576-byte limit" in response.get_json()["error"]
-    assert str(proposals_path) not in response.get_json()["error"]
+    assert response.status_code == 200
+    assert response.get_json()["source"]["text"] == "@Alice\n"
+    assert response.get_json()["suggestionsByHandle"] == {}
+    assert response.get_json()["proposalMetadata"] == {"status": "invalid"}
 
 
 @pytest.mark.integration
-def test_proposals_must_match_the_exact_source_receipt(
+def test_stale_proposals_are_quarantined_without_hiding_edited_source(
     source_client,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source_path = tmp_path / "takes"
-    source_path.write_text("@Alice\n", encoding="utf-8")
+    old_source = b"@Alice\n"
+    old_source_sha = hashlib.sha256(old_source).hexdigest()
+    current_source = "@Alice\n@Bob\n"
+    source_path.write_text(current_source, encoding="utf-8")
+    current_source_sha = hashlib.sha256(current_source.encode()).hexdigest()
     proposals_path = tmp_path / "proposals.json"
     proposals_path.write_text(
         json.dumps(
             {
                 "schemaVersion": 1,
-                "sourceSha256": "0" * 64,
+                "sourceSha256": old_source_sha,
                 "proposalStatus": "model-proposed",
                 "goldStatus": "not-gold",
                 "permissions": {
@@ -201,7 +214,9 @@ def test_proposals_must_match_the_exact_source_receipt(
                     "mayScore": False,
                     "mayAutoWriteTags": False,
                 },
-                "suggestionsByHandle": {},
+                "suggestionsByHandle": {
+                    "alice": [{"unsafeToExpose": True}],
+                },
             }
         ),
         encoding="utf-8",
@@ -214,7 +229,56 @@ def test_proposals_must_match_the_exact_source_receipt(
 
     response = source_client.get("/api/research-notes/source")
 
-    assert response.status_code == 409
-    assert response.get_json()["error"] == (
-        "Research Notes proposals do not match the configured source"
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "private, no-store"
+    payload = response.get_json()
+    assert payload["configured"] is True
+    assert payload["source"]["text"] == current_source
+    assert payload["suggestionsByHandle"] == {}
+    assert payload["proposalMetadata"] == {
+        "status": "stale",
+        "boundSourceSha256": old_source_sha,
+        "currentSourceSha256": current_source_sha,
+    }
+    assert "unsafeToExpose" not in response.get_data(as_text=True)
+
+
+@pytest.mark.integration
+def test_unsafe_proposals_are_invalid_not_stale_and_never_leak(
+    source_client,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_path = tmp_path / "takes"
+    source_path.write_text("@Alice\n", encoding="utf-8")
+    source_sha = hashlib.sha256(source_path.read_bytes()).hexdigest()
+    proposals_path = tmp_path / "proposals.json"
+    proposals_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "sourceSha256": source_sha,
+                "proposalStatus": "model-proposed",
+                "goldStatus": "not-gold",
+                "permissions": {
+                    "mayTrain": True,
+                    "mayScore": False,
+                    "mayAutoWriteTags": False,
+                },
+                "suggestionsByHandle": {
+                    "alice": [{"unsafeToExpose": True}],
+                },
+            }
+        ),
+        encoding="utf-8",
     )
+    monkeypatch.setenv("RESEARCH_NOTES_SOURCE_PATH", str(source_path))
+    monkeypatch.setenv("RESEARCH_NOTES_PROPOSALS_PATH", str(proposals_path))
+
+    response = source_client.get("/api/research-notes/source")
+
+    assert response.status_code == 200
+    assert response.get_json()["source"]["text"] == "@Alice\n"
+    assert response.get_json()["suggestionsByHandle"] == {}
+    assert response.get_json()["proposalMetadata"] == {"status": "invalid"}
+    assert "unsafeToExpose" not in response.get_data(as_text=True)
