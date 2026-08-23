@@ -22,9 +22,12 @@
       setup-node, and one setup-python references. The contract verifier failed
       the expected three pin checks at `20/23` before the workflow change and
       passed `23/23` afterward. Python 3.11 and project Node 22 remain unchanged.
-    - **Remaining gate:** run the protected push/PR workflows and require all
-      three jobs to pass with zero Node 20 action-runtime annotations before
-      merging or marking the roadmap item complete.
+    - **Hosted proof:** push run `32630550537` and PR run `32630564140` each
+      passed all three jobs. Direct annotation queries for all six check-run
+      IDs returned `0`; the former Node 20 runtime warning is absent. This
+      confirms the action-runtime hypothesis without changing project runtimes.
+      The evidence update will receive one final protected run before PR #10 is
+      merged and the roadmap item becomes complete on main.
 
 ## Hosted CI Discovery and Main Protection (2026-08-23)
 
