@@ -6,6 +6,8 @@ the username resolver and the propagated-handle gate.
 """
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 import logging
 import sqlite3
 from pathlib import Path
@@ -236,7 +238,7 @@ def _load_npz_memberships(
         memberships_by_id: {account_id: [{community_id, weight, seed_neighbors?}]}
     """
     # Note: allow_pickle needed for mode string array
-    data = np.load(str(npz_path), allow_pickle=False)
+    data = load_npz_arrays(str(npz_path))
     memberships_arr = data["memberships"]      # (N, K+1) -- last col is "none"
     node_ids = data["node_ids"]                # (N,)
     community_ids = data["community_ids"]      # (K,)
@@ -329,7 +331,7 @@ def extract_band_accounts(
             raise RuntimeError(
                 f"account_band propagation artifact is missing: {npz_path}"
             )
-        with np.load(str(npz_path), allow_pickle=False) as propagation:
+        with load_npz_arrays(str(npz_path)) as propagation:
             require_supported_band_artifact(propagation)
 
         # Load all band assignments (including 'unknown' as 'faint')
@@ -497,7 +499,7 @@ def extract_propagated_handles(
     Returns dict keyed by lowercase username:
         {handle: {tier: "propagated", memberships: [{community_id, community_name, weight}]}}
     """
-    data = np.load(str(npz_path), allow_pickle=False)
+    data = load_npz_arrays(str(npz_path))
     memberships = data["memberships"]       # (N, K+1)
     abstain_mask = data["abstain_mask"]      # (N,)
     node_ids = data["node_ids"]              # (N,)

@@ -1,4 +1,9 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "codex/security-tpot-source-only-20261002": false
+    }
+  },
   "functions": {
     "api/generate-card.js": {
       "maxDuration": 60

@@ -29,6 +29,8 @@ Usage:
 
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 import argparse
 import logging
 import math
@@ -72,11 +74,10 @@ CREATE TABLE IF NOT EXISTS frontier_ranking (
 def load_propagation(npz_path: Path) -> dict:
     """Load community_propagation.npz.
 
-    NOTE: allow_pickle=True is required because numpy's npz format uses
-    pickle internally for object/string arrays. This file is our own cached
-    propagation output, not untrusted external data.
+    Numeric and Unicode arrays are loaded with pickle disabled. Regenerate
+    any legacy object arrays from source data rather than converting pickle.
     """
-    data = np.load(str(npz_path), allow_pickle=True)  # own cached data, safe
+    data = load_npz_arrays(str(npz_path))
     require_supported_band_artifact(data)
     return {
         "memberships": data["memberships"],

@@ -255,6 +255,7 @@ def temp_snapshot_dir(tmp_path, monkeypatch):
     create_test_cache_db(cache_path)
 
     monkeypatch.setenv("SNAPSHOT_DIR", str(snapshot_dir))
+    monkeypatch.setenv("TPOT_LOG_DIR", str(tmp_path / "logs"))
     monkeypatch.setenv("CACHE_DB_PATH", str(cache_path))
 
     return snapshot_dir

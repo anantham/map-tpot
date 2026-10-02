@@ -70,7 +70,7 @@ describe('fetchSeedState', () => {
   it('GETs /api/seeds at the configured base URL', async () => {
     mockFetch.mockResolvedValue(mockResponse({ lists: [] }))
     await fetchSeedState()
-    expect(mockFetch).toHaveBeenCalledWith('http://test-api/api/seeds')
+    expect(mockFetch).toHaveBeenCalledWith('http://test-api/api/seeds', { headers: { 'X-TPOT-Curator-Token': 'test-curator-token' } })
   })
 
   it('returns parsed JSON on success', async () => {
@@ -254,6 +254,7 @@ describe('fetchAnalysisStatus', () => {
     await fetchAnalysisStatus()
     expect(mockFetch).toHaveBeenCalledWith(
       'http://test-api/api/analysis/status',
+      { headers: { 'X-TPOT-Curator-Token': 'test-curator-token' } },
     )
   })
 
@@ -478,6 +479,7 @@ describe('fetchSignalQualityReport', () => {
     await fetchSignalQualityReport()
     expect(mockFetch).toHaveBeenCalledWith(
       'http://test-api/api/signals/quality',
+      { headers: { 'X-TPOT-Curator-Token': 'test-curator-token' } },
     )
   })
 

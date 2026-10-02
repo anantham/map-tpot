@@ -1046,3 +1046,15 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
   pre-dry-run paid identity calls, account-level budget overruns, missing
   receipts, and timeless union writes in the current paths. Start with a
   maximum `$0.25` non-holdout microtrial rather than the available `$5` cap.
+
+
+## Security rollout follow-ups — 2026-10-02
+
+- [x] Implement and independently review the 19 scan boundary dispositions on remote main, with synthetic regressions and a source-only draft publication path; see [security report](diagnostics/security-source-only-20261002.md).
+- [ ] Verify GitHub CI and Codex automatic review on the draft PR before considering merge; merge/deploy remain unapproved.
+- [ ] Confirm provider worst-case billing and an approved atomic reservation before enabling sponsored generation.
+- [ ] Implement bounded subprocess supervision for whole-graph analysis/metrics; these routes currently fail closed.
+- [ ] Rebuild typed graph artifacts/frozen manifests and recapture JSON cookies; validate legacy migrations separately without executable pickle.
+- [ ] Owner review of historical Git disclosure and gallery/feedback physical retention; no destructive cleanup/visibility change without authorization.
+- [ ] Establish provenance for the inherited medium_graph fixture before local materialization; dedicated cluster verification remains qualified.
+- [ ] Split inherited large server, analysis-manager, extension and archive-store modules into coherent sections; security helpers are extracted but existing orchestration debt remains.

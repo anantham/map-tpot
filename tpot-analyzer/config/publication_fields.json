@@ -1,0 +1,15 @@
+{
+  "version": "public-site-v1",
+  "definitions": {
+    "membership": {"community_id": "string", "weight": "number", "stability": "number", "ci": ["number"], "seed_neighbors": "number"},
+    "evidence": {"seed_neighbors_by_community": {"*": "number"}, "notable_follows": [{"handle": "string", "community": "string"}], "notable_followers": [{"handle": "string", "community": "string"}]},
+    "account": {"id": "string", "tier": "string", "handle": "string?", "username": "string?", "display_name": "string?", "bio": "string?", "followers": "number?", "confidence": "number", "confidence_level": "string", "memberships": [{"$ref": "membership"}], "sample_tweets": ["string"], "evidence": {"$ref": "evidence"}},
+    "search_entry": {"tier": "string", "memberships": [{"$ref": "membership"}], "confidence": "number", "bio": "string?", "display_name": "string?", "followers": "number?", "seed_neighbors": "number", "sample_tweets": ["string"], "evidence": {"$ref": "evidence"}}
+  },
+  "data": {
+    "communities": [{"id": "string", "name": "string", "short_name": "string?", "color": "string?", "description": "string?", "member_count": "number", "slug": "string", "featured_members": [{"username": "string", "display_name": "string?", "bio": "string?", "weight": "number", "tweets": [{"id": "string", "text": "string", "created_at": "string?", "type": "string", "favorite_count": "number", "retweet_count": "number"}]}], "all_members": [{"username": "string", "display_name": "string?", "bio": "string?"}]}],
+    "accounts": [{"$ref": "account"}],
+    "meta": {"site_name": "string", "curator": "string?", "links": {"curator_dm": "string", "community_archive": "string", "repo": "string", "curator_site": "string"}, "exported_at": "string", "counts": {"communities": "number", "total_accounts": "number", "by_band": {"*": "number"}, "total_searchable": "number"}}
+  },
+  "search": {"*": {"$ref": "search_entry"}}
+}

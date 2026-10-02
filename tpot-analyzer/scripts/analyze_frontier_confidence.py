@@ -9,6 +9,8 @@ Usage:
 """
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 import argparse
 import sqlite3
 from pathlib import Path
@@ -28,7 +30,7 @@ PROP_PATH = DATA_DIR / "community_propagation.npz"
 
 def load_propagation(path: Path):
     """Load the propagation artifact used by this analysis."""
-    propagation = np.load(str(path), allow_pickle=True)
+    propagation = load_npz_arrays(str(path))
     require_supported_band_artifact(propagation)
     return propagation
 

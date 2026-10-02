@@ -95,7 +95,7 @@ def verify_frozen_outputs(data_dir: Path, control) -> None:
         f"dims={tpot_spectral.embedding_dims}"
     )
     tpot_adjacency = load_adjacency_cache(
-        data_dir / "adjacency_matrix_cache.tpot.pkl"
+        data_dir / "adjacency_matrix_cache.tpot.npz"
     )
     tpot_binding = validate_adjacency_binding(
         tpot_adjacency,

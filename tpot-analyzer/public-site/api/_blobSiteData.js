@@ -4,6 +4,16 @@ const SITE_DATA_BLOB_PATHS = {
   data: "public-site/data.json",
   search: "public-site/search.json",
 };
+function selectedPath(kind) {
+  const release = process.env.PUBLIC_SITE_RELEASE_DIGEST;
+  if (!release) return SITE_DATA_BLOB_PATHS[kind];
+  if (!/^[a-f0-9]{64}$/.test(release)) {
+    const error = new Error('Invalid PUBLIC_SITE_RELEASE_DIGEST');
+    error.code = 'config_error';
+    throw error;
+  }
+  return `public-site/releases/${release}/${kind}.json`;
+}
 
 async function readBlobBuffer(pathname) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -44,15 +54,16 @@ async function serveBlobJson(req, res, kind) {
     });
   }
 
-  const pathname = SITE_DATA_BLOB_PATHS[kind];
-  if (!pathname) {
+  if (!SITE_DATA_BLOB_PATHS[kind]) {
     return res.status(500).json({
       error: `Unknown site data blob kind: ${kind}`,
       code: "config_error",
     });
   }
 
+  let pathname;
   try {
+    pathname = selectedPath(kind);
     const blobPayload = await readBlobBuffer(pathname);
     if (!blobPayload) {
       return res.status(404).json({
@@ -83,4 +94,5 @@ async function serveBlobJson(req, res, kind) {
 module.exports = {
   SITE_DATA_BLOB_PATHS,
   serveBlobJson,
+  selectedPath,
 };

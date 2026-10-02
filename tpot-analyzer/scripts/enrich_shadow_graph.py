@@ -31,8 +31,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cookies",
         type=Path,
-        default=Path("secrets/twitter_cookies.pkl"),
-        help="Path to Chrome cookies pickle (default: secrets/twitter_cookies.pkl). If the file is missing, you'll be prompted to choose from secrets/*.pkl.",
+        default=Path("secrets/twitter_cookies.json"),
+        help="Path to Chrome cookies JSON (default: secrets/twitter_cookies.json). If the file is missing, you'll be prompted to choose from secrets/*.json.",
     )
     parser.add_argument(
         "--seeds",
@@ -234,7 +234,7 @@ def _resolve_cookie_path(args: argparse.Namespace) -> Path:
     if candidate.exists():
         return candidate
 
-    default_path = Path("secrets/twitter_cookies.pkl")
+    default_path = Path("secrets/twitter_cookies.json")
     if candidate != default_path:
         raise FileNotFoundError(f"Cookie file not found at {candidate}.")
 
@@ -244,7 +244,7 @@ def _resolve_cookie_path(args: argparse.Namespace) -> Path:
             "Default cookie path missing and secrets/ directory does not exist."
         )
 
-    cookie_files = sorted(p for p in secrets_dir.glob("*.pkl") if p.is_file())
+    cookie_files = sorted(p for p in secrets_dir.glob("*.json") if p.is_file())
     if not cookie_files:
         raise FileNotFoundError(
             "No cookie files found in secrets/. Run scripts/setup_cookies.py first."

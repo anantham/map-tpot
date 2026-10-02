@@ -3434,3 +3434,13 @@
         - The mounted `Communities.jsx` (661 LOC) and `AccountDeepDive.jsx` (540 LOC) remain pre-existing monolith debt already tracked in `docs/ROADMAP.md`; this slice only added imports/labels/notices and did not attempt a mixed refactor.
         - `public-site/src/CommunityCard.test.jsx` remains inherited 325-LOC debt after changing the old percentage assertion; its fixture-preserving split is tracked separately in `docs/ROADMAP.md`.
         - Prompt extraction reduced `GenerateCard.jsx` from 407 to 345 LOC and `api/generate-card.js` from 460 to 353 LOC, but both remain inherited decomposition debt; the client remainder is now explicitly tracked alongside the existing server item.
+
+
+## 2026-10-02 — Source-only security remediation on remote main
+
+- Approved implementation/tests were reproduced on remote base `6f030442` in an isolated sparse worktree. All 19 dispositions, dependencies and residual decisions are in [the security report](diagnostics/security-source-only-20261002.md).
+- Changes cover paid admission, owned gallery publication, Flask trust/workload limits, pinned outbound transport, bounded archives/artifacts/cookies, publication projection and CI prevention. No personal artifacts or unpublished ancestor commits are added.
+- Fresh-base regression: 1,933 Python/5 skips, 265 public, 794 graph, six Node publication tests; both builds pass. Static taxonomy and price-card configuration were required; the unknown binary cluster fixture remains excluded and its dedicated verifier is not claimed green.
+- Original local handoff actual 66m40s versus three-hour estimate. Fresh-base follow-on began 12:31:14 UTC, separate 25–40m estimate. Independent re-review finished 12:43:03 UTC after 7m39s; byte-equivalence explains the reduction.
+- Branch-specific Vercel Git suppression prevents preview deployment during the explicitly approved draft PR/Codex review flow. Production deployment, historical cleanup and safe-artifact recertification remain separate gates.
+- Large inherited modules touched by narrow security changes (server, analysis manager, extension and archive store) remain decomposition debt; the newly extracted security modules and card UI stay within the 300-line gate. See ROADMAP.

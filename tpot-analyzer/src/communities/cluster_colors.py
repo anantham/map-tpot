@@ -24,6 +24,8 @@ Used by src/api/cluster/ to add community fields to the API response.
 """
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 import logging
 import math
 from dataclasses import dataclass, field
@@ -84,7 +86,7 @@ def load_propagation(path: Path) -> Optional[PropagationData]:
         return None
 
     try:
-        data = np.load(str(path), allow_pickle=True)
+        data = load_npz_arrays(str(path))
     except Exception:
         logger.exception("Failed to load propagation file: %s", path)
         return None

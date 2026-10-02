@@ -13,6 +13,8 @@ Usage:
 """
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 import argparse
 import json
 import logging
@@ -132,7 +134,7 @@ def get_tier1_account_ids(
         logger.error("No propagation data at %s", npz_path)
         return []
 
-    npz = np.load(str(npz_path), allow_pickle=True)
+    npz = load_npz_arrays(str(npz_path))
     node_ids = npz["node_ids"]
     seed_neighbor_counts = npz["seed_neighbor_counts"]
     labeled_mask = npz["labeled_mask"]

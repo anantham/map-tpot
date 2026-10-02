@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { getAllCachedCards, cacheCard } from './GenerateCard'
 import LegacyMapNotice from './LegacyMapNotice'
 import './card-gallery.css'
+import {fetchGalleryCards} from './galleryPages'
 
 function GalleryCardImage({ src, alt, onClick }) {
   const [loaded, setLoaded] = useState(false)
@@ -60,9 +61,10 @@ export default function CardGallery({ onMemberClick, onBack, galleryMode = 'all'
     }
 
     // Then fetch server gallery and merge with local (local wins for freshness)
-    fetch('/api/gallery')
-      .then(r => r.json())
-      .then(data => {
+    const controller = new AbortController()
+    fetchGalleryCards(controller.signal)
+      .then(serverCards => {
+        const data = {cards:serverCards}
         if (data.cards && data.cards.length > 0) {
           // Merge: local cards + server cards, dedup by handle, prefer local (fresher)
           const localCards = getAllCachedCards()
@@ -80,6 +82,7 @@ export default function CardGallery({ onMemberClick, onBack, galleryMode = 'all'
       })
       .catch(() => {})
       .finally(() => setLoading(false))
+    return () => controller.abort()
   }, [])
 
   const handleCardClick = (card, index) => {

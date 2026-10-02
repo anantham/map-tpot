@@ -7,11 +7,12 @@ from pathlib import Path
 
 from src.artifacts.digests import file_sha256
 
+FROZEN_SCHEMA_VERSION = 2
 MANIFEST_RELATIVE_PATH = Path("manifests/frozen_control_compatibility.json")
 REQUIRED_FROZEN_FILES = {
     "graph_snapshot.nodes.parquet",
     "graph_snapshot.edges.parquet",
-    "adjacency_matrix_cache.pkl",
+    "adjacency_matrix_cache.npz",
     "graph_snapshot.spectral.npz",
     "graph_snapshot.spectral_meta.json",
     "community_propagation_train.npz",
@@ -23,7 +24,7 @@ REQUIRED_FROZEN_FILES = {
     "graph_snapshot_tpot.edges.parquet",
     "graph_snapshot_tpot.spectral.npz",
     "graph_snapshot_tpot.spectral_meta.json",
-    "adjacency_matrix_cache.tpot.pkl",
+    "adjacency_matrix_cache.tpot.npz",
 }
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
@@ -40,8 +41,8 @@ def load_frozen_manifest(data_dir: Path) -> dict:
         manifest = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         raise FrozenManifestError(f"cannot read frozen manifest {path}: {exc}") from exc
-    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
-        raise FrozenManifestError("frozen manifest must declare schema_version=1")
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != FROZEN_SCHEMA_VERSION:
+        raise FrozenManifestError("frozen manifest must declare schema_version=2; regenerate and re-certify legacy pickle bundles")
     files = manifest.get("files")
     if not isinstance(files, dict):
         raise FrozenManifestError("frozen manifest files must be an object")

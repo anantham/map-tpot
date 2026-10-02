@@ -10,7 +10,7 @@ Test Intent:
 from __future__ import annotations
 
 import json
-import pickle
+from src.artifacts.safe_io import save_sparse_cache
 import sqlite3
 from pathlib import Path
 
@@ -77,8 +77,7 @@ def _seed_eval_fixture(snapshot_dir: Path) -> CommunityGoldStore:
             ]
         )
     )
-    with open(snapshot_dir / "adjacency_matrix_cache.pkl", "wb") as handle:
-        pickle.dump({"adjacency": adjacency}, handle)
+    save_sparse_cache(snapshot_dir / "adjacency_matrix_cache.npz", adjacency)
 
     store = CommunityGoldStore(db_path)
     store.upsert_label(account_id="acct-1", community_id="comm-a", reviewer="human", judgment="in")

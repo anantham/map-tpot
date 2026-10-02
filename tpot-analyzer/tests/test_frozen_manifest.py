@@ -26,7 +26,7 @@ def _write_manifest(data_dir):
     manifest_path.write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "bundle_id": "test-control",
                 "selected_propagation": "community_propagation_train.npz",
                 "files": records,
@@ -49,4 +49,14 @@ def test_rejects_tampered_frozen_file(tmp_path):
     (tmp_path / "graph_snapshot.spectral.npz").write_bytes(b"tampered")
 
     with pytest.raises(FrozenManifestError, match="mismatch.*spectral"):
+        verify_frozen_manifest(tmp_path)
+
+
+def test_legacy_pickle_manifest_requires_new_generation_recertification(tmp_path):
+    _write_manifest(tmp_path)
+    path = tmp_path / "manifests" / "frozen_control_compatibility.json"
+    legacy = json.loads(path.read_text())
+    legacy["schema_version"] = 1
+    path.write_text(json.dumps(legacy))
+    with pytest.raises(FrozenManifestError, match="schema_version=2.*re-certify"):
         verify_frozen_manifest(tmp_path)

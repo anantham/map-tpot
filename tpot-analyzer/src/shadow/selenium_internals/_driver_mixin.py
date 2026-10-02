@@ -6,7 +6,7 @@ assumes `self._driver`, `self._config`, `self._pause_callback`,
 """
 from __future__ import annotations
 
-import pickle
+from src.shadow.cookie_store import load_cookies
 import random
 import select
 import signal
@@ -174,10 +174,9 @@ class DriverLifecycleMixin:
         self._driver.get("https://twitter.com")
         self._apply_delay("post-login-load")
         try:
-            with self._config.cookies_path.open("rb") as fh:
-                cookies = pickle.load(fh)
-        except FileNotFoundError:
-            LOGGER.error("Cookie file missing at %s", self._config.cookies_path)
+            cookies = load_cookies(self._config.cookies_path)
+        except (OSError, ValueError) as exc:
+            LOGGER.error("Cookie file rejected at %s: %s; recapture with setup_cookies", self._config.cookies_path, exc)
             return False
 
         for cookie in cookies:

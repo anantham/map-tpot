@@ -2866,3 +2866,14 @@ What failed:
 **Data stored:** [Where the results live in the DB/filesystem]
 **Next step:** [What this enables or blocks]
 ```
+
+
+## EXP-SECURITY-20261002: Does the reviewed source patch work on remote main?
+
+**Date:** 2026-10-02
+**Question:** Can all supported scan boundaries be tested without carrying unpublished commits or personal artifacts?
+**Hypothesis:** The source-only patch applies to `6f030442`; existing regression needs static configuration but no private stores. Confidence 0.80.
+**Method:** Configure sparse exclusions before checkout; apply the source-only diff; run all Python/public/graph suites, builds, disposable Redis Lua contracts and independent re-review.
+**Result:** Initial all-data exclusion caused 72 test failures/five setup errors. Restoring only unchanged taxonomy and dated price-card configuration yielded 1,933 Python passes/five environment skips, 265 public, 794 graph, six Node tests and both builds. Independent re-review found no new source blocker. Unknown binary fixtures stayed absent.
+**Lesson:** Public schema/configuration paths must be distinguished from private artifact data; broad exclusions cannot silently become test skips. Local success does not prove remote CI/review completion or safe legacy migrations.
+**Next step:** Run required verification scripts, publish the approved source-only draft branch with Vercel branch deployment suppression, verify actual CI/Codex trigger, and retain separate merge/deployment/cleanup gates.

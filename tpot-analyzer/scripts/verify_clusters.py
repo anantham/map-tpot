@@ -6,6 +6,8 @@ granularities and treats any exception or failed check as a non-zero result.
 """
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npy_array
+
 import argparse
 import time
 from pathlib import Path
@@ -24,7 +26,7 @@ def status_line(ok: bool, msg: str) -> str:
 
 def load_array(path: Path) -> np.ndarray:
     if path.suffix == ".npy":
-        return np.load(path)
+        return load_npy_array(path)
     raise ValueError(f"Unsupported array format: {path}")
 
 

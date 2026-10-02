@@ -1,3 +1,4 @@
+import { analystFetch as fetch } from './analystFetch'
 /**
  * API functions for the Discovery view.
  *

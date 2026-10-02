@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import json
-import pickle
 from pathlib import Path
 from typing import Dict
 
 import numpy as np
 import scipy.sparse as sp
+
+from src.artifacts.safe_io import load_npz_arrays, load_sparse_cache, string_array
 
 
 class SnapshotArtifacts:
@@ -27,10 +28,10 @@ class SnapshotArtifacts:
             path = self.snapshot_dir / name
             if not path.exists():
                 continue
-            payload = np.load(path, allow_pickle=True)
+            payload = load_npz_arrays(path)
             if "node_ids" not in payload:
                 continue
-            self._node_ids = payload["node_ids"]
+            self._node_ids = string_array(payload["node_ids"], label="node IDs")
             return self._node_ids
         raise FileNotFoundError(
             f"Missing node-id artifact in {self.snapshot_dir} (expected graph_snapshot.spectral.npz or community_propagation.npz)"
@@ -56,11 +57,8 @@ class SnapshotArtifacts:
     def load_adjacency(self) -> sp.csr_matrix:
         if self._adjacency is not None:
             return self._adjacency
-        path = self.snapshot_dir / "adjacency_matrix_cache.pkl"
+        path = self.snapshot_dir / "adjacency_matrix_cache.npz"
         if not path.exists():
             raise FileNotFoundError(f"Missing adjacency artifact: {path}")
-        with open(path, "rb") as handle:
-            cached = pickle.load(handle)
-        adjacency = cached["adjacency"] if isinstance(cached, dict) and "adjacency" in cached else cached
-        self._adjacency = adjacency.tocsr()
+        self._adjacency = load_sparse_cache(path)[0]
         return self._adjacency

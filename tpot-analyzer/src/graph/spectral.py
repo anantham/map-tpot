@@ -6,6 +6,8 @@ import logging
 import time
 from datetime import datetime
 from pathlib import Path
+
+from src.artifacts.safe_io import load_npz_arrays, save_npz_arrays, string_array
 from typing import Any, Dict, Iterable, Optional
 
 import numpy as np
@@ -219,7 +221,7 @@ def save_spectral_result(result: SpectralResult, base_path: Path) -> None:
     """Persist spectral result arrays and metadata."""
     save_dict = {
         "embedding": result.embedding,
-        "node_ids": result.node_ids,
+        "node_ids": string_array(result.node_ids, label="node IDs"),
         "eigenvalues": result.eigenvalues,
         "linkage": result.linkage_matrix,
     }
@@ -230,10 +232,7 @@ def save_spectral_result(result: SpectralResult, base_path: Path) -> None:
     if result.micro_centroids is not None:
         save_dict["micro_centroids"] = result.micro_centroids
     
-    np.savez_compressed(
-        base_path.with_suffix(".spectral.npz"),
-        **save_dict
-    )
+    save_npz_arrays(base_path.with_suffix(".spectral.npz"), save_dict)
     meta_path = base_path.with_suffix(".spectral_meta.json")
     meta_path.write_text(json.dumps(result.metadata, indent=2))
     logger.info("Saved spectral result to %s(.spectral.*)", base_path)
@@ -241,13 +240,13 @@ def save_spectral_result(result: SpectralResult, base_path: Path) -> None:
 
 def load_spectral_result(base_path: Path) -> SpectralResult:
     """Load spectral result from disk."""
-    data = np.load(base_path.with_suffix(".spectral.npz"))
+    data = load_npz_arrays(base_path.with_suffix(".spectral.npz"))
     meta_path = base_path.with_suffix(".spectral_meta.json")
     metadata = json.loads(meta_path.read_text())
 
     # NpzFile doesn't have .get(), check keys explicitly
-    micro_labels = data["micro_labels"] if "micro_labels" in data.files else None
-    micro_centroids = data["micro_centroids"] if "micro_centroids" in data.files else None
+    micro_labels = data["micro_labels"] if "micro_labels" in data else None
+    micro_centroids = data["micro_centroids"] if "micro_centroids" in data else None
 
     return SpectralResult(
         embedding=data["embedding"],

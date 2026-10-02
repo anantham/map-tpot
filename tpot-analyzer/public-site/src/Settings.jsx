@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import CardGrantInput from './CardGrantInput';
 
 const LOCALSTORAGE_KEY = "openrouter_key";
 
@@ -154,6 +155,7 @@ export default function Settings({ open, onClose }) {
           </div>
         )}
 
+        <CardGrantInput />
         <button className="settings-close-btn" onClick={onClose}>
           Close
         </button>

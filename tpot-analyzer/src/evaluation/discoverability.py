@@ -1,6 +1,8 @@
 """Fast, deterministic diagnostics for the frozen discoverability control."""
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npy_array
+
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -249,7 +251,7 @@ def load_and_measure_frozen(data_dir: Path, seed_file: Path) -> dict:
     selected = pd.read_parquet(
         data_dir / "graph_snapshot_tpot.nodes.parquet", columns=["node_id"]
     )["node_id"].astype(str)
-    relevance = np.load(data_dir / "tpot_relevance_scores.npy", allow_pickle=False)
+    relevance = load_npy_array(data_dir / "tpot_relevance_scores.npy")
     calibration = json.loads((data_dir / "tpot_calibration.json").read_text())
     return measure_frozen_discoverability(
         nodes,

@@ -1,287 +1,117 @@
-/**
- * Contract tests for api/generate-card.js
- *
- * Strategy: handlers obtain kv/blobPut via api/_lib.js helpers. Tests inject
- * mocks via __setForTesting() and reset between cases. This avoids fragile
- * vi.mock interception of CommonJS require() calls into native node modules.
- */
 // @vitest-environment node
-
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
-import lib from '../../api/_lib.js'
-import handlerMod from '../../api/generate-card.js'
-import { mockReq, mockRes, makeMockRedis } from './_helpers'
-
-const handler = handlerMod.default || handlerMod
-const { __setForTesting, __reset } = lib.default || lib
-
-let mockRedis
-let mockBlobPut
-
-beforeAll(() => {
-  process.env.OPENROUTER_API_KEY = 'test-key'
-  process.env.CARD_DAILY_BUDGET = '5.00'
-})
-
-beforeEach(() => {
-  __reset()
-  mockRedis = makeMockRedis()
-  mockBlobPut = vi.fn()
-  __setForTesting({ kv: mockRedis, blobPut: mockBlobPut })
-  globalThis.fetch = vi.fn()
-})
-
-const validBody = () => ({
-  handle: 'alice',
-  bio: 'thinks about graphs',
-  communities: [{ name: 'EA', color: '#4a90e2', weight: 0.6, short_name: 'ea' }],
-  tweets: ['hello world'],
-})
-
-const mockOrSuccessResponse = (imageUrl = 'data:image/png;base64,aGVsbG8=', completionTokens = 100) => ({
-  ok: true,
-  status: 200,
-  json: () => Promise.resolve({
-    choices: [{ message: { images: [{ image_url: { url: imageUrl } }] } }],
-    usage: { completion_tokens: completionTokens },
-  }),
-})
-
-describe('generate-card: method + validation', () => {
-  it('returns 405 for non-POST', async () => {
-    const res = mockRes()
-    await handler(mockReq({ method: 'GET' }), res)
-    expect(res.statusCode).toBe(405)
-    expect(res.body.code).toBe('method_not_allowed')
-  })
-
-  it('returns 500 when OPENROUTER_API_KEY missing', async () => {
-    const original = process.env.OPENROUTER_API_KEY
-    delete process.env.OPENROUTER_API_KEY
-    try {
-      const res = mockRes()
-      await handler(mockReq({ method: 'POST', body: validBody() }), res)
-      expect(res.statusCode).toBe(500)
-      expect(res.body.code).toBe('config_error')
-    } finally {
-      process.env.OPENROUTER_API_KEY = original
+// Test intent: public cache and signed generation preserve UX while no denied,
+// replayed, concurrent or storage-failed request can reach the paid provider.
+import {beforeAll,beforeEach,afterAll,describe,it,expect,vi} from 'vitest';
+import {randomUUID} from 'node:crypto';
+import sharp from 'sharp';
+import lib from '../../api/_lib.js';
+import handler from '../../api/generate-card.js';
+import admission from '../../api/_cardAdmission.js';
+import fixture from './_redisFixture.cjs';
+import {mockReq,mockRes} from './_helpers';
+const redis = fixture.testRedis(2);
+const body = (handle='alice',force=false) => ({handle,bio:'graphs',communities:[{name:'EA',color:'#123456',weight:0.6}],tweets:['hello'],force});
+const req = (payload,options={}) => mockReq({method:'POST',body:payload,headers:{authorization:'Bearer '+admission.signCapability({kind:'generate',handle:payload.handle,digest:admission.digestBody(payload),subject:'synthetic-owner',expiresAt:Math.floor(Date.now()/1000)+300,force:payload.force,...options})}});
+let image;
+const success = () => new Response(JSON.stringify({choices:[{message:{images:[{image_url:{url:image}}]}}],usage:{cost:0.04}}),{status:200,headers:{'content-type':'application/json'}});
+const run = async request => {const res=mockRes();await handler(request,res);return res;};
+describe.skipIf(!redis)('generate-card contracts against disposable Redis',()=>{
+  beforeAll(async()=>{await redis.raw.connect();image='data:image/png;base64,'+(await sharp({create:{width:2,height:3,channels:3,background:'#123456'}}).png().toBuffer()).toString('base64');});
+  beforeEach(async()=>{
+    await redis.raw.flushdb();lib.__reset();
+    Object.assign(process.env,{OPENROUTER_API_KEY:'synthetic-key',CARD_CAPABILITY_SECRET:'synthetic-signing-key-with-at-least-32-bytes',CARD_DAILY_BUDGET:'5',CARD_REQUEST_RESERVATION_USD:'0.5',CARD_MAX_CONCURRENCY:'2',CARD_SPONSORED_ENABLED:'true',CARD_BLOB_BASE_URL:'https://teststore.public.blob.vercel-storage.com'});
+    lib.__setForTesting({kv:redis.kv,blobPut:vi.fn(async path=>({url:process.env.CARD_BLOB_BASE_URL+'/'+path}))});
+    globalThis.fetch=vi.fn(async()=>success());
+  });
+  afterAll(async()=>{lib.__reset();await redis.raw.quit();});
+  it('rejects methods and bounded invalid payloads',async()=>{
+    expect((await run(mockReq({method:'GET'}))).statusCode).toBe(405);
+    for(const payload of [{},body('../alice'),{...body(),bio:'a'.repeat(2001)},{...body(),force:'yes'},{...body(),surprise:true}]) {
+      expect((await run(mockReq({method:'POST',body:payload}))).statusCode).toBe(400);
     }
-  })
-
-  it('returns 400 when handle missing', async () => {
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: { communities: [{ name: 'x', weight: 1 }] } }), res)
-    expect(res.statusCode).toBe(400)
-    expect(res.body.code).toBe('validation_error')
-  })
-
-  it('returns 400 when communities missing or empty', async () => {
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: { handle: 'alice', communities: [] } }), res)
-    expect(res.statusCode).toBe(400)
-    expect(res.body.code).toBe('validation_error')
-  })
-})
-
-describe('generate-card: cache fast paths', () => {
-  it('returns cached imageUrl from primary cache without calling OpenRouter', async () => {
-    mockRedis.get.mockImplementation(async (key) => {
-      if (key === 'card:alice') return 'https://blob.example/alice.png'
-      return null
-    })
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(200)
-    expect(res.body).toEqual({
-      imageUrl: 'https://blob.example/alice.png',
-      cached: true,
-      model: 'google/gemini-2.5-flash-image',
-    })
-    expect(globalThis.fetch).not.toHaveBeenCalled()
-  })
-
-  it('returns 202 in_progress when another request is pending', async () => {
-    mockRedis.get.mockImplementation(async (key) => {
-      if (key === 'card:alice') return 'pending'
-      return null
-    })
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(202)
-    expect(res.body.code).toBe('in_progress')
-    expect(globalThis.fetch).not.toHaveBeenCalled()
-  })
-
-  it('falls back to gallery hash when primary cache is empty', async () => {
-    mockRedis.get.mockResolvedValue(null)
-    mockRedis.hget.mockImplementation(async (key, field) => {
-      if (key === 'gallery' && field === 'alice') {
-        return JSON.stringify([{ url: 'https://blob.example/alice-old.png', generatedAt: 1 }])
-      }
-      return null
-    })
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(200)
-    expect(res.body.imageUrl).toBe('https://blob.example/alice-old.png')
-    expect(res.body.cached).toBe(true)
-    expect(globalThis.fetch).not.toHaveBeenCalled()
-  })
-
-  it('bypasses primary cache when force=true', async () => {
-    mockRedis.get.mockImplementation(async (key) => {
-      if (key === 'card:alice') return 'https://stale.example/alice.png'
-      if (key.startsWith('budget:')) return '0'
-      return null
-    })
-    mockRedis.hget.mockResolvedValue(null)
-    globalThis.fetch.mockResolvedValue(mockOrSuccessResponse())
-    mockBlobPut.mockResolvedValue({ url: 'https://blob.example/cards/alice-x.png' })
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: { ...validBody(), force: true } }), res)
-
-    expect(globalThis.fetch).toHaveBeenCalledOnce()
-    expect(res.statusCode).toBe(200)
-    expect(res.body.cached).toBe(false)
-  })
-})
-
-describe('generate-card: budget enforcement', () => {
-  it('returns 429 when daily budget exhausted', async () => {
-    mockRedis.get.mockImplementation(async (key) => {
-      if (key === 'card:alice') return null
-      if (key.startsWith('budget:')) return '5.00'  // at limit
-      return null
-    })
-    mockRedis.hget.mockResolvedValue(null)
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(429)
-    expect(res.body.code).toBe('budget_exhausted')
-    expect(globalThis.fetch).not.toHaveBeenCalled()
-  })
-})
-
-describe('generate-card: OpenRouter integration', () => {
-  beforeEach(() => {
-    mockRedis.get.mockResolvedValue(null)
-    mockRedis.hget.mockResolvedValue(null)
-  })
-
-  it('returns 502 when OpenRouter returns non-OK', async () => {
-    globalThis.fetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      text: () => Promise.resolve('upstream boom'),
-    })
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(502)
-    expect(res.body.code).toBe('upstream_error')
-    expect(mockRedis.del).toHaveBeenCalledWith('card:alice')  // pending lock cleared
-  })
-
-  it('returns 500 generation_failed when no images in response', async () => {
-    globalThis.fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ choices: [{ message: { images: [] } }] }),
-    })
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(500)
-    expect(res.body.code).toBe('generation_failed')
-    expect(mockRedis.del).toHaveBeenCalledWith('card:alice')
-  })
-
-  it('returns 500 generation_failed when image object has no url', async () => {
-    globalThis.fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ choices: [{ message: { images: [{}] } }] }),
-    })
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(500)
-    expect(res.body.code).toBe('generation_failed')
-  })
-
-  it('uploads data: URI to Blob and returns permanent URL', async () => {
-    globalThis.fetch.mockResolvedValue(mockOrSuccessResponse('data:image/png;base64,aGVsbG8='))
-    mockBlobPut.mockResolvedValue({ url: 'https://blob.example/cards/alice-123.png' })
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(200)
-    expect(res.body.imageUrl).toBe('https://blob.example/cards/alice-123.png')
-    expect(res.body.cached).toBe(false)
-    expect(mockBlobPut).toHaveBeenCalledOnce()
-    const [pathname, buffer, opts] = mockBlobPut.mock.calls[0]
-    expect(pathname).toMatch(/^cards\/alice-\d+\.png$/)
-    expect(Buffer.isBuffer(buffer)).toBe(true)
-    expect(opts.access).toBe('public')
-    expect(opts.contentType).toBe('image/png')
-  })
-
-  it('falls back to data URI when Blob upload fails', async () => {
-    globalThis.fetch.mockResolvedValue(mockOrSuccessResponse('data:image/png;base64,aGVsbG8='))
-    mockBlobPut.mockRejectedValue(new Error('blob unavailable'))
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(200)
-    expect(res.body.imageUrl).toBe('data:image/png;base64,aGVsbG8=')
-  })
-
-  it('records cost and persists to gallery on success', async () => {
-    globalThis.fetch.mockResolvedValue(mockOrSuccessResponse('data:image/png;base64,aGVsbG8=', 100))
-    mockBlobPut.mockResolvedValue({ url: 'https://blob.example/cards/alice-123.png' })
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(200)
-    // 100 tokens * $30/1M = $0.003
-    expect(mockRedis.incrbyfloat).toHaveBeenCalledWith(
-      expect.stringMatching(/^budget:/),
-      0.003,
-    )
-    const [galleryKey, field, json] = mockRedis.hset.mock.calls[0]
-    expect(galleryKey).toBe('gallery')
-    expect(field).toBe('alice')
-    const versions = JSON.parse(json)
-    expect(versions[versions.length - 1].url).toBe('https://blob.example/cards/alice-123.png')
-  })
-})
-
-describe('generate-card: graceful degradation when Redis unavailable', () => {
-  it('works without KV: skips cache, calls OpenRouter, returns image', async () => {
-    __setForTesting({ kv: null, blobPut: mockBlobPut })
-    globalThis.fetch.mockResolvedValue(mockOrSuccessResponse())
-    mockBlobPut.mockResolvedValue({ url: 'https://blob.example/alice-x.png' })
-
-    const res = mockRes()
-    await handler(mockReq({ method: 'POST', body: validBody() }), res)
-
-    expect(res.statusCode).toBe(200)
-    expect(res.body.cached).toBe(false)
-    expect(globalThis.fetch).toHaveBeenCalledOnce()
-  })
-})
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('serves an anonymous validated cache without an API key',async()=>{
+    await redis.raw.set('card:alice',JSON.stringify({schema:2,url:process.env.CARD_BLOB_BASE_URL+'/cards/alice-cached.png',expiresAt:Date.now()+10000}));
+    delete process.env.OPENROUTER_API_KEY;
+    const res=await run(mockReq({method:'POST',body:body()}));
+    expect(res.statusCode).toBe(200);expect(res.body.cached).toBe(true);expect(fetch).not.toHaveBeenCalled();
+  });
+  it('does not trust legacy arbitrary primary cache URLs',async()=>{
+    await redis.raw.set('card:alice','https://attacker.test/image.png');
+    expect((await run(mockReq({method:'POST',body:body()}))).statusCode).toBe(403);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('denies a mismatched or expired signed body',async()=>{
+    const request=req(body());request.body.bio='tampered';
+    expect((await run(request)).statusCode).toBe(403);
+    expect((await run(req(body(),{expiresAt:1}))).statusCode).toBe(403);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('requires an explicit regeneration grant',async()=>{
+    expect((await run(req(body('alice',true),{force:false}))).statusCode).toBe(403);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('reserves spend before provider work and stores normalized owned raster',async()=>{
+    fetch.mockImplementation(async()=>{
+      expect(Number(await redis.raw.get('card:{admission}:budget:'+new Date().toISOString().slice(0,10)))).toBe(500000);
+      return success();
+    });
+    const res=await run(req(body()));
+    expect(res.statusCode).toBe(200);expect(res.body.cached).toBe(false);
+    expect(res.body.imageUrl).toMatch(/^https:\/\/teststore.public.blob.vercel-storage.com\/cards\/alice-/);
+    expect(JSON.parse(await redis.raw.hget('gallery','alice'))[0].schema).toBe(2);
+    const request=JSON.parse(fetch.mock.calls[0][1].body);
+    expect(request.max_tokens).toBe(4096);expect(request.provider.allow_fallbacks).toBe(false);
+  });
+  it('allows one paid duplicate while another receives in-progress',async()=>{
+    let complete;fetch.mockImplementation(()=>new Promise(resolve=>{complete=resolve;}));
+    const first=run(req(body('alice',true)));
+    while(!complete) await new Promise(resolve=>setTimeout(resolve,1));
+    const second=await run(req(body('alice',true)));
+    expect(second.statusCode).toBe(202);expect(fetch).toHaveBeenCalledTimes(1);
+    complete(success());expect((await first).statusCode).toBe(200);
+  });
+  it('admits at most two concurrent unique paid requests',async()=>{
+    const completions=[];fetch.mockImplementation(()=>new Promise(resolve=>completions.push(resolve)));
+    const first=run(req(body('alice',true))),second=run(req(body('bob',true)));
+    while(completions.length<2) await new Promise(resolve=>setTimeout(resolve,1));
+    expect((await run(req(body('carol',true)))).statusCode).toBe(429);
+    expect(fetch).toHaveBeenCalledTimes(2);completions.forEach(resolve=>resolve(success()));
+    expect((await first).statusCode).toBe(200);expect((await second).statusCode).toBe(200);
+  });
+  it('cannot race unique calls past the final budget reservation',async()=>{
+    process.env.CARD_DAILY_BUDGET='0.5';
+    const responses=await Promise.all(['alice','bob','carol','dave'].map(h=>run(req(body(h,true)))));
+    expect(responses.filter(r=>r.statusCode===200)).toHaveLength(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(Number(await redis.raw.get('card:{admission}:budget:'+new Date().toISOString().slice(0,10)))).toBe(500000);
+  });
+  it('blocks replay even after a forced generation succeeds',async()=>{
+    const request=req(body('alice',true));expect((await run(request)).statusCode).toBe(200);
+    expect((await run(request)).statusCode).toBe(409);expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it('holds spend and lease when provider billing is uncertain',async()=>{
+    fetch.mockResolvedValue(new Response('failure',{status:502}));
+    expect((await run(req(body('alice',true)))).statusCode).toBe(502);
+    expect((await run(req(body('alice',true)))).statusCode).toBe(202);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(Number(await redis.raw.get('card:{admission}:budget:'+new Date().toISOString().slice(0,10)))).toBe(500000);
+  });
+  it('denies unavailable, corrupt and misconfigured quota stores',async()=>{
+    process.env.CARD_DAILY_BUDGET='NaN';expect((await run(req(body()))).statusCode).toBe(503);
+    process.env.CARD_DAILY_BUDGET='5';
+    await redis.raw.set('card:{admission}:budget:'+new Date().toISOString().slice(0,10),'not-a-number');
+    expect((await run(req(body()))).statusCode).toBe(503);
+    lib.__setForTesting({kv:{get:async()=>null,eval:async()=>{throw Error('offline');}}});
+    expect((await run(req(body()))).statusCode).toBe(503);expect(fetch).not.toHaveBeenCalled();
+  });
+  it('fails closed before paid work when image storage is not configured',async()=>{
+    delete process.env.CARD_BLOB_BASE_URL;
+    expect((await run(req(body()))).statusCode).toBe(503);expect(fetch).not.toHaveBeenCalled();
+  });
+  it('rejects oversized or external provider images without public writes',async()=>{
+    fetch.mockResolvedValue(new Response(JSON.stringify({choices:[{message:{images:[{url:'https://attacker.test/card.png'}]}}]}),{status:200}));
+    expect((await run(req(body()))).statusCode).toBe(502);expect(await redis.raw.hlen('gallery')).toBe(0);
+  });
+});

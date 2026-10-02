@@ -1,6 +1,8 @@
 """Validate persisted spectral arrays against an authoritative node order."""
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,7 +54,7 @@ def validate_spectral_binding(
     npz_path = Path(npz_path)
     metadata_path = Path(metadata_path)
     try:
-        with np.load(npz_path, allow_pickle=False) as payload:
+        with load_npz_arrays(npz_path, require_finite=False) as payload:
             required = {"embedding", "node_ids", "eigenvalues", "linkage"}
             missing = sorted(required - set(payload.files))
             if missing:
