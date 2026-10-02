@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = ["tests/test_archive_limits_security.py", "tests/test_cookie_store_security.py",
          "tests/test_artifact_io_security.py", "tests/test_publication_boundary_security.py",
-         "tests/test_git_publication_boundary.py"]
+         "tests/test_git_publication_boundary.py", "tests/test_debug_cookie_selection.py"]
 
 
 def main() -> int:

@@ -48,7 +48,7 @@ async function reservePublication(kv, { handle, grant, trusted = false }) {
   const reservation = { id, handle: owner, subject: grant.subject, deadline: now + LIMITS.reservationSeconds };
   checked(await evaluate(kv, scripts.RESERVE, [
     'gallery', 'gallery:active', `gallery:daily:${day}`, `gallery:daily:${day}:${owner}`,
-    `gallery:used:${grant.kind}:${grant.jti}`, `gallery:reservation:${id}`, 'gallery:lifetime-uploads',
+    `gallery:used:${grant.kind}:${grant.jti}`, `gallery:reservation:${id}`, 'gallery:lifetime-uploads', 'gallery:published',
   ], [now, reservation.deadline, owner, grant.subject, trusted ? 1 : 0, LIMITS.concurrent,
     LIMITS.handles, LIMITS.daily, LIMITS.handleDaily, LIMITS.lifetime,
     Math.max(1, grant.expiresAt - now + LIMITS.reservationSeconds), JSON.stringify(reservation), LIMITS.reservationSeconds, id]));

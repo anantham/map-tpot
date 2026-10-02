@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = ROOT / "public-site"
 TESTS = ["__tests__/api/card-admission-security.test.js",
+         "__tests__/api/card-budget-corruption.test.js",
          "__tests__/api/generate-card.test.js",
          "__tests__/api/generate-card-prompt-semantics.test.js",
          "__tests__/api/card-status.test.js", "__tests__/api/gallery.test.js",

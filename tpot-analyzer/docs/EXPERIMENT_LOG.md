@@ -2889,3 +2889,12 @@ What failed:
 **Next step:** Complete aggregate/independent review and verify hosted CI on the updated exact head.
 
 - Final local evidence: aggregate1,935passed/5skipped78.31s, independentoutbound76/76 and strengthenedparsermodule22/22. An independent preliminary50ms timer assertion was transient under concurrentload and passed onrerun; response still failed closed.
+
+## EXP-SECURITY-REVIEW-20261002: Do failure paths preserve admission and approval?
+
+**Question:** Are the five PR review findings supported, and do adjacent failure paths preserve the same security contracts?
+**Hypothesis:** Unknown paths, route aliases, obsolete cookie consumers and deterministic Redis/upload failures expose supported gaps; synthetic red/green tests can verify corrections without production requests. Phase confidence 0.80.
+**Method:** Reproduce each gap with synthetic paths, owned temporary JSON, independent Flask workers, disposable Redis DUMP snapshots and mocked installed Blob SDK contracts. Independently review the combined diff and run aggregate regressions.
+**Result:** All five findings reproduced and were repaired. Adjacent paid-ledger corruption also partially mutated coordination state; its regression now passes. Independent review reproduced a caller-buffer mutation during awaited Blob lookup; bounded synchronous snapshots fixed it. Aggregate 1,976 Python passed/five existing skips, 318 public passed and 14 Node passed. Independent overlapping scopes passed 81 Flask, 65 local Python, 14 Node and 85 Redis contracts; no remaining blocker in the corrections.
+**Lesson:** Redis Lua atomic execution does not roll back command errors, so validate key types/counter encodings and pre-serialize before mutation. Digest approval must bind immutable bytes across asynchronous work. A path allowlist cannot determine whether permitted source/docs contain sensitive values.
+**Next step:** Verify hosted CI and automatic Codex review on the substantive ready-PR push. Keep production activation, existing corrupt-state repair, legacy migration/retention and historical disclosure decisions separate.

@@ -1051,12 +1051,15 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 ## Security rollout follow-ups — 2026-10-02
 
 - [x] Implement and independently review the 19 scan boundary dispositions on remote main, with synthetic regressions and a source-only draft publication path; see [security report](diagnostics/security-source-only-20261002.md).
-- [ ] Verify GitHub CI and Codex automatic review on the draft PR before considering merge; merge/deploy remain unapproved.
+- [x] Verify hosted CI on the parser-corrected head; all three jobs and both cluster verifiers passed. Owner approved ready PR #11; merge/deploy remain unapproved.
+- [x] Validate and repair the five manual Codex findings, plus equivalent paid-ledger partial writes and independently reproduced mutable publication buffers; independent review found no correction blocker.
+- [ ] Verify updated-head hosted CI and automatic EveryPush Codex review after the substantive ready-PR correction push; queue duration is an external dependency.
 - [ ] Confirm provider worst-case billing and an approved atomic reservation before enabling sponsored generation.
 - [ ] Implement bounded subprocess supervision for whole-graph analysis/metrics; these routes currently fail closed.
 - [ ] Rebuild typed graph artifacts/frozen manifests and recapture JSON cookies; validate legacy migrations separately without executable pickle.
 - [ ] Owner review of historical Git disclosure and gallery/feedback physical retention; no destructive cleanup/visibility change without authorization.
 - [ ] Establish provenance for the inherited medium_graph fixture before local materialization; dedicated cluster verification remains qualified.
 - [ ] Split inherited large server, analysis-manager, extension and archive-store modules into coherent sections; security helpers are extracted but existing orchestration debt remains.
+- [ ] Continue decomposition of the inherited debug script (480→454 LOC); validated cookie selection now lives in a 33-line helper.
 
 - [ ] Make the existing50ms outbound timer diagnostic distinguish scheduler delay before a read from a blocked read; both cases must still fail closed. The assertion transiently differed under concurrent aggregate load, then passed onrerun.

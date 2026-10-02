@@ -2,18 +2,34 @@ const { randomUUID } = require('node:crypto');
 const { AdmissionError } = require('./_cardAdmission');
 const PREFIX = 'card:{admission}:';
 const LEASE_MS = 180000;
+const KEY_TYPES = `
+local function valid_types(expected)
+  for index, wanted in ipairs(expected) do
+    local actual = redis.call('TYPE', KEYS[index])
+    if type(actual) == 'table' then actual = actual.ok end
+    if actual ~= 'none' and actual ~= wanted then return false end
+  end
+  return true
+end
+`;
 // All keys share a Redis Cluster hash slot. No write occurs until every gate passes.
 const RESERVE = `-- card-budget-reserve-v1
-local budget = tonumber(redis.call('GET', KEYS[1]) or '0')
-if not budget or budget < 0 then return {'quota_invalid'} end
+${KEY_TYPES}
+if not valid_types({'string', 'string', 'zset', 'string'}) then return {'quota_invalid'} end
+local raw = redis.call('GET', KEYS[1]) or '0'
+if string.len(raw) > 10 or not (raw == '0' or string.match(raw, '^[1-9][0-9]*$')) then
+  return {'quota_invalid'}
+end
+local budget = tonumber(raw)
+if not budget or budget > 1000000000 then return {'quota_invalid'} end
 if redis.call('EXISTS', KEYS[2]) == 1 then return {'in_progress'} end
 if redis.call('EXISTS', KEYS[4]) == 1 then return {'grant_replayed'} end
 local now = tonumber(ARGV[1])
-redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now)
-if redis.call('ZCARD', KEYS[3]) >= tonumber(ARGV[4]) then return {'concurrency_limited'} end
+if redis.call('ZCOUNT', KEYS[3], '(' .. ARGV[1], '+inf') >= tonumber(ARGV[4]) then return {'concurrency_limited'} end
 if budget + tonumber(ARGV[2]) > tonumber(ARGV[3]) then return {'budget_exhausted'} end
 local locked = redis.call('SET', KEYS[2], ARGV[5], 'PX', ARGV[6], 'NX')
 if not locked then return {'in_progress'} end
+redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now)
 redis.call('SET', KEYS[4], ARGV[5], 'EX', ARGV[7])
 redis.call('INCRBY', KEYS[1], ARGV[2])
 redis.call('EXPIRE', KEYS[1], 172800)
@@ -21,6 +37,8 @@ redis.call('ZADD', KEYS[3], now + tonumber(ARGV[6]), ARGV[5])
 redis.call('PEXPIRE', KEYS[3], tonumber(ARGV[6]) * 2)
 return {'ok', tostring(budget + tonumber(ARGV[2]))}`;
 const RELEASE = `-- card-budget-release-v1
+${KEY_TYPES}
+if not valid_types({'string', 'zset'}) then return redis.error_reply('quota invalid key type') end
 if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
 redis.call('DEL', KEYS[1])
 redis.call('ZREM', KEYS[2], ARGV[1])

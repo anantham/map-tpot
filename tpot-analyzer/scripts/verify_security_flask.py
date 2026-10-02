@@ -10,6 +10,7 @@ if __name__ == "__main__":
     root = Path(__file__).resolve().parents[1]
     result = subprocess.run([sys.executable, "-m", "pytest", "-q", "--tb=short",
                              "tests/test_security_flask_boundary.py",
+                             "tests/test_security_cluster_admission.py",
                              "tests/test_security_resource_limits.py",
                              "tests/test_security_cross_process.py"],
                             cwd=root, text=True, capture_output=True)

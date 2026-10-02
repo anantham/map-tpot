@@ -12,6 +12,11 @@ from scripts.check_publication_files import publication_path_allowed
     "tpot-analyzer/public-site/public/data.json", "tpot-analyzer/secrets/cookies.json",
     "Related data/private.csv", "tpot-analyzer/cache.pkl", "tpot-analyzer/local.sqlite3",
     "../escape.py",
+    "tpot-analyzer/private/export.json", "exports/user.parquet",
+    "tpot-analyzer/exports/account.csv", "tpot-analyzer/private/notes.txt",
+    "tpot-analyzer/private/helper.py", "tpot-analyzer/src/snapshot.parquet",
+    "tpot-analyzer/config/unreviewed.json", "/tpot-analyzer/src/example.py",
+    "tpot-analyzer/src/../private.py", "tpot-analyzer/src/private/export.json",
 ])
 def test_private_artifact_paths_denied(path):
     assert not publication_path_allowed(path)
@@ -20,6 +25,19 @@ def test_private_artifact_paths_denied(path):
 @pytest.mark.parametrize("path", ["tpot-analyzer/src/archive/fetcher.py", "tpot-analyzer/data/.gitkeep",
                                   "tpot-analyzer/data/golden/taxonomy.yaml", "tpot-analyzer/tests/test_example.py"])
 def test_source_and_explicit_config_paths_allowed(path):
+    assert publication_path_allowed(path)
+
+
+@pytest.mark.parametrize("path", [
+    ".github/workflows/test.yml", ".gitignore", "AGENTS.md", "README.md",
+    "tpot-analyzer/Makefile", "tpot-analyzer/requirements.txt",
+    "tpot-analyzer/config/publication_fields.json", "tpot-analyzer/docs/diagnostics/security-review.md",
+    "tpot-analyzer/scripts/_export_helpers/example.py", "tpot-analyzer/public-site/package-lock.json",
+    "tpot-analyzer/public-site/api/example.js", "tpot-analyzer/public-site/scripts/example.node-test.mjs",
+    "tpot-analyzer/public-site/__tests__/api/example.cjs", "tpot-analyzer/public-site/src/example.jsx",
+    "tpot-analyzer/graph-explorer/src/researchNotes/example.css", "tpot-analyzer/graph-explorer/vercel.json",
+])
+def test_known_source_config_and_text_locations_allowed(path):
     assert publication_path_allowed(path)
 
 

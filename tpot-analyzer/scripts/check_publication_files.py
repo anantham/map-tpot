@@ -10,25 +10,62 @@ import subprocess
 from pathlib import PurePosixPath
 
 SAFE_DATA_FILES = {"data/.gitkeep", "data/fixtures/.gitkeep", "data/golden/taxonomy.yaml"}
+REPOSITORY_FILES = {".gitignore", "AGENTS.md", "CLAUDE.md", "README.md", "update_veil_cv.py"}
+PROJECT_FILES = {
+    ".dockerignore", ".env.example", ".gitignore", ".nvmrc", ".python-version",
+    "Dockerfile", "Makefile", "README.md", "StartGraphExplorer.command", "fly.toml",
+    "pytest.ini", "requirements.txt", "requirements-gpu.txt", "requirements-performance.txt",
+    "logs/.gitkeep",
+}
+CONFIG_FILES = {f"config/{name}.json" for name in (
+    "community_descriptions", "community_glossary", "community_iconography",
+    "enrichment_policy", "graph_settings", "public_site", "publication_fields",
+)}
+FRONTEND_FILES = {f"{site}/{name}" for site in ("public-site", "graph-explorer")
+                  for name in (".env.example", ".gitignore", "README.md", "index.html",
+                               "package.json", "package-lock.json", "vite.config.js",
+                               "eslint.config.js", "playwright.config.ts", "vercel.json")}
+SOURCE_LOCATIONS = {
+    "src/": {".py"}, "scripts/": {".py", ".sh"}, "tests/": {".py"},
+    "public-site/src/": {".js", ".jsx", ".ts", ".tsx", ".css", ".svg"},
+    "public-site/api/": {".js", ".cjs", ".mjs"},
+    "public-site/scripts/": {".js", ".cjs", ".mjs"},
+    "public-site/__tests__/": {".js", ".jsx", ".ts", ".tsx", ".cjs", ".mjs"},
+    "graph-explorer/src/": {".js", ".jsx", ".ts", ".tsx", ".css", ".svg"},
+    "graph-explorer/scripts/": {".js", ".cjs", ".mjs"},
+    "graph-explorer/e2e/": {".js", ".ts"},
+}
+DOCUMENT_LOCATIONS = {"docs"} | {f"docs/{directory}" for directory in (
+    "adr", "archive", "diagnostics", "experiments", "guides", "modules", "plans",
+    "product", "proofs", "reference", "specs", "superpowers", "tasks", "test-plans", "ui",
+)}
 
 
 def publication_path_allowed(path: str) -> bool:
+    parsed = PurePosixPath(path)
+    if (not path or parsed.is_absolute() or str(parsed) != path or "\\" in path
+            or any(ord(character) < 32 for character in path) or ".." in parsed.parts):
+        return False
+    if path in REPOSITORY_FILES:
+        return True
+    if path.startswith(".github/workflows/"):
+        return len(parsed.parts) == 3 and parsed.suffix in {".yml", ".yaml"}
+    if not path.startswith("tpot-analyzer/"):
+        return False
     normalized = path.removeprefix("tpot-analyzer/")
-    parts = PurePosixPath(normalized).parts
-    if not parts or normalized.startswith("../") or ".." in parts:
+    project_path = PurePosixPath(normalized)
+    if any(part.lower() in {"secrets", "private", "dossiers", "exports", ".env"}
+           for part in project_path.parts):
         return False
-    if normalized.startswith("data/"):
-        return normalized in SAFE_DATA_FILES
-    if normalized.startswith(("secrets/", "Related data/", "docs/private/", "docs/dossiers/")):
-        return False
-    if normalized in {"public-site/public/data.json", "public-site/public/search.json",
-                      "public-site/public/publication-manifest.json", "graph-explorer/public/analysis_output.json"}:
-        return False
-    if any(part in {"secrets", "dossiers", ".env"} for part in parts):
-        return False
-    if PurePosixPath(normalized).suffix.lower() in {".pkl", ".pickle", ".db", ".sqlite", ".sqlite3"}:
-        return False
-    return True
+    if normalized in SAFE_DATA_FILES | PROJECT_FILES | CONFIG_FILES | FRONTEND_FILES:
+        return True
+    if project_path.suffix == ".md" and str(project_path.parent) in DOCUMENT_LOCATIONS:
+        return True
+    if project_path.suffix == ".md" and any(normalized.startswith(directory + "/")
+                                            for directory in DOCUMENT_LOCATIONS - {"docs"}):
+        return True
+    return any(normalized.startswith(directory) and project_path.suffix in extensions
+               for directory, extensions in SOURCE_LOCATIONS.items())
 
 
 def changed_paths(*, base: str | None = None) -> list[str]:

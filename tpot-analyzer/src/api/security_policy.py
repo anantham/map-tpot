@@ -21,7 +21,13 @@ from src.api.responses import error_response
 PUBLIC_ENDPOINTS = frozenset({"core.health_check", "extension.ingest_feed_events"})
 EXPENSIVE_ENDPOINTS = frozenset({
     "discovery.discover", "graph.get_graph_data",
-    "clusters.get_clusters", "golden.ingest_predictions_run", "golden.run_eval",
+    # Hierarchy builders, traversal previews and GRF solves share admission even
+    # on cache hits: each process has its own cache, and a miss may scan all nodes.
+    "clusters.get_clusters", "clusters.get_cluster_members",
+    "clusters.get_cluster_tag_summary", "clusters.get_account_membership",
+    "clusters.preview_cluster", "accounts.get_teleport_plan",
+    "accounts.search_accounts",
+    "golden.ingest_predictions_run", "golden.run_eval",
     "golden.interpret_tweet",
 })
 

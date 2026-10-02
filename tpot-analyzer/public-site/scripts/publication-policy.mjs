@@ -4,7 +4,7 @@ import { constants } from 'node:fs'
 import { resolve } from 'node:path'
 import { parsePublicationJson } from './publication-json.mjs'
 
-const MAX_BYTES = 32 * 1024 * 1024
+export const MAX_BYTES = 32 * 1024 * 1024
 const sha256 = body => createHash('sha256').update(body).digest('hex')
 const policyBody = await readFile(new URL('../../config/publication_fields.json', import.meta.url))
 const policy = JSON.parse(policyBody)

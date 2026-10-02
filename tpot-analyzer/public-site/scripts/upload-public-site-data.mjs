@@ -2,18 +2,21 @@ import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import process from 'node:process'
-import { put } from '@vercel/blob'
-import { loadCandidate } from './publication-policy.mjs'
+import { loadCandidate, validatePublicationCandidate, MAX_BYTES } from './publication-policy.mjs'
+import { ensurePublishedObject } from './publication-upload.mjs'
 
-export async function publishCandidate(candidate, { token, putBlob = put } = {}) {
+export async function publishCandidate(candidate, options = {}) {
+  const { dataBody, searchBody, exportDigest } = candidate
+  if (![dataBody, searchBody].every(body => body instanceof Uint8Array && body.byteLength <= MAX_BYTES)) {
+    throw new Error('Publication inputs must be bounded byte buffers')
+  }
+  // Snapshot caller-owned bytes before validation and any asynchronous lookup.
+  candidate = validatePublicationCandidate(Buffer.from(dataBody), Buffer.from(searchBody), exportDigest)
   const results = []
   for (const [kind, body] of [['data', candidate.dataBody], ['search', candidate.searchBody]]) {
     const pathname = `public-site/releases/${candidate.exportDigest}/${kind}.json`
-    const blob = await putBlob(pathname, body, {
-      access: 'public', addRandomSuffix: false, allowOverwrite: false,
-      cacheControlMaxAge: 31536000, contentType: 'application/json', token,
-    })
-    results.push({ kind, pathname, url: blob.url, bytes: body.byteLength })
+    const result = await ensurePublishedObject(pathname, body, options)
+    results.push({ kind, ...result })
   }
   return results
 }

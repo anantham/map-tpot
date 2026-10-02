@@ -13,6 +13,7 @@ import galleryPolicyMod from '../../api/_galleryPolicy.js'
 import submitMod from '../../api/gallery-submit.js'
 import galleryMod from '../../api/gallery.js'
 import { mockReq, mockRes } from './_helpers'
+import { galleryAtomicityCases } from './_galleryAtomicityCases'
 const { __reset, __setForTesting } = libMod.default || libMod
 const { testRedis } = redisFixtureMod.default || redisFixtureMod
 const { digestBody, signCapability, verifyCapability } = admissionMod.default || admissionMod
@@ -59,6 +60,10 @@ describe.skipIf(!fixture)('gallery Lua integration', () => {
     else raw?.disconnect()
     __reset(); vi.restoreAllMocks()
   })
+
+  for (const scenario of galleryAtomicityCases) {
+    it(scenario.title, () => scenario.run({ raw, kv, request, granted, imageUrl, blobPut }))
+  }
 
   it('publishes exactly the approved pixels into owned storage', async () => {
     const body = { handle: 'alice', imageUrl, communities: [{ name: 'Legacy', color: '#fff', weight: -2 }] }

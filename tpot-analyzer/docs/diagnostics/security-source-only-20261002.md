@@ -15,7 +15,7 @@ no personal records, data migrations or inherited unpublished commits.
 | --- | --- |
 | T01 paid card abuse | Signed expiring request capabilities; atomic Redis budget/nonce/NX-lock/concurrency reservation before paid work; failures remain charged conservatively. Sponsored generation is disabled by default until an approved worst-case provider charge is verified. Anonymous cached reads and BYOK UX remain available. |
 | T02 gallery ownership | Publication capability binds owner, handle and content digest, rejects replay and requires exact configured owned Blob storage. Quotas reserve before writes/paid work. |
-| T03 public Git artifacts | Changed-path allowlist and CI prevention reject new sensitive artifacts. Historical exposure remains; deletion, visibility changes and history cleanup need separate authorization. |
+| T03 public Git artifacts | Default-deny changed-path allowlist and CI prevention reject unknown locations and sensitive artifacts. Allowed source/docs still require human content review. Historical exposure remains; deletion, visibility changes and history cleanup need separate authorization. |
 | T04 expensive graph work | Curator authentication and shared process-independent bounded admission. Unsupervised whole-graph analysis/metrics return 503 until a worker with hard runtime/memory enforcement is implemented. |
 | T05 feedback workloads | Finite bounded inputs, transactional 20,000-row admission and 30-day expiry for new feedback. Historical rows are preserved; physical cleanup needs review. |
 | T06 Golden mutations | Curator authorization covers reads and mutations through the central policy. |
@@ -51,7 +51,8 @@ failed 72 tests plus five setup cases; restoring these two public configuration
 files made the complete suite pass. The inherited `medium_graph` binary fixture
 was deliberately not materialized: its two cluster verifier commands remain
 unverified locally. Independent synthetic artifact compatibility tests passed.
-GitHub CI remains the next environment check; remote green status is not assumed.
+At this initial checkpoint, GitHub CI was the next environment check; subsequent
+hosted results are recorded below.
 
 Independent fresh-base review found 167/169 original source changes byte-identical
 to the previous reviewed patch. Two differences reflect absent older-base private
@@ -97,7 +98,8 @@ are external dependencies and are not represented as complete by local test resu
 
 ## Publication and deployment gates
 
-This draft branch is explicitly authorized for GitHub publication and Codex review.
+This branch is explicitly authorized for GitHub publication and Codex review.
+It was initially published as a draft; the owner subsequently authorized readiness.
 Both Vercel configurations suppress automatic deployment for this branch only,
 using [documented Git configuration](https://vercel.com/docs/project-configuration/git-configuration).
 Production settings are unchanged; merge and deployment remain unapproved.
@@ -141,5 +143,59 @@ module rerun passed 22 tests, checking closure before context exit. Independent
 outbound re-review passed 76/76 and an unmocked truncated-chunk diagnostic at
 12:59:05 UTC. One earlier 50 ms timer assertion was scheduler-sensitive under
 concurrent load and passed on rerun; no response acceptance was observed. The
-new-head hosted rerun and completed Codex review remain external evidence. Follow-up estimate: 10–15 minutes for correction,
+new-head hosted rerun and completed Codex review were still pending at that checkpoint. Follow-up estimate: 10–15 minutes for correction,
 independent review and CI, with hosted review completion an external dependency.
+
+## PR review corrections and aggregate checkpoint
+
+Hosted CI on `9b1346dfc2eef5b66fdf2a00e4025165ea62d741` passed all three
+jobs, including Python 3.11.16 (1,935 passed, five skipped, 94.90 seconds) and
+both binary-fixture cluster verifiers. PR #11 became ready with explicit owner
+approval at 13:03:01 UTC / 18:33:01 IST, 31m47s after the fresh-base start,
+within its 25–40 minute estimate. The parser correction plus hosted green result
+took 8m39s from the 12:54:22 checkpoint, versus the separate 10–15 minute estimate.
+
+Codex's manual review completed at 13:03:51 UTC against the older first head
+`1f8109faff`, identifying five supported gaps. These are corrected:
+
+- Unknown publication paths now default to deny, including unrecognized exports.
+- Hierarchy, membership, teleport and graph-search aliases share analyst workload
+  admission. This closes authenticated concurrent workload bypass; it was not an
+  authorization bypass. Hard per-request CPU/time/memory supervision remains open.
+- The debug cookie consumer validates owned JSON before logging, database or
+  browser activity; legacy pickle candidates require recapture.
+- Gallery Lua validates every key type and canonical quota counter before writes;
+  read-only gates and pre-serialization prevent the reviewed deterministic partial
+  writes. The reviewed key-type and counter corruptions fail without mutating
+  state. Paid-budget reservation
+  and release received the same correction, including exhausted-budget cleanup.
+- Interrupted immutable uploads resume only when owned-store metadata and bounded
+  exact bytes match the approved digest. Existing objects are never overwritten.
+  Independent review additionally reproduced mutable caller buffers during lookup;
+  bounded synchronous copies preserve the approved bytes before asynchronous work.
+
+Each correction has a reproduced failing contract followed by a passing regression.
+Integrated checkpoint: **1,976 Python passed, five skipped** (47.26 seconds),
+**318 public tests / 34 files**, **14 Node publication tests**, public production
+build passed; graph source is unchanged since its 794-test/build pass. Required
+Flask verifier passed 65; local verifier passed 87 Python plus 14 Node and audited
+464 source files with zero unsafe executable deserialization consumers. Independent
+review completed 13:26:50 UTC: Flask 81, local Python 65, Node 14 and real-Redis
+contracts 85 passed, with no remaining blocker in these corrections. These scopes
+overlap aggregate results and must not be summed. Production Blob compatibility
+was checked against installed SDK code only; a live request was not authorized.
+
+Correction phase forecast: 30–60 minutes from approximately 13:06 UTC, confidence
+0.80, through review and hosted CI; automatic Codex queue time is external.
+Flask tranche: 13:06:33–13:16:44, **10m11s** versus 20 minutes, confidence 0.90.
+Local/publication tranche: 13:06:20–13:27:40, **21m20s** versus 35 minutes,
+confidence 0.85. Its revised estimate slipped three minutes because independent
+review added the mutable-buffer reproduction and repair. Gallery code/review was
+ready by approximately 13:16 versus its 25–40 minute estimate, confidence 0.95;
+the exact completion instant was not sampled. New-head hosted CI and automatic
+EveryPush review remain to be observed after the substantive ready-PR push; no
+additional manual review comment is used for this trigger test.
+
+The debug script remains inherited size debt at 480→454 LOC; its extracted cookie
+helper is 33 LOC. Historical disclosure, legacy migration/retention, safe-artifact
+recertification, billing approval, merge and deployment gates remain unchanged.
