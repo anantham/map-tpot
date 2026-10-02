@@ -4,6 +4,7 @@ Synthetic DNS/sockets cover mixed answers, IPv6 and TLS verification failures.
 Bounded valid compressed bodies remain readable; malformed ones are discarded.
 """
 import gzip
+import http.client
 import socket
 import ssl
 import zlib
@@ -138,3 +139,20 @@ def test_body_total_deadline_does_not_reset_on_reads(network, monkeypatch):
         with pytest.raises(BlockedURLError):
             response.read()
     assert sockets[0].closed
+
+
+@pytest.mark.parametrize("parse_error", [
+    http.client.HTTPException("synthetic trailer parser rejection"),
+    http.client.IncompleteRead(b"x", 2),
+])
+def test_http_parser_body_errors_are_normalized_and_closed(network, monkeypatch, parse_error):
+    """Stdlib parser limits must expose the guarded response failure contract."""
+    pending, sockets = network
+    pending.append((wire(),))
+    def reject_body(*args, **kwargs):
+        raise parse_error
+    monkeypatch.setattr(http.client.HTTPResponse, "read1", reject_body)
+    with safe_urlopen("http://public.example/") as response:
+        with pytest.raises(BlockedURLError):
+            response.read()
+        assert response.closed and sockets[0].closed

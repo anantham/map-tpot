@@ -110,7 +110,7 @@ class BoundedResponse:
                 if self.decoder and not self.decoder.eof:
                     raise BlockedURLError("truncated compressed outbound response")
                 self.eof = True
-        except (OSError, ValueError, zlib.error) as exc:
+        except (OSError, ValueError, zlib.error, http.client.HTTPException) as exc:
             self.close()
             raise BlockedURLError("outbound response stream failed") from exc
         except Exception:

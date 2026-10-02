@@ -1058,3 +1058,5 @@ propagation out of TPOT to mainstream (no data on journalists/policymakers).
 - [ ] Owner review of historical Git disclosure and gallery/feedback physical retention; no destructive cleanup/visibility change without authorization.
 - [ ] Establish provenance for the inherited medium_graph fixture before local materialization; dedicated cluster verification remains qualified.
 - [ ] Split inherited large server, analysis-manager, extension and archive-store modules into coherent sections; security helpers are extracted but existing orchestration debt remains.
+
+- [ ] Make the existing50ms outbound timer diagnostic distinguish scheduler delay before a read from a blocked read; both cases must still fail closed. The assertion transiently differed under concurrent aggregate load, then passed onrerun.

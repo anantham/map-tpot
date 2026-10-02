@@ -3444,3 +3444,10 @@
 - Original local handoff actual 66m40s versus three-hour estimate. Fresh-base follow-on began 12:31:14 UTC, separate 25–40m estimate. Independent re-review finished 12:43:03 UTC after 7m39s; byte-equivalence explains the reduction.
 - Branch-specific Vercel Git suppression prevents preview deployment during the explicitly approved draft PR/Codex review flow. Production deployment, historical cleanup and safe-artifact recertification remain separate gates.
 - Large inherited modules touched by narrow security changes (server, analysis manager, extension and archive store) remain decomposition debt; the newly extracted security modules and card UI stay within the 300-line gate. See ROADMAP.
+
+
+### 2026-10-02 — Hosted Python 3.11.16 parser contract follow-up
+
+First source-only draft CI passed both frontend jobs/builds and both cluster-verifier commands, but Python had1/1933 failures. The newer stdlib trailer limit raised HTTPException before our framing byte cap; local3.11.15 had no trailer-count cap. Two RED public-read regression cases confirmed that HTTPException/IncompleteRead escaped the normalized error contract. Added the expected parser exception to `src/api/response_limits.py`, retaining fail-closed closure and the original adversarial test. Outbound verifier76 passed; full regression and independent review rerun before publication. No data changes, deployment or test exclusions were added.
+
+- Correction validation: fullPython1,935passed/5skipped/20inheritedwarnings78.31s; strengthenedparsermodule22pass; independentoutbound76pass plus unmockedtruncatedchunkclosure. Independent review sampled12:59:05UTC. One earlier50ms timer assertion was transient under concurrentload and passed onrerun; retain as testing-sensitivity follow-up rather than weaken the fail-closed contract.

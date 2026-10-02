@@ -2877,3 +2877,15 @@ What failed:
 **Result:** Initial all-data exclusion caused 72 test failures/five setup errors. Restoring only unchanged taxonomy and dated price-card configuration yielded 1,933 Python passes/five environment skips, 265 public, 794 graph, six Node tests and both builds. Independent re-review found no new source blocker. Unknown binary fixtures stayed absent.
 **Lesson:** Public schema/configuration paths must be distinguished from private artifact data; broad exclusions cannot silently become test skips. Local success does not prove remote CI/review completion or safe legacy migrations.
 **Next step:** Run required verification scripts, publish the approved source-only draft branch with Vercel branch deployment suppression, verify actual CI/Codex trigger, and retain separate merge/deployment/cleanup gates.
+
+
+## EXP-SECURITY-HTTP-PARSER-20261002
+
+**Question:** Does the bounded-response error contract survive updated stdlib parser limits?
+**Hypothesis:** Python3.11.16 trailer-count rejection occurs before our byte cap and needs the same guarded exception normalization; confidence0.95.
+**Method:** Inspect the single hosted failure, add deterministic HTTPException/IncompleteRead public safe_urlopen/read cases, observe both RED, then extend the existing expected-parser exception tuple. No live endpoints are contacted.
+**Result:** Both RED cases reproduced raw parser exceptions. The corrected outbound verifier passed76 tests with the existing oversized-trailer test unchanged.
+**Lesson:** Adjacent patch releases can enforce earlier parser limits; normalize the parser's documented HTTPException family at the public stream boundary while preserving closure and byte/time ceilings.
+**Next step:** Complete aggregate/independent review and verify hosted CI on the updated exact head.
+
+- Final local evidence: aggregate1,935passed/5skipped78.31s, independentoutbound76/76 and strengthenedparsermodule22/22. An independent preliminary50ms timer assertion was transient under concurrentload and passed onrerun; response still failed closed.

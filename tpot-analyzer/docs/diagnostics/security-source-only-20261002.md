@@ -113,3 +113,33 @@ ledger conservatively or start on a new UTC day; rebuild/recertify safe artifact
 recapture JSON cookies; decide legacy gallery/feedback retention and historical
 Git cleanup. No existing data was deleted, credentials rotated, repository
 visibility changed, branch merged or service deployed during this patch.
+
+
+## Hosted runtime follow-up — 2026-10-02
+
+Draft PR #11 was created at 12:51:35 UTC / 18:21:35 IST: 20m21s from the
+separate fresh-base start, versus the 25–40 minute forecast. Source-only head
+`1f8109faff8f2057101cdb88dd653610d3577ba2` was verified against remote metadata.
+A manual Codex request was acknowledged by the connector bot at 12:52:05 UTC;
+this is not proof of completed review or the automatic draft-to-ready trigger.
+Read-only Vercel deployment metadata showed no deployment after the branch push.
+
+First hosted CI: public and graph tests/builds passed; both inherited cluster
+verifiers at granularity 25 and 40 passed. Python 3.11.16 returned 1,932 passes,
+five skips and one failure: its newer HTTP parser rejected >100 trailers earlier
+than the local 3.11.15 parser, exposing a raw HTTPException rather than the
+guarded BlockedURLError contract. This was a supported-runtime error contract
+gap; the response was already closed and no excess response was accepted.
+
+Two deterministic public safe_urlopen/read tests reproduced raw HTTPException
+and IncompleteRead before the correction. The production expected-parser error
+tuple now normalizes HTTPException (including IncompleteRead) and closes the
+stream. The adversarial trailer test is retained unchanged. Focused outbound
+verification passed 76 tests; complete Python regression passed 1,935 tests,
+five skips and 20 inherited warnings in 78.31 seconds. The strengthened parser
+module rerun passed 22 tests, checking closure before context exit. Independent
+outbound re-review passed 76/76 and an unmocked truncated-chunk diagnostic at
+12:59:05 UTC. One earlier 50 ms timer assertion was scheduler-sensitive under
+concurrent load and passed on rerun; no response acceptance was observed. The
+new-head hosted rerun and completed Codex review remain external evidence. Follow-up estimate: 10–15 minutes for correction,
+independent review and CI, with hosted review completion an external dependency.
