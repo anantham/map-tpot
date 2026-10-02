@@ -1,66 +1,40 @@
-"""Service for managing application-level caches.
-
-Intentionally in-memory only — these are ephemeral caches of computed results
-(graph responses, discovery outputs) that regenerate cheaply from the snapshot
-data on disk.  Losing them on restart costs one re-computation per unique
-request, which is the expected and acceptable behaviour.  There is no user
-data here that would benefit from persistence.
-"""
+"""Bounded ephemeral caches for graph responses and discovery outputs."""
 from __future__ import annotations
 
-import logging
-from typing import Dict, Any, Optional
-
-logger = logging.getLogger(__name__)
+from src.api.services.bounded_cache import BoundedCache
 
 
 class CacheManager:
-    """Centralized manager for in-memory caches."""
+    """TTL/LRU eviction and byte ceilings prevent arbitrary-key memory growth."""
 
-    def __init__(self):
-        # Cache for /api/graph-data responses
-        # Key: "{include_shadow}_{mutual_only}_{min_followers}"
-        self._graph_response_cache: Dict[str, Any] = {}
-        
-        # Cache for subgraph discovery results
-        # Key: query hash
-        self._discovery_cache: Dict[str, Any] = {}
+    def __init__(self, *, graph_entries=8, discovery_entries=64, max_bytes=16 * 1024 * 1024, ttl_seconds=300):
+        self._graph_response_cache = BoundedCache(graph_entries, max_bytes, ttl_seconds)
+        self._discovery_cache = BoundedCache(discovery_entries, max_bytes, ttl_seconds)
 
-    def get_graph_response(self, key: str) -> Optional[Any]:
-        """Retrieve a cached graph data response."""
+    def get_graph_response(self, key):
         return self._graph_response_cache.get(key)
 
-    def set_graph_response(self, key: str, data: Any) -> None:
-        """Cache a graph data response."""
-        self._graph_response_cache[key] = data
+    def set_graph_response(self, key, data):
+        return self._graph_response_cache.set(key, data)
 
-    def clear_graph_cache(self) -> None:
-        """Invalidate the entire graph response cache."""
+    def clear_graph_cache(self):
         self._graph_response_cache.clear()
-        logger.info("Graph response cache cleared")
 
-    def get_discovery_result(self, key: str) -> Optional[Any]:
-        """Retrieve a cached discovery result."""
+    def get_discovery_result(self, key):
         return self._discovery_cache.get(key)
 
-    def set_discovery_result(self, key: str, data: Any) -> None:
-        """Cache a discovery result."""
-        self._discovery_cache[key] = data
-        
-    def clear_discovery_cache(self) -> None:
-        """Invalidate discovery cache."""
-        self._discovery_cache.clear()
-        logger.info("Discovery cache cleared")
+    def set_discovery_result(self, key, data):
+        return self._discovery_cache.set(key, data)
 
-    def graph_cache_size(self) -> int:
-        """Return number of graph response entries currently cached."""
+    def clear_discovery_cache(self):
+        self._discovery_cache.clear()
+
+    def graph_cache_size(self):
         return len(self._graph_response_cache)
 
-    def discovery_cache_size(self) -> int:
-        """Return number of discovery entries currently cached."""
+    def discovery_cache_size(self):
         return len(self._discovery_cache)
 
-    def clear_all(self) -> None:
-        """Clear all caches."""
+    def clear_all(self):
         self.clear_graph_cache()
         self.clear_discovery_cache()

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import logging.handlers
 import math
 import os
 import time
@@ -17,6 +16,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from src.api import snapshot_loader
+from src.api.bounded_logs import PrivateRotatingHandler
+from src.api.security_policy import WorkloadGate, install_security_policy, safe_request_id
 from src.api.request_context import RequestIdFilter, clear_req_id, get_req_id, set_req_id
 from src.api.services.analysis_manager import AnalysisManager
 from src.api.services.cache_manager import CacheManager
@@ -99,6 +100,7 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
             or request.args.get("reqId")
             or uuid4().hex[:8]
         )
+        req_id = safe_request_id(req_id)
         g.req_id = req_id
         g._tpot_start = time.perf_counter()
         set_req_id(req_id)
@@ -145,7 +147,10 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
 
     # 2. Initialize Services (State Injection)
     # These replace the old module-level globals
-    app.config["ANALYSIS_MANAGER"] = AnalysisManager()
+    workload_gate = WorkloadGate(int(app.config.get("WORKLOAD_CONCURRENCY", 1)))
+    app.config["WORKLOAD_GATE"] = workload_gate
+    install_security_policy(app, workload_gate)
+    app.config["ANALYSIS_MANAGER"] = AnalysisManager(workload_gate=workload_gate)
     app.config["CACHE_MANAGER"] = CacheManager()
     app.config["SIGNAL_FEEDBACK_STORE"] = SignalFeedbackStore()
 
@@ -204,7 +209,6 @@ def _configure_logging(log_dir: Optional[Path] = None) -> None:
     """Attach a rotating file handler for API diagnostics."""
     default_log_dir = Path(os.getenv("TPOT_LOG_DIR") or (Path(__file__).resolve().parent.parent.parent / "logs"))
     resolved_log_dir = log_dir or default_log_dir
-    resolved_log_dir.mkdir(parents=True, exist_ok=True)
     log_path = resolved_log_dir / "api.log"
     
     log_level_name = os.getenv("API_LOG_LEVEL", "INFO").upper()
@@ -214,8 +218,8 @@ def _configure_logging(log_dir: Optional[Path] = None) -> None:
     
     # Avoid adding duplicate handlers if re-initializing
     already_configured = any(
-        isinstance(h, logging.handlers.RotatingFileHandler)
-        and getattr(h, "baseFilename", "") == str(log_path.resolve())
+        isinstance(h, PrivateRotatingHandler)
+        and getattr(h, "baseFilename", "") == str(log_path.absolute())
         for h in root.handlers
     )
     if already_configured:
@@ -223,9 +227,7 @@ def _configure_logging(log_dir: Optional[Path] = None) -> None:
 
     root.setLevel(log_level)
 
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_path, maxBytes=5 * 1024 * 1024, backupCount=5
-    )
+    file_handler = PrivateRotatingHandler(log_path, max_bytes=5 * 1024 * 1024, backups=5)
     # Capture everything the logger emits; use logger levels/env vars to control verbosity.
     file_handler.setLevel(logging.DEBUG)
     file_handler.addFilter(RequestIdFilter())

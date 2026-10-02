@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import pickle
+from src.artifacts.safe_io import save_sparse_cache
 
 import numpy as np
 import pandas as pd
@@ -39,8 +39,7 @@ def test_loads_and_binds_graph_cache_and_first_compatible_propagation(tmp_path):
     nodes.to_parquet(tmp_path / "graph_snapshot.nodes.parquet", index=False)
     edges.to_parquet(tmp_path / "graph_snapshot.edges.parquet", index=False)
     adjacency = sparse.csr_matrix(([1.0], ([0], [1])), shape=(3, 3))
-    with (tmp_path / "adjacency_matrix_cache.pkl").open("wb") as handle:
-        pickle.dump(adjacency, handle)
+    save_sparse_cache(tmp_path / "adjacency_matrix_cache.npz", adjacency)
     _write_propagation(tmp_path / "incompatible.npz", ["a", "outside"])
     _write_propagation(tmp_path / "compatible.npz", ["c", "a", "b"])
 
@@ -67,8 +66,7 @@ def test_rejects_independent_lift_for_probability_relevance(tmp_path):
     nodes.to_parquet(tmp_path / "graph_snapshot.nodes.parquet", index=False)
     edges.to_parquet(tmp_path / "graph_snapshot.edges.parquet", index=False)
     adjacency = sparse.csr_matrix(([1.0], ([0], [1])), shape=(2, 2))
-    with (tmp_path / "adjacency_matrix_cache.pkl").open("wb") as handle:
-        pickle.dump(adjacency, handle)
+    save_sparse_cache(tmp_path / "adjacency_matrix_cache.npz", adjacency)
     _write_propagation(tmp_path / "independent.npz", ["a", "b"])
     with np.load(tmp_path / "independent.npz") as payload:
         arrays = {key: payload[key] for key in payload.files}
@@ -92,8 +90,7 @@ def test_undeclared_mode_requires_exact_certified_legacy_hash(tmp_path):
     nodes.to_parquet(tmp_path / "graph_snapshot.nodes.parquet", index=False)
     edges.to_parquet(tmp_path / "graph_snapshot.edges.parquet", index=False)
     adjacency = sparse.csr_matrix(([1.0], ([0], [1])), shape=(2, 2))
-    with (tmp_path / "adjacency_matrix_cache.pkl").open("wb") as handle:
-        pickle.dump(adjacency, handle)
+    save_sparse_cache(tmp_path / "adjacency_matrix_cache.npz", adjacency)
     propagation_path = tmp_path / "legacy.npz"
     _write_propagation(propagation_path, ["a", "b"])
     with np.load(propagation_path) as payload:

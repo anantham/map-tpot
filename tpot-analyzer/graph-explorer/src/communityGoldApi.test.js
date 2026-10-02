@@ -8,7 +8,7 @@ import {
   upsertGoldLabel,
 } from './communityGoldApi'
 
-vi.mock('./config', () => ({ API_BASE_URL: 'http://test-api' }))
+vi.mock('./config', () => ({ API_BASE_URL: 'http://test-api', withCuratorAuth: (init = {}) => ({ ...init, headers: { ...init.headers, 'X-TPOT-Curator-Token': 'fixture-token' } }) }))
 
 const mockFetch = vi.fn()
 globalThis.fetch = mockFetch

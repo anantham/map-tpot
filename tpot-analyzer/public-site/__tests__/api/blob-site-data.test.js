@@ -20,9 +20,24 @@ beforeEach(() => {
   mockBlobGet = vi.fn()
   __setForTesting({ blobGet: mockBlobGet })
   process.env.BLOB_READ_WRITE_TOKEN = 'test-token'
+  delete process.env.PUBLIC_SITE_RELEASE_DIGEST
 })
 
 describe('serveBlobJson via /api/data', () => {
+  it('selects only an explicitly configured immutable release',async()=>{
+    process.env.PUBLIC_SITE_RELEASE_DIGEST='a'.repeat(64)
+    mockBlobGet.mockResolvedValue(null)
+    await dataHandler(mockReq({method:'GET'}),mockRes())
+    expect(mockBlobGet).toHaveBeenCalledWith('public-site/releases/'+ 'a'.repeat(64) + '/data.json',expect.any(Object))
+  })
+  it('fails closed on malformed release selectors',async()=>{
+    process.env.PUBLIC_SITE_RELEASE_DIGEST='../unapproved'
+    const res=mockRes()
+    await dataHandler(mockReq({method:'GET'}),res)
+    expect(res.statusCode).toBe(500)
+    expect(res.body.code).toBe('config_error')
+    expect(mockBlobGet).not.toHaveBeenCalled()
+  })
   it('returns 405 for non-GET', async () => {
     const res = mockRes()
     await dataHandler(mockReq({ method: 'POST' }), res)

@@ -9,7 +9,6 @@ from src.api.responses import error_response
 from src.api.routes.extension_runtime import get_feed_policy_store, get_feed_store
 from src.api.routes.extension_utils import (
     parse_positive_int,
-    require_ingest_auth,
     require_scope,
 )
 
@@ -23,7 +22,6 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
         try:
             workspace_id, ego = require_scope(request)
             policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
-            require_ingest_auth(policy, request)
             days = parse_positive_int(request, "days", 30, minimum=1, maximum=3650)
             keyword_limit = parse_positive_int(request, "keyword_limit", 12, minimum=1, maximum=100)
             sample_limit = parse_positive_int(request, "sample_limit", 8, minimum=1, maximum=100)
@@ -60,7 +58,6 @@ def register_extension_read_routes(blueprint: Blueprint) -> None:
         try:
             workspace_id, ego = require_scope(request)
             policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
-            require_ingest_auth(policy, request)
             days = parse_positive_int(request, "days", 30, minimum=1, maximum=3650)
             limit = parse_positive_int(request, "limit", 20, minimum=1, maximum=200)
         except ValueError as exc:

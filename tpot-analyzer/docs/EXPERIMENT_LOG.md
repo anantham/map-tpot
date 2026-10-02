@@ -2866,3 +2866,35 @@ What failed:
 **Data stored:** [Where the results live in the DB/filesystem]
 **Next step:** [What this enables or blocks]
 ```
+
+
+## EXP-SECURITY-20261002: Does the reviewed source patch work on remote main?
+
+**Date:** 2026-10-02
+**Question:** Can all supported scan boundaries be tested without carrying unpublished commits or personal artifacts?
+**Hypothesis:** The source-only patch applies to `6f030442`; existing regression needs static configuration but no private stores. Confidence 0.80.
+**Method:** Configure sparse exclusions before checkout; apply the source-only diff; run all Python/public/graph suites, builds, disposable Redis Lua contracts and independent re-review.
+**Result:** Initial all-data exclusion caused 72 test failures/five setup errors. Restoring only unchanged taxonomy and dated price-card configuration yielded 1,933 Python passes/five environment skips, 265 public, 794 graph, six Node tests and both builds. Independent re-review found no new source blocker. Unknown binary fixtures stayed absent.
+**Lesson:** Public schema/configuration paths must be distinguished from private artifact data; broad exclusions cannot silently become test skips. Local success does not prove remote CI/review completion or safe legacy migrations.
+**Next step:** Run required verification scripts, publish the approved source-only draft branch with Vercel branch deployment suppression, verify actual CI/Codex trigger, and retain separate merge/deployment/cleanup gates.
+
+
+## EXP-SECURITY-HTTP-PARSER-20261002
+
+**Question:** Does the bounded-response error contract survive updated stdlib parser limits?
+**Hypothesis:** Python3.11.16 trailer-count rejection occurs before our byte cap and needs the same guarded exception normalization; confidence0.95.
+**Method:** Inspect the single hosted failure, add deterministic HTTPException/IncompleteRead public safe_urlopen/read cases, observe both RED, then extend the existing expected-parser exception tuple. No live endpoints are contacted.
+**Result:** Both RED cases reproduced raw parser exceptions. The corrected outbound verifier passed76 tests with the existing oversized-trailer test unchanged.
+**Lesson:** Adjacent patch releases can enforce earlier parser limits; normalize the parser's documented HTTPException family at the public stream boundary while preserving closure and byte/time ceilings.
+**Next step:** Complete aggregate/independent review and verify hosted CI on the updated exact head.
+
+- Final local evidence: aggregate1,935passed/5skipped78.31s, independentoutbound76/76 and strengthenedparsermodule22/22. An independent preliminary50ms timer assertion was transient under concurrentload and passed onrerun; response still failed closed.
+
+## EXP-SECURITY-REVIEW-20261002: Do failure paths preserve admission and approval?
+
+**Question:** Are the five PR review findings supported, and do adjacent failure paths preserve the same security contracts?
+**Hypothesis:** Unknown paths, route aliases, obsolete cookie consumers and deterministic Redis/upload failures expose supported gaps; synthetic red/green tests can verify corrections without production requests. Phase confidence 0.80.
+**Method:** Reproduce each gap with synthetic paths, owned temporary JSON, independent Flask workers, disposable Redis DUMP snapshots and mocked installed Blob SDK contracts. Independently review the combined diff and run aggregate regressions.
+**Result:** All five findings reproduced and were repaired. Adjacent paid-ledger corruption also partially mutated coordination state; its regression now passes. Independent review reproduced a caller-buffer mutation during awaited Blob lookup; bounded synchronous snapshots fixed it. Aggregate 1,976 Python passed/five existing skips, 318 public passed and 14 Node passed. Independent overlapping scopes passed 81 Flask, 65 local Python, 14 Node and 85 Redis contracts; no remaining blocker in the corrections.
+**Lesson:** Redis Lua atomic execution does not roll back command errors, so validate key types/counter encodings and pre-serialize before mutation. Digest approval must bind immutable bytes across asynchronous work. A path allowlist cannot determine whether permitted source/docs contain sensitive values.
+**Next step:** Verify hosted CI and automatic Codex review on the substantive ready-PR push. Keep production activation, existing corrupt-state repair, legacy migration/retention and historical disclosure decisions separate.

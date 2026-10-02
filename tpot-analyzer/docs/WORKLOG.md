@@ -3434,3 +3434,28 @@
         - The mounted `Communities.jsx` (661 LOC) and `AccountDeepDive.jsx` (540 LOC) remain pre-existing monolith debt already tracked in `docs/ROADMAP.md`; this slice only added imports/labels/notices and did not attempt a mixed refactor.
         - `public-site/src/CommunityCard.test.jsx` remains inherited 325-LOC debt after changing the old percentage assertion; its fixture-preserving split is tracked separately in `docs/ROADMAP.md`.
         - Prompt extraction reduced `GenerateCard.jsx` from 407 to 345 LOC and `api/generate-card.js` from 460 to 353 LOC, but both remain inherited decomposition debt; the client remainder is now explicitly tracked alongside the existing server item.
+
+
+## 2026-10-02 — Source-only security remediation on remote main
+
+- Approved implementation/tests were reproduced on remote base `6f030442` in an isolated sparse worktree. All 19 dispositions, dependencies and residual decisions are in [the security report](diagnostics/security-source-only-20261002.md).
+- Changes cover paid admission, owned gallery publication, Flask trust/workload limits, pinned outbound transport, bounded archives/artifacts/cookies, publication projection and CI prevention. No personal artifacts or unpublished ancestor commits are added.
+- Fresh-base regression: 1,933 Python/5 skips, 265 public, 794 graph, six Node publication tests; both builds pass. Static taxonomy and price-card configuration were required; the unknown binary cluster fixture remains excluded and its dedicated verifier is not claimed green.
+- Original local handoff actual 66m40s versus three-hour estimate. Fresh-base follow-on began 12:31:14 UTC, separate 25–40m estimate. Independent re-review finished 12:43:03 UTC after 7m39s; byte-equivalence explains the reduction.
+- Branch-specific Vercel Git suppression prevents preview deployment during the explicitly approved draft PR/Codex review flow. Production deployment, historical cleanup and safe-artifact recertification remain separate gates.
+- Large inherited modules touched by narrow security changes (server, analysis manager, extension and archive store) remain decomposition debt; the newly extracted security modules and card UI stay within the 300-line gate. See ROADMAP.
+
+
+### 2026-10-02 — Hosted Python 3.11.16 parser contract follow-up
+
+First source-only draft CI passed both frontend jobs/builds and both cluster-verifier commands, but Python had1/1933 failures. The newer stdlib trailer limit raised HTTPException before our framing byte cap; local3.11.15 had no trailer-count cap. Two RED public-read regression cases confirmed that HTTPException/IncompleteRead escaped the normalized error contract. Added the expected parser exception to `src/api/response_limits.py`, retaining fail-closed closure and the original adversarial test. Outbound verifier76 passed; full regression and independent review rerun before publication. No data changes, deployment or test exclusions were added.
+
+- Correction validation: fullPython1,935passed/5skipped/20inheritedwarnings78.31s; strengthenedparsermodule22pass; independentoutbound76pass plus unmockedtruncatedchunkclosure. Independent review sampled12:59:05UTC. One earlier50ms timer assertion was transient under concurrentload and passed onrerun; retain as testing-sensitivity follow-up rather than weaken the fail-closed contract.
+
+### 2026-10-02 — PR #11 review corrections
+
+- Validated all five Codex findings against the current source: default-allow unknown publication paths, ungated expensive route aliases, the debug pickle consumer, deterministic partial Redis gallery writes and interrupted immutable upload recovery. Added failing contracts and corrected each boundary. Equivalent paid-ledger corruption and reviewer-reproduced mutable upload buffers are also covered.
+- Independent review completed at 13:26:50 UTC with no remaining correction blocker. Aggregate Python: 1,976 passed/five existing skips, 47.26 seconds; public: 318 passed/34 files and production build green; Node publication: 14 passed. Independent overlapping scopes: Flask 81, local Python 65, Node 14 and Redis 85. Local verifier: 87 Python/14 Node; 464 source files audited, zero executable deserialization consumers.
+- Required verifiers now include the new paid-ledger and route-admission modules. All 183 composed paths pass the default-deny gate; no private artifact content was read. Existing graph source/build evidence remains unchanged.
+- Hosted prior head `9b1346d` passed all three jobs and both cluster verifiers. Owner approved ready PR at 13:03:01 UTC; the next substantive push tests automatic EveryPush review without another manual comment. Updated-head CI/review are separate pending evidence.
+- Local/publication actual 21m20s versus 35 minutes (confidence 0.85); Flask actual 10m11s versus 20 minutes (0.90). A three-minute interim local estimate slip added the independently found buffer regression. The debug script shrank from 480 to 454 LOC; its remaining inherited size debt is tracked in ROADMAP.

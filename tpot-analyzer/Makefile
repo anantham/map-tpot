@@ -5,7 +5,7 @@ PYTEST ?= $(VENV_PY) -m pytest
 
 .DEFAULT_GOAL := help
 
-.PHONY: help ensure-venv verify-louvain-contract verify-artifact-compatibility verify-baseline probe-community-archive verify-community-archive compare-community-archive verify-propagation-contract evaluate-frozen-membership verify-network-discoverability verify-research-assumptions verify-personal-ontology-slice1 test-smoke test-ci test verify-docs deploy-public-site
+.PHONY: help ensure-venv verify-louvain-contract verify-artifact-compatibility verify-baseline probe-community-archive verify-community-archive compare-community-archive verify-propagation-contract evaluate-frozen-membership verify-network-discoverability verify-research-assumptions verify-personal-ontology-slice1 test-smoke test-ci test verify-docs prepare-public-site deploy-public-site
 
 help:
 	@echo "Available targets:"
@@ -21,7 +21,8 @@ help:
 	@echo "  make test-ci                  # run the credential-free backend CI suite"
 	@echo "  make test                     # run the full backend test suite"
 	@echo "  make verify-docs              # run docs hygiene verification"
-	@echo "  make deploy-public-site       # [DANGER] Run bootstrap prop + export + blob upload"
+	@echo "  make prepare-public-site      # Prepare a local candidate for review"
+	@echo "  make deploy-public-site APPROVE_DIGEST=... # Upload reviewed immutable release"
 
 ensure-venv:
 	@test -x "$(VENV_PY)" || (echo "Missing $(VENV_PY). Run: python3.11 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt" && exit 1)
@@ -78,11 +79,12 @@ test: ensure-venv
 verify-docs:
 	@python3 -m scripts.verify_docs_hygiene
 
-deploy-public-site: ensure-venv
-	@echo "--- 1/3: Running Bootstrap Propagation (5 iters) ---"
+prepare-public-site: ensure-venv
 	@$(VENV_PY) -m scripts.propagate_community_labels --save --bootstrap 5 --mode independent
-	@echo "--- 2/3: Exporting Data for Public Site ---"
 	@$(VENV_PY) -m scripts.export_public_site
-	@echo "--- 3/3: Uploading to Vercel Blob ---"
-	@cd public-site && node scripts/upload-public-site-data.mjs
-	@echo "Deployment complete."
+	@echo "Local candidate prepared. Review candidate bytes and publication-manifest.json."
+
+deploy-public-site:
+	@test -n "$(APPROVE_DIGEST)" || (echo "Explicit exact-digest approval required: make deploy-public-site APPROVE_DIGEST=<reviewed digest>"; exit 1)
+	@cd public-site && node scripts/upload-public-site-data.mjs --approve-digest "$(APPROVE_DIGEST)"
+	@echo "Immutable approved release uploaded; updating production URLs requires separate deployment approval."

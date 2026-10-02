@@ -105,34 +105,20 @@ def curator_client(integration_app):
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Reads stay anonymous-friendly
+# Private reads require curator credentials
 # ─────────────────────────────────────────────────────────────────────────
 
 @pytest.mark.integration
-def test_anonymous_can_list_communities(anon_client):
-    """GET /api/communities is a public read; no auth required."""
-    resp = anon_client.get("/api/communities")
-    assert resp.status_code == 200
-    assert any(c["id"] == "comm-int" for c in resp.get_json())
-
-
-@pytest.mark.integration
-def test_anonymous_can_get_community_members(anon_client):
-    resp = anon_client.get("/api/communities/comm-int/members")
-    assert resp.status_code == 200
-
-
-@pytest.mark.integration
-def test_anonymous_can_get_branches_list(anon_client):
-    """GET /api/communities/branches is a public read."""
-    resp = anon_client.get("/api/communities/branches")
-    assert resp.status_code == 200
-
-
-@pytest.mark.integration
-def test_anonymous_can_get_seeds_state(anon_client):
-    resp = anon_client.get("/api/seeds")
-    assert resp.status_code == 200
+@pytest.mark.parametrize("path", ["/api/communities", "/api/communities/comm-int/members",
+                                  "/api/communities/branches", "/api/seeds"])
+def test_private_reads_reject_anonymous_and_accept_curator(anon_client, curator_client, path):
+    rejected = anon_client.get(path)
+    assert rejected.status_code == 401
+    assert set(rejected.get_json()) == {"error"}
+    accepted = curator_client.get(path)
+    assert accepted.status_code == 200
+    if path == "/api/communities":
+        assert any(c["id"] == "comm-int" for c in accepted.get_json())
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -235,14 +221,15 @@ def test_curator_mutation_returns_503_when_token_unset(integration_app, monkeypa
 # ─────────────────────────────────────────────────────────────────────────
 
 @pytest.mark.integration
-def test_extension_settings_default_is_guarded(anon_client):
+def test_extension_settings_default_is_guarded(anon_client, curator_client):
     """A fresh (workspace, ego) pair must default to ingestion_mode='guarded'.
 
     Regression test for Vuln 5: the original default was 'open' which let
     any caller write to a fresh ego without a token. If this flips back,
     this test fails immediately.
     """
-    resp = anon_client.get("/api/extension/settings?ego=fresh-ego&workspace_id=default")
+    assert anon_client.get("/api/extension/settings?ego=fresh-ego&workspace_id=default").status_code == 401
+    resp = curator_client.get("/api/extension/settings?ego=fresh-ego&workspace_id=default")
     assert resp.status_code == 200
     assert resp.get_json()["ingestionMode"] == "guarded"
 

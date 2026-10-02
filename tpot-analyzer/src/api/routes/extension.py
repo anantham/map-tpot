@@ -7,6 +7,7 @@ from typing import Any
 from flask import Blueprint, jsonify, request
 
 from src.api.responses import error_response
+from src.api.security_policy import curator_gate
 
 from src.api.routes.extension_read_routes import register_extension_read_routes
 from src.api.routes.extension_runtime import (
@@ -33,6 +34,13 @@ extension_bp = Blueprint("extension", __name__, url_prefix="/api/extension")
 register_extension_read_routes(extension_bp)
 
 
+@extension_bp.before_request
+def extension_administration_boundary():
+    if request.endpoint != "extension.ingest_feed_events":
+        return curator_gate()
+    return None
+
+
 @extension_bp.route("/settings", methods=["GET"])
 def get_extension_settings():
     """Get extension ingestion policy for the scoped workspace/ego pair."""
@@ -50,7 +58,6 @@ def update_extension_settings():
     try:
         workspace_id, ego = require_scope(request)
         policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
-        require_ingest_auth(policy, request)
         payload = parse_json_body(request)
     except ValueError as exc:
         return error_response(str(exc))
@@ -179,8 +186,7 @@ def ingest_feed_events():
             "workspaceId": workspace_id,
             "ego": ego,
             "ingest": ingest_stats,
-            "settings": policy.as_dict(),
-            "firehose": firehose_status,
+            "firehose": {key: value for key, value in firehose_status.items() if key != "path"},
         }
     )
 
@@ -191,7 +197,6 @@ def get_raw_feed_events():
     try:
         workspace_id, ego = require_scope(request)
         policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
-        require_ingest_auth(policy, request)
         limit = parse_positive_int(request, "limit", 100, minimum=1, maximum=500)
         before_seen_at = parse_iso_optional(request, "before_seen_at")
         payload = get_feed_admin_store().list_raw_events(
@@ -216,7 +221,6 @@ def purge_feed_events_by_tag():
     try:
         workspace_id, ego = require_scope(request)
         policy = get_feed_policy_store().get_policy(workspace_id=workspace_id, ego=ego)
-        require_ingest_auth(policy, request)
         payload = parse_json_body(request)
         tag = str(payload.get("tag") or "").strip()
         if not tag:

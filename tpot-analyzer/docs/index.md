@@ -15,6 +15,7 @@ Last reviewed: 2026-08-01
 | [Publishing and Privacy Boundary](product/2026-07-26-publishing-and-privacy-boundary.md) | Publishable snapshot fields, local/remote disclosure, and private dossier boundary |
 | [Tagging Workspace UX Feedback](product/2026-08-03-tagging-workspace-ux-feedback.md) | Operator UX feedback, ordered P1–P3: layout, polarity grouping, autocomplete, per-tag meta-notes |
 | [Personal-Ontology Implementation Plan](plans/2026-07-26-personal-ontology-active-discovery-implementation.md) | Current thin-slice sequence and entry/exit gates |
+| [Security source-only remediation](diagnostics/security-source-only-20261002.md) | 2026-10-02: all 19 dispositions, fresh-base tests, timing and rollout gates |
 | [Worklog](WORKLOG.md) | Timestamped implementation history and rationale |
 | [Roadmap](ROADMAP.md) | Living backlog and future work |
 

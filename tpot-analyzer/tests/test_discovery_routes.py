@@ -314,20 +314,13 @@ class TestDiscoverErrorPaths:
     def test_cached_result_returned_without_graph_access(self, discovery_app: Flask) -> None:
         """When CacheManager has a cached result, graph loading is skipped entirely."""
         client = discovery_app.test_client()
-        cache_mgr: CacheManager = discovery_app.config["CACHE_MANAGER"]
-
-        cached_payload = {"recommendations": [], "meta": {"cache_hit": True}}
-        # Pre-populate the cache with the exact key the route will compute.
-        import json as _json
-
         req_body = {"seeds": ["alice"]}
-        cache_key = f"discovery:{_json.dumps(req_body, sort_keys=True)}"
-        cache_mgr.set_discovery_result(cache_key, cached_payload)
-
-        resp = client.post("/api/subgraph/discover", json=req_body)
-        assert resp.status_code == 200
-        body = resp.get_json()
-        assert body["meta"]["cache_hit"] is True
+        first = client.post("/api/subgraph/discover", json=req_body)
+        assert first.status_code == 200
+        with patch("src.api.routes.discovery._load_graph_result", side_effect=AssertionError("cache miss")):
+            second = client.post("/api/subgraph/discover", json={**req_body, "unused": "ignored"})
+        assert second.status_code == 200
+        assert second.get_json() == first.get_json()
 
 
 # ===========================================================================

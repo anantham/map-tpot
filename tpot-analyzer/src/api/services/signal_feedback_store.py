@@ -16,6 +16,7 @@ from time import time
 from typing import Any, Dict, List, Optional
 
 from src.config import get_snapshot_dir
+from src.api.feedback_limits import MAX_CONTEXT_BYTES, validate_feedback
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class SignalFeedbackEvent:
     user_label: str
     context: Dict[str, Any]
     timestamp: float
+    expires_at: Optional[float] = None
 
 
 class SignalFeedbackStore:
@@ -40,7 +42,12 @@ class SignalFeedbackStore:
 
     _DB_FILENAME = "signal_feedback.db"
 
-    def __init__(self, db_path: Optional[Path] = None) -> None:
+    def __init__(self, db_path: Optional[Path] = None, *, max_events: int = 20000,
+                 retention_seconds: int = 30 * 86400) -> None:
+        if max_events < 1 or retention_seconds < 1:
+            raise ValueError("feedback limits must be positive")
+        self._max_events = max_events
+        self._retention_seconds = retention_seconds
         if db_path is None:
             db_path = get_snapshot_dir() / self._DB_FILENAME
         self._db_path = Path(db_path)
@@ -79,20 +86,33 @@ class SignalFeedbackStore:
                     timestamp   REAL    NOT NULL
                 )
             """)
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(feedback_events)")}
+            if "expires_at" not in columns:
+                conn.execute("ALTER TABLE feedback_events ADD COLUMN expires_at REAL")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_fb_expiry ON feedback_events(expires_at)")
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_fb_signal
                 ON feedback_events(signal_name)
             """)
 
+    def _prune_expired(self, conn) -> None:
+        # Legacy rows have no expiry: never silently delete historical curator data.
+        conn.execute("DELETE FROM feedback_events WHERE expires_at IS NOT NULL AND expires_at <= ?", (time(),))
+
     def _load_all(self) -> List[SignalFeedbackEvent]:
-        """Load every persisted event into memory (called once at startup)."""
+        """Load a bounded window of unexpired and legacy events."""
         with self._get_connection() as conn:
             rows = conn.execute(
-                "SELECT account_id, signal_name, score, user_label, context, timestamp "
-                "FROM feedback_events ORDER BY id"
+                "SELECT account_id, signal_name, score, user_label, context, timestamp, expires_at "
+                "FROM feedback_events WHERE (expires_at IS NULL OR expires_at > ?) "
+                "AND length(CAST(context AS BLOB)) <= ? ORDER BY id DESC LIMIT ?",
+                (time(), MAX_CONTEXT_BYTES, self._max_events),
             ).fetchall()
         events: List[SignalFeedbackEvent] = []
-        for row in rows:
+        for row in reversed(rows):
+            if row[4] and len(row[4].encode("utf-8")) > MAX_CONTEXT_BYTES:
+                logger.warning("Ignoring oversized legacy feedback context")
+                continue
             ctx: Dict[str, Any] = {}
             try:
                 ctx = json.loads(row[4]) if row[4] else {}
@@ -105,6 +125,7 @@ class SignalFeedbackStore:
                 user_label=row[3],
                 context=ctx,
                 timestamp=row[5],
+                expires_at=row[6],
             ))
         return events
 
@@ -121,38 +142,54 @@ class SignalFeedbackStore:
         user_label: str,
         context: Dict[str, Any] | None = None,
     ) -> None:
+        context = {} if context is None else context
+        encoded_context = validate_feedback(account_id, signal_name, score, user_label, context)
+        observed_at = time()
         event = SignalFeedbackEvent(
             account_id=account_id,
             signal_name=signal_name,
             score=float(score),
             user_label=user_label,
             context=context or {},
-            timestamp=time(),
+            timestamp=observed_at,
+            expires_at=observed_at + self._retention_seconds,
         )
         with self._lock:
             # Persist to SQLite first so data survives crashes.
             with self._get_connection() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                self._prune_expired(conn)
+                count = conn.execute("SELECT COUNT(*) FROM feedback_events").fetchone()[0]
+                if count >= self._max_events:
+                    raise OverflowError("feedback storage quota reached; review/export existing records")
                 conn.execute(
                     "INSERT INTO feedback_events "
-                    "(account_id, signal_name, score, user_label, context, timestamp) "
-                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    "(account_id, signal_name, score, user_label, context, timestamp, expires_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
                         event.account_id,
                         event.signal_name,
                         event.score,
                         event.user_label,
-                        json.dumps(event.context),
+                        encoded_context,
                         event.timestamp,
+                        event.expires_at,
                     ),
                 )
-            self._events.append(event)
+            self._events = self._load_all()
+
+    def _expire_memory(self) -> None:
+        now = time()
+        self._events = [event for event in self._events if event.expires_at is None or event.expires_at > now]
 
     def event_count(self) -> int:
         with self._lock:
+            self._expire_memory()
             return len(self._events)
 
     def quality_report(self) -> Dict[str, Dict[str, Any]]:
         with self._lock:
+            self._expire_memory()
             events = list(self._events)
 
         grouped: Dict[str, List[SignalFeedbackEvent]] = {}

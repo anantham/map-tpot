@@ -9,6 +9,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from src.propagation.types import PropagationResult
+from src.artifacts.safe_io import save_npz_arrays, string_array
 
 
 def save_results(result: PropagationResult, output_dir: Path) -> Path:
@@ -30,10 +31,10 @@ def save_results(result: PropagationResult, output_dir: Path) -> Path:
         uncertainty=result.uncertainty.astype(np.float32),
         abstain_mask=result.abstain_mask,
         labeled_mask=result.labeled_mask,
-        node_ids=result.node_ids,
-        community_ids=np.array(result.community_ids),
-        community_names=np.array(result.community_names),
-        community_colors=np.array(result.community_colors),
+        node_ids=string_array(result.node_ids, label="node IDs"),
+        community_ids=string_array(result.community_ids, label="community IDs"),
+        community_names=string_array(result.community_names, label="community names"),
+        community_colors=string_array(result.community_colors, label="community colors"),
         converged=np.array(result.converged, dtype=bool),
         cg_iterations=np.array(result.cg_iterations, dtype=np.int32),
         mode=np.array(result.config.mode),
@@ -45,8 +46,8 @@ def save_results(result: PropagationResult, output_dir: Path) -> Path:
     if result.confidence_intervals is not None:
         save_arrays["confidence_intervals"] = result.confidence_intervals.astype(np.float32)
 
-    np.savez_compressed(str(archive_path), **save_arrays)
-    np.savez_compressed(str(active_path), **save_arrays)
+    save_npz_arrays(archive_path, save_arrays)
+    save_npz_arrays(active_path, save_arrays)
 
     print(f"\nResults saved:")
     print(f"  Archive: {archive_path}")
