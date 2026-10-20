@@ -6,6 +6,7 @@ import ClusterView from './ClusterView'
 import Labeling from './Labeling'
 import Communities from './Communities'
 import ResearchNotesInbox from './ResearchNotesInbox'
+import AppNavigation from './AppNavigation'
 import { getAccount, getTheme as loadTheme, setTheme as saveTheme } from './storage'
 
 const VALID_VIEWS = [
@@ -64,49 +65,18 @@ function App() {
     setCurrentView(view)
   }, [])
 
-  const nav = (view) => ({ onClick: () => { setCurrentView(view); setDeepDiveAccountId(null) } })
-  const navStyle = (view) => ({
-    padding: '8px 16px',
-    background: currentView === view ? 'var(--accent)' : 'var(--panel)',
-    color: currentView === view ? 'var(--bg)' : 'var(--text)',
-    border: '1px solid var(--panel-border)',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontWeight: '600',
-  })
+  const handleShellNavigate = useCallback((view) => {
+    setDeepDiveAccountId(null)
+    setCurrentView(view)
+  }, [])
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Navigation */}
-      <div style={{
-        display: 'flex', gap: '10px', padding: '10px 20px',
-        background: 'var(--panel)', borderBottom: '1px solid var(--panel-border)', color: 'var(--text)',
-      }}>
-        <button {...nav('discovery')} style={navStyle('discovery')}>Discovery</button>
-        <button
-          onClick={() => accountStatus.valid && (setCurrentView('graph'), setDeepDiveAccountId(null))}
-          disabled={!accountStatus.valid}
-          style={{ ...navStyle('graph'), cursor: accountStatus.valid ? 'pointer' : 'not-allowed' }}
-        >
-          Graph Explorer
-        </button>
-        <button {...nav('cluster')} style={navStyle('cluster')}>Cluster View</button>
-        <button {...nav('communities')} style={navStyle('communities')}>Communities</button>
-        <button {...nav('research-notes')} style={navStyle('research-notes')}>
-          Research Notes
-        </button>
-        <button
-          {...nav('labeling')}
-          style={{
-            ...navStyle('labeling'),
-            background: currentView === 'labeling' ? '#3b82f6' : 'var(--panel)',
-            color: currentView === 'labeling' ? '#fff' : 'var(--text)',
-          }}
-        >
-          Label Tweets
-        </button>
-        <div style={{ flex: 1 }} />
-      </div>
+      <AppNavigation
+        accountValid={accountStatus.valid}
+        currentView={currentView}
+        onNavigate={handleShellNavigate}
+      />
 
       {/* Main content */}
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>

@@ -72,22 +72,27 @@ export function useResearchNotesInbox() {
     }
   }, [manual, pasteText, selectedKey, sourceQueue])
 
-  const addCandidate = useCallback(({ accountId, username }) => {
+  const addCandidate = useCallback(({ accountId, username, origin = 'frontier_candidate' }) => {
     const handle = String(username || '').trim().replace(/^@/, '')
     if (!handle) return
     const normalizedHandle = handle.toLowerCase()
+    const queued = queue.find(item => item.normalizedHandle === normalizedHandle)
+    if (accountId && queued?.accountId && String(accountId) !== String(queued.accountId)) {
+      throw new Error('This handle is queued with a different account ID. No record was replaced; resolve the identity before reviewing.')
+    }
+    const provenanceKind = ['saved_search', 'post_search'].includes(origin) ? origin : 'frontier_candidate'
     manual.setItems((current) => {
       const existing = current.find((item) => (
         item.normalizedHandle === normalizedHandle
       ))
       if (existing) {
         const alreadySourced = existing.queueProvenance?.some(
-          (row) => row.kind === 'frontier_candidate',
+          (row) => row.kind === provenanceKind,
         )
         if ((!accountId || existing.accountId) && alreadySourced) return current
         const enriched = alreadySourced
           ? existing
-          : withQueueProvenance(existing, 'frontier_candidate', {
+          : withQueueProvenance(existing, provenanceKind, {
               sourceLine: `@${handle}`,
               sourceText: `@${handle}`,
             })
@@ -104,15 +109,15 @@ export function useResearchNotesInbox() {
         accountId: accountId ? String(accountId) : null,
         handle,
         normalizedHandle,
-        note: `Surfaced by the target-scoped frontier for review.`,
+        note: provenanceKind === 'frontier_candidate' ? 'Surfaced by the target-scoped frontier for review.' : '',
         sourceEnd: null,
         sourceLine: `@${handle}`,
         sourceStart: null,
         sourceText: `@${handle}`,
-      }, 'frontier_candidate')]
+      }, provenanceKind)]
     })
     setSelectedKey(normalizedHandle)
-  }, [manual])
+  }, [manual, queue])
 
   useEffect(() => {
     let cancelled = false
@@ -187,7 +192,7 @@ export function useResearchNotesInbox() {
     setDossierLoading(true)
     setDossierError(null)
     setDossierErrorKey(null)
-    fetchResearchDossier({ handle: selectedItem.handle })
+    fetchResearchDossier({ handle: selectedItem.handle, accountId: selectedItem.accountId })
       .then((result) => {
         if (!cancelled) {
           setDossier(result)

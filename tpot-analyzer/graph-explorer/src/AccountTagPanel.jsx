@@ -3,12 +3,18 @@ import { useMemo, useState } from 'react'
 import './researchNotes/AccountTagPanel.css'
 import TagAssignments from './researchNotes/TagAssignments'
 import TagAutocomplete from './researchNotes/TagAutocomplete'
+import TagEstimateEditor from './researchNotes/TagEstimateEditor'
 import TagHistory from './researchNotes/TagHistory'
 import TagMetaNote from './researchNotes/TagMetaNote'
 import TagSuggestions from './researchNotes/TagSuggestions'
 import { useAccountTagWorkspace } from './researchNotes/useAccountTagWorkspace'
 
 const normalized = (value) => String(value || '').trim().toLowerCase()
+
+const createReviewSessionId = () => {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
+  return `review-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
 
 export default function AccountTagPanel({
   account,
@@ -33,6 +39,10 @@ export default function AccountTagPanel({
     onVocabularyLoaded,
   })
   const normalizedDraft = tagDraft.trim()
+  const reviewSessionId = useMemo(
+    createReviewSessionId,
+    [account?.id, ego],
+  )
   const searchableTags = useMemo(() => [...new Set([
     ...workspace.availableTags,
     ...vocabulary,
@@ -44,6 +54,9 @@ export default function AccountTagPanel({
   ])
   const existing = workspace.tags.find((tag) => (
     normalized(tag.tag) === normalized(normalizedDraft)
+  ))
+  const activeAssignment = workspace.tags.find((tag) => (
+    normalized(tag.tag) === normalized(activeTag)
   ))
 
   const mark = async (polarity) => {
@@ -140,6 +153,15 @@ export default function AccountTagPanel({
           onRemove={workspace.removeTag}
           onSelect={selectTag}
           tags={workspace.tags}
+        />
+      )}
+      {activeAssignment && (
+        <TagEstimateEditor
+          accountId={account?.id}
+          disabled={!workspace.canMutate || workspace.loading}
+          ego={ego}
+          reviewSessionId={reviewSessionId}
+          tag={activeAssignment.tag}
         />
       )}
       <TagMetaNote

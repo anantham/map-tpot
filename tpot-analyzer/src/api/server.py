@@ -25,8 +25,10 @@ from src.api.routes.core import core_bp
 from src.api.routes.graph import graph_bp
 from src.api.routes.analysis import analysis_bp
 from src.api.routes.discovery import discovery_bp
+from src.api.routes.discovery_review import discovery_review_bp
 from src.api.routes.accounts import accounts_bp
 from src.api.routes.account_tags import account_tags_bp
+from src.api.routes.account_tag_estimates import account_tag_estimates_bp
 from src.api.routes.golden import golden_bp
 from src.api.routes.extension import extension_bp
 from src.api.routes.communities import communities_bp
@@ -35,6 +37,7 @@ from src.api.routes.community_gold import community_gold_bp
 from src.api.routes.community_gold_integrity import community_gold_integrity_bp
 from src.api.routes.research_notes import research_notes_bp
 from src.api.routes.research_notes_source import research_notes_source_bp
+from src.api.routes.research_notes_shadow import research_notes_shadow_bp
 from src.api.cluster import cluster_bp, init_cluster_routes
 from src.api.log_routes import log_bp
 from src.config import get_snapshot_dir
@@ -159,8 +162,10 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     app.register_blueprint(graph_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(discovery_bp)
+    app.register_blueprint(discovery_review_bp)
     app.register_blueprint(accounts_bp)
     app.register_blueprint(account_tags_bp)
+    app.register_blueprint(account_tag_estimates_bp)
     app.register_blueprint(golden_bp)
     app.register_blueprint(extension_bp)
     app.register_blueprint(communities_bp)
@@ -169,6 +174,7 @@ def create_app(config_overrides: Optional[dict] = None) -> Flask:
     app.register_blueprint(community_gold_integrity_bp)
     app.register_blueprint(research_notes_bp)
     app.register_blueprint(research_notes_source_bp)
+    app.register_blueprint(research_notes_shadow_bp)
 
     # Register legacy/existing blueprints
     app.register_blueprint(log_bp)

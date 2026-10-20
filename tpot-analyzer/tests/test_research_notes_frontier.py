@@ -1,3 +1,4 @@
+"""Ranking contract: full-pool method comparison, stable ties, no score calibration."""
 from __future__ import annotations
 
 import math
@@ -180,6 +181,30 @@ def test_frontier_requires_curator_and_valid_target(frontier_client) -> None:
     response = frontier_client.get("/api/research-notes/frontier?ego=aditya")
     assert response.status_code == 400
     assert "tag" in response.get_json()["error"]
+    invalid = frontier_client.get(
+        "/api/research-notes/frontier?ego=aditya&tag=Unknown&ranking=typo"
+    )
+    assert invalid.status_code == 400
+    assert "ranking" in invalid.get_json()["error"]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("mode,expected,ranks", [
+    ("raw_support", "shared", {"raw_support": 1, "selectivity": 3}),
+    ("selectivity", "niche", {"raw_support": 3, "selectivity": 1}),
+])
+def test_frontier_compares_full_pool_before_truncation(frontier_client, mode, expected, ranks):
+    response = frontier_client.get(
+        f"/api/research-notes/frontier?ego=aditya&tag=Dharma&limit=1&ranking={mode}"
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["semantics"]["ranking"] == mode
+    assert payload["semantics"]["calibrated"] is False
+    assert payload["diagnostics"]["candidateCount"] == 3
+    assert len(payload["candidates"]) == 1
+    assert payload["candidates"][0]["accountId"] == expected
+    assert payload["candidates"][0]["ranks"] == ranks
 
 
 @pytest.mark.integration

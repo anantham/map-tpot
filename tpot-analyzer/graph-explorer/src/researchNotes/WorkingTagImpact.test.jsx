@@ -55,7 +55,7 @@ describe('WorkingTagImpact', () => {
     vi.resetAllMocks()
   })
 
-  it('shows an honest first-channel result without calling it confidence', async () => {
+  it.each(['', null])('shows an honest first-channel result and unknown handle (%s)', async (username) => {
     fetchTagFrontier.mockResolvedValue(frontier({
       candidates: [{
         accountId: 'acct-candidate',
@@ -65,7 +65,7 @@ describe('WorkingTagImpact', () => {
         negativeScore: 0,
         positiveRawSupport: 1,
         negativeRawSupport: 0,
-      }],
+      }, { accountId: '9007199254740993', username }],
     }))
 
     render(
@@ -82,7 +82,7 @@ describe('WorkingTagImpact', () => {
 
     expect(await screen.findByText('Not enough tagged examples yet')).toBeInTheDocument()
     expect(screen.getByRole('heading', {
-      name: 'Model opinion — none yet (needs more tags)',
+      name: 'No calibrated membership model yet',
     })).toBeInTheDocument()
     expect(screen.getByRole('heading', {
       name: 'Candidates this tag surfaces',
@@ -92,12 +92,35 @@ describe('WorkingTagImpact', () => {
     expect(screen.queryByRole('heading', { name: 'Current frontier' }))
       .not.toBeInTheDocument()
     expect(screen.getByText('1 IN example')).toBeInTheDocument()
-    expect(screen.getByText(/selective-follow channel only/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Review account ID 9007199254740993' })).toBeDisabled()
+    expect(screen.getByText('#2 Account ID 9007199254740993')).toBeInTheDocument()
+    expect(screen.queryByText(/@9007199254740993/)).not.toBeInTheDocument()
+    expect(screen.getByText(/stored-follow channel only/i)).toBeInTheDocument()
     expect(screen.getByText(/uncalibrated ranking signal/i)).toBeInTheDocument()
     expect(screen.getByText(/not cluster confidence/i)).toBeInTheDocument()
     expect(screen.getByText(/no held-out recovery or cluster-existence claim/i))
       .toBeInTheDocument()
     expect(screen.queryByText(/membership probability/i)).not.toBeInTheDocument()
+  })
+
+  // Test intent: method changes are not judgment effects; both ranks stay visible.
+  it('compares server-ranked methods without attributing the switch to a judgment', async () => {
+    fetchTagFrontier.mockResolvedValue(frontier({ positive: 2, candidates: [{
+      accountId: 'x', username: 'candidate', positiveRawSupport: 2,
+      ranks: { raw_support: 1, selectivity: 31 },
+    }] }))
+    render(<WorkingTagImpact ego="aditya" tag="Dharma" revision={1} />)
+    expect(await screen.findByText('Raw #1 · Selectivity #31')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Candidate evidence'), { target: { value: 'follows' } })
+    await waitFor(() => expect(fetchTagFrontier).toHaveBeenLastCalledWith(expect.objectContaining({
+      ego: 'aditya', tag: 'Dharma', limit: 20, ranking: 'raw_support', channel: 'follows',
+    })))
+    fireEvent.change(screen.getByLabelText('Candidate order'), { target: { value: 'selectivity' } })
+    await waitFor(() => expect(fetchTagFrontier).toHaveBeenLastCalledWith(expect.objectContaining({
+      ego: 'aditya', tag: 'Dharma', limit: 20, ranking: 'selectivity', channel: 'follows',
+    })))
+    expect(await screen.findByText('Raw #1 · Selectivity #31')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Observed judgment impact')).not.toBeInTheDocument()
   })
 
   it('shows the observed before/after effect and offers the next account', async () => {
@@ -108,6 +131,7 @@ describe('WorkingTagImpact', () => {
         candidates: [
           { accountId: 'x', username: 'candidate', contrast: 0.01, positiveScore: 0.01, negativeScore: 0, positiveRawSupport: 1, negativeRawSupport: 0 },
           { accountId: 'y', username: 'other', contrast: 0.008, positiveScore: 0.008, negativeScore: 0, positiveRawSupport: 1, negativeRawSupport: 0 },
+          { accountId: '9007199254740993', username: '', positiveRawSupport: 1, negativeRawSupport: 0 },
         ],
       }))
       .mockResolvedValueOnce(frontier({
@@ -116,6 +140,7 @@ describe('WorkingTagImpact', () => {
         candidates: [
           { accountId: 'y', username: 'other', contrast: 0.018, positiveScore: 0.018, negativeScore: 0, positiveRawSupport: 2, negativeRawSupport: 0 },
           { accountId: 'x', username: 'candidate', contrast: 0.012, positiveScore: 0.012, negativeScore: 0, positiveRawSupport: 1, negativeRawSupport: 0 },
+          { accountId: '9007199254740993', username: '', positiveRawSupport: 2, negativeRawSupport: 0 },
         ],
       }))
 
@@ -145,6 +170,7 @@ describe('WorkingTagImpact', () => {
     expect(await screen.findByText('Candidate ranking available')).toBeInTheDocument()
     expect(screen.getByText(/IN examples 1 → 2/i)).toBeInTheDocument()
     expect(screen.getByText(/@other moved #2 → #1/i)).toBeInTheDocument()
+    expect(screen.getByText('Account ID 9007199254740993 support changed at #3: 2 IN / 0 NOT IN')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Review @other' }))
     await waitFor(() => expect(onReviewCandidate).toHaveBeenCalledWith({
       accountId: 'y',

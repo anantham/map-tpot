@@ -18,6 +18,8 @@ from html import unescape as _unescape
 from typing import Optional
 from urllib.parse import urljoin, urlparse
 
+from src.enrichment.bio_url_mentions import urls_in_text, safe_host
+
 # Platforms whose domain alone tells us what kind of page this is.
 PLATFORM_DOMAINS: dict[str, str] = {
     "linktr.ee": "aggregator", "bio.link": "aggregator", "beacons.ai": "aggregator",
@@ -80,40 +82,6 @@ class SiteFeatures:
         return safe_host(self.url).removeprefix("www.")
 
 
-# Parens are deliberately allowed through: Wikipedia-style paths carry them
-# legitimately, so the balance check below decides, not the character class.
-_URL_IN_TEXT = re.compile(r"https?://[^\s<>\"'‘’“”]+", re.I)
-# Hosts that are never a personal site — X's own shorteners and the platforms
-# we already have first-class edges for. Mining these adds noise, not evidence.
-_URL_STOP_HOSTS = frozenset({
-    "twitter.com", "x.com", "mobile.twitter.com", "pic.twitter.com",
-})
-
-
-def urls_in_text(text: Optional[str], *, limit: int = 4) -> tuple[str, ...]:
-    """Pull candidate site URLs out of free text such as a profile bio.
-
-    Bios carry the link far more often than the ``website`` column does: 1,369
-    of 7,588 stored bios contain a URL, against 230 populated website fields.
-    Trailing punctuation is stripped because bios end sentences with the link.
-    """
-    if not text:
-        return ()
-    found: list[str] = []
-    for raw in _URL_IN_TEXT.findall(_unescape(text)):
-        url = raw.rstrip(".,;:!?…")
-        while url.endswith(")") and url.count("(") < url.count(")"):
-            url = url[:-1]
-        host = safe_host(url)
-        if not host or host.removeprefix("www.") in _URL_STOP_HOSTS:
-            continue
-        if url not in found:
-            found.append(url)
-        if len(found) >= limit:
-            break
-    return tuple(found)
-
-
 _REDIRECT_PATTERNS = (
     r'<meta[^>]+http-equiv=["\']refresh["\'][^>]+content=["\'][^"\']*?url=([^"\']+)',
     r'location\.replace\(["\']([^"\']+)["\']\)',
@@ -158,18 +126,6 @@ def _meta(html: str, key: str) -> Optional[str]:
         if m and m.group(1).strip():
             return m.group(1).strip()
     return None
-
-
-def safe_host(url: str) -> str:
-    """Hostname of ``url``, or ``""`` if it cannot be parsed at all.
-
-    Every ``urlparse`` in this module goes through here — the ValueError is
-    raised by ``urlsplit`` itself, so any unguarded call is the same latent bug.
-    """
-    try:
-        return (urlparse(url).hostname or "").lower()
-    except ValueError:
-        return ""
 
 
 def _safe_join(base: str, href: str) -> Optional[str]:

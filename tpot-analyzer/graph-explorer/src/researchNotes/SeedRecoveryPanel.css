@@ -1,0 +1,10 @@
+.seed-recovery { border: 1px solid #6b7280; padding: .8rem; margin: 1rem 0; }
+.seed-recovery > summary { font-weight: 700; cursor: pointer; }
+.seed-recovery-controls { display: grid; gap: .7rem; margin-bottom: .8rem; }
+.seed-recovery-controls label { display: grid; gap: .25rem; }
+.seed-recovery-controls select { width: 100%; min-width: 0; }
+.seed-recovery-table { overflow-x: auto; }
+.seed-recovery table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+.seed-recovery th, .seed-recovery td { padding: .45rem; text-align: left; border-bottom: 1px solid #6b7280; }
+.seed-recovery article { border-top: 1px solid #6b7280; padding: .8rem 0; }
+.seed-recovery small { display: block; overflow-wrap: anywhere; }

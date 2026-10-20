@@ -1,0 +1,65 @@
+.account-contact-card,
+.account-contact-item,
+.account-contact-observation {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.account-contact-card {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #d4d8df);
+  border-radius: 0.65rem;
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #20242b);
+}
+
+.account-contact-card h3 { margin: 0 0 0.4rem; }
+.account-contact-card h4 { margin: 0 0 0.35rem; }
+
+.account-contact-boundary,
+.account-contact-status {
+  color: var(--muted-text-color, #545d69);
+}
+
+.account-contact-item {
+  margin-top: 0.75rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border-color, #d4d8df);
+  border-radius: 0.5rem;
+}
+
+.account-contact-value,
+.account-contact-observation p,
+.account-contact-source p,
+.account-contact-coverage li {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.account-contact-value {
+  margin: 0 0 0.65rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.account-contact-observation {
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--border-color, #e1e4e9);
+}
+
+.account-contact-observation p { margin: 0.2rem 0; }
+.account-contact-observation-label { font-weight: 600; }
+.account-contact-observation small { color: var(--muted-text-color, #545d69); }
+.account-contact-source { margin-top: 0.35rem; }
+.account-contact-source summary { cursor: pointer; }
+.account-contact-source dl { display: grid; grid-template-columns: minmax(6rem, auto) minmax(0, 1fr); gap: 0.2rem 0.5rem; }
+.account-contact-source dt { font-weight: 600; }
+.account-contact-source dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.account-contact-card code { overflow-wrap: anywhere; word-break: break-word; }
+.account-contact-coverage { margin-bottom: 0; padding-left: 1.2rem; }
+.account-contact-coverage-note { overflow-wrap: anywhere; }
+
+@media (max-width: 600px) {
+  .account-contact-source dl { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; }
+  .account-contact-source dd { margin-bottom: 0.35rem; }
+}

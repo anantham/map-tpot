@@ -1,4 +1,4 @@
-"""Exact-tag, source-selective follow frontier for curator feedback."""
+"""Exact-tag follow candidates with full-pool raw/selectivity comparisons."""
 from __future__ import annotations
 
 from contextlib import closing
@@ -119,8 +119,11 @@ def build_target_follow_frontier(
     ego: str,
     tag: str,
     limit: int,
+    ranking: str = "selectivity",
 ) -> dict[str, Any]:
     """Build one mutable-archive ranking without asserting cluster existence."""
+    if ranking not in {"raw_support", "selectivity"}:
+        raise ValueError("ranking must be raw_support or selectivity")
     normalized_ego = str(ego or "").strip()
     normalized_tag = str(tag or "").strip()
     anchors = load_target_tag_anchors(
@@ -135,7 +138,7 @@ def build_target_follow_frontier(
         "tagKey": normalized_tag.casefold(),
     }
     if not positive:
-        return _empty_frontier(target, len(negative))
+        return _empty_frontier(target, len(negative), ranking)
 
     with closing(open_archive_readonly(archive_db_path)) as conn:
         edges = load_follow_edges(conn, positive | negative)
@@ -159,6 +162,15 @@ def build_target_follow_frontier(
                 item[1].account_id,
             )
         )
+        orders = {
+            "selectivity": ranked,
+            "raw_support": sorted(ranked, key=lambda item: (-item[1].raw_support, item[1].account_id)),
+        }
+        ranks = {
+            mode: {item[1].account_id: index + 1 for index, item in enumerate(rows)}
+            for mode, rows in orders.items()
+        }
+        ranked = orders[ranking]
         usernames = load_usernames(
             conn,
             (item[1].account_id for item in ranked[:limit]),
@@ -173,9 +185,12 @@ def build_target_follow_frontier(
         negative_count=len(negative),
         covered_negative=negative_coverage["anchorsWithObservedFollowing"],
     )
+    if ranking == "raw_support" and status == "provisional":
+        reason = "uncalibrated_observed_raw_support"
     candidates = [
         {
             "accountId": row.account_id,
+            "ranks": {mode: values[row.account_id] for mode, values in ranks.items()},
             "username": usernames.get(row.account_id),
             "positiveScore": row.selectivity_score,
             "negativeScore": opposing.selectivity_score if opposing else 0.0,
@@ -195,7 +210,7 @@ def build_target_follow_frontier(
         "target": target,
         "status": status,
         "reason": reason,
-        "semantics": _semantics(),
+        "semantics": _semantics(ranking),
         "anchors": {
             "positive": {"count": len(positive), "coverage": positive_coverage},
             "negative": {"count": len(negative), "coverage": negative_coverage},
@@ -205,13 +220,17 @@ def build_target_follow_frontier(
     }
 
 
-def _semantics() -> dict[str, Any]:
+def _semantics(ranking: str) -> dict[str, Any]:
     return {
-        "method": "source_selectivity_contrast_v1",
+        "ranking": ranking,
+        "method": "raw_positive_support_v1" if ranking == "raw_support" else "source_selectivity_contrast_v1",
         "scoreMeaning": (
+            "number of IN examples following the candidate; NOT IN support is shown but not subtracted"
+            if ranking == "raw_support" else
             "positive selective follow support minus negative selective "
             "follow support"
         ),
+        "rawSupportTies": "equal support is ordered by account ID, not stronger evidence",
         "calibrated": False,
         "archiveBinding": "mutable_local_archive_unbound",
         "statusMeaning": (
@@ -228,13 +247,13 @@ def _semantics() -> dict[str, Any]:
     }
 
 
-def _empty_frontier(target: dict[str, str], negative_count: int) -> dict[str, Any]:
+def _empty_frontier(target: dict[str, str], negative_count: int, ranking: str) -> dict[str, Any]:
     empty_coverage = _coverage((), evaluated=False)
     return {
         "target": target,
         "status": "insufficient",
         "reason": "no_positive_anchors",
-        "semantics": _semantics(),
+        "semantics": _semantics(ranking),
         "anchors": {
             "positive": {"count": 0, "coverage": empty_coverage},
             "negative": {"count": negative_count, "coverage": empty_coverage},

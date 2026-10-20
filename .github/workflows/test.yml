@@ -46,6 +46,8 @@ jobs:
         run: python "${PROJECT_DIR}/scripts/verify_louvain_dependency_contract.py"
       - name: Verify docs hygiene
         run: python "${PROJECT_DIR}/scripts/verify_docs_hygiene.py"
+      - name: Verify private data stays out of the checkout
+        run: python "${PROJECT_DIR}/scripts/verify_shareable_checkout.py"
       - name: Verify frontend/backend API contracts
         run: PYTHONPATH="${PROJECT_DIR}" python "${PROJECT_DIR}/scripts/verify_api_contracts.py"
       - name: Verify clusters (fixture, granularity 25)

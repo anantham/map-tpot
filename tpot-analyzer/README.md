@@ -6,14 +6,33 @@ repository is moving from a legacy fixed community map toward raw-first,
 human-in-the-loop retrieval. Its historical named communities, scores, and
 display bands are exploratory artifacts—not calibrated membership claims.
 
-**Live site:** [maptpot.vercel.app](https://maptpot.vercel.app)
+**Legacy public visualization:** [maptpot.vercel.app](https://maptpot.vercel.app)
 
 The repo has three main surfaces:
 - **Public site** (`public-site/`) — Lightweight React app for searching accounts and browsing communities
 - **Graph explorer** (`graph-explorer/`) — Rich React + d3-force app with cluster view, labeling UI, gold label curation, account deep dive, and discovery
-- **Flask API** (`src/api/`) — Backend powering the graph explorer with 11 blueprint modules (graph, analysis, discovery, accounts, communities, clusters, golden, labeling, etc.)
+- **Flask API** (`src/api/`) — Backend powering private Review, evidence search, graph analysis and the legacy curation tools
 
 ## How It Works
+
+### Current direction: source-backed discovery
+
+Use the private Review workspace to search saved profiles, public work, websites
+and eligible posts together, inspect directed one/two-hop paths, and revise your
+own overlapping tags. Cards preserve sources and unknowns; linked social profiles
+are observations, not automatically resolved person identities. Taste ranking and
+calibrated membership are not established results.
+
+For the practical method, successful/negative experiments and invitation-writing
+lessons, read [Mapping communities by example](docs/guides/DISCOVERY_METHODS.md).
+For ignored data, clean-checkout inputs and historical Git limitations, read the
+[data boundary](docs/guides/DATA_BOUNDARY.md). A clone includes code and synthetic
+tests, not the owner's graph, contact directory, private tags or complete archives.
+
+### Legacy analysis and export pipeline
+
+The diagram, counts and validation examples below describe historical artifacts,
+not the current private Review dataset or demonstrated discovery performance.
 
 ```
 Community Archive (Supabase)
@@ -75,6 +94,10 @@ canonical current taxonomy and must not be used as golden membership data.
 
 ## Quick Start
 
+For the current Review workflow, start with the [private Review guide](docs/guides/DISCOVERY_REVIEW.md).
+The legacy pipeline commands below require your own permitted local inputs;
+a clone does not include the historical research dataset.
+
 ```bash
 # Setup
 python3 -m venv .venv
@@ -101,7 +124,8 @@ cp .env.example .env  # Add your SUPABASE_KEY
 
 - Python 3.9+
 - Supabase anon key for the Community Archive
-- ~500MB disk space (SQLite DB + propagation data)
+- Storage appropriate to your own inputs; the full private research corpus is
+  much larger than a small fixture dataset and is not included in Git
 
 ## Configuration
 
@@ -217,13 +241,18 @@ Features:
 
 Requires the Flask API running with a populated `archive_tweets.db` and precomputed graph snapshots.
 
-## Validation
+## Historical evaluation procedures
 
-The propagation system is validated through:
+The repository contains procedures for:
 
 - **Bootstrap CV**: Hold out 20% of seeds per iteration, measure recall on held-out + external directory
 - **Holdout set**: 217 TPOT directory accounts not used as seeds — measures discovery of accounts we didn't tell the system about
-- **Cross-signal convergence**: 15 communities validated across follow graph, mention/quote engagement, and topic modeling
+- **Cross-signal comparisons**: historical agreement/disagreement across follow,
+  mention/quote and topic views, not independent validation of community labels
+
+These historical procedures are not evidence of calibrated membership, novel-lead
+precision or event conversion. See the methods guide for bounded positive and
+negative results, coverage confounds and the outstanding prospective comparison.
 
 ## Testing
 

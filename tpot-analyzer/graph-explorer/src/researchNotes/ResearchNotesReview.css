@@ -1,9 +1,6 @@
 .research-notes-main {
   display: grid;
-  grid-template-columns:
-    minmax(300px, 1fr)
-    minmax(360px, 1.08fr)
-    minmax(290px, 0.9fr);
+  grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.1fr);
   gap: 16px;
   align-items: start;
 }
@@ -18,86 +15,107 @@
   grid-column: 1 / -1;
 }
 
-.research-notes-judgment {
+.account-judgment-drawer {
   grid-column: 2;
+  grid-row: 1 / span 4;
 }
 
-.research-notes-consequence {
-  grid-column: 3;
+.account-judgment-header h2,
+.account-judgment-header p {
+  margin: 0;
 }
 
-.research-notes-audit {
-  grid-column: 1 / -1;
-}
-
-.research-notes-judgment h2,
-.research-notes-consequence h2 {
-  margin-top: 0;
-}
-
-.research-notes-question {
+.account-judgment-header p {
+  margin-top: 6px;
   color: var(--text-muted);
-  line-height: 1.5;
-}
-
-.research-notes-provenance,
-.research-notes-identity-warning,
-.research-notes-model-state {
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.research-notes-provenance {
-  margin-bottom: 14px;
-  border-left: 4px solid var(--accent);
-  background: var(--bg-muted);
-  color: var(--text-muted);
-  font-size: 12px;
   line-height: 1.45;
 }
 
-.research-notes-identity-warning {
-  margin-top: 12px;
-  border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
-}
-
-.research-notes-model-state {
-  background: var(--bg-muted);
-}
-
-.research-notes-model-state h2,
-.research-notes-model-state h3 {
-  margin: 0 0 8px;
-}
-
-.research-notes-model-state h2 {
-  font-size: 18px;
-}
-
-.research-notes-model-state h3 {
-  font-size: 14px;
-}
-
-.research-notes-model-state p {
-  margin: 6px 0 0;
+.account-judgment-kicker {
   color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.account-note-disclosure,
+.account-judgment-provenance,
+.research-notes-consequence {
+  margin-top: 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  padding: 10px 12px;
+}
+
+.account-note-disclosure summary,
+.account-judgment-provenance summary,
+.research-notes-consequence summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.account-note-disclosure summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+}
+
+.account-note-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-note-disclosure summary span:last-child {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.account-note-disclosure[open] summary,
+.account-judgment-provenance[open] summary,
+.research-notes-consequence[open] summary {
+  margin-bottom: 10px;
+}
+
+.account-note-disclosure p,
+.account-judgment-provenance p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
   line-height: 1.45;
 }
 
 .research-notes-note {
   box-sizing: border-box;
   width: 100%;
-  min-height: 78px;
+  min-height: 90px;
   margin-top: 6px;
   resize: vertical;
 }
 
-.research-notes-preview-warning {
-  margin: 8px 0 16px;
-  font-size: 12px;
-  line-height: 1.45;
+.research-notes-reviewer-gate {
+  margin: 14px 0 0;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.account-judgment-drawer > .account-tag-panel {
+  margin-top: 14px;
+}
+
+.research-notes-consequence {
+  background: var(--bg-muted);
+}
+
+.research-notes-consequence > .working-tag-impact {
+  margin-top: 0;
+}
+
+.research-notes-audit {
+  margin-top: 14px;
 }
 
 .research-notes-audit > .tag-history {
@@ -110,18 +128,7 @@
   color: var(--text-muted);
 }
 
-@media (max-width: 1520px) {
-  .research-notes-main {
-    grid-template-columns: minmax(300px, 1fr) minmax(360px, 1.08fr);
-  }
-
-  .research-notes-consequence,
-  .research-notes-audit {
-    grid-column: 1 / -1;
-  }
-}
-
-@media (max-width: 900px) {
+@media (max-width: 1050px) {
   .research-notes-main {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -129,9 +136,8 @@
   .research-notes-main > .research-notes-dossier,
   .research-notes-main > .research-notes-error,
   .research-notes-main > .research-notes-state,
-  .research-notes-judgment,
-  .research-notes-consequence,
-  .research-notes-audit {
+  .account-judgment-drawer {
     grid-column: 1;
+    grid-row: auto;
   }
 }

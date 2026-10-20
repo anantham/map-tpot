@@ -1,0 +1,25 @@
+.saved-evidence-search { margin: 1rem 0; padding: .8rem; border: 1px solid var(--border, #ccd1db); border-radius: .6rem; }
+.saved-evidence-search h3 { margin-top: 0; }
+.saved-evidence-search p, .saved-evidence-search small { overflow-wrap: anywhere; }
+.saved-evidence-search small { display: block; color: var(--text-secondary, #626878); }
+.saved-evidence-search form { display: grid; gap: .45rem; }
+.saved-evidence-search input { min-width: 0; padding: .6rem; font: inherit; }
+.saved-evidence-search button { padding: .5rem; cursor: pointer; }
+.saved-evidence-search article { border-top: 1px solid var(--border, #ccd1db); padding: .8rem 0; }
+.saved-evidence-search article strong { display: block; margin-top: .3rem; }
+.saved-evidence-search article p { font-size: .9rem; white-space: pre-wrap; }
+.stored-post-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.saved-evidence-search [role="alert"] { color: #b42318; }
+.saved-evidence-results { max-height: 40vh; overflow-y: auto; }
+.saved-evidence-search select { max-width: 100%; padding: .4rem; font: inherit; }
+.saved-follow-path ol { padding-left: 1.2rem; }
+.saved-reference-path ol { padding-left: 1.2rem; }
+.saved-reference-path blockquote { margin: .5rem 0; padding-left: .6rem; border-left: 2px solid var(--border, #ccd1db); }
+.saved-evidence-search fieldset { display: flex; flex-wrap: wrap; gap: .5rem; }
+.evidence-result-groups { display: flex; flex-wrap: wrap; gap: .45rem; margin-block: .7rem; }
+.evidence-result-groups button[aria-pressed="true"] { font-weight: 700; outline: 2px solid var(--text-secondary, #626878); outline-offset: -2px; }
+
+/* In the single-column Review layout, read evidence with the page scroll. */
+@media (max-width: 1180px) {
+  .saved-evidence-results { max-height: none; overflow: visible; }
+}

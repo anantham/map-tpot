@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -108,6 +109,7 @@ def dossier_client(
     monkeypatch.setenv("ARCHIVE_DB_PATH", str(db_path))
     monkeypatch.setenv("TPOT_LOG_DIR", str(tmp_path / "logs"))
     monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
+    monkeypatch.setenv("MAP_TPOT_ARCHIVE_SOURCE", "local_custody")
 
     app = create_app({"TESTING": True})
     with app.test_client() as client:
@@ -156,6 +158,8 @@ def test_unbound_dossier_is_case_insensitive_raw_and_blind(
             "favoriteCount": 9,
             "retweetCount": 2,
             "fetchedAt": "2026-07-27T12:00:00+00:00",
+            "source": "archive",
+            "fetchSource": None,
         }
     ]
     forbidden = {
@@ -169,6 +173,55 @@ def test_unbound_dossier_is_case_insensitive_raw_and_blind(
         "snapshotHash",
     }
     assert forbidden.isdisjoint(payload)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("archive_present", [True, False])
+def test_dossier_includes_acquired_posts_in_date_order_without_duplicates(
+    dossier_client, archive_present,
+) -> None:
+    db_path = Path(os.environ["ARCHIVE_DB_PATH"])
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("""CREATE TABLE enriched_tweets (
+            tweet_id TEXT PRIMARY KEY, account_id TEXT NOT NULL,
+            username TEXT NOT NULL, text TEXT NOT NULL,
+            like_count INTEGER DEFAULT 0, retweet_count INTEGER DEFAULT 0,
+            created_at TEXT, fetch_source TEXT NOT NULL, fetched_at TEXT NOT NULL
+        )""")
+        conn.executemany("INSERT INTO enriched_tweets VALUES (?,?,?,?,?,?,?,?,?)", [
+            ("enriched-z", "acct-00", "RomeoStevens76", "New stored post", 7, 1,
+             "Wed Jul 29 12:00:00 +0000 2026", "last_tweets", "2026-07-30"),
+            ("enriched-a", "acct-00", "RomeoStevens76", "Same date post", 1, 0,
+             "2026-07-29T12:00:00+00:00", "advanced_search", "2026-07-30"),
+            ("tweet-new", "acct-00", "RomeoStevens76", "Duplicate acquired post", 12, 3,
+             "Mon Jul 27 12:00:00 +0000 2026", "last_tweets", "2026-07-30"),
+            ("enriched-undated", "acct-00", "RomeoStevens76", "Undated post", 0, 0,
+             "not-a-date", "archive", "2026-07-30"),
+            ("unrelated", "another-account", "another", "Other account post", 0, 0,
+             "Fri Jul 31 12:00:00 +0000 2026", "last_tweets", "2026-07-31"),
+        ])
+        if not archive_present:
+            conn.execute("DELETE FROM tweets")
+    before = db_path.read_bytes()
+    response = dossier_client.get("/api/research-notes/dossiers/RomeoStevens76?limit=3")
+    assert response.status_code == 200
+    posts = response.get_json()["tweets"]
+    assert [post["tweetId"] for post in posts] == ["enriched-z", "enriched-a", "tweet-new"]
+    assert posts[0] == {
+        "tweetId": "enriched-z", "text": "New stored post",
+        "createdAt": "Wed Jul 29 12:00:00 +0000 2026", "favoriteCount": 7,
+        "retweetCount": 1, "fetchedAt": "2026-07-30",
+        "source": "enriched", "fetchSource": "last_tweets",
+    }
+    assert posts[2]["source"] == ("archive" if archive_present else "enriched")
+    assert posts[2]["text"] == (
+        "A newer authored post" if archive_present else "Duplicate acquired post"
+    )
+    all_posts = dossier_client.get("/api/research-notes/dossiers/RomeoStevens76").get_json()["tweets"]
+    assert all_posts[-1]["tweetId"] == "enriched-undated"
+    assert len(all_posts) == (5 if archive_present else 4)
+    assert len({post["tweetId"] for post in all_posts}) == len(all_posts)
+    assert db_path.read_bytes() == before
 
 
 @pytest.mark.integration

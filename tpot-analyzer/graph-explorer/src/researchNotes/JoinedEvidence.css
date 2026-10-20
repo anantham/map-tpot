@@ -1,0 +1,56 @@
+.joined-evidence {
+  margin-block: 20px;
+  overflow-wrap: anywhere;
+}
+
+.joined-evidence h3 {
+  margin-block: 20px 10px;
+}
+
+.joined-evidence-card {
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  margin-block: 8px;
+}
+
+.joined-evidence-card h4,
+.joined-evidence-card p {
+  margin-block: 0 8px;
+}
+
+.joined-evidence-card p {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.joined-evidence a {
+  color: var(--accent);
+}
+
+.joined-evidence small,
+.joined-evidence-boundary {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.joined-evidence-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.joined-evidence details {
+  margin-block: 12px;
+}
+
+.joined-evidence summary {
+  cursor: pointer;
+  padding-block: 8px;
+}
+
+.joined-evidence :is(summary, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}

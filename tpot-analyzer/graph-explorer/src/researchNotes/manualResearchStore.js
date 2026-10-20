@@ -2,7 +2,7 @@ const STORAGE_VERSION = 1
 const STORAGE_PREFIX = 'tpot.research-notes.manual-queue.v1'
 const QUARANTINE_KEY = `${STORAGE_PREFIX}.quarantine`
 const HANDLE = /^[A-Za-z0-9_]{1,15}$/
-const LOCAL_PROVENANCE = new Set(['frontier_candidate', 'manual_paste'])
+const LOCAL_PROVENANCE = new Set(['frontier_candidate', 'manual_paste', 'saved_search', 'post_search'])
 
 export function manualResearchStorageKey() {
   return STORAGE_PREFIX

@@ -143,6 +143,7 @@ def test_anonymous_can_get_seeds_state(anon_client):
 # blueprints that hold curator-owned writable resources should be added here
 # so the auto-discovery test below covers them.
 _CURATOR_BLUEPRINTS = {
+    "account_tag_estimates",
     "account_tags",
     "branches",
     "communities",

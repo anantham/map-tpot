@@ -1,0 +1,142 @@
+.research-notes-panel {
+  position: sticky;
+  top: 12px;
+}
+
+.research-notes-panel-header h2,
+.research-notes-panel-header p {
+  margin: 0;
+}
+
+.research-notes-panel-header p {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.research-notes-setup,
+.research-notes-quick-add {
+  margin-top: 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  padding: 10px;
+}
+
+.research-notes-setup summary,
+.research-notes-quick-add summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.research-notes-setup[open] summary,
+.research-notes-quick-add[open] summary {
+  margin-bottom: 10px;
+}
+
+.research-notes-curator-input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.research-notes-curator-hint {
+  margin: 5px 0 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.research-notes-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 150px;
+  margin-top: 6px;
+  resize: vertical;
+}
+
+.research-notes-primary,
+.research-notes-queue button {
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.research-notes-primary {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.research-notes-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.research-notes-progress span:last-child {
+  text-align: right;
+}
+
+.research-notes-queue {
+  display: grid;
+  gap: 6px;
+  max-height: 48vh;
+  overflow: auto;
+}
+
+.research-notes-queue button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 10px;
+  background: transparent;
+  text-align: left;
+}
+
+.research-notes-queue button.active {
+  border-color: var(--accent);
+  background: var(--bg-muted);
+}
+
+.research-notes-queue-status {
+  min-width: 18px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: right;
+}
+
+@media (max-width: 1180px) {
+  .research-notes-panel {
+    position: static;
+  }
+
+  .research-notes-queue {
+    max-height: 280px;
+  }
+}
+
+@media (max-width: 560px) {
+  .research-notes-progress {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .research-notes-progress span:last-child {
+    text-align: left;
+  }
+}

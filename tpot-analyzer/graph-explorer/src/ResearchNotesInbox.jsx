@@ -2,13 +2,12 @@ import { xProfileUrl } from './researchNotes/xProfileUrl'
 import './ResearchNotesInbox.css'
 import './researchNotes/ResearchNotesReview.css'
 import { useCallback, useState } from 'react'
-import AccountTagPanel from './AccountTagPanel'
+import AccountJudgmentDrawer from './researchNotes/AccountJudgmentDrawer'
 import RawDossier from './researchNotes/RawDossier'
 import ResearchNotesQueuePanel from './researchNotes/ResearchNotesQueuePanel'
-import TagHistory from './researchNotes/TagHistory'
-import WorkingTagImpact from './researchNotes/WorkingTagImpact'
 import { useResearchNotesInbox } from './researchNotes/useResearchNotesInbox'
 import { useWorkingTagSelection } from './researchNotes/useWorkingTagSelection'
+import DiscoveryReview from './DiscoveryReview'
 
 function getWorkingIdentity({
   dossier,
@@ -17,6 +16,7 @@ function getWorkingIdentity({
   if (!selectedItem) return null
   const accountId = dossier?.account?.accountId || selectedItem.accountId
   if (!accountId) return null
+  if (String(accountId).startsWith('shadow:')) return null
   return {
     account: {
       id: String(accountId),
@@ -26,6 +26,13 @@ function getWorkingIdentity({
 }
 
 export default function ResearchNotesInbox({ ego = '' }) {
+  if (new URLSearchParams(window.location.search).get('review') === 'discovery') {
+    return <DiscoveryReview apiMode="local" />
+  }
+  return <AccountResearchNotesInbox ego={ego} />
+}
+
+function AccountResearchNotesInbox({ ego }) {
   const [curatorEgo, setCuratorEgo] = useState(ego)
   const [historyState, setHistoryState] = useState({})
   const [tagState, setTagState] = useState({})
@@ -69,10 +76,12 @@ export default function ResearchNotesInbox({ ego = '' }) {
     <main className="research-notes">
       <header className="research-notes-header">
         <div>
-          <h1>Research Notes Inbox</h1>
-          <p>Inspect evidence, then demonstrate a category by adding or removing tags.</p>
+          <h1>Review</h1>
+          <p>Investigate one account, record what changed your mind, then continue.</p>
         </div>
-        <span className="research-notes-mode">Extensional curation</span>
+        <a className="research-notes-mode" href="?view=research-notes&review=discovery">
+          Discovery review
+        </a>
       </header>
 
       <div className="research-notes-grid">
@@ -116,95 +125,21 @@ export default function ResearchNotesInbox({ ego = '' }) {
           )}
           {inbox.dossier && <RawDossier dossier={inbox.dossier} />}
 
-          {inbox.selectedItem && (
-            <section className="research-notes-judgment">
-              <h2>Your tags for @{inbox.selectedItem.handle}</h2>
-              <p className="research-notes-question">
-                Mark this account IN or NOT IN for any tags that matter to you.
-                You can change or retract every judgment later.
-              </p>
-              <div className="research-notes-provenance" role="note">
-                Your mutable working set · model suggestions do nothing until
-                you accept them
-              </div>
-              <label htmlFor="research-notes-investigation-note">
-                Notes about this account
-              </label>
-              <textarea
-                id="research-notes-investigation-note"
-                className="research-notes-note"
-                value={inbox.note}
-                onChange={(event) => inbox.setNote(event.target.value)}
-              />
-              <p className="research-notes-preview-warning">
-                {inbox.persistenceEnabled
-                  ? 'Saved in this browser’s device-wide research queue. '
-                  : 'Currently held in memory only. '}
-                A tag’s working meaning is versioned separately below.
-              </p>
-              {identity ? (
-                <AccountTagPanel
-                  key={`${activeEgo}:${identity.account.id}`}
-                  activeTag={workingTag.activeTag}
-                  ego={activeEgo}
-                  account={identity.account}
-                  onActiveTagChange={workingTag.selectTag}
-                  onHistoryLoaded={recordSelectedHistory}
-                  suggestions={workingTag.selectedSuggestions}
-                  onTagChanged={workingTag.tagChanged}
-                  onTagStateLoaded={recordSelectedTagState}
-                  onVocabularyLoaded={workingTag.recordVocabulary}
-                  renderHistory={false}
-                  vocabulary={workingTag.availableTags}
-                />
-              ) : (
-                <p className="research-notes-empty">
-                  {inbox.dossierError
-                    ? 'Tagging stays locked until retry resolves a stable archive account ID.'
-                    : 'Resolving a stable archive account ID before loading tags…'}
-                </p>
-              )}
-            </section>
-          )}
-
-          {inbox.selectedItem && (
-            <aside className="research-notes-consequence">
-              {workingTag.activeTag && activeEgo ? (
-                <WorkingTagImpact
-                  availableTags={workingTag.availableTags}
-                  ego={activeEgo}
-                  onReviewCandidate={inbox.addCandidate}
-                  onTagChange={workingTag.selectTag}
-                  revision={workingTag.revision}
-                  tag={workingTag.activeTag}
-                  tagKind={workingTag.activeTagKind}
-                />
-              ) : (
-                <div className="research-notes-model-state">
-                  <h2>What this tag currently surfaces</h2>
-                  <h3>Model opinion — none yet (needs more tags)</h3>
-                  <p>
-                    Choose or add a tag to calculate its first selective-follow
-                    candidate list.
-                  </p>
-                  <p>
-                    Legacy NMF percentages are intentionally not shown as soft
-                    membership.
-                  </p>
-                </div>
-              )}
-            </aside>
-          )}
-
-          {inbox.selectedItem && selectedHistoryKnown && (
-            <section className="research-notes-audit" aria-label="Audit history">
-              {Array.isArray(selectedHistory) ? (
-                <TagHistory events={selectedHistory} />
-              ) : (
-                <p>Recent changes are unavailable until tag state reloads.</p>
-              )}
-            </section>
-          )}
+          <AccountJudgmentDrawer
+            activeEgo={activeEgo}
+            identity={identity}
+            identityBlocked={Boolean(inbox.dossierError)}
+            note={inbox.note}
+            onHistoryLoaded={recordSelectedHistory}
+            onNoteChange={inbox.setNote}
+            onReviewCandidate={inbox.addCandidate}
+            onTagStateLoaded={recordSelectedTagState}
+            persistenceEnabled={inbox.persistenceEnabled}
+            selectedHandle={inbox.selectedItem?.handle || ''}
+            selectedHistory={selectedHistory}
+            selectedHistoryKnown={selectedHistoryKnown}
+            workingTag={workingTag}
+          />
         </div>
       </div>
     </main>

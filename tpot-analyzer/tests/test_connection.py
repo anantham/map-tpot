@@ -10,6 +10,10 @@ import pytest
 from src.config import get_supabase_config
 from src.data.fetcher import CachedDataFetcher
 
+# Keep live-network checks out of credential-free CI even if another test
+# module configures a synthetic key while pytest is collecting the suite.
+pytestmark = pytest.mark.requires_supabase
+
 # Conditional skip marker for tests requiring Supabase
 REQUIRES_SUPABASE = pytest.mark.skipif(
     not os.getenv("SUPABASE_KEY"),

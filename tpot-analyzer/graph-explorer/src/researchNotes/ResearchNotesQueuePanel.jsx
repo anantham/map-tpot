@@ -1,3 +1,6 @@
+import './ResearchNotesQueuePanel.css'
+import SavedEvidenceSearch from './SavedEvidenceSearch'
+
 const plural = (count, singular, pluralForm = `${singular}s`) => (
   count === 1 ? singular : pluralForm
 )
@@ -13,19 +16,30 @@ export default function ResearchNotesQueuePanel({
 }) {
   return (
     <aside className="research-notes-panel">
-      <label htmlFor="research-notes-curator">Curator identity</label>
-      <input
-        id="research-notes-curator"
-        className="research-notes-curator-input"
-        value={curatorEgo}
-        onChange={(event) => onCuratorChange(event.target.value)}
-        placeholder="e.g. adityaarpitha"
-      />
-      <p className="research-notes-curator-hint">
-        Owns the personal tag extension below; graph membership is not
-        required. The research queue and account notes are device-wide on this
-        browser, not curator-scoped.
-      </p>
+      <header className="research-notes-panel-header">
+        <div>
+          <h2>Review queue</h2>
+          <p>{inbox.queue.length} {plural(inbox.queue.length, 'account')} ready</p>
+        </div>
+      </header>
+      <details className="research-notes-setup" open={!activeEgo}>
+        <summary>
+          {activeEgo ? `Reviewing as @${activeEgo}` : 'Set reviewer identity'}
+        </summary>
+        <label htmlFor="research-notes-curator">Curator identity</label>
+        <input
+          id="research-notes-curator"
+          className="research-notes-curator-input"
+          value={curatorEgo}
+          onChange={(event) => onCuratorChange(event.target.value)}
+          placeholder="e.g. curator_example"
+        />
+        <p className="research-notes-curator-hint">
+          Owns the personal tag extension below; graph membership is not
+          required. The research queue and account notes are device-wide on this
+          browser, not curator-scoped.
+        </p>
+      </details>
       {inbox.sourceLoading && (
         <p className="research-notes-source-state">Loading configured research source…</p>
       )}
@@ -69,21 +83,25 @@ export default function ResearchNotesQueuePanel({
           {inbox.persistenceWarning}
         </p>
       )}
-      <label htmlFor="research-notes-paste">Paste accounts and notes</label>
-      <textarea
-        id="research-notes-paste"
-        className="research-notes-input"
-        value={inbox.pasteText}
-        onChange={(event) => inbox.setPasteText(event.target.value)}
-        placeholder="@handle, X profile URL, and whatever you currently believe"
-      />
-      <button
-        className="research-notes-primary"
-        type="button"
-        onClick={inbox.addToQueue}
-      >
-        Add to queue
-      </button>
+      <SavedEvidenceSearch onOpenAccount={inbox.addCandidate} />
+      <details className="research-notes-quick-add">
+        <summary>Quick add</summary>
+        <label htmlFor="research-notes-paste">Paste accounts and notes</label>
+        <textarea
+          id="research-notes-paste"
+          className="research-notes-input"
+          value={inbox.pasteText}
+          onChange={(event) => inbox.setPasteText(event.target.value)}
+          placeholder="@handle, X profile URL, and whatever you currently believe"
+        />
+        <button
+          className="research-notes-primary"
+          type="button"
+          onClick={inbox.addToQueue}
+        >
+          Add to queue
+        </button>
+      </details>
       <div className="research-notes-progress">
         <span>
           {inbox.queue.length} {plural(inbox.queue.length, 'account')} in queue
@@ -103,21 +121,29 @@ export default function ResearchNotesQueuePanel({
           const stateKey = `${activeEgo}:${item.normalizedHandle}`
           const stateLoaded = Object.prototype.hasOwnProperty.call(tagState, stateKey)
           const assignments = tagState[stateKey]
-          const status = stateLoaded
+          const accessibleStatus = stateLoaded
             ? (assignments.length
                 ? `${assignments.length} ${plural(assignments.length, 'tag')}`
                 : 'unclassified')
             : 'tags not loaded'
+          const visibleStatus = stateLoaded
+            ? (assignments.length ? String(assignments.length) : '—')
+            : '…'
           return (
             <button
               type="button"
               key={item.normalizedHandle}
-              aria-label={`@${item.handle} ${status}`}
+              aria-label={`@${item.handle} ${accessibleStatus}`}
               className={item.normalizedHandle === inbox.selectedKey ? 'active' : ''}
               onClick={() => inbox.setSelectedKey(item.normalizedHandle)}
             >
               <span>@{item.handle}</span>
-              <span className="research-notes-queue-status">{status}</span>
+              <span
+                className="research-notes-queue-status"
+                title={accessibleStatus}
+              >
+                {visibleStatus}
+              </span>
             </button>
           )
         })}

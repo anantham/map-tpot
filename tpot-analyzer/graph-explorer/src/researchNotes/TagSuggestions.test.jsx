@@ -13,10 +13,12 @@ describe('TagSuggestions', () => {
     window.sessionStorage.clear()
   })
 
-  it('can collapse suggestions and dismiss a proposal without writing a tag', () => {
+  it('reveals suggestions on request and dismisses without writing a tag', () => {
     const onAccept = vi.fn()
     render(<TagSuggestions suggestions={suggestions} onAccept={onAccept} />)
 
+    expect(screen.queryByText('Dharma')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand suggestions' }))
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss TPOT suggestion' }))
     expect(onAccept).not.toHaveBeenCalled()
     expect(screen.getByText('1 suggestion to review')).toBeInTheDocument()
@@ -47,6 +49,7 @@ describe('TagSuggestions', () => {
       />
     )
 
+    fireEvent.click(screen.getByRole('button', { name: 'Expand suggestions' }))
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss Dharma suggestion' }))
     expect(screen.getByRole('button', { name: 'Restore 1 dismissed suggestion' }))
       .toBeInTheDocument()
@@ -58,6 +61,7 @@ describe('TagSuggestions', () => {
         suggestions={[suggestions[0]]}
       />
     )
+    fireEvent.click(screen.getByRole('button', { name: 'Expand suggestions' }))
     expect(screen.getByText('Dharma')).toBeInTheDocument()
     otherAccount.unmount()
 
