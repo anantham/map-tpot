@@ -3,17 +3,22 @@
 Public methodology/source edition, 20 October 2026. This board describes code
 capabilities and remaining research, not the contents of a private dataset.
 
-## Current bounded slice: clean publication
+## Current bounded slice: documentation navigation
 
 | Item | Commitment |
 | --- | --- |
-| Outcome | Share reviewed Review/search/recovery code, invented tests and methods without unpublished personal research |
-| Integration owner | Primary publication integrator; batch workers do not commit or publish |
-| Authoritative source | Accepted local `main`; original private history and dirty files are preserved |
-| Publication checkout | Isolated `codex/publication-methods-20261020`, rooted at the existing public main |
-| Finite acceptance | Source-port audit; synthetic combined acceptance; graph tests; changed-source lint/build; docs/data boundary; independent review; outgoing-history inspection |
-| Remaining dependency | Final outgoing-history and remote branch verification; main merge/deployment remain separate |
-| Next evidence checkpoint | Exact tested publication commit and remote branch identity, reported separately from deployment |
+| Outcome | A new reader reaches methods, setup, architecture and history from the root README |
+| Integration owner | Primary publication integrator |
+| Authoritative source | Published source checkpoint `3a33bbc`; private main and its dirty files remain untouched |
+| Publication checkout | Isolated `codex/publication-methods-20261020` |
+| Finite acceptance | Three navigation regressions; 11 docs checks including entrypoint links; data boundary; independent review; exact outgoing diff and remote SHA |
+| Remaining dependency | Commit/remote verification of the reviewed docs-only follow-up; main merge/deployment remain separate |
+| Next evidence checkpoint | Updated README and docs hub on the verified publication branch |
+
+The source publication at `3a33bbc` passed all three
+[hosted CI jobs](https://github.com/anantham/map-tpot/actions/runs/39383251387).
+This navigation slice reuses that unchanged application evidence; it changes no
+application behavior, private source, tag or runtime binding.
 
 ## Implemented capabilities
 
@@ -59,6 +64,9 @@ or independent confirmation of identity/competence. See the
 
 ## Features & Analysis
 
+- Triage remaining loose historical docs in small batches with link and privacy
+  checks. New topic-specific docs follow the [folder guide](index.md#documentation-folders);
+  do not bulk-rename application or data paths just to tidy the root.
 - Source-qualified cross-platform identity claims and contradiction review, not
   automatic person merges from matching names/domains.
 - Richer interaction/context representations, tested against cheap baselines.

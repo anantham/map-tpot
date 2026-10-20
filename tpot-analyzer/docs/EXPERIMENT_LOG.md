@@ -98,3 +98,21 @@ panels used different source pools and cannot be combined into one benchmark.
   claim the live Supabase service was tested.
 - Next: retain explicit integration selection and proper configuration for live
   connectivity checks; do not supply a live dataset to credential-free CI.
+
+## Documentation discovery
+
+- Question: can a new reader find current methods and setup from the root README?
+- Hypothesis: the default branch still shows old docs, while publication navigation
+  buries the hub and mixes current Review with the legacy map.
+- Method: compare the default/publication READMEs, inspect the hub's local targets,
+  and add isolated missing-route/broken-link regressions before changing navigation.
+- Result: default main lacked the new links; publication's hub linked a nonexistent
+  structure file, while the previous nine docs checks still passed. New navigation
+  tests initially failed. After reorganization, three tests and 11 docs checks pass,
+  including 74 local links across five entrypoints. A fixture using an existing
+  `./docs/index.md` form also prevented an overly literal route check.
+- Lesson: file existence and historical-hygiene checks do not establish a usable
+  documentation entrypoint. Current guidance and archived explanations need distinct homes.
+- Review: independent Gemini review found no blockers; its optional `./`
+  normalization concern was falsified by the runtime and existing fixture.
+- Next: verify the published follow-up; merging it to default main is a separate action.

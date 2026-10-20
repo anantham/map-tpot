@@ -1,18 +1,55 @@
-# Twitter/X Data Exploration Tools
+# Map TPOT
 
-Collection of tools and interfaces for analyzing Twitter/X data, community networks, and exploring LLM memorization of social media content.
+Find potential collaborators and overlapping communities through inspectable
+public evidence and your own examples. The private Review workspace joins
+profiles, posts, websites, saved work and typed network paths, then lets you
+revise independent tags while reading the sources.
 
-For the current evidence-backed discovery approach, start with
-[methods and lessons](tpot-analyzer/docs/guides/DISCOVERY_METHODS.md) and the
-[code/data boundary](tpot-analyzer/docs/guides/DATA_BOUNDARY.md).
-The private research dataset is not included. Historical map scores are not
-calibrated community membership or a ready-made outreach audience.
+## Documentation
 
-## Projects
+**[Open the documentation hub](tpot-analyzer/docs/index.md)**
 
-### [tpot-analyzer](./tpot-analyzer/)
-Source-backed discovery and historical graph analysis using Community Archive and independently saved evidence. Includes local search, typed relationships, curator review and legacy community visualizations. Dataset size and source availability vary by the local capture.
+| You want to | Start here |
+| --- | --- |
+| Understand the approach and what failed | [Methods and lessons](tpot-analyzer/docs/guides/DISCOVERY_METHODS.md) |
+| Set up or explore Review | [Application README](tpot-analyzer/README.md) |
+| Find architecture, data contracts and developer guides | [Documentation hub](tpot-analyzer/docs/index.md) |
+| See implemented work and next experiments | [Roadmap](tpot-analyzer/docs/ROADMAP.md) |
+| Understand what stays private | [Data boundary](tpot-analyzer/docs/guides/DATA_BOUNDARY.md) |
+| Understand the older NMF and propagation map | [Legacy README archive](tpot-analyzer/docs/archive/legacy-community-map.md) |
 
-## Architecture
+## Repository layout
 
-Each subdirectory is a self-contained project with its own dependencies, documentation, and tooling. This workspace currently includes `tpot-analyzer`; start with its README for setup and usage.
+```text
+README.md                         Start here
+.github/workflows/                CI checks
+tpot-analyzer/                    Application and research tools
+  README.md                       Setup and current capabilities
+  docs/                           Methods, guides, decisions and history
+  src/                            API, data readers and graph methods
+  graph-explorer/                 Private Review and analysis UI
+  public-site/                    Legacy public visualization
+  scripts/                        Import, analysis and verification commands
+  tests/                          Synthetic and integration tests
+  data/                           Ignored local inputs and derived stores
+```
+
+There is one documentation tree: `tpot-analyzer/docs/`. Its
+[folder guide](tpot-analyzer/docs/index.md#documentation-folders) explains where
+to find and add material. Application and data paths stay stable.
+
+## Scope and privacy
+
+A clone contains code, documentation and invented test fixtures, not private
+profiles, contact lists, tags or the research corpus. Historical map percentages
+are not calibrated membership probabilities. Links and contact clues are not
+verified identity, competence or permission to contact someone.
+
+This publication branch is separate from the older default `main` until merged.
+See the [data boundary](tpot-analyzer/docs/guides/DATA_BOUNDARY.md) for the limits
+of checkout cleanup and existing public Git history.
+
+## Reuse
+
+Read and learn from the methods. A project-wide reuse license has not yet been
+selected; this publication does not add one.

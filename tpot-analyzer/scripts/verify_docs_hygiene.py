@@ -10,13 +10,16 @@ Checks:
 - Historical docs include modernization/supersession notes.
 - Legacy references in historical docs are explicitly contextualized.
 - Historical docs avoid stale runnable command examples.
+- Reader entrypoints link to the docs hub and existing local destinations.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
+from urllib.parse import unquote, urlsplit
 
 
 @dataclass
@@ -40,9 +43,47 @@ def _markdown_files(path: Path) -> List[Path]:
     return sorted(candidate for candidate in path.glob("*.md") if candidate.is_file())
 
 
+def _navigation_checks(project_root: Path) -> List[CheckResult]:
+    """Check the simple inline links used by the five reader entrypoints."""
+    repo, docs = project_root.parent, project_root / "docs"
+    routes = [(repo / "README.md", "tpot-analyzer/docs/index.md"),
+              (project_root / "README.md", "docs/index.md"),
+              (docs / "README.md", "index.md")]
+    missing_routes, broken = [], []
+    entrypoints = [path for path, _ in routes] + [
+        docs / "index.md", docs / "archive/legacy-community-map.md"]
+    for path, target in routes:
+        links = re.findall(r"\]\(([^)]+)\)", _read_text(path)) if path.is_file() else []
+        has_route = False
+        for href in links:
+            url = urlsplit(href.strip("<>"))
+            if not url.scheme and not url.netloc and Path(unquote(url.path)).as_posix() == target:
+                has_route = True
+        if not has_route:
+            missing_routes.append(str(path.relative_to(repo)))
+    link_count = 0
+    for path in entrypoints:
+        if not path.is_file():
+            broken.append(str(path.relative_to(repo)) + " missing")
+            continue
+        for href in re.findall(r"\]\(([^)]+)\)", _read_text(path)):
+            target = urlsplit(href.strip("<>"))
+            if target.scheme or target.netloc or not target.path:
+                continue
+            link_count += 1
+            if not (path.parent / unquote(target.path)).exists():
+                broken.append(f"{path.relative_to(repo)} -> {href}")
+    return [
+        CheckResult("README documentation routes", not missing_routes,
+                    "; ".join(missing_routes) or "root, project and docs READMEs lead to the hub"),
+        CheckResult("Entry-point local links", not broken,
+                    "; ".join(broken) or f"{link_count} local links resolve across {len(entrypoints)} entrypoints"),
+    ]
+
+
 def run_checks(project_root: Path) -> List[CheckResult]:
     docs = project_root / "docs"
-    checks: List[CheckResult] = []
+    checks: List[CheckResult] = _navigation_checks(project_root)
 
     required_docs = [
         docs / "index.md",
