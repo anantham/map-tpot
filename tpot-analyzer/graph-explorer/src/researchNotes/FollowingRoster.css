@@ -1,0 +1,75 @@
+.following-roster {
+  min-width: 0;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--panel-border, #d4d8df);
+  border-radius: 0.65rem;
+  color: var(--text, #20242b);
+}
+
+.following-roster h3 { margin: 0 0 0.65rem; }
+.following-roster-warning,
+.following-roster-error,
+.following-roster-unknown {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.6rem 0;
+  padding: 0.7rem;
+  border: 1px solid var(--panel-border, #d4d8df);
+  border-radius: 0.5rem;
+  background: var(--bg-muted, #f5f6f8);
+}
+.following-roster-warning strong { color: var(--accent, #394b72); }
+.following-roster-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin: 0.75rem 0;
+  color: var(--text-muted, #545d69);
+  font-size: 0.9rem;
+}
+.following-roster-search,
+.following-roster-filter { display: grid; gap: 0.3rem; margin: 0.75rem 0; }
+.following-roster-search input,
+.following-roster-filter select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--panel-border, #d4d8df);
+  border-radius: 0.4rem;
+  background: var(--bg, #fff);
+  color: inherit;
+}
+.following-roster-count { color: var(--text-muted, #545d69); font-size: 0.9rem; }
+.following-roster-list { display: grid; gap: 0.45rem; margin: 0; padding: 0; list-style: none; }
+.following-roster-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--panel-border, #d4d8df);
+  border-radius: 0.5rem;
+}
+.following-roster-person { display: grid; gap: 0.2rem; min-width: 0; overflow-wrap: anywhere; }
+.following-roster-person > span,
+.following-roster-person small { color: var(--text-muted, #545d69); font-size: 0.88rem; }
+.following-roster-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.2rem; }
+.following-roster-tags span {
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--panel-border, #d4d8df);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+.following-roster-tags b { color: var(--accent, #394b72); }
+.following-roster-pages { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.75rem; }
+.following-roster button { padding: 0.45rem 0.7rem; }
+.following-roster-error p { margin: 0; }
+
+@media (max-width: 560px) {
+  .following-roster-row { gap: 0.4rem; padding: 0.55rem; }
+  .following-roster-summary { display: grid; gap: 0.2rem; }
+}

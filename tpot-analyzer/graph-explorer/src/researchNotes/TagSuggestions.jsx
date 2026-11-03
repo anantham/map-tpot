@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 
 import './TagSuggestions.css'
 
@@ -84,17 +84,15 @@ export default function TagSuggestions({
     !isDismissed(suggestion) && !isAccepted(suggestion, tags)
   ))
   const dismissedCount = suggestions.filter(isDismissed).length
-  const [expanded, setExpanded] = useState(unresolved.length > 0)
-  const previousUnresolved = useRef(unresolved.length)
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     setDismissed(readSessionDismissals())
+    setExpanded(false)
   }, [dismissalScope, signature])
 
   useEffect(() => {
     if (unresolved.length === 0) setExpanded(false)
-    if (previousUnresolved.current === 0 && unresolved.length > 0) setExpanded(true)
-    previousUnresolved.current = unresolved.length
   }, [unresolved.length])
 
   const totalLabel = `${suggestions.length} suggestion${suggestions.length === 1 ? '' : 's'}`

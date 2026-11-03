@@ -1,3 +1,4 @@
+import { analystFetch as fetch } from './analystFetch'
 import {
   API_BASE_URL,
   CURATION_SOURCE_HEADER,

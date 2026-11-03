@@ -22,6 +22,8 @@ Usage:
 
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 import argparse
 import logging
 import sqlite3
@@ -65,11 +67,10 @@ CREATE TABLE IF NOT EXISTS account_band (
 def load_propagation(npz_path: Path) -> dict:
     """Load community_propagation.npz and return a dict of arrays.
 
-    NOTE: allow_pickle=True is required because numpy's npz format uses
-    pickle for object arrays (string arrays). This file is our own cached
-    propagation output, not untrusted external data.
+    Numeric and Unicode arrays are loaded with pickle disabled. Regenerate
+    any legacy object arrays from source data rather than converting pickle.
     """
-    data = np.load(str(npz_path), allow_pickle=True)
+    data = load_npz_arrays(str(npz_path))
     required = {"memberships", "abstain_mask", "labeled_mask", "node_ids", "community_names"}
     missing = required - set(data.keys())
     if missing:

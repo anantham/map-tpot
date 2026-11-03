@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview --port 5175",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:publication": "node --test scripts/publication-policy.node-test.mjs"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +21,7 @@
     "ioredis": "^5.10.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "sharp": "0.35.5",
     "vite": "^8.0.1"
   },
   "devDependencies": {

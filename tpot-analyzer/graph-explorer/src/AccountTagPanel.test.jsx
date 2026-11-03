@@ -28,6 +28,14 @@ describe('AccountTagPanel', () => {
   })
 
   it('loads tags and supports add/remove', async () => {
+    // Test intent: observe load, NOT IN assignment, then completed visible retraction.
+    // Opt-in timings diagnose slow stages without changing test/assertion budgets.
+    const started = performance.now()
+    const timing = (stage) => {
+      if (process.env.TPOT_TAG_TEST_TIMING === '1') {
+        console.info('tag-test-stage', stage, Math.round(performance.now() - started))
+      }
+    }
     const onActiveTagChange = vi.fn()
     let fetchArgs = null
     fetchAccountTags
@@ -80,6 +88,7 @@ describe('AccountTagPanel', () => {
         onActiveTagChange={onActiveTagChange}
       />
     )
+    timing('rendered')
 
     await waitFor(() => {
       expect(fetchArgs).not.toBeNull()
@@ -88,6 +97,7 @@ describe('AccountTagPanel', () => {
     await waitFor(() => {
       expect(getByText('Recent changes (1)')).toBeTruthy()
     })
+    timing('initial-loaded')
 
     const auditDetails = getByText('Recent changes (1)').closest('details')
     expect(auditDetails).not.toHaveAttribute('open')
@@ -97,6 +107,7 @@ describe('AccountTagPanel', () => {
     fireEvent.change(tagSearch, { target: { value: 'dharm' } })
     fireEvent.click(getByRole('option', { name: 'Dharma' }))
     expect(tagSearch.value).toBe('Dharma')
+    timing('autocomplete-selected')
 
     fireEvent.change(getByPlaceholderText('e.g. AI alignment'), { target: { value: 'AI alignment' } })
     fireEvent.click(getByRole('button', { name: 'Mark NOT IN' }))
@@ -117,6 +128,7 @@ describe('AccountTagPanel', () => {
       expect(getByRole('region', { name: 'NOT IN tags (1)' })).toBeTruthy()
       expect(getByRole('region', { name: 'IN tags (0)' })).toBeTruthy()
     })
+    timing('marked-not-in')
 
     fireEvent.click(getByRole('button', {
       name: 'Retract AI alignment judgment from NOT IN',
@@ -125,6 +137,15 @@ describe('AccountTagPanel', () => {
       expect(deleteArgs).not.toBeNull()
     })
     expect(deleteArgs).toEqual({ ego: 'ego', accountId: '123', tag: 'AI alignment' })
+    timing('delete-requested')
+    await waitFor(() => {
+      expect(getByRole('region', { name: 'NOT IN tags (0)' })).toBeTruthy()
+      expect(screen.queryByRole('button', {
+        name: 'Retract AI alignment judgment from NOT IN',
+      })).toBeNull()
+      expect(tagSearch).not.toBeDisabled()
+    })
+    timing('retraction-visible-and-unlocked')
   })
 
   it('ignores a stale tag response after the account changes', async () => {
@@ -216,8 +237,9 @@ describe('AccountTagPanel', () => {
     )
 
     await waitFor(() => expect(getByText('Suggested from your Takes')).toBeTruthy())
-    expect(getByRole('button', { name: 'Collapse suggestions' }))
-      .toHaveAttribute('aria-expanded', 'true')
+    expect(getByRole('button', { name: 'Expand suggestions' }))
+      .toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(getByRole('button', { name: 'Expand suggestions' }))
     expect(getByText('explicit dharma practice')).toBeTruthy()
     fireEvent.click(getByRole('button', { name: 'Accept Dharma as IN' }))
 

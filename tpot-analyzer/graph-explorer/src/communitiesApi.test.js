@@ -142,10 +142,10 @@ describe('community API', () => {
     expect(fetchedHeaders()['X-TPOT-Curator-Token']).toBe('test-curator-token')
   })
 
-  it('GET endpoints do not send curator token', async () => {
+  it('GET endpoints send curator token', async () => {
     mockFetch.mockResolvedValue(mockResponse([]))
     await fetchCommunities()
-    expect(fetchedHeaders()['X-TPOT-Curator-Token']).toBeUndefined()
+    expect(fetchedHeaders()['X-TPOT-Curator-Token']).toBe('test-curator-token')
   })
 
   it('deleteCommunity uses DELETE', async () => {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import pickle
+from src.artifacts.safe_io import save_sparse_cache
 import sqlite3
 from pathlib import Path
 
@@ -75,8 +75,7 @@ def community_gold_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Flask
             ]
         )
     )
-    with open(tmp_path / "adjacency_matrix_cache.pkl", "wb") as handle:
-        pickle.dump({"adjacency": adjacency}, handle)
+    save_sparse_cache(tmp_path / "adjacency_matrix_cache.npz", adjacency)
     monkeypatch.setenv("ARCHIVE_DB_PATH", str(db_path))
     monkeypatch.setenv("TPOT_CURATOR_TOKEN", CURATOR_TOKEN)
     community_gold_routes._community_gold_store = None

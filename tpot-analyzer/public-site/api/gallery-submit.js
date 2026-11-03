@@ -1,75 +1,42 @@
-/**
- * Vercel serverless function: POST /api/gallery-submit
- *
- * Accepts a generated card image from BYOK users and stores it in the
- * permanent gallery. This allows BYOK-generated cards to appear in the
- * community gallery alongside serverless-generated ones.
- *
- * Body: { handle, imageUrl, communities: [{name, color, weight}] }
- * Returns: 200 OK | 400 validation error
- */
-
-const { getKv, getBlobPut } = require("./_lib");
+/** Signed single-use publication of a BYOK raster card to owned storage. */
+const { getKv, getBlobPut } = require('./_lib');
+const { digestBody, requestCapability } = require('./_cardAdmission');
+const { normalizeHandle, assertImageInfrastructure, uploadRawCard, MAX_INPUT_BYTES } = require('./_imagePolicy');
+const { normalizeCommunities, reservePublication, storePublication, releasePublication } = require('./_galleryPolicy');
 
 module.exports = async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const kv = getKv();
-  const blobPut = getBlobPut();
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const { handle, imageUrl, communities } = req.body || {};
-  if (!handle || !imageUrl) {
-    return res.status(400).json({ error: "Missing handle or imageUrl" });
-  }
-
-  if (!kv) {
-    // KV unavailable — accept silently (card still cached client-side)
-    return res.status(200).json({ ok: true, stored: false });
-  }
-
+  let reservation;
   try {
-    // Upload base64 images to Blob for permanent CDN URL
-    let permanentUrl = imageUrl;
-    if (blobPut && imageUrl.startsWith("data:image/")) {
-      try {
-        const match = imageUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
-        if (match) {
-          const mimeType = match[1] === "jpg" ? "jpeg" : match[1];
-          const buffer = Buffer.from(match[2], "base64");
-          const blob = await blobPut(
-            `cards/${handle.toLowerCase()}-${Date.now()}.${mimeType === "jpeg" ? "jpg" : mimeType}`,
-            buffer,
-            { access: "public", contentType: `image/${mimeType}` },
-          );
-          permanentUrl = blob.url;
-        }
-      } catch (blobErr) {
-        console.warn("[gallery-submit] Blob upload failed, using original URL:", blobErr.message);
-      }
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+        Object.keys(body).some(key => !['handle', 'imageUrl', 'communities'].includes(key)) ||
+        typeof body.imageUrl !== 'string' || !body.imageUrl.length)
+      return res.status(400).json({ error: 'invalid_gallery_request' });
+    const handle = normalizeHandle(body.handle);
+    const communities = normalizeCommunities(body.communities === undefined ? [] : body.communities);
+    if (body.imageUrl.length > Math.ceil(MAX_INPUT_BYTES / 3) * 4 + 64)
+      return res.status(413).json({ error: 'image_too_large' });
+    const grant = requestCapability(req, { kind: 'gallery', handle, digest: digestBody(body) });
+    if (!body.imageUrl.startsWith('data:image/')) return res.status(400).json({ error: 'invalid_image' });
+    const blobPut = getBlobPut();
+    assertImageInfrastructure(blobPut);
+    reservation = await reservePublication(kv, { handle, grant });
+    const image = await uploadRawCard(blobPut, { handle, imageUrl: body.imageUrl });
+    const saved = await storePublication(kv, reservation, { ...image, communities });
+    reservation = null;
+    if (saved.supersededUrls.length) console.info('[gallery-submit] Superseded objects require retention cleanup', { count: saved.supersededUrls.length });
+    return res.status(200).json({ ok: true, stored: true, imageUrl: image.url });
+  } catch (error) {
+    const status = Number.isInteger(error.status) ? error.status : 503;
+    if (status >= 500) console.error('[gallery-submit] Publication unavailable', { code: error.code || 'publication_failed' });
+    return res.status(status).json({ error: error.code || 'publication_failed' });
+  } finally {
+    if (reservation) {
+      try { await releasePublication(kv, reservation); }
+      catch { console.error('[gallery-submit] Reservation release failed; expiry will clear it'); }
     }
-
-    const galleryKey = handle.toLowerCase();
-    let versions = [];
-    try {
-      const existing = await kv.hget("gallery", galleryKey);
-      if (existing) {
-        const parsed = JSON.parse(existing);
-        versions = Array.isArray(parsed) ? parsed : [parsed];
-      }
-    } catch {}
-    versions.push({
-      url: permanentUrl,
-      generatedAt: Date.now(),
-      communities: (communities || []).slice(0, 5).map(c => ({
-        name: c.name, color: c.color, weight: c.weight,
-      })),
-    });
-    if (versions.length > 10) versions = versions.slice(-10);
-    await kv.hset("gallery", galleryKey, JSON.stringify(versions));
-    return res.status(200).json({ ok: true, stored: true });
-  } catch (err) {
-    console.error("[gallery-submit] KV write failed:", err.message);
-    return res.status(200).json({ ok: true, stored: false });
   }
 };

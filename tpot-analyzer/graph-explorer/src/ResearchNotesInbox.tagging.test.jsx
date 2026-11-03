@@ -149,6 +149,7 @@ describe('ResearchNotesInbox tagging workflow', () => {
   })
 
   it('locks tag writes until retry resolves a stable archive identity', async () => {
+
     fetchResearchDossier
       .mockRejectedValueOnce(new Error('dossier unavailable for @alice'))
       .mockResolvedValueOnce(UNBOUND_DOSSIER)
@@ -168,5 +169,19 @@ describe('ResearchNotesInbox tagging workflow', () => {
     }))
     expect(screen.getByRole('heading', { name: 'Current tags for @alice' }))
       .toBeInTheDocument()
+  })
+
+  it('keeps unresolved shadow evidence readable without enabling tag writes', async () => {
+    fetchResearchDossier.mockResolvedValue({
+      ...UNBOUND_DOSSIER,
+      account: { ...UNBOUND_DOSSIER.account, accountId: 'shadow:alice' },
+    })
+    render(<ResearchNotesInbox ego="adityaarpitha" />)
+    addAccounts('@alice')
+    await screen.findByText('Meditation and distributed systems.')
+    expect(screen.getByText(/unresolved shadow identity/i)).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Find or create a tag' })).not.toBeInTheDocument()
+    expect(fetchAccountTags).not.toHaveBeenCalled()
+    expect(upsertAccountTag).not.toHaveBeenCalled()
   })
 })

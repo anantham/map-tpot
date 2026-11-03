@@ -1,6 +1,8 @@
 """Bind recomputed TPOT relevance scores to a saved calibration vector."""
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npy_array
+
 from pathlib import Path
 
 import numpy as np
@@ -16,7 +18,7 @@ def validate_saved_relevance(path: Path, current_relevance) -> str:
     """Require exact equality with the producer's persisted float32 scores."""
     path = Path(path)
     try:
-        saved = np.load(path, allow_pickle=False)
+        saved = load_npy_array(path)
     except (OSError, ValueError) as exc:
         raise RelevanceBindingError(
             f"cannot load saved relevance vector {path}: {exc}"

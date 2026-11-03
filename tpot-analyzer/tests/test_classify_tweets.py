@@ -6,7 +6,6 @@ import pytest
 
 from scripts.classify_tweets import (
     build_prompt,
-    load_taxonomy,
     parse_response,
 )
 from src.data.golden.schema import split_for_tweet
@@ -128,7 +127,21 @@ class TestBuildPrompt:
 
     @pytest.fixture
     def taxonomy(self):
-        return load_taxonomy()
+        # Prompt behavior must not depend on privately curated real-post examples.
+        names = ("The Map", "The Persuasion", "The Signal", "The Simulacrum")
+        return {"simulacrum": {"levels": {
+            f"l{index}": {
+                "name": name,
+                "definition": "Synthetic prompt-format example, not an annotation.",
+                "examples": {"positive": [{
+                    "tweet": "The imaginary library opens at nine.",
+                    "note": "Invented test text; no real account or judgment.",
+                    "distribution": {f"l{level}": float(level == index)
+                                     for level in range(1, 5)},
+                }]},
+            }
+            for index, name in enumerate(names, 1)
+        }}}
 
     def test_contains_all_levels(self, taxonomy):
         prompt = build_prompt(taxonomy, "test tweet")

@@ -11,7 +11,8 @@ from src.api.server import create_app
 
 
 @pytest.fixture
-def test_app():
+def test_app(temp_snapshot_dir, monkeypatch):
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", "api-fixture-token")
     """Create test app with mocked dependencies."""
     with patch('src.api.snapshot_loader.get_snapshot_loader') as mock_get_loader:
         # Create a mock snapshot loader
@@ -92,6 +93,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_basic_search(self, test_app):
         """Test basic autocomplete functionality."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             response = client.get('/api/accounts/search?q=eigen&limit=5')
             assert response.status_code == 200
 
@@ -111,6 +113,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_handles_nan_followers(self, test_app):
         """Test that NaN values in followers are converted to null."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             response = client.get('/api/accounts/search?q=eigenstate')
             assert response.status_code == 200
 
@@ -122,6 +125,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_handles_infinity_followers(self, test_app):
         """Test that infinity values in followers are converted to null."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             response = client.get('/api/accounts/search?q=another')
             assert response.status_code == 200
 
@@ -133,6 +137,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_empty_query(self, test_app):
         """Test that empty query returns empty list."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             response = client.get('/api/accounts/search?q=')
             assert response.status_code == 200
 
@@ -142,6 +147,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_no_matches(self, test_app):
         """Test query with no matches returns empty list."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             response = client.get('/api/accounts/search?q=nonexistent')
             assert response.status_code == 200
 
@@ -151,6 +157,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_case_insensitive(self, test_app):
         """Test that search is case-insensitive."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             # Uppercase query
             response = client.get('/api/accounts/search?q=EIGEN&limit=10')
             data = json.loads(response.data)
@@ -164,6 +171,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_limit_parameter(self, test_app):
         """Test that limit parameter works correctly."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             # Request only 2 results
             response = client.get('/api/accounts/search?q=eigen&limit=2')
             assert response.status_code == 200
@@ -178,6 +186,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_max_limit(self, test_app):
         """Test that limit is capped at 50."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             response = client.get('/api/accounts/search?q=&limit=100')
             assert response.status_code == 200
             # Can't verify the cap directly without more test data,
@@ -186,6 +195,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_sorting_by_followers(self, test_app):
         """Test results are sorted by follower count descending."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             response = client.get('/api/accounts/search?q=eigen&limit=10')
             data = json.loads(response.data)
 
@@ -203,6 +213,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_includes_shadow_accounts(self, test_app):
         """Test that shadow accounts are included in results."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             response = client.get('/api/accounts/search?q=eigen&limit=10')
             data = json.loads(response.data)
 
@@ -218,6 +229,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_response_structure(self, test_app):
         """Test the structure of autocomplete response."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             response = client.get('/api/accounts/search?q=test')
             data = json.loads(response.data)
 
@@ -241,6 +253,7 @@ class TestAutocompleteEndpoint:
     def test_autocomplete_prefix_matching(self, test_app):
         """Test that matching is based on username prefix."""
         with test_app.test_client() as client:
+            client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
             # Should match all eigen* users
             response = client.get('/api/accounts/search?q=eig&limit=10')
             data = json.loads(response.data)

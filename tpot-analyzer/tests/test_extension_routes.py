@@ -21,6 +21,7 @@ def extension_app(monkeypatch, tmp_path) -> Flask:
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("SNAPSHOT_DIR", str(snapshot_dir))
     monkeypatch.setenv("TPOT_EXTENSION_TOKEN", EXTENSION_TOKEN)
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", "extension-admin-fixture")
     reset_extension_runtime()
     app = Flask(__name__)
     app.testing = True
@@ -32,6 +33,7 @@ def _client(app):
     """Test client with the extension token header attached by default."""
     tc = app.test_client()
     tc.environ_base[f"HTTP_{EXTENSION_TOKEN_HEADER.upper().replace('-', '_')}"] = EXTENSION_TOKEN
+    tc.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "extension-admin-fixture"
     return tc
 
 
@@ -143,7 +145,9 @@ def test_extension_ingest_raw_and_firehose_roundtrip(extension_app) -> None:
     assert len(raw_payload["events"]) == 3
     assert isinstance(raw_payload["events"][0]["rawPayload"], dict)
 
-    firehose_path = Path(ingest_payload["firehose"]["path"])
+    assert "path" not in ingest_payload["firehose"]
+    import os
+    firehose_path = Path(os.environ["SNAPSHOT_DIR"]) / "indra_net/feed_events.ndjson"
     assert firehose_path.exists()
     lines = firehose_path.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 3

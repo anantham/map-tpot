@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+from dataclasses import asdict
 import logging
 from typing import Any, Dict, List
 
@@ -98,9 +100,10 @@ def discover():
         }), 400
 
     cache_manager: CacheManager = current_app.config["CACHE_MANAGER"]
-    cache_key = f"discovery:{json.dumps(req_data, sort_keys=True)}"
+    canonical = asdict(parsed_request)
+    cache_key = "discovery:" + hashlib.sha256(json.dumps(canonical, sort_keys=True).encode()).hexdigest()
 
-    cached = cache_manager.get_discovery_result(cache_key)
+    cached = cache_manager.get_discovery_result(cache_key) if parsed_request.use_cache else None
     if cached:
         return jsonify(cached)
 
@@ -137,7 +140,8 @@ def discover():
             warning_text = f"Unknown handles ignored: {', '.join(unresolved_seeds)}"
             if warning_text not in result["warnings"]:
                 result["warnings"].append(warning_text)
-        cache_manager.set_discovery_result(cache_key, result)
+        if parsed_request.use_cache:
+            cache_manager.set_discovery_result(cache_key, result)
         return jsonify(result)
     except Exception as exc:
         logger.exception("Discovery failed: %s", exc)

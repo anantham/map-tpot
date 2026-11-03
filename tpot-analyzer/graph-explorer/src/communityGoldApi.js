@@ -1,3 +1,4 @@
+import { analystFetch as fetch } from './analystFetch'
 import { API_BASE_URL } from './config'
 
 const BASE = `${API_BASE_URL}/api/community-gold`

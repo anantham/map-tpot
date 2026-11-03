@@ -1,0 +1,10 @@
+.following-evidence-coverage {
+  margin-top: 0.35rem;
+  color: var(--text-muted, #545d69);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.following-evidence-coverage[open] > span { display: block; margin-top: 0.4rem; }
+.following-evidence-coverage summary { cursor: pointer; color: var(--accent, #394b72); }
+.following-evidence-coverage p { margin: 0.1rem 0; }
+.following-evidence-disclaimer { font-style: italic; }

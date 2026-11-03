@@ -23,6 +23,7 @@ from src.config import get_cache_settings
 from src.data.shadow_store import ShadowStore
 from src.shadow.enricher import EnrichmentPolicy, HybridShadowEnricher, SeedAccount, ShadowEnrichmentConfig
 from src.shadow.selenium_worker import SeleniumConfig, SeleniumWorker
+from scripts._debug_cookie_selection import select_cookie_path
 
 
 class DebugFormatter(logging.Formatter):
@@ -105,7 +106,7 @@ def main():
         epilog="""
 Examples:
   # Scrape adityaarpitha with verbose output
-  python -m scripts.debug_single_account adityaarpitha --cookies secrets/twitter_cookies.pkl
+  python -m scripts.debug_single_account adityaarpitha --cookies secrets/twitter_cookies.json
 
   # Force re-scrape even if fresh
   python -m scripts.debug_single_account adityaarpitha --force
@@ -122,7 +123,7 @@ Examples:
     parser.add_argument(
         '--cookies',
         type=Path,
-        help='Path to cookies file (will prompt to select if not provided)'
+        help='Path to validated JSON cookies (will prompt to select if not provided)'
     )
     parser.add_argument(
         '--force',
@@ -164,6 +165,12 @@ Examples:
     )
 
     args = parser.parse_args()
+
+    try:
+        cookies_path = select_cookie_path(args.cookies)
+    except (ValueError, OSError) as exc:
+        print(f"Cookie selection failed: {exc}", file=sys.stderr)
+        return 1
 
     # Setup debug logging
     setup_debug_logging()
@@ -270,39 +277,6 @@ Examples:
 
     # Configure selenium
     print_banner("SELENIUM CONFIGURATION")
-
-    if not args.cookies:
-        # Look for cookie files in secrets/
-        secrets_dir = Path("secrets")
-        if not secrets_dir.exists():
-            logger.error("No secrets/ directory found. Please create it and add cookie files.")
-            return 1
-
-        cookie_files = sorted(secrets_dir.glob("*.pkl"))
-        if not cookie_files:
-            logger.error("No .pkl cookie files found in secrets/")
-            return 1
-
-        if len(cookie_files) == 1:
-            cookies_path = cookie_files[0]
-            logger.info(f"Using only available cookie file: {cookies_path}")
-        else:
-            print("\nMultiple cookie files found:")
-            for i, f in enumerate(cookie_files, 1):
-                print(f"  {i}. {f.name}")
-
-            try:
-                choice = input(f"Select cookie file [1-{len(cookie_files)}]: ").strip()
-                idx = int(choice) - 1
-                if idx < 0 or idx >= len(cookie_files):
-                    logger.error("Invalid selection")
-                    return 1
-                cookies_path = cookie_files[idx]
-            except (ValueError, KeyboardInterrupt):
-                logger.error("Invalid selection or cancelled")
-                return 1
-    else:
-        cookies_path = args.cookies
 
     logger.info(f"Using cookies: {cookies_path}")
 

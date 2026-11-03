@@ -15,18 +15,18 @@ describe('GenerateCard — cache functions', () => {
 
     it('returns empty array for uncached handle', () => {
       localStorage.setItem(CARD_CACHE_KEY, JSON.stringify({
-        bob: { url: 'http://img.com/bob.png', cachedAt: 1000, versions: [{ url: 'http://img.com/bob.png', cachedAt: 1000 }] }
+        bob: { schema:2,url: 'https://store.public.blob.vercel-storage.com/cards/bob-synthetic.png', cachedAt: 1000, versions: [{ url: 'https://store.public.blob.vercel-storage.com/cards/bob-synthetic.png', cachedAt: 1000 }] }
       }))
       expect(getCachedVersions('alice')).toEqual([])
     })
 
     it('returns versions array for cached handle', () => {
       const versions = [
-        { url: 'http://img.com/v1.png', cachedAt: 1000 },
-        { url: 'http://img.com/v2.png', cachedAt: 2000 },
+        { url: 'https://store.public.blob.vercel-storage.com/cards/alice-v1.png', cachedAt: 1000 },
+        { url: 'https://store.public.blob.vercel-storage.com/cards/alice-v2.png', cachedAt: 2000 },
       ]
       localStorage.setItem(CARD_CACHE_KEY, JSON.stringify({
-        alice: { url: 'http://img.com/v2.png', cachedAt: 2000, versions }
+        alice: { schema:2,url: 'https://store.public.blob.vercel-storage.com/cards/alice-v2.png', cachedAt: 2000, versions }
       }))
       expect(getCachedVersions('alice')).toEqual(versions)
       expect(getCachedVersions('alice')).toHaveLength(2)
@@ -34,20 +34,30 @@ describe('GenerateCard — cache functions', () => {
 
     it('is case-insensitive (lowercases handle)', () => {
       localStorage.setItem(CARD_CACHE_KEY, JSON.stringify({
-        alice: { url: 'http://img.com/v1.png', cachedAt: 1000, versions: [{ url: 'http://img.com/v1.png', cachedAt: 1000 }] }
+        alice: { schema:2,url: 'https://store.public.blob.vercel-storage.com/cards/alice-v1.png', cachedAt: 1000, versions: [{ url: 'https://store.public.blob.vercel-storage.com/cards/alice-v1.png', cachedAt: 1000 }] }
       }))
       expect(getCachedVersions('Alice')).toHaveLength(1)
       expect(getCachedVersions('ALICE')).toHaveLength(1)
     })
 
-    it('migrates old single-entry format to versions array', () => {
+    it('preserves an old local BYOK raster without trusting old remote URLs', () => {
       // Old format: { url, cachedAt } without versions
       localStorage.setItem(CARD_CACHE_KEY, JSON.stringify({
-        alice: { url: 'http://img.com/old.png', cachedAt: 1000 }
+        alice: { url: 'data:image/png;base64,c3ludGhldGlj', cachedAt: 1000 }
       }))
       const versions = getCachedVersions('alice')
       expect(versions).toHaveLength(1)
-      expect(versions[0].url).toBe('http://img.com/old.png')
+      expect(versions[0].url).toBe('data:image/png;base64,c3ludGhldGlj')
+    })
+
+    it('drops legacy external tracking URLs and keeps only local raster versions',()=>{
+      const raster='data:image/png;base64,c3ludGhldGlj';
+      localStorage.setItem(CARD_CACHE_KEY,JSON.stringify({
+        alice:{url:'https://evil.test/track.png',versions:[{url:'https://evil.test/track.png'},{url:raster,cachedAt:1}]},
+        bob:{url:'https://evil.test/bob.png'},
+      }));
+      expect(getCachedVersions('alice')).toEqual([{url:raster,cachedAt:1}]);
+      expect(getAllCachedCards().map(card=>card.handle)).toEqual(['alice']);
     })
 
     it('handles corrupted localStorage gracefully', () => {
@@ -63,9 +73,9 @@ describe('GenerateCard — cache functions', () => {
 
     it('returns all cards sorted by most recent first', () => {
       localStorage.setItem(CARD_CACHE_KEY, JSON.stringify({
-        alice: { url: 'http://img.com/alice.png', cachedAt: 1000 },
-        bob: { url: 'http://img.com/bob.png', cachedAt: 3000 },
-        carol: { url: 'http://img.com/carol.png', cachedAt: 2000 },
+        alice: { schema:2,url: 'https://store.public.blob.vercel-storage.com/cards/alice-synthetic.png', cachedAt: 1000 },
+        bob: { schema:2,url: 'https://store.public.blob.vercel-storage.com/cards/bob-synthetic.png', cachedAt: 3000 },
+        carol: { schema:2,url: 'https://store.public.blob.vercel-storage.com/cards/carol-synthetic.png', cachedAt: 2000 },
       }))
 
       const cards = getAllCachedCards()
@@ -77,13 +87,13 @@ describe('GenerateCard — cache functions', () => {
 
     it('returns handle, url, and cachedAt for each card', () => {
       localStorage.setItem(CARD_CACHE_KEY, JSON.stringify({
-        alice: { url: 'http://img.com/alice.png', cachedAt: 1000 },
+        alice: { schema:2,url: 'https://store.public.blob.vercel-storage.com/cards/alice-synthetic.png', cachedAt: 1000 },
       }))
 
       const cards = getAllCachedCards()
       expect(cards[0]).toEqual({
         handle: 'alice',
-        url: 'http://img.com/alice.png',
+        url: 'https://store.public.blob.vercel-storage.com/cards/alice-synthetic.png',
         cachedAt: 1000,
       })
     })

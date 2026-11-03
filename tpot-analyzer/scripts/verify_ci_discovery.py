@@ -56,7 +56,11 @@ def verify_patch_hygiene(report: Report, base: str | None) -> None:
     marker_scan = run(
         "git", "grep", "-n", "-I", "-E",
         r"^(<<<<<<< |=======$|>>>>>>> )",
-        "--", ".",
+        "--", "*.py", "*.js", "*.jsx", "*.ts", "*.tsx", "*.mjs", "*.cjs",
+        "*.md", "*.yml", "*.yaml", "*.toml", "*.ini", "*.css", "*.html",
+        ":!tpot-analyzer/data/**", ":!Related data/**",
+        ":!docs/private/**", ":!docs/dossiers/**",
+        ":!tpot-analyzer/docs/private/**", ":!tpot-analyzer/docs/dossiers/**",
     )
     report.check(
         "tracked conflict markers",

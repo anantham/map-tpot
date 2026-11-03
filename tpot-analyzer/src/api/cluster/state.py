@@ -5,7 +5,6 @@ import functools
 import json
 import logging
 import os
-import pickle  # used for cached adjacency matrix (local files only, not user input)
 import time
 import hashlib
 from collections import OrderedDict
@@ -19,6 +18,7 @@ import scipy.sparse as sp
 from flask import Blueprint, jsonify, request
 
 from src.api.responses import error_response
+from src.artifacts.safe_io import load_sparse_cache, save_sparse_cache
 from src.api.cluster.membership_coverage import estimate_following_coverage
 
 from src.data.account_tags import AccountTagStore
@@ -226,22 +226,12 @@ def _load_or_build_adjacency(
     if cache_path.exists():
         try:
             logger.info("Loading cached adjacency matrix from %s", cache_path)
-            with open(cache_path, 'rb') as f:
-                cached_payload = pickle.load(f)  # noqa: S301 — local cache files only
-                if isinstance(cached_payload, dict) and "adjacency" in cached_payload:
-                    adjacency = cached_payload["adjacency"]
-                    stats = cached_payload.get("stats", {})
-                else:
-                    # Backward compatibility: old cache contained only CSR matrix.
-                    adjacency = cached_payload
-                    stats = {
-                        "mode": obs_config.mode,
-                        "cache_format": "legacy",
-                    }
-                logger.info("Cached adjacency loaded: %s edges", adjacency.count_nonzero())
-                if isinstance(stats, dict):
-                    stats["cache_hit"] = True
-                return adjacency, stats
+            adjacency, stats = load_sparse_cache(cache_path)
+            if adjacency.shape != (len(node_ids), len(node_ids)):
+                raise ValueError("adjacency cache shape does not match node domain")
+            logger.info("Cached adjacency loaded: %s edges", adjacency.count_nonzero())
+            stats["cache_hit"] = True
+            return adjacency, stats
         except Exception as e:
             logger.warning("Failed to load adjacency cache (%s), rebuilding...", e)
 
@@ -263,8 +253,7 @@ def _load_or_build_adjacency(
     # Save to cache
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(cache_path, 'wb') as f:
-            pickle.dump({"adjacency": adjacency, "stats": stats}, f)
+        save_sparse_cache(cache_path, adjacency, stats)
         logger.info("Adjacency matrix cached to %s", cache_path)
     except Exception as e:
         logger.warning("Failed to cache adjacency matrix: %s", e)
@@ -420,10 +409,10 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
 
         # Use cached adjacency matrix (saves ~12 seconds on startup)
         if _observation_config.mode == "off":
-            adjacency_cache_path = data_dir / "adjacency_matrix_cache.pkl"
+            adjacency_cache_path = data_dir / "adjacency_matrix_cache.npz"
         else:
             p_tag = f"{_observation_config.p_min:.4f}".replace(".", "p")
-            adjacency_cache_path = data_dir / f"adjacency_matrix_cache.{_observation_config.mode}.{p_tag}.pkl"
+            adjacency_cache_path = data_dir / f"adjacency_matrix_cache.{_observation_config.mode}.{p_tag}.npz"
         _adjacency, _observation_stats = _load_or_build_adjacency(
             edges_df,
             node_ids,
@@ -485,7 +474,7 @@ def init_cluster_routes(data_dir: Path = Path("data")) -> None:
                     if tpot_edges_path.exists():
                         tpot_edges_df = pd.read_parquet(tpot_edges_path)
                         tpot_node_ids = _tpot_spectral.node_ids
-                        tpot_adj_cache = data_dir / "adjacency_matrix_cache.tpot.pkl"
+                        tpot_adj_cache = data_dir / "adjacency_matrix_cache.tpot.npz"
                         _tpot_adjacency, _tpot_obs_stats = _load_or_build_adjacency(
                             tpot_edges_df, tpot_node_ids, tpot_adj_cache,
                             obs_config=ObservationWeightingConfig(),  # default for TPOT

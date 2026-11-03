@@ -1,5 +1,10 @@
 # Data Inventory
 
+Historical February baseline. For the scoped 14 October 2026 audit and proposed
+integration sequence, see [Map TPOT data integration roadmap](plans/2026-10-14-map-tpot-data-integration-roadmap.md).
+Counts, provider balances/prices and source access descriptions below are dated;
+do not treat them as current acquisition authority or current data coverage.
+
 *Last updated: 2026-02-25. All numbers from local DBs.*
 
 A honest map of every data source available, what signals it provides,

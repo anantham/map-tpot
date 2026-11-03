@@ -20,6 +20,10 @@ function _wrapRedis(raw) {
     try { await raw.connect(); } catch {}
   };
   return {
+    async eval(script, keys, args) {
+      await connect();
+      return raw.eval(script, keys.length, ...keys, ...args);
+    },
     async get(key) {
       await connect();
       return raw.get(key);

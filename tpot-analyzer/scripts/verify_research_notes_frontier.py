@@ -2,13 +2,18 @@
 """Human-readable smoke check for the exact-tag follow frontier."""
 from __future__ import annotations
 
+import argparse
 import hashlib
+import json
 import os
 import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
+from contextlib import closing
 from pathlib import Path
+from statistics import mean
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -44,6 +49,11 @@ if __name__ == "__main__":
         ).returncode)
 
 from src.graph.target_follow_frontier import build_target_follow_frontier
+from src.graph.source_selectivity import rank_follow_candidates
+from src.data.account_tag_queries import load_target_tag_anchors
+from src.data.follow_frontier_archive import (
+    load_claimed_following_counts, load_follow_edges, open_archive_readonly,
+)
 
 
 def _sha256(path: Path) -> str:
@@ -92,7 +102,74 @@ def _fixture(root: Path) -> tuple[Path, Path]:
     return archive, tags
 
 
+def verify_recovery(args: argparse.Namespace) -> int:
+    """Development-only LOO; no novel-discovery claims or source writes."""
+    started = time.monotonic()
+    print("✓ Read-only known-member recovery; existing judgments are development data")
+    print("rules: complete positive-reachable pool; remaining anchors excluded; "
+          "score descending then account-ID string; misses = N+1 / 100%")
+    print("identity: tag_db_sha256=" + _sha256(args.tag_db))
+    with closing(open_archive_readonly(args.archive_db)) as conn:
+        for tag in args.tag:
+            anchors = load_target_tag_anchors(args.tag_db, ego=args.ego, tag=tag)
+            positive, negative = set(anchors.positive), set(anchors.negative)
+            if len(positive) < 2:
+                print(f"✗ {tag}: at least two IN examples required; found {len(positive)}")
+                return 1
+            edges = load_follow_edges(conn, positive | negative)
+            claims = load_claimed_following_counts(conn, positive | negative)
+            opposing = {row.account_id: row.selectivity_score for row in
+                        rank_follow_candidates(negative, edges, claims).candidates}
+            observations = {mode: [] for mode in ("raw_support", "selectivity")}
+            sizes = []
+            for held_out in sorted(positive):
+                training = positive - {held_out}
+                rows = [row for row in rank_follow_candidates(training, edges, claims).candidates
+                        if row.account_id not in training | negative]
+                sizes.append(len(rows))
+                scores = {
+                    "raw_support": lambda row: row.raw_support,
+                    "selectivity": lambda row: row.selectivity_score - opposing.get(row.account_id, 0),
+                }
+                for mode, score in scores.items():
+                    ordered = sorted(rows, key=lambda row: (-score(row), row.account_id))
+                    rank = next((i + 1 for i, row in enumerate(ordered)
+                                 if row.account_id == held_out), None)
+                    observations[mode].append({
+                        "recovered": rank is not None,
+                        "rank": rank if rank is not None else len(rows) + 1,
+                        "percentile": 100 * rank / len(rows) if rank is not None else 100,
+                        "top20": rank is not None and rank <= 20,
+                    })
+            summary = {
+                "tag": tag, "positive": len(positive), "negative": len(negative),
+                "positiveWithObservedFollows": len({s for s, t in edges if s in positive and s != t}),
+                "positiveWithClaimedCounts": len(positive & claims.keys()),
+                "candidateRange": [min(sizes), max(sizes)],
+                "methods": {mode: {
+                    "folds": len(folds), "recovered": sum(r["recovered"] for r in folds),
+                    "meanRank": round(mean(r["rank"] for r in folds), 4),
+                    "meanPercentile": round(mean(r["percentile"] for r in folds), 5),
+                    "top20": sum(r["top20"] for r in folds),
+                } for mode, folds in observations.items()},
+            }
+            print("✓ " + json.dumps(summary, sort_keys=True))
+    print(f"✓ Completed in {time.monotonic() - started:.2f}s; no source writes or paid calls")
+    print("next: evaluate unfamiliar candidates with the curator; these results do not measure discovery")
+    return 0
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--archive-db", type=Path)
+    parser.add_argument("--tag-db", type=Path)
+    parser.add_argument("--ego")
+    parser.add_argument("--tag", action="append")
+    args = parser.parse_args()
+    if any((args.archive_db, args.tag_db, args.ego, args.tag)):
+        if not all((args.archive_db, args.tag_db, args.ego, args.tag)):
+            parser.error("recovery requires --archive-db, --tag-db, --ego and --tag")
+        return verify_recovery(args)
     with tempfile.TemporaryDirectory(prefix="verify-frontier-") as raw_root:
         archive, tags = _fixture(Path(raw_root))
         before = _sha256(archive)
@@ -102,6 +179,10 @@ def main() -> int:
             ego="ego",
             tag="Dharma",
             limit=10,
+        )
+        raw = build_target_follow_frontier(
+            tag_db_path=tags, archive_db_path=archive, ego="ego", tag="Dharma",
+            limit=1, ranking="raw_support",
         )
         after = _sha256(archive)
 
@@ -114,6 +195,8 @@ def main() -> int:
             "negative support changes the ordering",
         ),
         (payload["status"] == "provisional", "status remains provisional"),
+        (raw["candidates"][0]["accountId"] == "shared", "raw support ranks full pool before limiting"),
+        (raw["candidates"][0]["ranks"]["selectivity"] == 2, "alternate rank survives truncation"),
         (before == after, "archive bytes unchanged by read-only ranking"),
     ]
     for passed, label in checks:

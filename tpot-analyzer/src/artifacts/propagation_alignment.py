@@ -1,6 +1,8 @@
 """Select and align propagation artifacts to an authoritative graph order."""
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -72,7 +74,7 @@ def _string_ids(values: np.ndarray, *, label: str) -> np.ndarray:
 
 
 def _load_candidate(path: Path) -> tuple[np.ndarray, dict[str, np.ndarray]]:
-    with np.load(path, allow_pickle=False) as payload:
+    with load_npz_arrays(path, require_finite=False) as payload:
         missing = sorted(REQUIRED_KEYS - set(payload.files))
         if missing:
             raise ArtifactCompatibilityError(

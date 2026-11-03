@@ -97,3 +97,13 @@ tpot-analyzer/scripts/run_propagation.py
 .last_export_state.json
 .vercel
 .env*.local
+
+# Private research/publication candidates. Ignoring never removes tracked history.
+tpot-analyzer/data/publication_candidates/
+tpot-analyzer/data/evals/
+tpot-analyzer/data/*holdout*.json
+tpot-analyzer/data/tier2_fetch_queue.txt
+tpot-analyzer/data/*coverage*.json
+tpot-analyzer/data/*dossier*/
+tpot-analyzer/docs/private/
+tpot-analyzer/docs/dossiers/

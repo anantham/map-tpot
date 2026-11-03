@@ -1,132 +1,111 @@
-"""SSRF guard for outbound URL fetches.
+"""Fail-closed public-address validation for enrichment HTTP fetches.
 
-Used by the tweet-enrichment pipeline (``src/api/tweet_enrichment.py``), which
-resolves and fetches ``t.co`` links extracted from tweet text. The destination
-of a ``t.co`` link is fully attacker-controlled — anyone can register a short
-link that redirects anywhere — so every fetch in that pipeline must be checked
-before the request leaves the machine, or it becomes an SSRF primitive
-(``POST /interpret`` -> enrichment -> fetch of an internal address).
-
-What this guards: fetches whose URL derives from untrusted input.
-What this does NOT guard: fetches to trusted, operator-configured endpoints
-(Supabase archive storage, twitterapi.io) — those have a fixed host and need
-no check.
-
-Known residual — DNS rebinding: ``validate_url`` resolves the hostname and
-checks the IPs, but the connection that follows re-resolves independently, so
-a hostile resolver could return a public IP to the check and a private IP to
-the fetch. Fully closing this needs IP-pinned connections with a manual Host
-header. Accepted for now — the API server is local-only (see docs/HANDOVER.md);
-revisit before any public deploy.
+Resolution returns the exact addresses used by the pinned transport. No second
+DNS lookup, proxy, cookie jar or automatic redirect handler can bypass it.
 """
 from __future__ import annotations
 
 import ipaddress
 import socket
-import urllib.request
-from typing import Union
-from urllib.parse import urlparse
-
-_ALLOWED_SCHEMES = {"http", "https"}
-
-# Tailscale / CGNAT shared address space (RFC 6598). Python's
-# ``ipaddress.is_private`` classifies this range inconsistently across CPython
-# versions, so block it explicitly to keep behaviour identical between the
-# local anaconda env and CI.
-_EXTRA_BLOCKED_V4 = (ipaddress.ip_network("100.64.0.0/10"),)
-
-_IPAddress = Union[ipaddress.IPv4Address, ipaddress.IPv6Address]
+import time
+from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 
 class BlockedURLError(Exception):
-    """Raised when a URL uses a disallowed scheme or targets a non-public address."""
+    """An outbound URL, peer or response violated the enrichment policy."""
 
 
-def _ip_is_blocked(ip: _IPAddress) -> bool:
-    """True if `ip` is anything other than a public, globally-routable address."""
-    if (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    ):
-        return True
-    # IPv4-mapped IPv6 (e.g. ::ffff:10.0.0.1) — unwrap and re-check the v4 part.
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        return _ip_is_blocked(ip.ipv4_mapped)
-    if isinstance(ip, ipaddress.IPv4Address):
-        return any(ip in net for net in _EXTRA_BLOCKED_V4)
-    return False
+@dataclass(frozen=True)
+class ResolvedURL:
+    url: str
+    scheme: str
+    host: str
+    port: int
+    authority: str
+    target: str
+    addresses: tuple
 
 
-def validate_url(url: str) -> None:
-    """Raise BlockedURLError unless `url` is an http(s) URL that resolves
-    entirely to public, routable IP addresses.
+def _ip_is_blocked(ip) -> bool:
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return _ip_is_blocked(ip.ipv4_mapped)
+        if ip.sixtofour is not None and _ip_is_blocked(ip.sixtofour):
+            return True
+        if ip.teredo is not None and any(_ip_is_blocked(v4) for v4 in ip.teredo):
+            return True
+    return not ip.is_global or ip.is_multicast
 
-    Fail-closed: any parsing, resolution, or port error blocks the URL.
-    """
-    parsed = urlparse(url)
-    if parsed.scheme not in _ALLOWED_SCHEMES:
-        raise BlockedURLError(f"scheme not allowed: {parsed.scheme!r}")
 
-    host = parsed.hostname
-    if not host:
-        raise BlockedURLError(f"no host in URL: {url!r}")
+def resolve_public_url(url: str, *, deadline: float | None = None) -> ResolvedURL:
+    """Parse and resolve once; reject the entire answer if any IP is non-public."""
+    if not isinstance(url, str) or len(url) > 8192 or any(ord(c) <= 32 or ord(c) == 127 for c in url):
+        raise BlockedURLError("invalid or oversized outbound URL")
+    try:
+        parsed = urlsplit(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("HTTP(S) scheme and host required")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("URL credentials are prohibited")
+        host = parsed.hostname.encode("idna").decode("ascii")
+        if "%" in host:
+            raise ValueError("scoped or escaped host prohibited")
+        port = parsed.port if parsed.port is not None else (443 if parsed.scheme == "https" else 80)
+        if not 1 <= port <= 65535:
+            raise ValueError("port outside allowed range")
+    except (ValueError, UnicodeError) as exc:
+        raise BlockedURLError(f"invalid outbound URL authority: {exc}") from exc
 
-    # A bare IP literal in the URL skips DNS — check it directly.
     try:
         literal = ipaddress.ip_address(host)
     except ValueError:
         literal = None
     if literal is not None:
-        if _ip_is_blocked(literal):
-            raise BlockedURLError(f"non-public address: {host}")
-        return
+        family = socket.AF_INET6 if literal.version == 6 else socket.AF_INET
+        infos = [(family, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", (host, port))]
+    else:
+        from src.api.outbound_dns import resolve_bounded
+        try:
+            infos = resolve_bounded(host, port, deadline=deadline if deadline is not None else time.monotonic() + 5)
+        except (OSError, UnicodeError) as exc:
+            raise BlockedURLError("outbound host resolution failed") from exc
+    addresses = []
+    for family, kind, proto, _, sockaddr in infos:
+        try:
+            ip = ipaddress.ip_address(sockaddr[0])
+        except ValueError as exc:
+            raise BlockedURLError("resolver returned an invalid address") from exc
+        if family not in {socket.AF_INET, socket.AF_INET6} or _ip_is_blocked(ip):
+            raise BlockedURLError("outbound host resolves to a non-public address")
+        address = (family, str(ip))
+        if address not in addresses:
+            addresses.append(address)
+    if not addresses:
+        raise BlockedURLError("outbound host resolved to no addresses")
 
-    try:
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
-    except ValueError as exc:
-        raise BlockedURLError(f"invalid port in URL: {url!r}") from exc
-
-    try:
-        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
-    except socket.gaierror as exc:
-        raise BlockedURLError(f"could not resolve host {host!r}: {exc}") from exc
-
-    if not infos:
-        raise BlockedURLError(f"host {host!r} resolved to no addresses")
-
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if _ip_is_blocked(ip):
-            raise BlockedURLError(
-                f"host {host!r} resolves to non-public address {ip}"
-            )
-
-
-class _ValidatingRedirectHandler(urllib.request.HTTPRedirectHandler):
-    """Re-validates the target of every redirect hop, so a public URL cannot
-    302 into a private one."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        validate_url(newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+    authority = f"[{host}]" if ":" in host else host
+    if port != (443 if parsed.scheme == "https" else 80):
+        authority += f":{port}"
+    target = parsed.path or "/"
+    if parsed.query:
+        target += "?" + parsed.query
+    return ResolvedURL(url, parsed.scheme, host, port, authority, target, tuple(addresses))
 
 
-def safe_urlopen(
-    url: str,
-    *,
-    timeout: float = 10.0,
-    headers: dict[str, str] | None = None,
-):
-    """Validate `url` (and every redirect hop) against the SSRF guard, then open it.
+def validate_url(url: str) -> None:
+    """Validate without fetching; transport callers use the returned resolution."""
+    resolve_public_url(url)
 
-    Raises BlockedURLError before any connection if the URL — or any redirect
-    target — uses a bad scheme or points at a non-public address.
+
+def safe_urlopen(url: str, *, timeout: float = 10.0, headers: dict | None = None,
+                 max_bytes: int = 1_048_576, max_wire_bytes: int | None = None):
+    """Open a pinned GET with bounded redirects, elapsed time and response bytes.
+
+    ``read()`` streams at most max_wire_bytes encoded payload bytes and
+    max_bytes decoded bytes, including when callers read incrementally.
+    The returned response is a context manager and must be closed by callers.
     """
-    validate_url(url)
-    req = urllib.request.Request(url, headers=headers or {})
-    opener = urllib.request.build_opener(_ValidatingRedirectHandler)
-    return opener.open(req, timeout=timeout)
+    from src.api.outbound_transport import open_pinned
+    return open_pinned(url, timeout=timeout, headers=headers or {},
+                       max_bytes=max_bytes, max_wire_bytes=max_wire_bytes)

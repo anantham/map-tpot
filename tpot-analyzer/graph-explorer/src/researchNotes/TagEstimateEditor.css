@@ -1,0 +1,113 @@
+.tag-estimate-editor {
+  display: grid;
+  gap: 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--accent) 3%, var(--panel));
+}
+
+.tag-estimate-editor > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tag-estimate-editor h3,
+.tag-estimate-editor p {
+  margin: 0;
+}
+
+.tag-estimate-editor h3 {
+  font-size: 14px;
+}
+
+.tag-estimate-editor p,
+.tag-estimate-history {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tag-estimate-editor button {
+  min-height: 36px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.tag-estimate-controls {
+  display: grid;
+  gap: 11px;
+  border-top: 1px solid var(--panel-border);
+  padding-top: 11px;
+}
+
+.tag-estimate-slider {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 10px;
+}
+
+.tag-estimate-slider label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tag-estimate-slider input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.tag-estimate-controls output {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.tag-estimate-range {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.tag-estimate-caveat {
+  border-left: 3px solid var(--accent);
+  padding-left: 8px;
+}
+
+.tag-estimate-error {
+  color: #b91c1c !important;
+}
+
+.tag-estimate-history summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.tag-estimate-history ol {
+  margin: 9px 0 0;
+  padding-left: 20px;
+}
+
+.tag-estimate-history li {
+  display: grid;
+  gap: 2px;
+  margin-top: 7px;
+}
+
+@media (max-width: 560px) {
+  .tag-estimate-editor > header,
+  .tag-estimate-range {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .tag-estimate-editor > header {
+    display: grid;
+  }
+}

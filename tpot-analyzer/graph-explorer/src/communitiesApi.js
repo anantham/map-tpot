@@ -1,3 +1,4 @@
+import { analystFetch as fetch } from './analystFetch'
 import { API_BASE_URL, withCuratorAuth } from './config'
 
 const BASE = `${API_BASE_URL}/api/communities`

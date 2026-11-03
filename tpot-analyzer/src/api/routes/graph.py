@@ -6,6 +6,7 @@ import json
 from flask import Blueprint, jsonify, request, current_app, Response
 
 from src.api.curator_auth import curator_only
+from src.api.workload_validation import parse_graph_filters
 from src.graph import (
     build_graph,
     get_graph_settings,
@@ -25,7 +26,10 @@ def get_graph_data():
     """Return the current graph structure for visualization."""
     include_shadow = request.args.get("include_shadow", "true").lower() == "true"
     mutual_only = request.args.get("mutual_only", "false").lower() == "true"
-    min_followers = int(request.args.get("min_followers", "0"))
+    try:
+        _, _, min_followers = parse_graph_filters({"min_followers": request.args.get("min_followers", "0")})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     cache_key = f"{include_shadow}_{mutual_only}_{min_followers}"
     

@@ -1,0 +1,109 @@
+.discovery-review-page { margin: 0; }
+.discovery-review {
+  --review-ink: #253832;
+  --review-muted: #64746b;
+  --review-line: #dce2d9;
+  --review-accent: #2e5d48;
+  box-sizing: border-box;
+  min-height: 100dvh;
+  padding: 42px 24px 104px;
+  background: #f6f7f2;
+  color: var(--review-ink);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.discovery-review *, .discovery-review *::before, .discovery-review *::after { box-sizing: border-box; }
+.discovery-review-shell { max-width: 1080px; margin: 0 auto; }
+.discovery-review-heading { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+.discovery-review-heading h1 { margin: 4px 0 6px; font-size: clamp(28px, 5vw, 38px); font-weight: 650; letter-spacing: -1px; }
+.discovery-review-heading p { margin: 0; }
+.discovery-review-heading > div > p:last-child { color: var(--review-muted); }
+.discovery-review-eyebrow { margin: 0 0 12px; text-transform: uppercase; letter-spacing: 1.5px; font-size: 11px; font-weight: 750; color: var(--review-muted); }
+.discovery-review-private { border: 1px solid var(--review-line); border-radius: 20px; padding: 6px 12px; white-space: nowrap; font-size: 12px; color: var(--review-muted); }
+.discovery-review-progress { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin: 28px 0 20px; }
+.discovery-review-progress > div { width: 260px; }
+.discovery-review-progress strong { font-size: 14px; }
+.discovery-review-progress progress { display: block; width: 100%; height: 8px; margin-top: 8px; border: none; border-radius: 8px; accent-color: var(--review-accent); overflow: hidden; }
+.discovery-review-progress progress::-webkit-progress-bar { background: #e0e6dc; }
+.discovery-review-progress progress::-webkit-progress-value { background: var(--review-accent); border-radius: 8px; }
+.discovery-review-progress progress::-moz-progress-bar { background: var(--review-accent); }
+.discovery-review-progress label { display: grid; gap: 5px; font-size: 12px; color: var(--review-muted); }
+.discovery-review select { padding: 9px 12px; width: 250px; min-height: 44px; background: #fff; border: 1px solid var(--review-line); border-radius: 9px; color: var(--review-ink); font: inherit; font-size: 14px; }
+.discovery-review-position { display: flex; justify-content: space-between; gap: 16px; margin: 0 0 10px; font-size: 12px; color: var(--review-muted); }
+.discovery-review-position .is-unsaved { color: #815617; }
+.discovery-review-answer-jump { display: none; }
+.discovery-review-answer { scroll-margin-top: 16px; }
+.discovery-review-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(330px, 0.9fr); gap: 22px; align-items: start; }
+.discovery-review-card, .discovery-review-answer { background: #fff; border: 1px solid var(--review-line); border-radius: 18px; padding: 26px; }
+.discovery-review-profile { display: flex; gap: 15px; align-items: start; justify-content: space-between; }
+.discovery-review-profile h2 { margin: 0; font-size: 23px; line-height: 1.3; overflow-wrap: anywhere; letter-spacing: -0.4px; }
+.discovery-review-profile .discovery-review-eyebrow { margin-bottom: 8px; }
+.discovery-review-display-name { margin: 4px 0 0; color: var(--review-muted); }
+.discovery-review a { color: var(--review-accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.discovery-review-external { display: inline-flex; align-items: center; min-height: 44px; flex-shrink: 0; font-size: 12px; }
+.discovery-review-bio { white-space: pre-wrap; margin: 20px 0 12px; overflow-wrap: anywhere; }
+.discovery-review-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--review-muted); font-size: 11px; }
+.discovery-review-card h3 { border-top: 1px solid var(--review-line); padding-top: 22px; margin: 22px 0 12px; font-size: 14px; font-weight: 650; }
+.discovery-review-card h3 span { margin-left: 6px; color: var(--review-muted); font-weight: 400; }
+.discovery-review-posts { display: grid; gap: 14px; }
+.discovery-review-post { padding: 16px; background: #f8f9f5; border: 1px solid #e9ede4; border-radius: 12px; }
+.discovery-review-post p { margin: 0 0 14px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.discovery-review-post .discovery-review-meta a { display: inline-block; padding: 3px 0; }
+.discovery-review-empty { padding: 18px; border: 1px dashed var(--review-line); border-radius: 12px; color: var(--review-muted); font-size: 14px; }
+.discovery-review-empty p { margin: 0; }
+.discovery-review-empty p + p { margin-top: 6px; }
+.discovery-review-questions fieldset { border: 0; padding: 0; margin: 0 0 25px; min-width: 0; }
+.discovery-review-questions legend { padding: 0; font-size: 15px; font-weight: 650; margin-bottom: 12px; }
+.discovery-review-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.discovery-review-choices label { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 9px 7px; border: 1px solid var(--review-line); border-radius: 10px; font-size: 14px; cursor: pointer; }
+.discovery-review-choices input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.discovery-review-choices label:has(input:focus-visible) { outline: 3px solid #90b6a5; outline-offset: 3px; }
+.discovery-review-choices label.is-selected { background: #e8f0e8; border-color: var(--review-accent); color: #224b36; font-weight: 700; }
+.discovery-review-choices label.is-selected::before { content: '✓'; font-size: 13px; }
+.discovery-review fieldset:disabled { opacity: 0.65; }
+.discovery-review fieldset:disabled label { cursor: wait; }
+.discovery-review-note { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 650; }
+.discovery-review-note span { font-size: 12px; font-weight: 400; color: var(--review-muted); margin-left: 5px; }
+.discovery-review textarea { width: 100%; resize: vertical; min-height: 86px; border: 1px solid var(--review-line); border-radius: 10px; padding: 12px; color: var(--review-ink); background: #fff; font: inherit; font-size: 16px; }
+.discovery-review textarea::placeholder { color: #77837a; }
+.discovery-review button { min-height: 46px; border: 1px solid var(--review-line); border-radius: 10px; padding: 10px 15px; background: #fff; color: var(--review-ink); font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
+.discovery-review button:disabled, .discovery-review select:disabled { opacity: 0.45; cursor: default; }
+.discovery-review button:hover:not(:disabled) { background: #edf2e9; }
+.discovery-review button:focus-visible, .discovery-review textarea:focus-visible, .discovery-review select:focus-visible, .discovery-review a:focus-visible { outline: 3px solid #90b6a5; outline-offset: 3px; }
+.discovery-review button.discovery-review-primary { background: var(--review-accent); border-color: var(--review-accent); color: #fff; }
+.discovery-review button.discovery-review-primary:hover:not(:disabled) { background: #244a39; }
+.discovery-review-save-actions { display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px; margin-top: 18px; }
+.discovery-review-help { margin: 10px 0 0; color: var(--review-muted); font-size: 12px; }
+.discovery-review-navigation { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: min(1128px, 100%); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px max(12px, env(safe-area-inset-bottom)); background: #f6f7f2f5; border-top: 1px solid var(--review-line); z-index: 5; backdrop-filter: blur(8px); }
+.discovery-review-navigation span { color: var(--review-muted); font-size: 13px; }
+.discovery-review-navigation button { min-width: 100px; }
+.discovery-review-state { padding: 24px 0; color: var(--review-muted); }
+.discovery-review-error { border: 1px solid #daa39a; background: #fff0eb; color: #8b3325; border-radius: 10px; padding: 12px; font-size: 14px; overflow-wrap: anywhere; }
+.discovery-review-error p { margin: 0 0 8px; }
+.discovery-review-draft-status { border-left: 3px solid #b78d47; padding: 6px 12px; margin: 0 0 18px; color: #79541d; font-size: 12px; }
+.discovery-review-complete { display: grid; gap: 4px; padding: 14px 18px; margin-bottom: 18px; border-radius: 12px; background: #e8f0e8; font-size: 14px; }
+.discovery-review-complete span { color: var(--review-muted); }
+.discovery-review-feedback { display: grid; gap: 3px; margin: 0 0 20px; font-size: 13px; }
+.discovery-review-feedback span { color: var(--review-muted); font-size: 12px; }
+.discovery-review-evidence p, .discovery-review-evidence li { font-size: 14px; overflow-wrap: anywhere; }
+.discovery-review-evidence article + article { margin-top: 14px; }
+.discovery-review-evidence article p { margin: 5px 0; }
+@media (max-width: 780px) {
+  .discovery-review-answer-jump { display: inline; }
+  .discovery-review { padding: 26px 16px 104px; }
+  .discovery-review-layout { grid-template-columns: 1fr; gap: 16px; }
+  .discovery-review-card, .discovery-review-answer { padding: 22px; }
+  .discovery-review-heading { gap: 8px; }
+  .discovery-review-private { display: none; }
+  .discovery-review-progress { gap: 14px; margin-top: 22px; }
+  .discovery-review-progress > div { width: auto; flex: 1; min-width: 95px; }
+  .discovery-review select { width: 170px; max-width: 100%; }
+  .discovery-review-navigation { padding-left: 16px; padding-right: 16px; }
+}
+@media (max-width: 390px) {
+  .discovery-review-profile { display: block; }
+  .discovery-review-external { margin-top: 4px; }
+  .discovery-review-card, .discovery-review-answer { padding: 18px; }
+  .discovery-review-progress { align-items: start; }
+  .discovery-review select { width: 145px; }
+  .discovery-review-save-actions { grid-template-columns: 1fr; }
+}

@@ -6,6 +6,8 @@ which communities they were assigned to, and at what confidence.
 Usage:
     .venv/bin/python3 -m scripts.verify_holdout_recall
 """
+
+from src.artifacts.safe_io import load_npz_arrays
 import sqlite3
 import sys
 import numpy as np
@@ -35,7 +37,7 @@ def main():
         print(f"✗ {NPZ_PATH} not found — run propagate_community_labels.py --save first")
         sys.exit(1)
 
-    data = np.load(str(NPZ_PATH), allow_pickle=True)
+    data = load_npz_arrays(str(NPZ_PATH))
     memberships = data["memberships"]  # (n_nodes, K+1)
     account_ids = data["node_ids"] if "node_ids" in data else (data["account_ids"] if "account_ids" in data else None)
     abstain_mask = data["abstain_mask"] if "abstain_mask" in data else None

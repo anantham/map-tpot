@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import httpx
+
+from src.archive.limits import bounded_response_bytes, parse_archive, validate_username
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -111,7 +113,7 @@ class BlobStorageImporter:
             Tuple of (archive_dict, upload_timestamp) or None if not found
             upload_timestamp is extracted from Last-Modified header if available
         """
-        username_lower = username.lower()
+        username_lower = validate_username(username)
         url = f"{self.base_url}/storage/v1/object/public/archives/{username_lower}/archive.json"
 
         logger.info(f"Fetching archive for '{username}' from blob storage")
@@ -120,24 +122,21 @@ class BlobStorageImporter:
             raise RuntimeError("BlobStorageImporter must be used as context manager")
 
         try:
-            response = self._client.get(url)
-            if response.status_code == 404:
-                logger.warning(f"Archive not found for '{username}' at {url}")
-                return None
-            response.raise_for_status()
-
-            # Extract upload timestamp from Last-Modified header
-            upload_timestamp = None
-            last_modified = response.headers.get("Last-Modified")
-            if last_modified:
-                try:
+            with self._client.stream("GET", url) as response:
+                if response.status_code == 404:
+                    logger.warning("Archive not found for %s", username)
+                    return None
+                response.raise_for_status()
+                archive = parse_archive(bounded_response_bytes(response))
+                upload_timestamp = None
+                last_modified = response.headers.get("Last-Modified")
+                if last_modified:
                     from email.utils import parsedate_to_datetime
-                    upload_timestamp = parsedate_to_datetime(last_modified)
-                    logger.debug(f"Archive for '{username}' last modified: {upload_timestamp}")
-                except Exception as e:
-                    logger.warning(f"Failed to parse Last-Modified header: {e}")
-
-            return response.json(), upload_timestamp
+                    try:
+                        upload_timestamp = parsedate_to_datetime(last_modified)
+                    except (ValueError, TypeError):
+                        logger.warning("Invalid archive Last-Modified header")
+                return archive, upload_timestamp
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch archive for '{username}': {e}")
             return None

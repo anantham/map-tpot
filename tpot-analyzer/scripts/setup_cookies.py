@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import pickle
 import re
 from datetime import datetime
 from pathlib import Path
@@ -10,8 +9,10 @@ from typing import Optional
 
 from selenium import webdriver
 
+from src.shadow.cookie_store import save_cookies
 
-DEFAULT_OUTPUT = Path("secrets/twitter_cookies.pkl")
+
+DEFAULT_OUTPUT = Path("secrets/twitter_cookies.json")
 
 
 def build_driver(*, headless: bool = False, window_size: str = "1200,1200") -> webdriver.Chrome:
@@ -33,7 +34,7 @@ def parse_args() -> argparse.Namespace:
         "--output",
         type=Path,
         default=DEFAULT_OUTPUT,
-        help=f"Where to write the cookies pickle (default: {DEFAULT_OUTPUT})",
+        help=f"Where to write the cookies JSON (default: {DEFAULT_OUTPUT})",
     )
     parser.add_argument(
         "--headless",
@@ -62,18 +63,18 @@ def resolve_output_path(path: Path) -> Path:
         print("No explicit output file provided.")
         label = input("Enter a short label for this session (e.g., handle or date): ").strip()
         slug = _sanitize_label(label) if label else "session"
-        final = path.parent / f"twitter_cookies_{slug}_{timestamp}.pkl"
+        final = path.parent / f"twitter_cookies_{slug}_{timestamp}.json"
         counter = 1
         while final.exists():
             counter += 1
-            final = final.parent / f"twitter_cookies_{slug}_{timestamp}_{counter}.pkl"
+            final = final.parent / f"twitter_cookies_{slug}_{timestamp}_{counter}.json"
         print(f"Cookies will be saved to {final}")
-        return final.resolve()
+        return final.absolute()
 
     # Custom path provided
-    path = path.resolve()
+    path = path.absolute()
     if not path.suffix:
-        path = path.with_suffix(".pkl")
+        path = path.with_suffix(".json")
     if path.exists():
         renamed = path.with_name(f"{path.stem}_{timestamp}{path.suffix}")
         counter = 1
@@ -87,7 +88,8 @@ def resolve_output_path(path: Path) -> Path:
 
 def capture_cookies(output_path: Path, *, headless: bool, window_size: str) -> Optional[Path]:
     output_path = resolve_output_path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.suffix.lower() != ".json":
+        raise ValueError("Cookie output must be JSON; recapture legacy pickle cookies")
 
     driver = build_driver(headless=headless, window_size=window_size)
     try:
@@ -102,8 +104,7 @@ def capture_cookies(output_path: Path, *, headless: bool, window_size: str) -> O
             print("\n✗ No cookies were captured. Is the session still active?")
             return None
 
-        with output_path.open("wb") as fh:
-            pickle.dump(cookies, fh)
+        save_cookies(output_path, cookies)
         print(f"\n✓ Saved {len(cookies)} cookies to {output_path}")
         return output_path
     finally:

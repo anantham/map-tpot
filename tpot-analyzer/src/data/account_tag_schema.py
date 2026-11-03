@@ -76,6 +76,35 @@ def initialize_account_tag_schema(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         """
+        CREATE TABLE IF NOT EXISTS account_tag_estimate_events (
+            event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ego TEXT NOT NULL CHECK (length(ego) > 0),
+            account_id TEXT NOT NULL CHECK (length(account_id) > 0),
+            tag_key TEXT NOT NULL CHECK (length(tag_key) > 0),
+            tag_display TEXT NOT NULL CHECK (length(tag_display) > 0),
+            point_estimate REAL NOT NULL
+                CHECK (point_estimate >= 0.0 AND point_estimate <= 1.0),
+            plausible_low REAL NOT NULL
+                CHECK (plausible_low >= 0.0 AND plausible_low <= 1.0),
+            plausible_high REAL NOT NULL
+                CHECK (plausible_high >= 0.0 AND plausible_high <= 1.0),
+            review_session_id TEXT NOT NULL
+                CHECK (length(review_session_id) > 0),
+            source TEXT NOT NULL CHECK (length(source) > 0),
+            evidence_binding_status TEXT NOT NULL
+                CHECK (evidence_binding_status IN ('unbound', 'snapshot_bound')),
+            recorded_at TEXT NOT NULL,
+            CHECK (plausible_low <= point_estimate),
+            CHECK (point_estimate <= plausible_high)
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_account_tag_estimates_subject "
+        "ON account_tag_estimate_events(ego, account_id, tag_key, event_id)"
+    )
+    conn.execute(
+        """
         INSERT INTO account_tag_events (
             ego, account_id, tag_key, tag_display, action, polarity,
             confidence, source, evidence_binding_status, recorded_at

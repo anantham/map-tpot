@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 import { fetchWithRetry } from './fetchClient'
 
-vi.mock('./config', () => ({ API_BASE_URL: 'http://test-api', API_TIMEOUT_MS: 5000 }))
+vi.mock('./config', () => ({ API_BASE_URL: 'http://test-api', API_TIMEOUT_MS: 5000, withCuratorAuth: (init = {}) => ({ ...init, headers: { ...init.headers, 'X-TPOT-Curator-Token': 'fixture-token' } }) }))
 
 // ---------------------------------------------------------------------------
 // Shared helpers

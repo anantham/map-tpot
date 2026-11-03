@@ -1,3 +1,4 @@
+import { analystFetch as fetch } from './analystFetch'
 /**
  * API client for graph-explorer backend.
  *

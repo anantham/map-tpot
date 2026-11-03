@@ -8,6 +8,7 @@ from typing import Optional
 
 from flask import Blueprint, jsonify, request
 
+from src.api.curation_source import require_curation_source
 from src.api.curator_auth import curator_only
 from src.api.responses import error_response
 from src.config import get_snapshot_dir
@@ -23,12 +24,6 @@ logger = logging.getLogger(__name__)
 account_tags_bp = Blueprint("account_tags", __name__, url_prefix="/api")
 _tag_store: Optional[AccountTagStore] = None
 _meta_note_store: Optional[TagMetaNoteStore] = None
-_SOURCE_HEADER = "X-TPOT-Curation-Source"
-_ALLOWED_SOURCES = {
-    "agent_assisted_curator",
-    "human_curator_api",
-    "verification_script",
-}
 
 
 def _require_ego() -> str:
@@ -82,14 +77,7 @@ def _parse_polarity(value: object) -> Optional[int]:
 
 
 def _event_source() -> str:
-    source = (request.headers.get(_SOURCE_HEADER) or "").strip()
-    if not source:
-        raise ValueError(f"{_SOURCE_HEADER} is required for tag mutations")
-    if source not in _ALLOWED_SOURCES:
-        raise ValueError(
-            f"{_SOURCE_HEADER} must be one of {sorted(_ALLOWED_SOURCES)}"
-        )
-    return source
+    return require_curation_source(request)
 
 
 @account_tags_bp.route("/accounts/<account_id>/tags", methods=["GET"])

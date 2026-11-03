@@ -7,13 +7,11 @@ hop so a public URL can't 302 into an internal one. See src/api/url_guard.py.
 from __future__ import annotations
 
 import socket
-import urllib.request
 
 import pytest
 
 from src.api.url_guard import (
     BlockedURLError,
-    _ValidatingRedirectHandler,
     safe_urlopen,
     validate_url,
 )
@@ -106,12 +104,4 @@ def test_safe_urlopen_blocks_before_opening():
         safe_urlopen("http://169.254.169.254/latest/meta-data/")
 
 
-# ── redirect hops are re-validated ───────────────────────────────────────────
-
-@pytest.mark.unit
-def test_redirect_handler_blocks_private_redirect_target():
-    """A public URL must not be able to 302 into a private address."""
-    handler = _ValidatingRedirectHandler()
-    req = urllib.request.Request("http://example.com/")
-    with pytest.raises(BlockedURLError):
-        handler.redirect_request(req, None, 302, "Found", {}, "http://127.0.0.1/")
+# Redirect behavior is exercised through safe_urlopen in test_outbound_transport.

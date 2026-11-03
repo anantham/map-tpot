@@ -18,7 +18,7 @@ import {
   submitLabel,
 } from './labelingApi'
 
-vi.mock('./config', () => ({ API_BASE_URL: 'http://test-api' }))
+vi.mock('./config', () => ({ API_BASE_URL: 'http://test-api', withCuratorAuth: (init = {}) => ({ ...init, headers: { ...init.headers, 'X-TPOT-Curator-Token': 'fixture-token' } }) }))
 
 // ---------------------------------------------------------------------------
 // Shared helpers

@@ -1,0 +1,76 @@
+.app-navigation {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.app-navigation-primary {
+  display: flex;
+  gap: 8px;
+}
+
+.app-navigation button {
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+}
+
+.app-navigation button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.app-navigation button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.app-navigation-tools {
+  position: relative;
+}
+
+.app-navigation-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  min-width: 190px;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 14px 35px rgba(15, 23, 42, 0.18);
+}
+
+.app-navigation-menu button {
+  width: 100%;
+  border-color: transparent;
+  text-align: left;
+}
+
+.app-navigation-menu button:hover:not(:disabled) {
+  background: var(--bg-muted);
+}
+
+@media (max-width: 520px) {
+  .app-navigation {
+    padding: 8px 12px;
+  }
+
+  .app-navigation button {
+    padding: 8px 12px;
+  }
+}

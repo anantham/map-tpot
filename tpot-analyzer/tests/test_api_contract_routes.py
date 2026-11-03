@@ -9,9 +9,11 @@ from src.api.server import create_app
 
 
 @pytest.fixture
-def client(temp_snapshot_dir):
+def client(temp_snapshot_dir, monkeypatch):
+    monkeypatch.setenv("TPOT_CURATOR_TOKEN", "api-fixture-token")
     app = create_app({"TESTING": True})
     with app.test_client() as test_client:
+        test_client.environ_base["HTTP_X_TPOT_CURATOR_TOKEN"] = "api-fixture-token"
         yield test_client
 
 

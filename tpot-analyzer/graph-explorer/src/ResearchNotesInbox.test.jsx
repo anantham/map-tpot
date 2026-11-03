@@ -34,6 +34,13 @@ vi.mock('./accountsApi', () => ({
 }))
 
 describe('ResearchNotesInbox', () => {
+  /**
+   * Test intent:
+   * - Put the current review task and account ahead of setup and system detail.
+   * - Keep source suggestions available but collapsed until explicitly opened.
+   * - Never turn Takes suggestions into judgments without an explicit curator action.
+   * - Avoid rendering an empty model-consequence card before a tag is selected.
+   */
   beforeEach(() => {
     vi.resetAllMocks()
     localStorage.clear()
@@ -89,6 +96,10 @@ describe('ResearchNotesInbox', () => {
     expect(await screen.findByText('2 accounts in queue')).toBeInTheDocument()
     expect(screen.getByText(/loaded from aditya's takes/i)).toBeInTheDocument()
     expect(await screen.findByText('Suggested from your Takes')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand suggestions' }))
+      .toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('explicit dharma')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand suggestions' }))
     expect(screen.getByText('explicit dharma')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Accept Dharma as IN' }))
       .toBeInTheDocument()
@@ -251,21 +262,6 @@ describe('ResearchNotesInbox', () => {
     })
     expect(screen.getByRole('button', { name: 'Mark IN' })).toBeDisabled()
     expect(screen.queryByText('Set `ego` to tag accounts.')).not.toBeInTheDocument()
-  })
-
-  it('explains the absent model opinion without showing legacy membership', async () => {
-    render(<ResearchNotesInbox ego="adityaarpitha" />)
-
-    addAccounts('@alice')
-    await screen.findByText('Meditation and distributed systems.')
-
-    expect(screen.getByRole('heading', {
-      name: 'Model opinion — none yet (needs more tags)',
-    })).toBeInTheDocument()
-    expect(screen.getByText(/choose or add a tag/i)).toBeInTheDocument()
-    expect(screen.getByText(/legacy NMF percentages are intentionally not shown/i))
-      .toBeInTheDocument()
-    expect(screen.queryByText(/\d+% membership/i)).not.toBeInTheDocument()
   })
 
 })

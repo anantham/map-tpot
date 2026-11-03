@@ -13,175 +13,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { buildCardRequest } from "./cardPrompt";
 import { buildLegacyCardPrompt } from "./legacyCardPrompt";
 
-const MODEL = "google/gemini-2.5-flash-image";
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const RETRY_DELAY_MS = 5000;
-const MAX_RETRIES = 3;
 const LOCALSTORAGE_KEY = "openrouter_key";
-const GEN_COUNT_KEY = "ingroup_gen_count";
-const CARD_CACHE_KEY = "ingroup_card_cache";
 const MAX_FREE_GENS = 10;
 
-// --- Card image cache ---
-
-function getCardCache() {
-  try {
-    return JSON.parse(localStorage.getItem(CARD_CACHE_KEY) || '{}');
-  } catch { return {}; }
-}
-
-function getCachedCard(handle) {
-  const cache = getCardCache();
-  const entry = cache[handle.toLowerCase()];
-  if (!entry) return null;
-  // Migrate old format (single {url, cachedAt}) to versions array
-  if (entry.url && !entry.versions) {
-    return { url: entry.url, cachedAt: entry.cachedAt, versions: [{ url: entry.url, cachedAt: entry.cachedAt }] };
-  }
-  return entry;
-}
-
-/** Get all versions for a handle. */
-export function getCachedVersions(handle) {
-  const cached = getCachedCard(handle);
-  return cached?.versions || [];
-}
-
-export function cacheCard(handle, imageUrl) {
-  try {
-    const cache = getCardCache();
-    const key = handle.toLowerCase();
-    const existing = cache[key];
-    // Build versions array
-    let versions = [];
-    if (existing) {
-      if (existing.versions) {
-        versions = existing.versions;
-      } else if (existing.url) {
-        versions = [{ url: existing.url, cachedAt: existing.cachedAt }];
-      }
-    }
-    versions.push({ url: imageUrl, cachedAt: Date.now() });
-    // Keep max 10 versions
-    if (versions.length > 10) versions = versions.slice(-10);
-    cache[key] = {
-      url: imageUrl,
-      cachedAt: Date.now(),
-      versions,
-    };
-    localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(cache));
-  } catch (e) {
-    if (e.name === 'QuotaExceededError') {
-      try {
-        const cache = getCardCache();
-        const entries = Object.entries(cache).sort((a, b) => (a[1].cachedAt || 0) - (b[1].cachedAt || 0));
-        const keep = Object.fromEntries(entries.slice(Math.floor(entries.length / 2)));
-        keep[handle.toLowerCase()] = { url: imageUrl, cachedAt: Date.now(), versions: [{ url: imageUrl, cachedAt: Date.now() }] };
-        localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(keep));
-      } catch { /* give up */ }
-    }
-  }
-}
-
-/** Get all cached cards as an array sorted by most recent first. */
-export function getAllCachedCards() {
-  const cache = getCardCache();
-  return Object.entries(cache)
-    .map(([handle, entry]) => ({ handle, url: entry.url, cachedAt: entry.cachedAt }))
-    .sort((a, b) => b.cachedAt - a.cachedAt);
-}
-
-function clearCachedCard(handle) {
-  try {
-    const cache = getCardCache();
-    delete cache[handle.toLowerCase()];
-    localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(cache));
-  } catch {}
-}
-
-function getGenCount() {
-  try { return parseInt(localStorage.getItem(GEN_COUNT_KEY) || '0', 10); } catch { return 0; }
-}
-
-function incrementGenCount() {
-  try {
-    const count = getGenCount() + 1;
-    localStorage.setItem(GEN_COUNT_KEY, String(count));
-    return count;
-  } catch { return 0; }
-}
-
-/**
- * Call OpenRouter directly with a user-provided API key (BYOK path).
- */
-async function generateDirect(apiKey, prompt, signal) {
-  const response = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": window.location.origin,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: "user", content: prompt }],
-      modalities: ["image", "text"],
-      image_config: { aspect_ratio: "2:3", image_size: "1K" },
-    }),
-    signal,
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenRouter ${response.status}: ${errText.slice(0, 200)}`);
-  }
-
-  const data = await response.json();
-  const images = data.choices?.[0]?.message?.images;
-  if (!images || images.length === 0) {
-    throw new Error("Model returned no image");
-  }
-
-  const imageUrl = images[0].image_url?.url || images[0].url;
-  if (!imageUrl) {
-    throw new Error("Malformed image object in response");
-  }
-
-  return imageUrl;
-}
-
-/**
- * Call the serverless /api/generate-card endpoint.
- * Handles 202 (in-progress) with retry.
- */
-async function generateServerless(cardRequest, signal, retryCount = 0, force = false) {
-  const response = await fetch("/api/generate-card", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...cardRequest, force }),
-    signal,
-  });
-
-  if (response.status === 202 && retryCount < MAX_RETRIES) {
-    // In-progress, retry after delay
-    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
-    return generateServerless(cardRequest, signal, retryCount + 1);
-  }
-
-  if (response.status === 429) {
-    const body = await response.json();
-    throw Object.assign(new Error(body.error || "Budget exhausted"), { code: "budget_exhausted" });
-  }
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || `Server error ${response.status}`);
-  }
-
-  const data = await response.json();
-  return { imageUrl: data.imageUrl, cached: data.cached };
-}
-
+import {getCachedCard,cacheCard,clearCachedCard,getGenCount,incrementGenCount} from "./cardCache";
+export {getCachedVersions,getAllCachedCards,cacheCard} from "./cardCache";
+import {generateDirect,generateServerless,publishApprovedCard} from "./cardTransport";
+import {getCardCapability} from "./cardCapabilities";
 /**
  * Custom hook for card generation.
  *
@@ -197,6 +35,7 @@ async function generateServerless(cardRequest, signal, retryCount = 0, force = f
 export function useCardGeneration({ handle, bio, memberships, sampleTweets, communityMap, tier }) {
   const [imageUrl, setImageUrl] = useState(null);
   const [status, setStatus] = useState("idle");
+  const [publicationStatus,setPublicationStatus] = useState("idle");
   const [remaining, setRemaining] = useState(() => Math.max(0, MAX_FREE_GENS - getGenCount()));
   const inflightRef = useRef(null); // tracks current in-flight handle
   const abortRef = useRef(null);
@@ -275,19 +114,6 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
         setStatus("generated");
         // Cache the generated card for instant recall
         cacheCard(handle, url);
-        // Submit BYOK-generated cards to server gallery
-        // (serverless path already stores in gallery via generate-card.js)
-        if (byokKey) {
-          fetch('/api/gallery-submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              handle,
-              imageUrl: url,
-              communities: cardRequest.communities,
-            }),
-          }).catch(() => {}); // fire-and-forget
-        }
         // Increment per-user generation count (only for serverless path and if not cached)
         if (!byokKey && !isCached) {
           const newCount = incrementGenCount();
@@ -301,8 +127,12 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
       }
 
       if (inflightRef.current === handle) {
-        if (err.code === "budget_exhausted") {
+        if (["authorization_required","invalid_grant","regeneration_not_authorized"].includes(err.code)) {
+          setStatus("authorization_required");
+        } else if (err.code === "budget_exhausted") {
           setStatus("exhausted");
+        } else if (err.code === "in_progress") {
+          setStatus("waiting");
         } else {
           setStatus("error");
           console.error("[GenerateCard] Generation failed:", err.message);
@@ -329,6 +159,31 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
     };
   }, [handle]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const refresh = event => {
+      if (!handle || event.detail?.handle !== handle.toLowerCase()) return;
+      if (event.detail.kind==='gallery') setPublicationStatus('ready');
+      else generate();
+    };
+    window.addEventListener("card-capability-added",refresh);
+    return () => window.removeEventListener("card-capability-added",refresh);
+  },[generate]);
+
+  useEffect(()=>{
+    setPublicationStatus(handle && imageUrl?.startsWith('data:image/') && getCardCapability(handle,'gallery') ? 'ready' : 'idle');
+  },[handle,imageUrl]);
+
+  const publish = useCallback(async () => {
+    if (!imageUrl || !imageUrl.startsWith('data:image/')) return;
+    setPublicationStatus('publishing');
+    try {
+      const cardRequest=buildCardRequest({handle,bio,memberships,sampleTweets,communityMap});
+      const communities=cardRequest.communities.slice(0,5).map(({name,color,weight})=>({name,color,weight}));
+      await publishApprovedCard({handle,imageUrl,communities});
+      setPublicationStatus('published');
+    } catch {setPublicationStatus('error');}
+  },[handle,imageUrl,bio,memberships,sampleTweets,communityMap]);
+
   const regenerate = useCallback(() => {
     if (!handle) return;
     // Clear local cache
@@ -341,5 +196,5 @@ export function useCardGeneration({ handle, bio, memberships, sampleTweets, comm
     generate();
   }, [handle, generate]);
 
-  return { imageUrl, status, remaining, regenerate };
+  return { imageUrl, status, remaining, regenerate, publish, publicationStatus };
 }

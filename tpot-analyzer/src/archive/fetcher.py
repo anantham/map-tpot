@@ -12,14 +12,17 @@ Features:
 - JSON cache in cache_dir avoids re-downloading on resume
 """
 
-import json
 import logging
 import time
 import tempfile
+import os
 from pathlib import Path
 from typing import Optional
 
 import httpx
+
+from src.archive.limits import (MAX_ARCHIVE_BYTES, bounded_response_bytes,
+                                parse_archive, read_archive, validate_username)
 
 SUPABASE_URL = "https://fabxmporizzqflnftavs.supabase.co"
 ANON_KEY = (
@@ -53,15 +56,14 @@ def fetch_archive(
     Download is streamed to a temp file and atomically renamed on success,
     so an interrupted download never leaves a corrupt cache file.
     """
-    username_lower = username.lower()
+    username_lower = validate_username(username)
 
     # Return from cache if available
     if cache_dir and not force_refresh:
         cache_file = cache_dir / f"{username_lower}.json"
         if cache_file.exists():
             log.debug("Cache hit for %s", username)
-            with open(cache_file, "r", encoding="utf-8") as f:
-                return json.load(f)
+            return read_archive(cache_file, max_bytes=MAX_ARCHIVE_BYTES)
 
     url = (
         f"{SUPABASE_URL}/storage/v1/object/public/archives"
@@ -76,6 +78,8 @@ def fetch_archive(
             return data  # None means not-found, dict means success
         except _NotFound:
             return None  # No point retrying a 400/404
+        except ValueError:
+            raise  # deterministic rejection; do not retry invalid/oversized archives
         except Exception as exc:
             last_exc = exc
             if attempt < _MAX_RETRIES:
@@ -104,7 +108,7 @@ def _download(url: str, headers: dict, username: str, cache_dir: Optional[Path])
     Stream the archive to a temp file, parse JSON, atomically save to cache.
     Raises _NotFound for 400/404. Raises other exceptions for transient errors.
     """
-    with httpx.Client(timeout=httpx.Timeout(connect=30, read=300, write=30, pool=30)) as client:
+    with httpx.Client(timeout=httpx.Timeout(connect=30, read=15, write=30, pool=30)) as client:
         with client.stream("GET", url, headers=headers) as response:
             if response.status_code in _NOT_FOUND_CODES:
                 log.info("No archive for %s (HTTP %d)", username, response.status_code)
@@ -112,31 +116,21 @@ def _download(url: str, headers: dict, username: str, cache_dir: Optional[Path])
 
             response.raise_for_status()
 
-            # Stream into a temp file to avoid holding 50MB+ in RAM
-            # and to ensure atomic write (temp → final path)
+            raw = bounded_response_bytes(response, max_bytes=MAX_ARCHIVE_BYTES)
+            data = parse_archive(raw, max_bytes=MAX_ARCHIVE_BYTES)
             if cache_dir:
                 cache_dir.mkdir(parents=True, exist_ok=True)
-                final_path = cache_dir / f"{username.lower()}.json"
+                final_path = cache_dir / f"{validate_username(username)}.json"
+                if final_path.is_symlink():
+                    raise ValueError("archive cache must not be a symlink")
                 tmp_fd, tmp_path = tempfile.mkstemp(dir=cache_dir, suffix=".tmp")
                 try:
-                    with open(tmp_fd, "wb") as f:
-                        for chunk in response.iter_bytes(chunk_size=65536):
-                            f.write(chunk)
-                    # Atomic rename: only reaches final path if fully written
-                    Path(tmp_path).rename(final_path)
-                    log.debug("Cached archive for %s -> %s", username, final_path)
-                    with open(final_path, "r", encoding="utf-8") as f:
-                        return json.load(f)
-                except Exception:
-                    # Clean up temp file on any failure
-                    try:
-                        Path(tmp_path).unlink(missing_ok=True)
-                    except Exception:
-                        pass
-                    raise
-            else:
-                # No cache: stream into memory
-                chunks = []
-                for chunk in response.iter_bytes(chunk_size=65536):
-                    chunks.append(chunk)
-                return json.loads(b"".join(chunks))
+                    with os.fdopen(tmp_fd, "wb") as handle:
+                        handle.write(raw)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    os.replace(tmp_path, final_path)
+                finally:
+                    Path(tmp_path).unlink(missing_ok=True)
+                log.debug("Cached validated archive for %s", username)
+            return data

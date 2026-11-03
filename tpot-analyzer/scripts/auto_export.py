@@ -1,8 +1,8 @@
-"""Auto-export: re-export + deploy public site when enough new labeled data exists.
+"""Auto-export: prepare local public-site candidates when enough new labeled data exists.
 
 Checks how many accounts have been labeled since the last export. If the delta
-exceeds a threshold, runs the full export pipeline, commits, and pushes
-(which triggers Vercel auto-deploy).
+exceeds a threshold, runs the local export pipeline. Publication requires separate review and an
+explicit exact-digest approval in the upload command.
 
 Usage:
     .venv/bin/python3 -m scripts.auto_export              # check + export if needed
@@ -31,7 +31,7 @@ from src.config import DEFAULT_ARCHIVE_DB
 
 ARCHIVE_DB = DEFAULT_ARCHIVE_DB
 MARKER_FILE = ROOT / "data" / ".last_export_state.json"
-PUBLIC_SITE_DIR = ROOT / "public-site" / "public"
+PUBLIC_SITE_DIR = ROOT / "data" / "publication_candidates"
 DEFAULT_THRESHOLD = 10
 
 
@@ -171,144 +171,6 @@ def run_rollup() -> bool:
     return True
 
 
-def git_commit_and_push(reason: str) -> bool:
-    """Commit updated export files and push."""
-    data_json = PUBLIC_SITE_DIR / "data.json"
-    search_json = PUBLIC_SITE_DIR / "search.json"
-
-    if not data_json.exists():
-        logger.error("data.json not found at %s", data_json)
-        return False
-
-    # Check if files actually changed
-    status = subprocess.run(
-        ["git", "status", "--porcelain", str(data_json), str(search_json)],
-        cwd=str(ROOT),
-        capture_output=True,
-        text=True,
-    )
-    if not status.stdout.strip():
-        logger.info("No changes to data.json / search.json — skipping commit")
-        return True
-
-    # Stage
-    subprocess.run(
-        ["git", "add", str(data_json), str(search_json)],
-        cwd=str(ROOT),
-        check=True,
-    )
-
-    # Commit
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    msg = f"chore(export): auto-export {now}\n\n{reason}"
-    subprocess.run(
-        ["git", "commit", "-m", msg],
-        cwd=str(ROOT),
-        check=True,
-    )
-
-    # Push
-    logger.info("Pushing to origin...")
-    result = subprocess.run(
-        ["git", "push"],
-        cwd=str(ROOT),
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        logger.error("Push failed:\n%s", result.stderr)
-        return False
-    logger.info("Pushed — Vercel will auto-deploy")
-    return True
-
-
-SITE_URL = "https://maptpot.vercel.app"
-
-
-def pre_generate_cards(db_path: Path, site_url: str = SITE_URL) -> None:
-    """Hit /api/generate-card for each labeled account to pre-cache cards.
-
-    Reads the exported data.json to build card payloads with resolved community
-    names/colors, then POSTs to the deployed Vercel endpoint. Cards are cached
-    permanently in Vercel KV, so subsequent visits are instant.
-    """
-    import time
-    try:
-        import urllib.request
-    except ImportError:
-        logger.warning("urllib not available — skipping card pre-generation")
-        return
-
-    data_json = PUBLIC_SITE_DIR / "data.json"
-    if not data_json.exists():
-        logger.warning("data.json not found — skipping card pre-generation")
-        return
-
-    data = json.loads(data_json.read_text())
-    community_map = {c["id"]: c for c in data.get("communities", [])}
-
-    # Find labeled accounts (those with bits data)
-    conn = sqlite3.connect(str(db_path))
-    labeled_ids = set(
-        r[0] for r in conn.execute(
-            "SELECT DISTINCT account_id FROM account_community_bits"
-        ).fetchall()
-    )
-    conn.close()
-
-    # Build payloads from exported data
-    accounts_to_generate = []
-    for acct in data.get("classified_accounts", []):
-        if acct["id"] not in labeled_ids:
-            continue
-        memberships = acct.get("memberships", [])
-        communities = []
-        for m in sorted(memberships, key=lambda x: -x["weight"]):
-            comm = community_map.get(m["community_id"], {})
-            communities.append({
-                "name": comm.get("name", "Unknown"),
-                "color": comm.get("color", "#666"),
-                "weight": m["weight"],
-                "description": comm.get("description", ""),
-            })
-        if communities:
-            accounts_to_generate.append({
-                "handle": acct.get("username", acct["id"]),
-                "bio": acct.get("bio"),
-                "communities": communities,
-                "tweets": [],  # API will generate without tweets
-            })
-
-    if not accounts_to_generate:
-        logger.info("No labeled accounts to pre-generate cards for")
-        return
-
-    logger.info("Pre-generating cards for %d labeled accounts...", len(accounts_to_generate))
-    endpoint = f"{site_url}/api/generate-card"
-    success = 0
-    for payload in accounts_to_generate:
-        handle = payload["handle"]
-        try:
-            req = urllib.request.Request(
-                endpoint,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                result = json.loads(resp.read())
-                if result.get("cached"):
-                    logger.info("  @%-20s already cached", handle)
-                else:
-                    logger.info("  @%-20s card generated", handle)
-                success += 1
-        except Exception as e:
-            logger.warning("  @%-20s failed: %s", handle, e)
-        time.sleep(1)  # Rate limit — 1 card/sec
-
-    logger.info("Cards: %d/%d generated", success, len(accounts_to_generate))
-
-
 def main():
     parser = argparse.ArgumentParser(description="Auto-export public site when new data exists")
     parser.add_argument("--threshold", type=int, default=DEFAULT_THRESHOLD,
@@ -318,9 +180,9 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="Check state without exporting")
     parser.add_argument("--no-push", action="store_true",
-                        help="Export and commit but don't push")
+                        help="Compatibility flag: candidates are always local")
     parser.add_argument("--no-cards", action="store_true",
-                        help="Skip card pre-generation after deploy")
+                        help="Compatibility flag: this script never generates paid cards")
     parser.add_argument("--db-path", type=Path, default=ARCHIVE_DB,
                         help="Path to archive_tweets.db")
     args = parser.parse_args()
@@ -374,23 +236,8 @@ def main():
     # 5. Save marker
     save_state(current)
 
-    # 6. Commit + push
-    if not args.no_push:
-        if not git_commit_and_push(reason):
-            logger.error("Commit/push failed — export files are ready but not deployed")
-            sys.exit(1)
-    else:
-        logger.info("--no-push: skipping git commit and push")
-
-    # 7. Pre-generate cards for labeled accounts
-    if not args.no_cards and not args.no_push:
-        logger.info("")
-        logger.info("Waiting 30s for Vercel deploy to start...")
-        import time
-        time.sleep(30)
-        pre_generate_cards(args.db_path)
-    elif args.no_cards:
-        logger.info("--no-cards: skipping card pre-generation")
+    logger.info("Local candidate prepared. Review publication-manifest.json and the exact bytes.")
+    logger.info("Publication requires a separate approved digest; no Git push, deploy, or paid card request runs here.")
 
     logger.info("")
     logger.info("Done.")

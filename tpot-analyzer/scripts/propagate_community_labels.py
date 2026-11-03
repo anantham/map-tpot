@@ -66,6 +66,8 @@ Core logic lives in src/propagation/ — this file is a thin CLI wrapper.
 """
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 import argparse
 import json
 import shutil
@@ -156,7 +158,7 @@ def main():
         node_ids = np.array(node_ids_list)
     else:
         print("Loading spectral snapshot...")
-        spec = np.load(str(SPECTRAL_PATH), allow_pickle=True)
+        spec = load_npz_arrays(str(SPECTRAL_PATH))
         node_ids = spec["node_ids"]
         print("Loading adjacency matrix...")
         adjacency = load_adjacency_cache()

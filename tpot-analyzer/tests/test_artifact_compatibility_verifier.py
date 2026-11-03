@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import pickle
+from src.artifacts.safe_io import save_sparse_cache
 
 import numpy as np
 import pandas as pd
@@ -69,8 +69,7 @@ def _write_bundle(data_dir):
     nodes.to_parquet(data_dir / "graph_snapshot.nodes.parquet", index=False)
     edges.to_parquet(data_dir / "graph_snapshot.edges.parquet", index=False)
     adjacency = sparse.csr_matrix(([1.0], ([0], [1])), shape=(3, 3))
-    with (data_dir / "adjacency_matrix_cache.pkl").open("wb") as handle:
-        pickle.dump(adjacency, handle)
+    save_sparse_cache(data_dir / "adjacency_matrix_cache.npz", adjacency)
     _write_spectral(data_dir, "graph_snapshot", ["a", "b", "c"])
     _write_propagation(data_dir / "community_propagation_train.npz")
     relevance = compute_relevance(
@@ -119,11 +118,8 @@ def _write_bundle(data_dir):
         index=False,
     )
     _write_spectral(data_dir, "graph_snapshot_tpot", ["a", "b"])
-    with (data_dir / "adjacency_matrix_cache.tpot.pkl").open("wb") as handle:
-        pickle.dump(
-            sparse.csr_matrix(([1.0], ([0], [1])), shape=(2, 2)),
-            handle,
-        )
+    save_sparse_cache(data_dir / "adjacency_matrix_cache.tpot.npz",
+                      sparse.csr_matrix(([1.0], ([0], [1])), shape=(2, 2)))
     records = {}
     for filename in REQUIRED_FROZEN_FILES:
         path = data_dir / filename
@@ -138,7 +134,7 @@ def _write_bundle(data_dir):
     manifest_path.write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "bundle_id": "fixture",
                 "selected_propagation": "community_propagation_train.npz",
                 "files": records,

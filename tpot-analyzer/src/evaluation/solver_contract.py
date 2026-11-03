@@ -1,6 +1,8 @@
 """Bounded measurements for the propagation solver's scientific contract."""
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 import inspect
 import io
 import sqlite3
@@ -262,9 +264,9 @@ def measure_solver_contract(data_dir: Path) -> SolverContractReport:
     """Run all bounded probes after verifying frozen artifact identity."""
     data_dir = Path(data_dir)
     manifest = verify_frozen_manifest(data_dir)
-    adjacency = load_adjacency_cache(data_dir / "adjacency_matrix_cache.pkl")
+    adjacency = load_adjacency_cache(data_dir / "adjacency_matrix_cache.npz")
     path = data_dir / manifest["selected_propagation"]
-    with np.load(path, allow_pickle=False) as artifact:
+    with load_npz_arrays(path) as artifact:
         fingerprint = measure_legacy_fingerprint(
             adjacency,
             artifact["memberships"],

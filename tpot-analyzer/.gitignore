@@ -27,6 +27,18 @@ data/test_write
 data/validation_results/
 data/private/
 
+# Runtime evidence is private by default, including new formats and filenames.
+# These exact exceptions are empty directory markers and public price config,
+# not profiles, curator labels, queues, graph mappings or captured content.
+/data/*
+!/data/.gitkeep
+!/data/fixtures/
+/data/fixtures/*
+!/data/fixtures/.gitkeep
+!/data/manifests/
+/data/manifests/*
+!/data/manifests/twitterapiio_price_card_20260730.json
+
 # Test coverage
 .coverage
 .coverage.*

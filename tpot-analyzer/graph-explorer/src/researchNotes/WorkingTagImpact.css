@@ -127,6 +127,7 @@
 
 .working-tag-candidates article {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -134,6 +135,14 @@
   border-radius: 8px;
   padding: 9px;
 }
+
+.working-tag-candidates .saved-reference-path { flex-basis: 100%; min-width: 0; }
+.working-post-tag-scope { display: grid; gap: 8px; min-width: 0; border: 1px solid var(--panel-border); }
+.working-post-tag-scope select { min-height: 38px; max-width: 100%; background: var(--panel); color: var(--text); }
+.working-post-tag-scope small { color: var(--text-muted); line-height: 1.4; }
+.working-tag-content-filter { display: grid; gap: 8px; border-top: 1px solid var(--panel-border); padding-top: 10px; }
+.working-tag-content-filter input { min-height: 38px; min-width: 0; background: var(--panel); color: var(--text); }
+.working-tag-candidates .post-word-matches { flex-basis: 100%; min-width: 0; overflow-wrap: anywhere; }
 
 .working-tag-candidates article > div {
   display: grid;

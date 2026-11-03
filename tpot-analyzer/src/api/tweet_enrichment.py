@@ -9,131 +9,21 @@ Results are cached in tweet_enrichment_cache to avoid redundant API calls.
 """
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import sqlite3
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 from src.config import DEFAULT_ARCHIVE_DB
-from src.api.url_guard import safe_urlopen
+from src.api.enrichment_cache import CACHE_SCHEMA, ensure_cache_table as _ensure_cache_table
+from src.api.enrichment_fetch import (
+    download_image_base64, fetch_link_content, fetch_syndication, resolve_tco_url,
+)
 
 DB_PATH = DEFAULT_ARCHIVE_DB
-
-_SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result?id={tweet_id}&token=x"
-
-CACHE_SCHEMA = """
-CREATE TABLE IF NOT EXISTS tweet_enrichment_cache (
-    tweet_id    TEXT PRIMARY KEY,
-    media_json  TEXT,
-    quote_json  TEXT,
-    full_text   TEXT,
-    links_json  TEXT,
-    fetched_at  TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS link_content_cache (
-    url_hash    TEXT PRIMARY KEY,
-    url         TEXT NOT NULL,
-    resolved_url TEXT,
-    title       TEXT,
-    description TEXT,
-    body_text   TEXT,
-    fetched_at  TEXT NOT NULL
-);
-"""
-
-
-def _ensure_cache_table(conn: sqlite3.Connection) -> None:
-    conn.executescript(CACHE_SCHEMA)
-
-
-def fetch_syndication(tweet_id: str) -> dict | None:
-    """Fetch tweet data from Twitter syndication API. Returns parsed JSON or None."""
-    if not str(tweet_id).isdigit():
-        logger.warning("Refusing syndication fetch for non-numeric tweet_id: %r", tweet_id)
-        return None
-    url = _SYNDICATION_URL.format(tweet_id=tweet_id)
-    try:
-        req = urllib.request.Request(url)
-        req.add_header("User-Agent", "Mozilla/5.0")
-        resp = urllib.request.urlopen(req, timeout=10)
-        return json.loads(resp.read())
-    except Exception as e:
-        logger.warning("Syndication fetch failed for %s: %s", tweet_id, e)
-        return None
-
-
-def resolve_tco_url(tco_url: str) -> str | None:
-    """Resolve a t.co short URL to its final destination."""
-    try:
-        resp = safe_urlopen(tco_url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
-        return resp.url
-    except Exception as e:
-        logger.debug("Failed to resolve %s: %s", tco_url, e)
-        return None
-
-
-def fetch_link_content(url: str, db_path: Path | None = None) -> dict:
-    """Fetch external link content — title, description, body text. Cached."""
-    import hashlib
-    import re
-
-    url_hash = hashlib.sha256(url.encode()).hexdigest()[:16]
-    conn = sqlite3.connect(str(db_path or DB_PATH))
-    _ensure_cache_table(conn)
-
-    cached = conn.execute(
-        "SELECT title, description, body_text FROM link_content_cache WHERE url_hash = ?",
-        (url_hash,),
-    ).fetchone()
-    if cached:
-        conn.close()
-        return {"title": cached[0], "description": cached[1],
-                "body_text": cached[2], "url": url, "cached": True}
-
-    try:
-        resp = safe_urlopen(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-        html = resp.read().decode("utf-8", errors="replace")[:100000]
-
-        # Extract og:title, og:description
-        og_title = re.search(r'<meta\s+(?:property|name)="og:title"\s+content="([^"]*)"', html)
-        og_desc = re.search(r'<meta\s+(?:property|name)="og:description"\s+content="([^"]*)"', html)
-        title_tag = re.search(r"<title>([^<]*)</title>", html)
-
-        title = (og_title.group(1) if og_title else
-                 title_tag.group(1) if title_tag else None)
-        description = og_desc.group(1) if og_desc else None
-
-        # Extract body text (strip scripts/styles/tags)
-        clean = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
-        clean = re.sub(r"<style[^>]*>.*?</style>", "", clean, flags=re.DOTALL)
-        clean = re.sub(r"<[^>]+>", " ", clean)
-        clean = re.sub(r"\s+", " ", clean).strip()
-        # Truncate to ~2000 chars for context
-        body_text = clean[:2000] if clean else None
-
-        now = datetime.now(timezone.utc).isoformat()
-        conn.execute(
-            "INSERT OR REPLACE INTO link_content_cache "
-            "(url_hash, url, resolved_url, title, description, body_text, fetched_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (url_hash, url, url, title, description, body_text, now),
-        )
-        conn.commit()
-        conn.close()
-        return {"title": title, "description": description,
-                "body_text": body_text, "url": url, "cached": False}
-    except Exception as e:
-        logger.warning("Failed to fetch link content %s: %s", url, e)
-        conn.close()
-        return {"title": None, "description": None,
-                "body_text": None, "url": url, "cached": False}
-
 
 def get_thread_context(
     tweet_id: str, db_path: Path | None = None, max_depth: int = 10,
@@ -178,8 +68,9 @@ def resolve_tweet_links(tweet_text: str, db_path: Path | None = None) -> list[di
     Type is: "media", "quote_tweet", "external"
     """
     import re
+    from itertools import islice
 
-    tco_urls = re.findall(r"https://t\.co/\S+", tweet_text or "")
+    tco_urls = [match.group() for match in islice(re.finditer(r"https://t\.co/\S+", tweet_text or ""), 5)]
     results = []
 
     for tco in tco_urls:
@@ -355,27 +246,6 @@ def enrich_tweet(tweet_id: str, db_path: Path | None = None) -> dict:
     }
 
 
-def download_image_base64(url: str) -> str | None:
-    """Download an image and return as base64 data URL for multimodal models."""
-    try:
-        resp = safe_urlopen(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-        img_data = resp.read()
-        # Determine content type from URL
-        if url.endswith(".png"):
-            mime = "image/png"
-        elif url.endswith(".gif"):
-            mime = "image/gif"
-        elif url.endswith(".webp"):
-            mime = "image/webp"
-        else:
-            mime = "image/jpeg"
-        b64 = base64.b64encode(img_data).decode("utf-8")
-        return f"data:{mime};base64,{b64}"
-    except Exception as e:
-        logger.warning("Failed to download image %s: %s", url, e)
-        return None
-
-
 def get_image_data_urls(enrichment: dict, max_images: int = 3) -> list[str]:
     """Download media images and return as base64 data URLs for multimodal API calls.
 
@@ -387,7 +257,7 @@ def get_image_data_urls(enrichment: dict, max_images: int = 3) -> list[str]:
         List of data URLs like "data:image/jpeg;base64,..."
     """
     data_urls = []
-    for m in enrichment.get("media", [])[:max_images]:
+    for m in enrichment.get("media", [])[:max(0, min(max_images, 3))]:
         if m.get("type") == "photo" and m.get("url"):
             data_url = download_image_base64(m["url"])
             if data_url:

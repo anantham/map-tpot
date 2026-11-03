@@ -48,7 +48,7 @@ def load_bound_tpot_inputs(
     data_dir = Path(data_dir)
     nodes_path = data_dir / "graph_snapshot.nodes.parquet"
     edges_path = data_dir / "graph_snapshot.edges.parquet"
-    adjacency_path = data_dir / "adjacency_matrix_cache.pkl"
+    adjacency_path = data_dir / "adjacency_matrix_cache.npz"
     nodes = pd.read_parquet(nodes_path)
     edges = pd.read_parquet(edges_path)
     if "node_id" not in nodes.columns:

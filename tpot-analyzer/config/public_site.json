@@ -10,6 +10,6 @@
   "export": {
     "min_weight": 0.02,
     "abstain_threshold": 0.08,
-    "output_dir": "public-site/public"
+    "output_dir": "data/publication_candidates"
   }
 }

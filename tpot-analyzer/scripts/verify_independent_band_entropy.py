@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from src.artifacts.safe_io import load_npz_arrays
+
 import argparse
 import hashlib
 import math
@@ -112,7 +114,7 @@ def verify(npz_path: Path, db_path: Path | None) -> tuple[list[Check], dict]:
             f"{npz_path} sha256={_sha256(npz_path)[:16]}…",
         )
     )
-    with np.load(str(npz_path), allow_pickle=False) as artifact:
+    with load_npz_arrays(str(npz_path)) as artifact:
         mode = propagation_artifact_mode(artifact)
         memberships = np.asarray(artifact["memberships"], dtype=np.float64)
         community_key = (

@@ -63,7 +63,7 @@ def verify_frozen_control(
         f"edge_rows={len(edges):,}"
     )
 
-    adjacency_path = data_dir / "adjacency_matrix_cache.pkl"
+    adjacency_path = data_dir / "adjacency_matrix_cache.npz"
     adjacency = load_adjacency_cache(adjacency_path)
     binding = validate_adjacency_binding(adjacency, node_ids, edges)
     print(

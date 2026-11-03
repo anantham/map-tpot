@@ -12,8 +12,9 @@ logger = logging.getLogger(__name__)
 class AnalysisManager:
     """Manages global analysis state, locking, and background threads."""
 
-    def __init__(self):
+    def __init__(self, workload_gate=None):
         self._lock = threading.Lock()
+        self._workload_gate = workload_gate
         self._thread: Optional[threading.Thread] = None
         self._status = {
             "status": "idle",
@@ -49,6 +50,10 @@ class AnalysisManager:
             if self._status["status"] == "running":
                 return False
 
+            lease = self._workload_gate.acquire_lease() if self._workload_gate is not None else None
+            if self._workload_gate is not None and lease is None:
+                return False
+
             self._status = {
                 "status": "running",
                 "started_at": time.time(),
@@ -71,8 +76,20 @@ class AnalysisManager:
                         self._status["error"] = "analysis failed; check server logs"
                         self._status["finished_at"] = time.time()
 
-            self._thread = threading.Thread(target=_wrapper, daemon=True)
-            self._thread.start()
+                finally:
+                    if lease is not None:
+                        lease.release()
+
+            try:
+                self._thread = threading.Thread(target=_wrapper, daemon=True)
+                self._thread.start()
+            except BaseException:
+                if lease is not None:
+                    lease.release()
+                self._status["status"] = "failed"
+                self._status["error"] = "analysis worker unavailable; check server logs"
+                self._status["finished_at"] = time.time()
+                raise
             return True
 
     def log(self, message: str) -> None:
