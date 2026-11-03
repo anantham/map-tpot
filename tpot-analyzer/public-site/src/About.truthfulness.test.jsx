@@ -40,4 +40,20 @@ describe('About methodology truthfulness', () => {
     expect(screen.queryByText(/Barely visible in the network/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/pipeline refuses to regenerate or re-export those bands/i)).not.toBeInTheDocument()
   })
+
+  it('describes the PPR walk direction and tweet weighting as the code implements them', () => {
+    const { container } = render(<About meta={{ counts: {}, links: {} }} />)
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /I want to be inspired by your math/i,
+    }))
+
+    // engine.compute_ppr walks adj.T: mass moves from a followed account to its followers.
+    expect(screen.getByText(/if A follows B, probability moves from B to A/i)).toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/attention flows from the followers backward/i)
+
+    // rollup_bits computes pct from unweighted counts; simulacrum weighting is opt-in.
+    expect(screen.getByText(/every agreed tag currently counts\s+equally/i)).toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/currently count double/i)
+  })
 })

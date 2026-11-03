@@ -426,10 +426,13 @@ export default function About({ meta, onNavigate }) {
             <p>
               Not all tweets carry equal weight. A <a href="https://www.lesswrong.com/tag/simulacrum-levels" target="_blank" rel="noopener noreferrer">sincere statement of belief</a> reveals intellectual
               commitments. A strategic argument reveals what someone promotes. The strongest community
-              signal comes from performative tweets like in-group memes and shared references. These
-              currently count double under an unvalidated heuristic. The hypothesis is that such posts
-              reveal affiliation more directly; it would be falsified if held-out curator judgments
-              or downstream calibration do not improve against an equal-weight baseline.
+              signal may come from performative tweets like in-group memes and shared references. An
+              optional rollup mode weights those tweets 2&times;, sincere statements 1.5&times;, and pure
+              shitposts 0.5&times;. The stored evidence table was built without that mode, and its
+              percentages use unweighted counts either way, so every agreed tag currently counts
+              equally. The hypothesis that performative posts reveal affiliation more directly is
+              untested; it would be falsified if held-out curator judgments or downstream calibration
+              do not improve against an equal-weight baseline.
             </p>
             <p>
               After labeling 51 of @repligate&rsquo;s tweets, the picture shifts:
@@ -490,8 +493,10 @@ export default function About({ meta, onNavigate }) {
             <p>
               Community labels spread outward using Directed Personalized PageRank (PPR). We simulate a
               random walk across the graph starting exclusively from a community's seed accounts.
-              The algorithm respects edge directionality: attention flows from the followers backward
-              to the authorities they listen to.
+              The walk runs against edge direction: if A follows B, probability moves from B to A.
+              Mass therefore spreads from the seeds to the accounts that follow them, then to their
+              followers. Accounts with no recorded outgoing follows can still receive a score through
+              the other edge types in the combined graph.
             </p>
             <p>
               Raw propagation scores can favor highly connected accounts. A node with 10,000 followers
