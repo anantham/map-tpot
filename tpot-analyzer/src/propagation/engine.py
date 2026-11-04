@@ -106,6 +106,7 @@ def load_community_labels(
     holdout_seed: int = 42,
     seed_eligibility: bool = True,
     db_path=None,
+    exclude_accounts: set[str] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, list[str], list[str], list[str], dict | None, np.ndarray]:
     if db_path is None:
         db_path = DEFAULT_ARCHIVE_DB
@@ -142,6 +143,11 @@ def load_community_labels(
             account_weights[aid] = np.zeros(K, dtype=np.float64)
         col = cid_to_col[cid]
         account_weights[aid][col] = max(account_weights[aid][col], weight)
+
+    # Accounts withheld by the caller (e.g. veil cross-validation folds) are not seeds.
+    # Class-balance sizes above still count them, as they do for holdout_fraction.
+    for aid in exclude_accounts or ():
+        account_weights.pop(aid, None)
 
     holdout_info = None
     if holdout_fraction > 0:
@@ -228,6 +234,7 @@ def propagate(
     seed_eligibility: bool = True,
     db_path=None,
     n_bootstrap: int = 0,
+    exclude_accounts: set[str] | None = None,
 ) -> tuple[PropagationResult, dict | None]:
     """Run Directed PPR + Lift label propagation.
     
@@ -244,6 +251,7 @@ def propagate(
             holdout_seed=holdout_seed,
             seed_eligibility=seed_eligibility,
             db_path=db_path,
+            exclude_accounts=exclude_accounts,
         )
     )
     K = len(community_ids)
@@ -261,7 +269,8 @@ def propagate(
                 holdout_fraction=0.2, # Constant for stability check
                 holdout_seed=holdout_seed + i,
                 seed_eligibility=seed_eligibility,
-                db_path=db_path
+                db_path=db_path,
+                exclude_accounts=exclude_accounts,
             )
             # Store only the community memberships (first K columns)
             bootstrap_scores.append(res.memberships[:, :K])
@@ -286,7 +295,8 @@ def propagate(
             holdout_fraction=holdout_fraction,
             holdout_seed=holdout_seed,
             seed_eligibility=seed_eligibility,
-            db_path=db_path
+            db_path=db_path,
+            exclude_accounts=exclude_accounts,
         )
         
         # Merge bootstrap stats into final result
@@ -303,7 +313,8 @@ def propagate(
             holdout_fraction=holdout_fraction,
             holdout_seed=holdout_seed,
             seed_eligibility=seed_eligibility,
-            db_path=db_path
+            db_path=db_path,
+            exclude_accounts=exclude_accounts,
         )
 
 
@@ -315,6 +326,7 @@ def _propagate_once(
     holdout_seed: int = 42,
     seed_eligibility: bool = True,
     db_path=None,
+    exclude_accounts: set[str] | None = None,
 ) -> tuple[PropagationResult, dict | None]:
     """Single-run core logic."""
     n_nodes = adjacency.shape[0]
@@ -326,6 +338,7 @@ def _propagate_once(
             holdout_seed=holdout_seed,
             seed_eligibility=seed_eligibility,
             db_path=db_path,
+            exclude_accounts=exclude_accounts,
         )
     )
     K = len(community_ids)
@@ -412,10 +425,9 @@ def _propagate_once(
 
         max_raw_score = memberships[:, :K].max(axis=1)
         max_seed_neighbors = seed_neighbor_counts.max(axis=1)
-        # For now, default abstain logic. We will tune this via veil CV.
         abstain_mask = (
             (max_raw_score < 1.0)
-            | (max_seed_neighbors < 1)
+            | (max_seed_neighbors < config.min_seed_neighbors)
         ) & ~labeled_mask
 
     else:

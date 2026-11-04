@@ -53,7 +53,25 @@ describe('About methodology truthfulness', () => {
     expect(container).not.toHaveTextContent(/attention flows from the followers backward/i)
 
     // rollup_bits computes pct from unweighted counts; simulacrum weighting is opt-in.
-    expect(screen.getByText(/every agreed tag currently counts\s+equally/i)).toBeInTheDocument()
+    expect(screen.getByText(/every kept tag currently counts\s+equally/i)).toBeInTheDocument()
     expect(container).not.toHaveTextContent(/currently count double/i)
+  })
+
+  it('states the ensemble tag rule and the current veil numbers as measured', () => {
+    const { container } = render(<About meta={{ counts: {}, links: {} }} />)
+
+    fireEvent.click(screen.getByRole('button', {
+      name: /I want to be inspired by your math/i,
+    }))
+
+    // label_tweets_ensemble.consensus: 3/3 median, 2/3 lower, 1/3 capped at +1 (not dropped).
+    expect(screen.getByText(/named by only one model is\s+kept at the weakest strength/i)).toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/only keep tags where at\s+least two agree/i)
+
+    // verify_veil_cv.py on production propagate, 4 Nov 2026 (EXPERIMENT_LOG).
+    expect(screen.getByText(/came from a propagation method the map no longer uses/i)).toBeInTheDocument()
+    expect(screen.getByText(/AUC is 0\.60/i)).toBeInTheDocument()
+    expect(container).not.toHaveTextContent(/Raw propagation scores yield an AUC of 0\.178\. TPOT accounts score lower/i)
+    expect(container).not.toHaveTextContent(/hub nodes near many communities inherit diffuse signal/i)
   })
 })

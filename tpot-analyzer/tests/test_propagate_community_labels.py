@@ -430,6 +430,22 @@ class TestPropagation:
             f"got {result.community_names[top_community]} (col {top_community})"
         )
 
+    def test_exclude_accounts_withholds_seed_without_editing_db(self):
+        """Veil folds withhold seeds through exclude_accounts; the DB keeps them."""
+        from src.propagation import propagate
+
+        config = PropagationConfig(temperature=1.0, min_degree_for_assignment=2)
+        result, _ = propagate(
+            self.adj, self.node_ids, config,
+            db_path=self.db_path, exclude_accounts={"node-1"},
+        )
+        K = len(result.community_ids)
+        alpha_col = result.community_names.index("Alpha")
+
+        assert not result.labeled_mask[1]
+        assert result.labeled_mask[[0, 2, 3, 4, 5]].all()
+        assert np.argmax(result.memberships[1, :K]) == alpha_col
+
 
 # ---------------------------------------------------------------------------
 # TestMulticlassEntropy: unit tests
@@ -657,3 +673,38 @@ class TestIndependentMode:
             assert snc_8.sum() == 0, (
                 f"Node 8 has no direct seed neighbors, should have 0 counts, got {snc_8.sum()}"
             )
+
+
+class TestMinSeedNeighbors:
+    """Independent mode abstains accounts that neighbour too few seeds of one community."""
+
+    def _graph(self):
+        # Toy graph plus node 8, tied to one Alpha seed (0) and unlabeled node 7.
+        adj, _ = _build_toy_graph()
+        dense = np.zeros((9, 9))
+        dense[:8, :8] = adj.toarray()
+        for a, b in ((8, 0), (8, 7)):
+            dense[a, b] = dense[b, a] = 1.0
+        return sp.csr_matrix(dense), np.array([f"node-{i}" for i in range(9)])
+
+    def _run(self, tmp_path, **overrides):
+        adj, ids = self._graph()
+        db = tmp_path / "test.db"
+        if not db.exists():
+            _build_community_db(db)
+        config = PropagationConfig(temperature=1.0, min_degree_for_assignment=2,
+                                   mode="independent", **overrides)
+        return _run_propagation(adj, ids, db, config)
+
+    def test_one_seed_neighbour_is_abstained_by_default(self, tmp_path):
+        result = self._run(tmp_path)
+        assert result.seed_neighbor_counts[8].max() == 1
+        assert result.abstain_mask[8]
+        # node 6 neighbours both Alpha seeds, so it can still be placed
+        assert result.seed_neighbor_counts[6].max() == 2
+        assert result.abstain_mask[6] == (result.memberships[6, :-1].max() < 1.0)
+
+    def test_threshold_of_one_restores_the_old_rule(self, tmp_path):
+        result = self._run(tmp_path, min_seed_neighbors=1)
+        K = len(result.community_ids)
+        assert result.abstain_mask[8] == (result.memberships[8, :K].max() < 1.0)

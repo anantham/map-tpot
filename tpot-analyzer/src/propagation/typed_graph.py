@@ -250,7 +250,9 @@ class TypedGraph:
                     reply_data = conn.execute(
                         "SELECT replier_id, author_id, reply_count, heuristic FROM signed_reply"
                     ).fetchall()
-                    rows, cols, vals = [], [], []
+                    # One row per (pair, heuristic), and both heuristics count the
+                    # same replies, so keep the larger weight instead of summing.
+                    pair_weight: dict[tuple[int, int], float] = {}
                     for replier, author, count, heuristic in reply_data:
                         i = graph.node_idx.get(replier)
                         j = graph.node_idx.get(author)
@@ -258,9 +260,10 @@ class TypedGraph:
                             w = min(count / 5.0, 1.0)
                             if heuristic == "author_liked":
                                 w *= 1.5
-                            rows.append(i)
-                            cols.append(j)
-                            vals.append(w)
+                            pair_weight[(i, j)] = max(w, pair_weight.get((i, j), 0.0))
+                    rows = [i for i, _ in pair_weight]
+                    cols = [j for _, j in pair_weight]
+                    vals = list(pair_weight.values())
                     if vals:
                         mat = sp.csr_matrix(
                             (np.array(vals, dtype=np.float32), (rows, cols)),

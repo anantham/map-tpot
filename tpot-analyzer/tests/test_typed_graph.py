@@ -312,6 +312,26 @@ class TestFromArchive:
         assert summary["rt"] == 1
         assert summary["cofollowed"] > 0  # undirected doubles
 
+    def test_reply_pair_under_two_heuristics_is_not_summed(self, tmp_path):
+        """signed_reply keeps one row per heuristic, and both count the same replies.
+
+        A pair recorded as both author_liked and mutual_follow must get one
+        edge at the larger weight (cap 1.5), not the 2.5 that summing gives.
+        """
+        db_path = _create_test_db(tmp_path)
+        conn = sqlite3.connect(str(db_path))
+        conn.executemany(
+            "INSERT INTO signed_reply VALUES (?, ?, ?, ?)",
+            [("b", "c", 110, "author_liked"), ("b", "c", 123, "mutual_follow")],
+        )
+        conn.commit()
+        conn.close()
+
+        graph = TypedGraph.from_archive(db_path, load_types={"follow", "reply"})
+        mat = graph.get("reply")
+        assert mat[graph.node_idx["b"], graph.node_idx["c"]] == pytest.approx(1.5)
+        assert mat.max() == pytest.approx(1.5)
+
     def test_load_types_filter(self, tmp_path):
         db_path = _create_test_db(tmp_path)
         graph = TypedGraph.from_archive(db_path, load_types={"follow", "quote"})

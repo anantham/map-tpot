@@ -409,8 +409,11 @@ export default function About({ meta, onNavigate }) {
               Tweet evidence adds a different, still incomplete view.
             </p>
             <p>
-              Three AI models independently read each tweet and tag it. We only keep tags where at
-              least two agree. Each agreement becomes a small piece of evidence. One tweet about
+              Three AI models independently read each tweet and tag the communities it signals, each
+              at a strength from +1 to +4. When all three name a community we keep the median
+              strength; when two do, the lower of the two. A community named by only one model is
+              kept at the weakest strength, +1, rather than discarded. Each tag becomes a small
+              piece of evidence. One tweet about
               meditation is a nudge. Fifty tweets is a shove. The evidence accumulates, and it can
               be reversed if later tweets point elsewhere.
             </p>
@@ -429,7 +432,7 @@ export default function About({ meta, onNavigate }) {
               signal may come from performative tweets like in-group memes and shared references. An
               optional rollup mode weights those tweets 2&times;, sincere statements 1.5&times;, and pure
               shitposts 0.5&times;. The stored evidence table was built without that mode, and its
-              percentages use unweighted counts either way, so every agreed tag currently counts
+              percentages use unweighted counts either way, so every kept tag currently counts
               equally. The hypothesis that performative posts reveal affiliation more directly is
               untested; it would be falsified if held-out curator judgments or downstream calibration
               do not improve against an equal-weight baseline.
@@ -799,13 +802,20 @@ export default function About({ meta, onNavigate }) {
               TPOT accounts with an AUC of 0.999. The system finds hidden TPOT accounts 100%
               of the time at a 5% false positive rate. A held-out TPOT member has a median of
               64 seed neighbors. A random non-TPOT account has 1. These are unregistered legacy
-              estimates from the sampled binary task, not expected production performance.<sup><a href="https://github.com/anantham/map-tpot/blob/549de93/tpot-analyzer/scripts/verify_veil_cv.py#L415-L438" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[4]</a></sup>
+              estimates from the sampled binary task, not expected production performance, and
+              they have not been re-tested against accounts with comparable data.<sup><a href="https://github.com/anantham/map-tpot/blob/549de93/tpot-analyzer/scripts/verify_veil_cv.py#L415-L438" target="_blank" rel="noopener noreferrer" className="about-footnote-link">[4]</a></sup>
             </p>
             <p>
-              Raw propagation scores yield an AUC of 0.178. TPOT accounts score lower than random
-              noise because hub nodes near many communities inherit diffuse signal. The math
-              requires measuring how many community members specifically follow you, rather than
-              how much total signal reaches you.
+              An earlier version of this page said raw propagation scores yield an AUC of 0.178.
+              That figure came from a propagation method the map no longer uses. Re-tested on
+              4 November 2026 with the current method, hidden TPOT accounts outscore random
+              non-TPOT accounts with an AUC of 0.83 (95% interval 0.80&ndash;0.86). Most of that
+              reflects how much the graph knows about an account. Against the 262 non-TPOT accounts
+              whose full follow lists we hold, the AUC is 0.60 (0.53&ndash;0.67); for
+              directory-listed TPOT accounts outside the archive it is 0.52 (0.46&ndash;0.59),
+              close to chance. Either the score cannot yet tell TPOT apart from the accounts around
+              it, or many of those 262 accounts are TPOT members nobody has labeled. Labeling a
+              sample would tell us which. (<a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/scripts/verify_veil_cv.py" target="_blank" rel="noopener noreferrer">verification script</a>)
             </p>
 
             <h3>The 17 skeleton keys</h3>

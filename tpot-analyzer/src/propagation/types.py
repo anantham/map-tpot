@@ -51,6 +51,13 @@ class PropagationConfig:
     abstain_max_threshold: float = 0.15
     abstain_uncertainty_threshold: float = 0.6
 
+    # Independent mode: abstain unless an account neighbours at least this many
+    # seeds of one community. At 1, the 11k accounts known only from one seed's
+    # follower list (one recorded follow) were placed with the highest lift of
+    # any group; 2 raised veil AUC vs random accounts by +0.07 at a cost of one
+    # directory account (EXPERIMENT_LOG, 4 Nov 2026).
+    min_seed_neighbors: int = 2
+
     # Inverse-sqrt class balancing: without this, "Qualia Research Folks"
     # (73 members) would absorb ~18x more shadows than "AI Art" (4 members)
     # simply due to having more boundary surface.
