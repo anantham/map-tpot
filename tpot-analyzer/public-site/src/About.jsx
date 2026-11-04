@@ -815,7 +815,7 @@ export default function About({ meta, onNavigate }) {
               directory-listed TPOT accounts outside the archive it is 0.52 (0.46&ndash;0.59),
               close to chance. Either the score cannot yet tell TPOT apart from the accounts around
               it, or many of those 262 accounts are TPOT members nobody has labeled. Labeling a
-              sample would tell us which. (<a href="https://github.com/anantham/map-tpot/blob/main/tpot-analyzer/scripts/verify_veil_cv.py" target="_blank" rel="noopener noreferrer">verification script</a>)
+              sample would tell us which. (<a href="https://github.com/anantham/map-tpot/blob/0fbb066/tpot-analyzer/scripts/verify_veil_cv.py" target="_blank" rel="noopener noreferrer">verification script</a>)
             </p>
 
             <h3>The 17 skeleton keys</h3>
