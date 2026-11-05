@@ -15,4 +15,4 @@ ls tpot-analyzer/docs/HANDOVER_*.md | sort -r | head -1
 ```
 
 Unrelated topical handovers (not session continuity):
-- [Bangalore meetup outreach](bangalore-meetup-outreach-handover.md) — DM campaign tracking
+- Bangalore meetup outreach — DM campaign tracking (kept locally; removed from public Git 5 Nov 2026)
